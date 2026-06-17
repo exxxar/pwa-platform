@@ -1,0 +1,1 @@
+import{a4 as d}from"./app-a13f9cb5.js";async function u(a,n,t={},e={}){const o={...t},r=window.Tenant.id,s=window.TenantUser.uuid,c=btoa(`${r}:${s}`);return d({method:n,url:a,data:o,headers:{...e.headers||{},"X-CSRF-TOKEN":document.querySelector('meta[name="csrf-token"]').content,"X-Integration-Auth":c},...e})}export{u as a};
