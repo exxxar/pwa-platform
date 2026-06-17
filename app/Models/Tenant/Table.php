@@ -1,0 +1,77 @@
+<?php
+
+namespace App\Models\Tenant;
+
+
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+class Table extends Model
+{
+    use HasFactory;
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */
+    protected $fillable = [
+        'tenant_id',
+        'creator_id',
+        'officiant_id',
+        'number',
+        'closed_at',
+        'additional_services',
+        'config',
+        'booked_date_at',
+        'booked_time_at',
+        'booked_info',
+    ];
+
+    /**
+     * The attributes that should be cast to native types.
+     *
+     * @var array
+     */
+    protected $casts = [
+        'id' => 'integer',
+        'tenant_id' => 'integer',
+        'creator_id' => 'integer',
+        'officiant_id' => 'integer',
+        'closed_at' => 'timestamp',
+        'config' => 'array',
+        'additional_services' => 'array',
+
+
+        'booked_info' => "array",
+    ];
+
+    protected $with = ["officiant", "clients"];
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(TenantUser::class);
+    }
+
+    public function officiant(): BelongsTo
+    {
+        return $this->belongsTo(TenantUser::class);
+    }
+
+    public function clients(): BelongsToMany
+    {
+        return $this->belongsToMany(TenantUser::class, 'table_tenant_user_clients');
+    }
+
+    public function getBookedAtAttribute(): Carbon
+    {
+        return Carbon::parse($this->booked_date_at . ' ' . $this->booked_time_at);
+    }
+}
