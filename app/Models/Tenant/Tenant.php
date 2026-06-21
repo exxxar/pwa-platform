@@ -102,7 +102,7 @@ class Tenant extends Model
                 "enabled" => true
             ],
             'icons' => [],
-            'theme' => null,
+
             'products' => [
                 'token' => null,
             ],

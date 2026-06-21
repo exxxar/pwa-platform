@@ -61,7 +61,6 @@ class DatabaseSeeder extends Seeder
                     ['slug' => 'booking', 'title' => 'Бронирование столика', 'image_url' => 'booking.png', 'is_visible' => true, 'has_icon' => true],
                 ],
 
-                'theme' => 'https://your-cashman.com/theme6.bootstrap.min.css',
 
                 'coffee' => [],
 
@@ -69,19 +68,6 @@ class DatabaseSeeder extends Seeder
                     'is_active' => false,
                     'board_uuid' => null,
                     'token' => null,
-                ],
-
-                'themes' => [
-                    ['href' => '/theme1.bootstrap.min.css', 'title' => 'Тема 1'],
-                    ['href' => '/theme2.bootstrap.min.css', 'title' => 'Тема 2'],
-                    ['href' => '/theme3.bootstrap.min.css', 'title' => 'Тема 3'],
-                    ['href' => '/theme4.bootstrap.min.css', 'title' => 'Тема 4'],
-                    ['href' => '/theme5.bootstrap.min.css', 'title' => 'Тема 5'],
-                    ['href' => '/theme6.bootstrap.min.css', 'title' => 'Тема 6'],
-                    ['href' => '/theme7.bootstrap.min.css', 'title' => 'Тема 7'],
-                    ['href' => '/theme8.bootstrap.min.css', 'title' => 'Тема 8'],
-                    ['href' => '/theme9.bootstrap.min.css', 'title' => 'Тема 9'],
-                    ['href' => '/theme10.bootstrap.min.css', 'title' => 'Тема 10'],
                 ],
 
                 'manager' => [
@@ -223,7 +209,6 @@ class DatabaseSeeder extends Seeder
                     ['slug' => 'booking', 'title' => 'Бронирование столика', 'image_url' => 'booking.png', 'is_visible' => true, 'has_icon' => true],
                 ],
 
-                'theme' => 'https://your-cashman.com/theme6.bootstrap.min.css',
 
                 'coffee' => [],
 
@@ -233,18 +218,7 @@ class DatabaseSeeder extends Seeder
                     'token' => null,
                 ],
 
-                'themes' => [
-                    ['href' => '/theme1.bootstrap.min.css', 'title' => 'Тема 1'],
-                    ['href' => '/theme2.bootstrap.min.css', 'title' => 'Тема 2'],
-                    ['href' => '/theme3.bootstrap.min.css', 'title' => 'Тема 3'],
-                    ['href' => '/theme4.bootstrap.min.css', 'title' => 'Тема 4'],
-                    ['href' => '/theme5.bootstrap.min.css', 'title' => 'Тема 5'],
-                    ['href' => '/theme6.bootstrap.min.css', 'title' => 'Тема 6'],
-                    ['href' => '/theme7.bootstrap.min.css', 'title' => 'Тема 7'],
-                    ['href' => '/theme8.bootstrap.min.css', 'title' => 'Тема 8'],
-                    ['href' => '/theme9.bootstrap.min.css', 'title' => 'Тема 9'],
-                    ['href' => '/theme10.bootstrap.min.css', 'title' => 'Тема 10'],
-                ],
+
 
                 'manager' => [
                     'link' => 'https://t.me/EgorShipilov',

@@ -132,6 +132,8 @@
                 </div>
             </div>
 
+
+
             <!-- ===== КОЛЕСО ФОРТУНЫ (Wow-карточка) ===== -->
             <div class="fortune-card mt-4" @click="goTo('WheelClassic')">
                 <div class="fortune-background"></div>
@@ -195,6 +197,8 @@
                 </template>
             </Carousel>
 
+            <OrderPeriscope></OrderPeriscope>
+
             <!-- ===== АДМИНКА (только для админов) ===== -->
             <template v-if="!isAdmin">
 
@@ -236,13 +240,14 @@ import {useBasketStore} from "@/MobileClient/stores/Shop/basket.js";
 import StoreStatusBanner from '@/MobileClient/Components/StoreStatusBanner.vue';
 import AppDivider from "@/MobileClient/Components/AppDivider.vue";
 
-
+import OrderPeriscope from "@/MobileClient/Components/Shop/OrderPeriscope.vue";
 export default {
     name: "HomePage",
 
     components: {
         AppDivider,
         ThemeToggle,
+        OrderPeriscope,
         ThemeColorPicker,
         ThemeSchemePicker,
         MainMenuItem,

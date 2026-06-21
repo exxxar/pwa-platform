@@ -13,6 +13,12 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // $schedule->command('inspire')->hourly();
+
+        $schedule->command('tenants:check-balance')
+            ->dailyAt('00:05')
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->emailOutputOnFailure(config('app.admin_email'));
     }
 
     /**

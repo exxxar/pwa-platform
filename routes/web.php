@@ -26,9 +26,8 @@ use Inertia\Inertia;
     ]);
 });*/
 
-
-
-
+Route::view('/maintenance', 'pages.maintenance')
+    ->name('maintenance');
 
 
 Route::get('/', function () {

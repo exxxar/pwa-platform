@@ -133,11 +133,9 @@ class TenantAuthController extends Controller
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
 
-        // 1. Определяем URL-пути для тенанта и для дефолтных (общих) файлов
         $tenantIconBase = "/storage/tenants/{$tenant->id}/icons";
         $tenantScreenshotBase = "/storage/tenants/{$tenant->id}/screenshots";
 
-        // ЗАМЕНИ эти пути на реальные пути к твоим дефолтным файлам в public директории
         $defaultIconBase = "/storage/defaults/icons";       // или просто "/icons"
         $defaultScreenshotBase = "/storage/defaults/screenshots"; // или "/screenshots"
 

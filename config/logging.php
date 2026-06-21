@@ -77,7 +77,13 @@ return [
             'emoji' => ':boom:',
             'level' => env('LOG_LEVEL', 'critical'),
         ],
-
+        'tenants' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/tenants.log'),
+            'level' => 'info',
+            'days' => 30,
+           // 'tap' => [App\Logging\CustomizeFormatter::class], // опционально
+        ],
         'papertrail' => [
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),
