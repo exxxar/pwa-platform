@@ -1,7 +1,7 @@
 // ==========================================
 // Кэш-версия. Меняй при каждом обновлении!
 // ==========================================
-const CACHE_VERSION = 'v1.0.4';
+const CACHE_VERSION = 'v1.0.5';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
