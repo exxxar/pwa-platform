@@ -32,7 +32,7 @@ $routes = function () {
         $agent = new Agent();
 
         if ($agent->isMobile()) {
-            return redirect('/pwa/');
+            return redirect()->to('/pwa', 301, [], false);
         }
 
         return view("landing");
@@ -43,7 +43,7 @@ $routes = function () {
         $agent = new Agent();
 
         if ($agent->isMobile()) {
-            return redirect('/agent/');
+            return redirect()->to('/agent', 301, [], false);
         }
 
         return view("job-landing");

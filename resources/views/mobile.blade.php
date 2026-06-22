@@ -12,7 +12,7 @@
     <title inertia>{{ $tenant->name ?? 'pwa' }}</title>
 
 
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="{{ secure_url('/manifest.json') }}">
 
 
     <meta name="theme-color" content="{{ $tenant->theme_color ?? '#fff' }}">

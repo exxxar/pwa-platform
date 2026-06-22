@@ -1,18 +1,20 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Force SSL
+    # Принудительно HTTPS (без внешнего редиректа)
     RewriteCond %{HTTPS} !=on
     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-    # Don't rewrite if the file/directory exists in root
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
+    # Доверяем X-Forwarded-Proto от nginx
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-    # Root goes to /public/index.php
-    RewriteRule ^$ /public/index.php [L]
+    # НЕ редиректим, если файл/директория существует
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
 
-    # Everything else except /public goes to /public
+    # Внутренний rewrite в /public (БЕЗ флага R!)
     RewriteCond %{REQUEST_URI} !^/public/
     RewriteRule ^(.*)$ /public/$1 [L]
 </IfModule>

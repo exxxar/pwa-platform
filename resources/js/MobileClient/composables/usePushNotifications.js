@@ -21,7 +21,7 @@ export function usePushNotifications() {
 
     async function registerSW() {
         const registration = await navigator.serviceWorker.register('/sw.js', {
-            scope: '/',
+            scope: '/pwa/',
         });
         return registration;
     }
