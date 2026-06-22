@@ -9,6 +9,7 @@ use App\Notifications\NewOrderNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 
 class TenantAuthController extends Controller
@@ -133,26 +134,26 @@ class TenantAuthController extends Controller
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
 
-        $tenantIconBase = "/storage/tenants/{$tenant->id}/icons";
-        $tenantScreenshotBase = "/storage/tenants/{$tenant->id}/screenshots";
+        // Базовый URL текущего тенанта
+        $baseUrl = url('/'); // автоматически https://test.mypwa.ru
 
-        $defaultIconBase = "/storage/defaults/icons";       // или просто "/icons"
-        $defaultScreenshotBase = "/storage/defaults/screenshots"; // или "/screenshots"
+        $tenantIconBase = "{$baseUrl}/storage/tenants/{$tenant->id}/icons";
+        $tenantScreenshotBase = "{$baseUrl}/storage/tenants/{$tenant->id}/screenshots";
 
-        // 2. Хелпер-функция для проверки существования иконки
+        $defaultIconBase = "{$baseUrl}/storage/defaults/icons";
+        $defaultScreenshotBase = "{$baseUrl}/storage/defaults/screenshots";
+
+        // Хелперы теперь используют абсолютные URL
         $getIconUrl = function (string $filename) use ($tenant, $tenantIconBase, $defaultIconBase) {
-            // Путь относительно storage/app/public для проверки (без /storage/ в начале)
             $tenantStoragePath = "tenants/{$tenant->id}/icons/{$filename}";
 
             if (Storage::disk('public')->exists($tenantStoragePath)) {
                 return "{$tenantIconBase}/{$filename}";
             }
 
-            // Если у тенанта нет файла, отдаем дефолтный
             return "{$defaultIconBase}/{$filename}";
         };
 
-        // 3. Хелпер-функция для проверки существования скриншота
         $getScreenshotUrl = function (string $filename) use ($tenant, $tenantScreenshotBase, $defaultScreenshotBase) {
             $tenantStoragePath = "tenants/{$tenant->id}/screenshots/{$filename}";
 
@@ -163,12 +164,12 @@ class TenantAuthController extends Controller
             return "{$defaultScreenshotBase}/{$filename}";
         };
 
-        // 4. Формируем манифест, используя наши умные хелперы
         $manifest = [
             "id" => "/pwa/{$tenant->slug}/",
             "name" => $tenant->name,
             "short_name" => $tenant->short_name ?? $tenant->name,
 
+            // Используем относительные пути для start_url и scope
             "start_url" => "/pwa/#/menu?source=pwa",
             "scope" => "/pwa/",
 
@@ -180,6 +181,7 @@ class TenantAuthController extends Controller
             "lang" => "ru",
             "description" => $tenant->description ?? "Официальное приложение {$tenant->name}",
             "categories" => ["shopping", "food", "business"],
+
             "protocol_handlers" => [
                 [
                     "protocol" => "mailto",
@@ -190,6 +192,7 @@ class TenantAuthController extends Controller
                     "url" => "/pwa/call?number=%s"
                 ]
             ],
+
             "icons" => [
                 [
                     "src" => $getIconUrl('icon-192x192.png'),
@@ -230,7 +233,6 @@ class TenantAuthController extends Controller
                 ]
             ],
 
-            // Shortcuts с хэш-роутингом
             "shortcuts" => [
                 [
                     "name" => "Меню",
@@ -271,9 +273,8 @@ class TenantAuthController extends Controller
             ]
         ];
 
-        // 5. Отдаем с правильными заголовками и кэшированием
         return response()->json($manifest)
-            ->header('Cache-Control', 'public, max-age=3600') // Кэшируем на 1 час
+            ->header('Cache-Control', 'public, max-age=3600')
             ->header('Content-Type', 'application/manifest+json');
     }
 }

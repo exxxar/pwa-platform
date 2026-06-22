@@ -86,7 +86,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
 
-
+        URL::forceScheme('https');
 
         Blade::directive('permission', function ($permission) {
             return "<?php if(auth()->check() && auth()->user()->hasPermission($permission)): ?>";
