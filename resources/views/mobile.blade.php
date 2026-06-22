@@ -5,7 +5,7 @@
         $tenant = \Illuminate\Support\Facades\Session::get("tenant")
     @endphp
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
@@ -32,6 +32,17 @@
     @vite(['resources/js/MobileClient/app.js','resources/css/MobileClient/app.css',
     "resources/js/MobileClient/Pages/{$page['component']}.vue"])
     @inertiaHead
+
+    <style>
+        html, body {
+
+            overflow: hidden;
+            overscroll-behavior-y: contain;
+            touch-action: manipulation;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+    </style>
 </head>
 
 <body class="font-sans antialiased">
@@ -50,6 +61,33 @@
             let changeTheme = document.querySelector("#theme")
             changeTheme.href = theme
         }
+
+        // Запрет pull-to-refresh на старых браузерах
+        let touchStartY = 0;
+        document.addEventListener('touchstart', e => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: false });
+
+        document.addEventListener('touchmove', e => {
+            // Pull-to-refresh
+            if (e.touches[0].clientY - touchStartY > 0 && window.scrollY === 0) {
+                e.preventDefault();
+            }
+            // Pinch-to-zoom
+            if (e.touches.length >= 2) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+// iOS gestures
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(evt => {
+            document.addEventListener(evt, e => e.preventDefault());
+        });
+
+// Ctrl+wheel на десктопе
+        document.addEventListener('wheel', e => {
+            if (e.ctrlKey) e.preventDefault();
+        }, { passive: false });
 
     }
     if ('serviceWorker' in navigator) {
