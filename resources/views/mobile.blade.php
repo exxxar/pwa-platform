@@ -35,8 +35,6 @@
 
     <style>
         html, body {
-
-            overflow: hidden;
             overscroll-behavior-y: contain;
             touch-action: manipulation;
             -webkit-text-size-adjust: 100%;
