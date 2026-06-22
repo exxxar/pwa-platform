@@ -174,13 +174,22 @@ class TenantAuthController extends Controller
 
             "display" => "standalone",
             "display_override" => ["standalone", "minimal-ui"],
-            "orientation" => "any",
+            "orientation" => "portrait",
             "theme_color" => $tenant->theme_color ?? '#ff8a00',
             "background_color" => $tenant->background_color ?? "#ffffff",
             "lang" => "ru",
             "description" => $tenant->description ?? "Официальное приложение {$tenant->name}",
             "categories" => ["shopping", "food", "business"],
-
+            "protocol_handlers" => [
+                [
+                    "protocol" => "mailto",
+                    "url" => "/pwa/compose?to=%s"
+                ],
+                [
+                    "protocol" => "web+tel",
+                    "url" => "/pwa/call?number=%s"
+                ]
+            ],
             "icons" => [
                 [
                     "src" => $getIconUrl('icon-192x192.png'),
@@ -212,6 +221,12 @@ class TenantAuthController extends Controller
                     "sizes" => "375x667",
                     "type" => "image/png",
                     "form_factor" => "narrow"
+                ],
+                [
+                    "src" => $getScreenshotUrl('shop-desktop.png'),
+                    "sizes" => "1920x1080",
+                    "type" => "image/png",
+                    "form_factor" => "wide"
                 ]
             ],
 

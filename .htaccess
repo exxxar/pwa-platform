@@ -2,16 +2,20 @@
     RewriteEngine On
 
     # Force SSL
-    #RewriteCond %{HTTPS} !=on
-   # RewriteCond %{HTTP:X-Forwarded-Proto} !https
-   # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    RewriteCond %{HTTPS} !=on
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-    # Redirect everything except /public and already rewritten paths
+    # Don't rewrite if the file/directory exists in root
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Root goes to /public/index.php
+    RewriteRule ^$ /public/index.php [L]
+
+    # Everything else except /public goes to /public
     RewriteCond %{REQUEST_URI} !^/public/
-    RewriteCond %{REQUEST_URI} !^/index\.php
-    RewriteRule ^(.*)$ public/$1 [L]
+    RewriteRule ^(.*)$ /public/$1 [L]
 </IfModule>
-
 
 <ifModule mod_gzip.c>
 mod_gzip_on Yes
