@@ -211,6 +211,29 @@
                 </div>
             </div>
         </div>
+
+        <!-- PWA установка -->
+        <div class="modal fade" id="installPwaModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fa-solid fa-download me-2"></i>Установить приложение
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Вы можете установить Kanban как приложение и запускать его прямо с рабочего стола.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-bs-dismiss="modal">Позже</button>
+                        <button class="btn btn-primary" @click="installPWA">
+                            <i class="fa-solid fa-download me-2"></i>Установить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -355,6 +378,13 @@ export default {
     },
 
     methods: {
+        installPWA() {
+            if (typeof window.installPWA === 'function') {
+                window.installPWA()
+            } else {
+                console.warn('PWA installation not available')
+            }
+        },
         toggleSidebar() {
 
 
