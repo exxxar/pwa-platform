@@ -1,5 +1,4 @@
 <template>
-
     <nav class="bottom-nav" v-if="!$route.meta.hideBottomMenu">
         <div class="container-fluid h-100">
             <div class="row h-100 text-center g-0">
@@ -12,17 +11,22 @@
                     <button
                         type="button"
                         @click="goTo(item.route)"
-                        :class="{ 'active': $route.name === item.route }"
+                        :class="{
+                            'active': $route.name === item.route,
+                            'has-items': item.hasItems && item.hasItems()
+                        }"
                         class="nav-link"
                     >
                         <div class="icon-wrapper">
                             <i :class="item.icon"></i>
-                            <span
-                                v-if="item.badge && item.badge() > 0"
-                                class="counter-badge"
-                            >
-                                {{ item.badge() > 99 ? '99+' : item.badge() }}
-                            </span>
+                            <transition name="badge-pop">
+                                <span
+                                    v-if="item.badge && item.badge() > 0"
+                                    class="counter-badge"
+                                >
+                                    {{ item.badge() > 99 ? '99+' : item.badge() }}
+                                </span>
+                            </transition>
                         </div>
                         <span class="nav-label">{{ item.label }}</span>
                     </button>
@@ -34,39 +38,47 @@
 </template>
 
 <script>
-// import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
+import { useBasket } from '@/MobileClient/Composables/useBasket.js';
 
 export default {
     name: "BottomMenu",
 
     setup() {
+        const basket = useBasket();
 
-
-        // const basketStore = useBasketStore();
-        // return { basketStore };
-        return {};
-    },
-    mounted() {
-       // console.log(this.$route.meta.hideBottomMenu)
-    },
-    data() {
         return {
-            // Пункты меню в одном месте — легко расширять
-            navItems: [
-                { route: 'Menu', label: 'Главная', icon: 'fa-solid fa-house' },
-                { route: 'Catalog', label: 'Товары', icon: 'fa-solid fa-box' },
-                { route: 'Cart', label: 'Корзина', icon: 'fa-solid fa-cart-shopping', badge: () => this.cartTotalCount },
-                { route: 'Profile', label: 'Профиль', icon: 'fa-solid fa-user' },
-            ],
+            cartTotalCount: basket.cartTotalCount,
+            isEmpty: basket.isEmpty,
         };
     },
 
-    computed: {
-        // TODO: Подключи свой basket store
-        cartTotalCount() {
-            // return this.basketStore?.cartTotalCount || 0;
-            return 0;
-        },
+    data() {
+        return {
+            navItems: [
+                {
+                    route: 'Menu',
+                    label: 'Главная',
+                    icon: 'fa-solid fa-house'
+                },
+                {
+                    route: 'Catalog',
+                    label: 'Товары',
+                    icon: 'fa-solid fa-box'
+                },
+                {
+                    route: 'Cart',
+                    label: 'Корзина',
+                    icon: 'fa-solid fa-cart-shopping',
+                    badge: () => this.cartTotalCount,
+                    hasItems: () => !this.isEmpty,
+                },
+                {
+                    route: 'Profile',
+                    label: 'Профиль',
+                    icon: 'fa-solid fa-user'
+                },
+            ],
+        };
     },
 
     methods: {
@@ -78,12 +90,20 @@ export default {
 };
 </script>
 
-<style scoped>
-/* ============================================
-   КОНТЕЙНЕР МЕНЮ
-   Используем CSS-переменные Bootstrap 5.3,
-   которые автоматически меняются при data-bs-theme
-   ============================================ */
+<style lang="scss" scoped>
+// ==========================================
+// ПЕРЕМЕННЫЕ
+// ==========================================
+$primary: var(--bs-primary, #3b82f6);
+$danger: var(--bs-danger, #ef4444);
+$text: var(--bs-body-color, #1f2937);
+$text-muted: var(--bs-secondary-color, #6b7280);
+$bg: var(--bs-body-bg, #ffffff);
+$border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
+
+// ==========================================
+// КОНТЕЙНЕР МЕНЮ
+// ==========================================
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -92,29 +112,29 @@ export default {
     z-index: 1030;
     padding: 8px;
     background: transparent;
-    pointer-events: none; /* Прозрачный для кликов вне меню */
+    pointer-events: none;
 }
 
 .bottom-nav .container-fluid {
-    pointer-events: auto; /* Возвращаем клики на сам контейнер */
-    background-color: var(--bs-body-bg);
-    color: var(--bs-body-color);
+    pointer-events: auto;
+    background-color: $bg;
+    color: $text;
     border-radius: 16px;
     box-shadow:
         0 -2px 20px rgba(0, 0, 0, 0.08),
-        0 0 0 1px var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
+        0 0 0 1px $border;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* ============================================
-   ПУНКТЫ МЕНЮ
-   ============================================ */
+// ==========================================
+// ПУНКТЫ МЕНЮ
+// ==========================================
 .bottom-nav .nav-link {
     background: transparent;
     border: none;
-    color: var(--bs-secondary-color);
+    color: $text-muted;
     text-decoration: none;
     display: flex;
     flex-direction: column;
@@ -129,18 +149,23 @@ export default {
     cursor: pointer;
     padding: 0;
     -webkit-tap-highlight-color: transparent;
+
+    &:hover {
+        color: $primary;
+    }
+
+    &:focus {
+        outline: none;
+        box-shadow: none;
+    }
+
+    // Подсветка иконки корзины при наличии товаров
+    &.has-items i {
+        color: $primary;
+    }
 }
 
-.bottom-nav .nav-link:hover {
-    color: var(--bs-primary);
-}
-
-.bottom-nav .nav-link:focus {
-    outline: none;
-    box-shadow: none;
-}
-
-/* Обёртка для иконки + бейджа */
+// Обёртка для иконки + бейджа
 .icon-wrapper {
     position: relative;
     display: flex;
@@ -158,11 +183,11 @@ export default {
     letter-spacing: 0.2px;
 }
 
-/* ============================================
-   АКТИВНЫЙ ПУНКТ
-   ============================================ */
+// ==========================================
+// АКТИВНЫЙ ПУНКТ
+// ==========================================
 .bottom-nav .nav-link.active {
-    color: var(--bs-primary);
+    color: $primary;
 }
 
 .bottom-nav .nav-link.active i {
@@ -177,14 +202,14 @@ export default {
     transform: translateX(-50%);
     width: 36px;
     height: 4px;
-    background: var(--bs-primary);
+    background: $primary;
     border-radius: 0 0 10px 10px;
-    box-shadow: 0 2px 8px rgba(var(--bs-primary-rgb, 13, 110, 253), 0.4);
+    box-shadow: 0 2px 8px rgba($primary, 0.4);
 }
 
-/* ============================================
-   БЕЙДЖ СЧЁТЧИКА (корзина)
-   ============================================ */
+// ==========================================
+// БЕЙДЖ СЧЁТЧИКА
+// ==========================================
 .counter-badge {
     position: absolute;
     top: -6px;
@@ -192,7 +217,7 @@ export default {
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    background: var(--bs-danger);
+    background: $danger;
     color: #fff;
     font-size: 10px;
     font-weight: 700;
@@ -200,22 +225,38 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid var(--bs-body-bg);
+    border: 2px solid $bg;
     line-height: 1;
-    animation: badgePop 0.3s ease;
+    box-shadow: 0 2px 8px rgba($danger, 0.3);
+}
+
+// Анимация появления/исчезновения бейджа
+.badge-pop-enter-active {
+    animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.badge-pop-leave-active {
+    animation: badgePop 0.3s ease reverse;
 }
 
 @keyframes badgePop {
-    0% { transform: scale(0); }
-    70% { transform: scale(1.2); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    70% {
+        transform: scale(1.3);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
-/* ============================================
-   АДАПТИВ ДЛЯ ТЁМНОЙ ТЕМЫ
-   (Bootstrap 5.3+ автоматически применяет
-   эти переменные при data-bs-theme="dark")
-   ============================================ */
+// ==========================================
+// ТЁМНАЯ ТЕМА
+// ==========================================
 :root[data-bs-theme="dark"] .bottom-nav .container-fluid {
     box-shadow:
         0 -2px 20px rgba(0, 0, 0, 0.4),

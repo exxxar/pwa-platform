@@ -9,19 +9,27 @@
                 width="100%"
                 speed="10"
             />
-
-            <router-view :tenant="tenant" />
+            <RouteLoader />
+            <router-view :tenant="tenant" v-slot="{ Component }">
+                    <transition name="page-fade" mode="out-in">
+                        <component :is="Component" />
+                    </transition>
+            </router-view>
         </template>
     </Layout>
 </template>
 <script>
 import Layout from "@/MobileClient/Layouts/Layout.vue";
+import RouteLoader from "@/MobileClient/Components/Common/RouteLoader.vue";
+import { useFavorites } from '@/MobileClient/Composables/useFavorites.js';
+import { useBasket } from '@/MobileClient/Composables/useBasket.js';
 
 export default {
     name: "App",
 
     components: {
-        Layout
+        Layout,
+        RouteLoader
     },
 
     props: {
@@ -37,6 +45,12 @@ export default {
             type: String,
             default: null
         }
+    },
+    setup() {
+        const favorites = useFavorites();
+        const basket = useBasket();
+
+        return { favorites, basket };
     },
 
     computed: {
@@ -79,8 +93,16 @@ export default {
         }
     },
 
-    mounted() {
-        // Можно добавить логику после монтирования
+    async mounted() {
+        // Параллельно загружаем корзину и избранное
+        try {
+            await Promise.allSettled([
+                this.favorites.loadFavorites(),
+                this.basket.loadProductsInBasket(),
+            ]);
+        } catch (error) {
+            console.error('Ошибка инициализации:', error);
+        }
     },
 
     methods: {
@@ -158,3 +180,13 @@ export default {
     }
 }
 </script>
+<style>
+.page-fade-enter-active,
+.page-fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+.page-fade-enter-from,
+.page-fade-leave-to {
+    opacity: 0;
+}
+</style>

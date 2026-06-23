@@ -406,27 +406,24 @@ class BasketService
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
-
         $validator = Validator::make($data, [
             "product_id" => "required",
         ]);
 
-        if ($validator->fails())
+        if ($validator->fails()) {
             throw new ValidationException($validator);
-
+        }
 
         $config = $tenant->config ?? [];
         $hasPartners = $config["partners"]["is_active"] ?? false;
 
-        $botIds = $hasPartners ?
-            [$tenant->id, ...$tenant->partners()->get()->pluck("tenant_partner_id")] :
-            [$tenant->id];
+        $botIds = $hasPartners
+            ? [$tenant->id, ...$tenant->partners()->get()->pluck("tenant_partner_id")]
+            : [$tenant->id];
 
         $productId = $data["product_id"] ?? null;
         $productCount = $data["count"] ?? 1;
-
-        $tableId = /*$data["table_id"] ??*/
-            null;
+        $tableId = null;
 
         $product = Product::query()
             ->withTrashed()
@@ -434,14 +431,14 @@ class BasketService
             ->where("id", $productId)
             ->first();
 
-        if (is_null($product))
+        if (is_null($product)) {
             throw new HttpException(404, "Продукт не найден в системе!");
+        }
 
         if (!is_null($product->deleted_at)) {
             $product->delete();
             throw new HttpException(403, "Продукт недоступен!");
         }
-
 
         $productInBasket = Basket::query()
             ->where("product_id", $product->id)
@@ -451,36 +448,55 @@ class BasketService
             ->whereNull("table_approved_at")
             ->first();
 
-
         if (!is_null($tableId)) {
-            //проверить всю эту логику
-            $tableWithClient = is_null($tableId) ? Table::query()
+            $tableWithClient = Table::query()
                 ->where("tenant_id", $tenant->id)
+                ->where("id", $tableId)
                 ->whereNull("closed_at")
-                ->whereHas('clients', function ($query) use ($tenantUser) {
-                    $query->where('id', $tenantUser->id);
-                })->first() :
-                Table::query()
-                    ->where("tenant_id", $tenant->id)
-                    ->where("id", $tableId)
-                    ->whereNull("closed_at")
-                    ->first();
+                ->first();
         }
-
 
         $isWeightProduct = $product->is_weight_product ?? false;
 
+        // ==========================================
+        // ЛОГИКА ДЛЯ ВЕСОВЫХ ТОВАРОВ
+        // ==========================================
         if ($isWeightProduct) {
-            $weightConfig = (object)$product->weight_config ?? null;
-            $min = $weightConfig->min ?? 0;
-            $max = $weightConfig->max ?? 0;
-            $step = $weightConfig->step ?? 0;
-            $productCount = is_null($productInBasket) ? $min : $step;
+            // Безопасно получаем конфигурацию веса
+            $weightConfig = $product->weight_config ?? [];
+            if (is_string($weightConfig)) {
+                $weightConfig = json_decode($weightConfig, true) ?? [];
+            }
+            $weightConfig = (object) $weightConfig;
 
-            if (($productInBasket->count ?? 0) >= $max && $max > 0)
-                $productCount = 0;
+            // Значения по умолчанию (защита от некорректных настроек)
+            $min = max(1, (int) ($weightConfig->min ?? 100));   // Минимум 1 грамм
+            $max = max(0, (int) ($weightConfig->max ?? 0));     // 0 = без лимита
+            $step = max(1, (int) ($weightConfig->step ?? 50));  // Минимум 1 грамм шаг
+
+            // Определяем, сколько добавлять
+            if (is_null($productInBasket)) {
+                // Первое добавление — берём минимум
+                $productCount = $min;
+            } else {
+                // Повторное добавление — прибавляем шаг
+                $productCount = $step;
+
+                // Проверяем, не превышен ли максимум
+                if ($max > 0 && ($productInBasket->count + $step) > $max) {
+                    // Добавляем только остаток до максимума
+                    $productCount = max(0, $max - $productInBasket->count);
+
+                    if ($productCount === 0) {
+                        throw new HttpException(400, "Достигнут максимальный вес товара ({$max}г)");
+                    }
+                }
+            }
         }
 
+        // ==========================================
+        // СОЗДАНИЕ ИЛИ ОБНОВЛЕНИЕ ЗАПИСИ В КОРЗИНЕ
+        // ==========================================
         if (is_null($productInBasket)) {
             $extraCharge = 0;
             if ($product->tenant_id != $tenant->id) {
@@ -489,7 +505,7 @@ class BasketService
                     ->where("tenant_partner_id", $product->tenant_id)
                     ->first();
 
-                $extraCharge = is_null($partner) ? 0 : $partner->extra_charge ?? 0;
+                $extraCharge = is_null($partner) ? 0 : ($partner->extra_charge ?? 0);
             }
 
             $productInBasket = Basket::query()->create([
@@ -500,20 +516,23 @@ class BasketService
                 'tenant_id' => $tenant->id,
                 'tenant_partner_id' => $product->tenant_id == $tenant->id ? null : $product->tenant_id,
                 'params' => [
-                    "extra_charge" => $extraCharge
+                    "extra_charge" => $extraCharge,
+                    // Сохраняем конфигурацию веса для фронта
+                    "weight_config" => $isWeightProduct ? [
+                        'min' => $min ?? 0,
+                        'max' => $max ?? 0,
+                        'step' => $step ?? 0,
+                    ] : null,
                 ],
                 'ordered_at' => null,
                 'table_approved_at' => null,
             ]);
-
-
         } else {
-
-            if (!is_null($tableId))
+            if (!is_null($tableId)) {
                 $productInBasket->table_id = $tableId;
+            }
             $productInBasket->count += $productCount;
             $productInBasket->save();
-
         }
     }
 
@@ -621,6 +640,9 @@ class BasketService
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
+        $productId = $data["product_id"] ?? $productId ?? null;
+
+
         $productInBasket = Basket::query()
             ->where("product_id", $productId)
             ->where("tenant_user_id", $tenantUser->id)
@@ -629,13 +651,48 @@ class BasketService
             ->whereNull("table_approved_at")
             ->first();
 
-        if (is_null($productInBasket))
-            throw new HttpException(404, "Товар не найден в корзине!");
 
-        if ($productInBasket->count - 1 > 0) {
-            $productInBasket->count--;
-            $productInBasket->save();
-        } else
-            $productInBasket->delete();
+        if (is_null($productInBasket)) {
+            throw new HttpException(404, "Товар не найден в корзине!");
+        }
+
+        $product = $productInBasket->product;
+        $isWeightProduct = $product->is_weight_product ?? false;
+
+        if ($isWeightProduct) {
+            // Получаем конфигурацию веса
+            $weightConfig = $productInBasket->params['weight_config']
+                ?? $product->weight_config
+                ?? [];
+
+            if (is_string($weightConfig)) {
+                $weightConfig = json_decode($weightConfig, true) ?? [];
+            }
+            $weightConfig = (object) $weightConfig;
+
+            $min = max(1, (int) ($weightConfig->min ?? 100));
+            $step = max(1, (int) ($weightConfig->step ?? 50));
+
+            // Для весовых товаров уменьшаем на шаг
+            $newCount = $productInBasket->count - $step;
+
+            // Если меньше минимума — удаляем из корзины
+            if ($newCount < $min) {
+                $productInBasket->delete();
+                return;
+            }
+
+            $productInBasket->count = $newCount;
+        } else {
+            // Для обычных товаров
+            $productInBasket->count -= 1;
+
+            if ($productInBasket->count <= 0) {
+                $productInBasket->delete();
+                return;
+            }
+        }
+
+        $productInBasket->save();
     }
 }

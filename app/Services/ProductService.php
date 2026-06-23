@@ -9,6 +9,7 @@ use App\Models\Tenant\Product;
 use App\Http\Resources\ProductCollection;
 use App\Http\Resources\ProductResource;
 use App\Models\Tenant\ProductAttribute;
+use App\Models\Tenant\TenantUser;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -117,7 +118,10 @@ class ProductService
 
         $tenantUser = Auth::guard('tenant')->user();
 
+        $tenantUser = TenantUser::query()->findOrFail($tenantUser->id);
+
         $favIds =$tenantUser->meta["favorites"] ?? [];
+
 
         $products = Product::query()
             ->withTrashed()

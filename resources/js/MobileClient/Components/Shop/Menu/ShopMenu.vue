@@ -38,16 +38,18 @@
                     @select-category="onCategorySelect"
                 />
 
-                <ProductGrid
-                    v-if="activeTab === 'products'"
-                    :categories="menuStore.filteredProducts"
-                    :collections="menuStore.collections"
-                    :stories="menuStore.stories"
-                    :is-product-list="settings?.is_product_list"
-                    @load-more="onLoadMore"
-                    @swipe-left="onSwipeLeft"
-                    @swipe-right="onSwipeRight"
-                />
+                <template  v-if="activeTab === 'products'">
+                    <ProductGrid
+                        :categories="menuStore.filteredProducts"
+                        :collections="menuStore.collections"
+                        :stories="menuStore.stories"
+                        :is-product-list="settings?.is_product_list"
+                        @load-more="onLoadMore"
+                        @swipe-left="onSwipeLeft"
+                        @swipe-right="onSwipeRight"
+                    />
+                </template>
+
             </div>
 
             <slot name="navigation"></slot>
@@ -62,7 +64,7 @@ import MenuHeader from '@/MobileClient/Components/Shop/Menu/MenuHeader.vue';
 import CategoryList from '@/MobileClient/Components/Shop/Menu/CategoryList.vue';
 import ProductGrid from '@/MobileClient/Components/Shop/Menu/ProductGrid.vue';
 import BookingDropdown from '@/MobileClient/Components/Shop/Booking/BookingDropdown.vue';
-
+import SkeletonLoader from '@/MobileClient/Components/Common/SkeletonLoader.vue'
 export default {
     name: 'Menu',
 
@@ -70,6 +72,7 @@ export default {
         PartnersMain,
         MenuHeader,
         CategoryList,
+        SkeletonLoader,
         ProductGrid,
         BookingDropdown,
     },

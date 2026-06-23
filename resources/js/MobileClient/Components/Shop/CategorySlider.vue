@@ -326,9 +326,9 @@ export default {
     align-items: center;
     gap: 10px;
     padding: 10px;
-    background: var(--bs-body-bg);
-    border: 1px solid var(--bs-border-color);
-    border-radius: 16px;
+    //background: var(--bs-body-bg);
+    //border: 1px solid var(--bs-border-color);
+    //border-radius: 16px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 
