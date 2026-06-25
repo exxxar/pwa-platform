@@ -942,7 +942,7 @@ $card-bg: #ffffff;
 // БРОНЬ
 // ==========================================
 .booking-section {
-    padding: 16px;
+    padding: 0px;
     background: $card-bg;
     border-bottom: 1px solid $border;
 }

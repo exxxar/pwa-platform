@@ -51,7 +51,7 @@
             <div class="share-divider"></div>
 
             <!-- Поле ссылки -->
-            <div class="link-input-group">
+            <div class="link-input-group flex-column">
                 <input
                     type="text"
                     class="link-input"
@@ -63,7 +63,7 @@
                     @click="copyLink"
                     :title="copied ? 'Скопировано!' : 'Копировать'"
                 >
-                    <i :class="copied ? 'fa-solid fa-check' : 'fa-solid fa-copy'"></i>
+                    <i :class="copied ? 'fa-solid fa-check' : 'fa-solid fa-copy'"></i> Копировать
                 </button>
             </div>
 

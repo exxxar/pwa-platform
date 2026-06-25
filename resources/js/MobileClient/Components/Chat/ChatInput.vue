@@ -1,70 +1,89 @@
 <template>
-    <div class="chat-input-container">
-        <div class="input-wrapper">
+    <div class="chat-input-wrapper">
+        <form class="chat-input-form" @submit.prevent="handleSend">
 
             <!-- Кнопка вложений -->
             <button
+                type="button"
                 class="attach-btn"
-                @click="showAttachMenu = !showAttachMenu"
+                @click="toggleAttachMenu"
                 title="Прикрепить файл"
             >
                 <i class="fa-solid fa-paperclip"></i>
             </button>
 
-            <!-- Поле ввода -->
-            <div class="input-field-wrapper">
+            <!-- Меню вложений -->
+            <transition name="fade">
+                <div v-if="showAttachMenu" class="attach-menu">
+                    <button type="button" @click="selectFile('image')">
+                        <i class="fa-solid fa-image"></i>
+                        <span>Фото</span>
+                    </button>
+                    <button type="button" @click="selectFile('file')">
+                        <i class="fa-solid fa-file"></i>
+                        <span>Файл</span>
+                    </button>
+                    <button type="button" @click="toggleVoiceRecording">
+                        <i class="fa-solid fa-microphone"></i>
+                        <span>Голос</span>
+                    </button>
+                </div>
+            </transition>
+
+            <!-- Текстовое поле -->
+            <div class="input-wrapper">
                 <textarea
                     ref="messageInput"
                     v-model="messageText"
-                    class="message-input"
-                    placeholder="Напишите сообщение..."
-                    rows="1"
                     @input="autoResize"
-                    @keydown.enter.exact.prevent="sendMessage"
+                    @keydown.enter.exact.prevent="handleSend"
+                    placeholder="Сообщение..."
+                    class="message-input"
+                    :disabled="disabled"
+                    rows="1"
                 ></textarea>
+
+                <!-- Эмодзи-кнопка -->
+                <button
+                    type="button"
+                    class="emoji-btn"
+                    title="Эмодзи"
+                >
+                    <i class="fa-regular fa-face-smile"></i>
+                </button>
             </div>
 
-            <!-- Кнопка отправки / голоса -->
+            <!-- Кнопка отправки / голосового -->
             <button
                 v-if="messageText.trim()"
+                type="submit"
                 class="send-btn"
-                @click="sendMessage"
-                :disabled="isSending"
-                title="Отправить"
+                :disabled="disabled || isSending"
             >
-                <span v-if="isSending" class="send-spinner"></span>
+                <i v-if="isSending" class="fa-solid fa-spinner fa-spin"></i>
                 <i v-else class="fa-solid fa-paper-plane"></i>
             </button>
             <button
                 v-else
+                type="button"
                 class="voice-btn"
+                :disabled="disabled"
                 @click="toggleVoiceRecording"
                 :class="{ 'is-recording': isRecording }"
-                title="Голосовое сообщение"
             >
-                <i class="fa-solid fa-microphone"></i>
+                <i :class="isRecording ? 'fa-solid fa-stop' : 'fa-solid fa-microphone'"></i>
             </button>
 
-        </div>
+        </form>
 
-        <!-- Меню вложений (опционально) -->
-        <transition name="slide-up">
-            <div v-if="showAttachMenu" class="attach-menu">
-                <button class="attach-option">
-                    <i class="fa-solid fa-image"></i>
-                    <span>Фото</span>
-                </button>
-                <button class="attach-option">
-                    <i class="fa-solid fa-file"></i>
-                    <span>Файл</span>
-                </button>
-                <button class="attach-option">
-                    <i class="fa-solid fa-location-dot"></i>
-                    <span>Геолокация</span>
-                </button>
-            </div>
-        </transition>
-
+        <!-- Скрытый input для файлов -->
+        <input
+            ref="fileInput"
+            type="file"
+            :accept="fileAccept"
+            style="display: none"
+            @change="handleFileSelect"
+        >
     </div>
 </template>
 
@@ -77,7 +96,13 @@ export default {
             type: Object,
             required: true,
         },
+        disabled: {
+            type: Boolean,
+            default: false,
+        },
     },
+
+    emits: ['send'],
 
     data() {
         return {
@@ -85,38 +110,36 @@ export default {
             isSending: false,
             isRecording: false,
             showAttachMenu: false,
+            fileAccept: '*/*',
+            pendingFileType: null,
         };
     },
 
     methods: {
         autoResize() {
             const textarea = this.$refs.messageInput;
+            if (!textarea) return;
             textarea.style.height = 'auto';
             textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
         },
 
-        async sendMessage() {
+        async handleSend() {
             const text = this.messageText.trim();
-            if (!text || this.isSending) return;
+            if (!text || this.isSending || this.disabled) return;
 
             this.isSending = true;
 
             try {
-                // TODO: Замени на реальный API или Pinia action
-                // await this.chatStore.sendMessage(this.dialog.id, text);
-
-                // Имитация отправки
-                await new Promise(resolve => setTimeout(resolve, 500));
+                this.$emit('send', text, []);
 
                 // Очистка поля
                 this.messageText = '';
                 this.$refs.messageInput.style.height = 'auto';
 
-                // Фокус обратно на поле
+                // Фокус обратно
                 this.$nextTick(() => {
-                    this.$refs.messageInput.focus();
+                    this.$refs.messageInput?.focus();
                 });
-
             } catch (error) {
                 console.error('Ошибка отправки:', error);
             } finally {
@@ -124,67 +147,98 @@ export default {
             }
         },
 
+        toggleAttachMenu() {
+            this.showAttachMenu = !this.showAttachMenu;
+        },
+
+        selectFile(type) {
+            this.pendingFileType = type;
+            this.fileAccept = type === 'image' ? 'image/*' : '*/*';
+            this.showAttachMenu = false;
+            this.$nextTick(() => {
+                this.$refs.fileInput?.click();
+            });
+        },
+
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // TODO: Реализовать загрузку файла
+            console.log('Selected file:', file);
+
+            // Сброс input
+            event.target.value = '';
+        },
+
         toggleVoiceRecording() {
             this.isRecording = !this.isRecording;
-            // TODO: Реализовать запись голоса
+            // TODO: Реализовать запись голоса через MediaRecorder API
+            if (this.isRecording) {
+                console.log('Начало записи...');
+            } else {
+                console.log('Конец записи');
+            }
         },
     },
 };
 </script>
 
-<style scoped>
-.chat-input-container {
-    padding: 12px 16px;
+<style lang="scss" scoped>
+.chat-input-wrapper {
+    position: relative;
+    border-top: 1px solid var(--bs-border-color);
     background: var(--bs-body-bg);
+    flex-shrink: 0;
 }
 
-.input-wrapper {
+.chat-input-form {
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    background: var(--bs-secondary-bg, #f5f5f5);
-    border: 2px solid transparent;
-    border-radius: 24px;
-    padding: 6px 6px 6px 12px;
-    transition: all 0.2s ease;
+    padding: 10px 12px;
 }
 
-.input-wrapper:focus-within {
-    border-color: var(--bs-primary);
-    background: var(--bs-body-bg);
-    box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.1);
-}
-
-/* Кнопка вложений */
-.attach-btn {
+.attach-btn,
+.emoji-btn {
     width: 36px;
     height: 36px;
     border-radius: 50%;
     background: transparent;
     border: none;
     color: var(--bs-secondary-color);
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s;
     flex-shrink: 0;
+
+    &:hover {
+        background: var(--bs-secondary-bg);
+        color: var(--bs-primary);
+    }
 }
 
-.attach-btn:hover {
-    color: var(--bs-primary);
-    background: rgba(var(--bs-primary-rgb), 0.1);
-}
-
-/* Поле ввода */
-.input-field-wrapper {
+.input-wrapper {
     flex: 1;
-    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    background: var(--bs-secondary-bg);
+    border-radius: 20px;
+    padding: 4px 8px 4px 14px;
+    min-height: 40px;
+    transition: all 0.2s;
+
+    &:focus-within {
+        background: var(--bs-body-bg);
+        box-shadow: 0 0 0 2px var(--bs-primary);
+    }
 }
 
 .message-input {
-    width: 100%;
+    flex: 1;
     border: none;
     background: transparent;
     padding: 8px 0;
@@ -192,160 +246,115 @@ export default {
     color: var(--bs-body-color);
     outline: none;
     resize: none;
+    font-family: inherit;
     line-height: 1.4;
     max-height: 120px;
-    font-family: inherit;
+
+    &::placeholder {
+        color: var(--bs-secondary-color);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+    }
 }
 
-.message-input::placeholder {
-    color: var(--bs-secondary-color);
-}
-
-/* Кнопка отправки */
-.send-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
-    border: none;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(var(--bs-primary-rgb), 0.3);
-}
-
-.send-btn:hover:not(:disabled) {
-    transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.4);
-}
-
-.send-btn:active:not(:disabled) {
-    transform: scale(0.95);
-}
-
-.send-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.send-spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* Кнопка голоса */
+.send-btn,
 .voice-btn {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: var(--bs-secondary-bg);
+    background: var(--bs-primary);
     border: none;
-    color: var(--bs-secondary-color);
+    color: white;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    font-size: 0.95rem;
+    transition: all 0.2s;
     flex-shrink: 0;
+
+    &:hover:not(:disabled) {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.3);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 }
 
-.voice-btn:hover {
-    color: var(--bs-primary);
-    background: rgba(var(--bs-primary-rgb), 0.1);
-}
+.voice-btn {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
 
-.voice-btn.is-recording {
-    background: #dc3545;
-    color: white;
-    animation: pulse 1s ease-in-out infinite;
+    &:hover:not(:disabled) {
+        background: var(--bs-border-color);
+        box-shadow: none;
+    }
+
+    &.is-recording {
+        background: var(--bs-danger);
+        color: white;
+        animation: pulse 1.5s infinite;
+    }
 }
 
 @keyframes pulse {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-    }
-    50% {
-        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
-    }
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
 }
 
-/* Меню вложений */
+// Меню вложений
 .attach-menu {
-    display: flex;
-    gap: 12px;
-    padding: 12px 0 0;
-    justify-content: center;
-}
-
-.attach-option {
+    position: absolute;
+    bottom: 100%;
+    left: 12px;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    padding: 8px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding: 12px 20px;
-    background: var(--bs-secondary-bg);
-    border: none;
-    border-radius: 12px;
-    color: var(--bs-body-color);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
+    gap: 4px;
+    min-width: 160px;
+    z-index: 10;
 
-.attach-option:hover {
-    background: rgba(var(--bs-primary-rgb), 0.1);
-    color: var(--bs-primary);
-    transform: translateY(-2px);
-}
-
-.attach-option i {
-    font-size: 1.2rem;
-}
-
-.attach-option span {
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-/* Анимация меню */
-.slide-up-enter-active,
-.slide-up-leave-active {
-    transition: all 0.3s ease;
-}
-
-.slide-up-enter-from,
-.slide-up-leave-to {
-    opacity: 0;
-    transform: translateY(10px);
-}
-
-/* Адаптив */
-@media (max-width: 576px) {
-    .chat-input-container {
+    button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
         padding: 10px 12px;
-    }
-
-    .message-input {
+        background: transparent;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        color: var(--bs-body-color);
         font-size: 0.9rem;
-    }
+        transition: background 0.2s;
+        text-align: left;
 
-    .send-btn,
-    .voice-btn {
-        width: 36px;
-        height: 36px;
+        i {
+            width: 20px;
+            color: var(--bs-primary);
+        }
+
+        &:hover {
+            background: var(--bs-secondary-bg);
+        }
     }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
 }
 </style>

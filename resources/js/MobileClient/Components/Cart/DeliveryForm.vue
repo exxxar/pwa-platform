@@ -510,7 +510,8 @@ export default {
 }
 
 .field-icon {
-    width: 48px;
+    width: 35px;
+    margin-right: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -554,7 +555,7 @@ export default {
 
 /* Textarea */
 .textarea-field {
-    align-items: flex-start;
+    align-items: normal;
 }
 
 .form-textarea {

@@ -13,7 +13,7 @@
                     <!-- Кэшбэк -->
                     <a
                         v-if="loadedCashback"
-                        @click.prevent="goTo('CashBack')"
+                        @click.prevent="goTo('Cashback')"
                         class="badge bg-primary btn"
                         href="#"
                     >

@@ -739,7 +739,7 @@ export default {
    МОДАЛКА: ФОРМА АДРЕСА
    ========================================== */
 .address-modal {
-    border-radius: 20px;
+    border-radius: 16px;
     border: none;
     overflow: hidden;
 }

@@ -73,13 +73,7 @@
                 <ShareLink />
             </div>
 
-            <div class="footer-section share-section">
-                <h6 class="section-title">
-                    <i class="fa-solid fa-share-nodes"></i>
-                    Подписаться на обновления
-                </h6>
-                <Subscribe />
-            </div>
+
 
 
             <!-- Разделитель -->
@@ -96,12 +90,20 @@
                 </button>
             </div>
 
-            <!-- Секция 5: О разработчике -->
+<!--            &lt;!&ndash; Секция 5: О разработчике &ndash;&gt;
             <div class="footer-section developer-section">
                 <router-link to="/about" class="btn-developer">
                     <i class="fa-solid fa-circle-info"></i>
-                    <span>О платформе и разработчике</span>
+                    <span>О платформе</span>
                 </router-link>
+            </div>-->
+
+            <div class="footer-section share-section">
+                <h6 class="section-title">
+                    <i class="fa-solid fa-share-nodes"></i>
+                    Подписаться на обновления
+                </h6>
+                <Subscribe />
             </div>
 
             <!-- Копирайт -->

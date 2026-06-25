@@ -909,7 +909,7 @@ $card-bg: #ffffff;
 // КОНТЕНТ ШАГА
 // ==========================================
 .step-content {
-    padding: 0 16px;
+    padding: 0px;
 }
 
 // Переходы между шагами
@@ -936,7 +936,6 @@ $card-bg: #ffffff;
     padding: 16px;
     background: rgba($primary, 0.05);
     border-radius: 14px;
-    margin-bottom: 16px;
 }
 
 .cart-header-icon {

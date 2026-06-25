@@ -1,204 +1,194 @@
 <template>
-    <div class="chat-container">
+    <div class="chat-component">
 
-        <!-- ========================================== -->
-        <!-- HEADER С КНОПКОЙ НАЗАД -->
-        <!-- ========================================== -->
+        <!-- Шапка чата -->
         <div class="chat-header">
-            <div class="header-content">
+            <button class="back-btn" @click="closeDialog">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
 
-                <!-- Кнопка "Назад" -->
-                <button
-                    class="back-btn"
-                    @click="closeDialog"
-                    title="Вернуться к списку чатов"
-                >
-                    <i class="fa-solid fa-arrow-left"></i>
-                </button>
-
-                <!-- Аватар и информация -->
-                <div class="header-info" @click="showDialogInfo">
-                    <div class="header-avatar">
-                        <img v-if="dialog?.avatar" :src="dialog.avatar" :alt="dialog.title">
-                        <div v-else class="avatar-initials" :style="getAvatarGradient(dialog?.id)">
-                            {{ getInitials(dialog?.title) }}
-                        </div>
-
-                        <!-- Онлайн индикатор -->
-                        <div v-if="dialog?.is_online" class="online-dot"></div>
+            <div
+                class="header-info"
+                :style="getAvatarStyle(currentDialog)"
+                @click="showDialogInfo"
+            >
+                <div class="header-avatar">
+                    <img
+                        v-if="currentInterlocutor?.avatar"
+                        :src="currentInterlocutor.avatar"
+                        :alt="currentInterlocutor?.name"
+                    >
+                    <span v-else class="avatar-initials">
+                        {{ getInitials(currentInterlocutor?.name) }}
+                    </span>
+                    <div v-if="currentInterlocutor?.is_online" class="online-dot"></div>
+                </div>
+                <div class="header-text">
+                    <div class="header-name">
+                        {{ currentInterlocutor?.name || 'Чат' }}
                     </div>
-
-                    <div class="header-text">
-                        <h6 class="header-name">{{ dialog?.title || 'Чат' }}</h6>
-                        <p class="header-status">
-                            <template v-if="dialog?.is_typing">
-                                <span class="typing-text">печатает...</span>
-                            </template>
-                            <template v-else-if="dialog?.is_online">
-                                <span class="online-text">в сети</span>
-                            </template>
-                            <template v-else-if="dialog?.last_seen">
-                                <span class="last-seen-text">
-                                    {{ formatLastSeen(dialog.last_seen) }}
-                                </span>
-                            </template>
-                            <template v-else>
-                                <span class="offline-text">не в сети</span>
-                            </template>
-                        </p>
+                    <div class="header-status">
+                        <template v-if="currentInterlocutor?.is_online">
+                            <span class="online-text">в сети</span>
+                        </template>
+                        <template v-else-if="currentInterlocutor?.last_seen_at">
+                            {{ formatLastSeen(currentInterlocutor.last_seen_at) }}
+                        </template>
+                        <template v-else>
+                            <span class="offline-text">был(а) недавно</span>
+                        </template>
                     </div>
                 </div>
-
-                <!-- Действия справа -->
-                <div class="header-actions">
-                    <button class="action-btn" title="Поиск">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                    </button>
-                    <button class="action-btn" title="Ещё">
-                        <i class="fa-solid fa-ellipsis-vertical"></i>
-                    </button>
-                </div>
-
             </div>
+
+            <button class="header-action" @click="showDialogInfo">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+            </button>
         </div>
 
-        <!-- ========================================== -->
-        <!-- СООБЩЕНИЯ -->
-        <!-- ========================================== -->
+        <!-- Сообщения -->
         <div
             ref="messagesContainer"
             class="messages-container"
             @scroll="handleScroll"
         >
+            <!-- Загрузка старых сообщений -->
+            <div v-if="isMessagesLoading" class="messages-loader">
+                <div class="loader-spinner"></div>
+            </div>
 
-            <!-- Пустое состояние -->
-            <div v-if="!dialog" class="empty-state">
-                <div class="empty-icon-wrapper">
-                    <div class="empty-icon">
-                        <i class="fa-solid fa-comments"></i>
-                    </div>
+            <!-- Кнопка "Загрузить ещё" -->
+            <button
+                v-if="hasMoreMessages && !isMessagesLoading"
+                class="load-more-btn"
+                @click="loadOlderMessages"
+            >
+                <i class="fa-solid fa-arrow-up"></i>
+                Загрузить ещё
+            </button>
+
+            <!-- Пустой чат -->
+            <div v-if="sortedMessages.length === 0 && !isMessagesLoading" class="empty-chat">
+                <div class="empty-icon">
+                    <i class="fa-solid fa-comments"></i>
                 </div>
-                <h5 class="empty-title">Выберите чат</h5>
-                <p class="empty-text">Выберите диалог из списка слева, чтобы начать общение</p>
+                <p>Начните общение!</p>
+                <span>Напишите первое сообщение</span>
             </div>
 
-            <!-- Загрузка -->
-            <div v-else-if="isLoading" class="loading-state">
-                <div class="loading-spinner"></div>
-                <p class="loading-text">Загружаем сообщения...</p>
-            </div>
-
-            <!-- Сообщения -->
+            <!-- Список сообщений -->
             <template v-else>
-                <div class="messages-wrapper">
+                <template
+                    v-for="(message, index) in sortedMessages"
+                    :key="message.id"
+                >
+                    <!-- Разделитель даты -->
+                    <div v-if="shouldShowDateSeparator(index)" class="date-separator">
+                        <span>{{ formatDateSeparator(message.created_at) }}</span>
+                    </div>
 
+                    <!-- Сообщение -->
                     <div
-                        v-for="(msg, index) in messages"
-                        :key="msg.id"
-                        class="message-row"
-                        :class="{ 'is-mine': isMine(msg) }"
+                        class="message-bubble"
+                        :class="{
+                            'is-mine': isMine(message),
+                            'is-error': message.status === 'error',
+                            'is-sending': message.status === 'sending',
+                            'has-tail': shouldShowTail(index)
+                        }"
                     >
-
-                        <!-- Разделитель по дате -->
-                        <div
-                            v-if="shouldShowDateSeparator(index)"
-                            class="date-separator"
-                        >
-                            <span class="date-label">
-                                {{ formatDateSeparator(msg.created_at) }}
-                            </span>
-                        </div>
-
-                        <!-- Пузырёк сообщения -->
-                        <div class="message-bubble" :class="isMine(msg) ? 'mine' : 'theirs'">
-
-                            <!-- Текст сообщения -->
-                            <div class="message-content">
-                                <div class="message-text">{{ msg.message }}</div>
-
-                                <!-- Время и статус -->
-                                <div class="message-meta">
-                                    <span class="message-time">
-                                        {{ formatTime(msg.created_at) }}
-                                    </span>
-                                    <i
-                                        v-if="isMine(msg)"
-                                        class="message-status"
-                                        :class="getMessageStatusClass(msg)"
-                                    ></i>
-                                </div>
+                        <div class="message-content">
+                            <div class="message-text" v-if="message.text || message.message">
+                                {{ message.text || message.message }}
                             </div>
 
-                            <!-- "Хвостик" пузырька -->
-                            <div class="bubble-tail"></div>
+                            <div class="message-meta">
+                                <span class="message-time">
+                                    {{ formatMessageTime(message.created_at) }}
+                                </span>
+
+                                <!-- Статус для моих сообщений -->
+                                <span v-if="isMine(message)" class="message-status">
+                                    <i v-if="message.status === 'sending'" class="fa-solid fa-clock"></i>
+                                    <i v-else-if="message.status === 'error'" class="fa-solid fa-circle-exclamation error-icon"></i>
+                                    <i v-else-if="message.status === 'read'" class="fa-solid fa-check-double status-read"></i>
+                                    <i v-else-if="message.status === 'delivered'" class="fa-solid fa-check-double status-delivered"></i>
+                                    <i v-else class="fa-solid fa-check status-sent"></i>
+                                </span>
+                            </div>
                         </div>
 
+                        <!-- Кнопка повторной отправки -->
+                        <button
+                            v-if="message.status === 'error'"
+                            class="retry-btn"
+                            @click="retryMessage(message)"
+                            title="Повторить отправку"
+                        >
+                            <i class="fa-solid fa-rotate-right"></i>
+                        </button>
                     </div>
+                </template>
 
-                    <!-- Индикатор "печатает..." -->
-                    <div v-if="isTyping" class="typing-bubble">
-                        <div class="typing-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
+                <!-- Индикатор "печатает..." -->
+                <div v-if="isTyping" class="typing-indicator">
+                    <div class="typing-bubble">
+                        <span></span>
+                        <span></span>
+                        <span></span>
                     </div>
-
                 </div>
             </template>
-
         </div>
 
-        <!-- ========================================== -->
-        <!-- ПОЛЕ ВВОДА -->
-        <!-- ========================================== -->
-        <div v-if="dialog" class="chat-input-wrapper">
-            <ChatInput :dialog="dialog" />
-        </div>
+        <!-- Поле ввода -->
+        <ChatInput
+            :dialog="currentDialog"
+            :disabled="isSending"
+            @send="handleSend"
+        />
 
     </div>
 </template>
 
 <script>
-import { useChatStore } from '@/MobileClient/stores/Shop/chat';
+import { useChat } from '@/MobileClient/Composables/useChat.js';
 import ChatInput from "@/MobileClient/Components/Chat/ChatInput.vue";
+import {
+    formatMessageTime,
+    formatDateSeparator,
+    formatLastSeen,
+    getInitials,
+    getAvatarGradient,
+    isMyMessage,
+} from '@/MobileClient/utils/chatUtils.js';
 
 export default {
     name: "ChatComponent",
 
-    components: {
-        ChatInput,
-    },
+    components: { ChatInput },
 
     setup() {
-        const store = useChatStore();
-        return { store };
+        const chat = useChat();
+        return { ...chat };
     },
 
     data() {
         return {
-            isLoading: false,
-            isTyping: false,
             autoScroll: true,
+            isTyping: false,
         };
     },
 
     computed: {
-        dialog() {
-            return this.store.getCurrentDialog;
-        },
-
-        messages() {
-            return this.store.getMessages || [];
-        },
-
         user() {
             return window.TenantUser;
         },
     },
 
     watch: {
-        messages: {
+        // Авто-скролл при новых сообщениях
+        sortedMessages: {
             handler(newMessages, oldMessages) {
                 if (newMessages.length > (oldMessages?.length || 0)) {
                     this.$nextTick(() => {
@@ -209,89 +199,56 @@ export default {
             deep: true,
         },
 
-        dialog: {
+        // Загрузка сообщений при открытии диалога
+        currentDialog: {
             immediate: true,
             handler(newDialog) {
                 if (newDialog) {
-                    this.loadMessages();
+                    this.autoScroll = true;
                 }
             },
         },
     },
 
     methods: {
-        isMine(msg) {
-            return msg.meta?.user_id === this.user?.id;
+        // ==========================================
+        // СООБЩЕНИЯ
+        // ==========================================
+
+        isMine(message) {
+            return isMyMessage(message, this.user?.id);
         },
 
-        formatTime(timestamp) {
-            if (!timestamp) return '';
-            const date = new Date(timestamp);
-            return date.toLocaleTimeString('ru-RU', {
-                hour: '2-digit',
-                minute: '2-digit',
-            });
-        },
-
-        formatDateSeparator(timestamp) {
-            if (!timestamp) return '';
-            const date = new Date(timestamp);
-            const today = new Date();
-
-            if (date.toDateString() === today.toDateString()) {
-                return 'Сегодня';
-            }
-
-            const yesterday = new Date(today);
-            yesterday.setDate(yesterday.getDate() - 1);
-
-            if (date.toDateString() === yesterday.toDateString()) {
-                return 'Вчера';
-            }
-
-            return date.toLocaleDateString('ru-RU', {
-                day: 'numeric',
-                month: 'long',
-            });
-        },
-
-        formatLastSeen(timestamp) {
-            if (!timestamp) return '';
-            const date = new Date(timestamp);
-            const now = new Date();
-            const diff = now - date;
-            const minutes = Math.floor(diff / 60000);
-
-            if (minutes < 1) return 'только что';
-            if (minutes < 60) return `был(а) ${minutes} мин. назад`;
-
-            const hours = Math.floor(minutes / 60);
-            if (hours < 24) return `был(а) ${hours} ч. назад`;
-
-            return date.toLocaleDateString('ru-RU', {
-                day: 'numeric',
-                month: 'short',
-            });
+        shouldShowTail(index) {
+            const current = this.sortedMessages[index];
+            const next = this.sortedMessages[index + 1];
+            if (!next) return true;
+            return this.isMine(current) !== this.isMine(next);
         },
 
         shouldShowDateSeparator(index) {
             if (index === 0) return true;
-
-            const currentMsg = this.messages[index];
-            const prevMsg = this.messages[index - 1];
-
-            const currentDate = new Date(currentMsg.created_at).toDateString();
-            const prevDate = new Date(prevMsg.created_at).toDateString();
-
-            return currentDate !== prevDate;
+            const current = this.sortedMessages[index];
+            const prev = this.sortedMessages[index - 1];
+            return new Date(current.created_at).toDateString() !==
+                new Date(prev.created_at).toDateString();
         },
 
-        getMessageStatusClass(msg) {
-            const status = msg.status;
-            if (status === 'read') return 'status-read';
-            if (status === 'delivered') return 'status-delivered';
-            return 'status-sent';
+        async handleSend(text, attachments = []) {
+            try {
+                await this.sendMessage(text, attachments);
+            } catch (error) {
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось отправить сообщение',
+                    type: 'error',
+                });
+            }
         },
+
+        // ==========================================
+        // СКРОЛЛ
+        // ==========================================
 
         scrollToBottom() {
             const container = this.$refs.messagesContainer;
@@ -304,116 +261,108 @@ export default {
             const container = this.$refs.messagesContainer;
             if (!container) return;
 
+            // Проверяем, находится ли пользователь внизу
             const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
             this.autoScroll = isAtBottom;
-        },
 
-        async loadMessages() {
-            this.isLoading = true;
-            try {
-                await this.store.loadMessages(this.dialog.id);
-                this.$nextTick(() => {
-                    this.scrollToBottom();
+            // Подгрузка старых сообщений при скролле вверх
+            if (container.scrollTop < 100 && this.hasMoreMessages && !this.isMessagesLoading) {
+                const previousHeight = container.scrollHeight;
+                this.loadOlderMessages().then(() => {
+                    // Сохраняем позицию скролла
+                    this.$nextTick(() => {
+                        const newHeight = container.scrollHeight;
+                        container.scrollTop = newHeight - previousHeight;
+                    });
                 });
-            } catch (error) {
-                console.error('Error loading messages:', error);
-            } finally {
-                this.isLoading = false;
             }
         },
 
+        // ==========================================
+        // ДИАЛОГ
+        // ==========================================
+
         closeDialog() {
-            this.store.closeDialog();
+            this.$emit('close');
+            // Отмечаем как прочитанное
+            if (this.currentDialog) {
+                this.markDialogAsRead(this.currentDialog.id);
+            }
         },
 
         showDialogInfo() {
-            // Можно открыть модалку с информацией о чате
-            console.log('Show dialog info', this.dialog);
+            // TODO: Открыть модалку с информацией о чате
+            console.log('Show dialog info', this.currentDialog);
+        },
+
+        // ==========================================
+        // ФОРМАТИРОВАНИЕ
+        // ==========================================
+
+        formatMessageTime(timestamp) {
+            return formatMessageTime(timestamp);
+        },
+
+        formatDateSeparator(timestamp) {
+            return formatDateSeparator(timestamp);
+        },
+
+        formatLastSeen(timestamp) {
+            return formatLastSeen(timestamp);
         },
 
         getInitials(name) {
-            if (!name) return '?';
-            const words = name.trim().split(/\s+/);
-            if (words.length >= 2) {
-                return (words[0][0] + words[1][0]).toUpperCase();
-            }
-            return name.slice(0, 2).toUpperCase();
+            return getInitials(name);
         },
 
-        getAvatarGradient(id) {
-            const gradients = [
-                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-            ];
-            const index = (id || 0) % gradients.length;
-            return { background: gradients[index] };
+        getAvatarStyle(dialog) {
+            if (!dialog) return {};
+            const interlocutor = dialog.interlocutor || dialog.user || dialog.companion;
+            if (interlocutor?.avatar) return {};
+            return getAvatarGradient(dialog.id);
         },
     },
 };
 </script>
 
-<style scoped>
-/* ==========================================
-   КОНТЕЙНЕР ЧАТА
-   ========================================== */
-.chat-container {
+<style lang="scss" scoped>
+.chat-component {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     background: var(--bs-body-bg);
-    position: relative;
 }
 
-/* ==========================================
-   HEADER
-   ========================================== */
+// Шапка
 .chat-header {
-    background: var(--bs-body-bg);
-    border-bottom: 1px solid var(--bs-border-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-
-.header-content {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
-}
-
-/* Кнопка "Назад" */
-.back-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--bs-secondary-bg, #f5f5f5);
-    border: none;
-    color: var(--bs-body-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    background: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color);
     flex-shrink: 0;
 }
 
-.back-btn:hover {
-    background: var(--bs-primary);
-    color: white;
-    transform: scale(1.05);
+.back-btn,
+.header-action {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bs-secondary-bg);
+    border: none;
+    color: var(--bs-body-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+
+    &:hover {
+        background: var(--bs-border-color);
+    }
 }
 
-.back-btn:active {
-    transform: scale(0.95);
-}
-
-/* Информация о чате */
 .header-info {
     flex: 1;
     display: flex;
@@ -425,17 +374,22 @@ export default {
 
 .header-avatar {
     position: relative;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
     flex-shrink: 0;
-}
 
-.header-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+    }
 }
 
 .avatar-initials {
@@ -444,21 +398,18 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
-    font-weight: 700;
-    font-size: 1rem;
+    border-radius: 50%;
 }
 
 .online-dot {
     position: absolute;
-    bottom: 2px;
-    right: 2px;
-    width: 12px;
-    height: 12px;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: #22c55e;
     border: 2px solid var(--bs-body-bg);
-    box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
 }
 
 .header-text {
@@ -467,183 +418,152 @@ export default {
 }
 
 .header-name {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--bs-body-color);
+    font-weight: 700;
+    font-size: 0.95rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .header-status {
-    margin: 0;
-    font-size: 0.8rem;
-    line-height: 1.2;
-}
-
-.typing-text {
-    color: var(--bs-primary);
-    font-weight: 500;
-}
-
-.online-text {
-    color: #22c55e;
-    font-weight: 500;
-}
-
-.last-seen-text,
-.offline-text {
+    font-size: 0.75rem;
     color: var(--bs-secondary-color);
+
+    .online-text {
+        color: #22c55e;
+        font-weight: 600;
+    }
 }
 
-/* Действия */
-.header-actions {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-}
-
-.action-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: transparent;
-    border: none;
-    color: var(--bs-secondary-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.action-btn:hover {
-    background: var(--bs-secondary-bg);
-    color: var(--bs-primary);
-}
-
-/* ==========================================
-   СООБЩЕНИЯ
-   ========================================== */
+// Сообщения
 .messages-container {
     flex: 1;
     overflow-y: auto;
-    background:
-        linear-gradient(135deg, rgba(var(--bs-primary-rgb), 0.02) 0%, transparent 100%),
-        var(--bs-body-bg);
     padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     -webkit-overflow-scrolling: touch;
 }
 
-.messages-container::-webkit-scrollbar {
-    width: 6px;
-}
-
-.messages-container::-webkit-scrollbar-thumb {
-    background: var(--bs-border-color);
-    border-radius: 3px;
-}
-
-.messages-wrapper {
+.messages-loader {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-/* Пустое состояние */
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
     justify-content: center;
-    height: 100%;
-    text-align: center;
-    padding: 40px 20px;
+    padding: 12px;
 }
 
-.empty-icon-wrapper {
-    margin-bottom: 20px;
-}
-
-.empty-icon {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: rgba(var(--bs-primary-rgb), 0.1);
-    color: var(--bs-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-}
-
-.empty-title {
-    font-weight: 700;
-    font-size: 1.2rem;
-    margin-bottom: 8px;
-    color: var(--bs-body-color);
-}
-
-.empty-text {
-    font-size: 0.9rem;
-    color: var(--bs-secondary-color);
-    margin: 0;
-}
-
-/* Загрузка */
-.loading-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 40px;
-}
-
-.loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--bs-border-color);
+.loader-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--bs-border-color);
     border-top-color: var(--bs-primary);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
-    margin-bottom: 16px;
 }
 
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
 
-.loading-text {
-    font-size: 0.9rem;
-    color: var(--bs-secondary-color);
-    margin: 0;
-}
-
-/* ==========================================
-   СООБЩЕНИЯ
-   ========================================== */
-.message-row {
+.load-more-btn {
+    align-self: center;
+    padding: 6px 14px;
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 20px;
+    color: var(--bs-primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
     display: flex;
-    margin-bottom: 4px;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+
+    &:hover {
+        background: rgba(var(--bs-primary-rgb), 0.1);
+    }
 }
 
-.message-row.is-mine {
-    justify-content: flex-end;
+.empty-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+
+    .empty-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: rgba(var(--bs-primary-rgb), 0.1);
+        color: var(--bs-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin-bottom: 16px;
+    }
+
+    p {
+        margin: 0 0 4px;
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+
+    span {
+        color: var(--bs-secondary-color);
+        font-size: 0.9rem;
+    }
 }
 
-/* Пузырёк */
+// Разделитель даты
+.date-separator {
+    display: flex;
+    justify-content: center;
+    margin: 16px 0 8px;
+
+    span {
+        padding: 4px 12px;
+        background: var(--bs-secondary-bg);
+        border-radius: 12px;
+        font-size: 0.75rem;
+        color: var(--bs-secondary-color);
+        font-weight: 600;
+    }
+}
+
+// Пузырьки сообщений
 .message-bubble {
-    position: relative;
-    max-width: 70%;
-    padding: 10px 14px;
-    border-radius: 18px;
-    animation: messageAppear 0.3s ease;
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    max-width: 80%;
+    margin-bottom: 2px;
+    animation: messageIn 0.3s ease;
+
+    &:not(.is-mine) {
+        align-self: flex-start;
+    }
+
+    &.is-mine {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+    }
+
+    &.is-error .message-content {
+        background: rgba(var(--bs-danger-rgb), 0.1);
+        border: 1px solid rgba(var(--bs-danger-rgb), 0.3);
+    }
+
+    &.is-sending {
+        opacity: 0.7;
+    }
 }
 
-@keyframes messageAppear {
+@keyframes messageIn {
     from {
         opacity: 0;
         transform: translateY(10px);
@@ -654,183 +574,107 @@ export default {
     }
 }
 
-.message-bubble.theirs {
-    background: var(--bs-secondary-bg, #f0f0f0);
-    color: var(--bs-body-color);
-    border-bottom-left-radius: 4px;
-}
-
-.message-bubble.mine {
-    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
-    color: white;
-    border-bottom-right-radius: 4px;
-}
-
 .message-content {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    padding: 8px 12px;
+    border-radius: 16px;
+    background: var(--bs-secondary-bg);
+    max-width: 100%;
+    word-wrap: break-word;
+
+    .is-mine & {
+        background: var(--bs-primary);
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+
+    &:not(.is-mine .message-content) {
+        border-bottom-left-radius: 4px;
+    }
 }
 
 .message-text {
     font-size: 0.95rem;
     line-height: 1.4;
-    word-wrap: break-word;
     white-space: pre-wrap;
 }
 
 .message-meta {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 4px;
+    justify-content: flex-end;
+    margin-top: 2px;
+}
+
+.message-time {
     font-size: 0.7rem;
     opacity: 0.7;
 }
 
-.message-time {
-    font-weight: 500;
-}
-
 .message-status {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+
+    .status-read { color: #60a5fa; }
+    .status-delivered { color: rgba(255, 255, 255, 0.9); }
+    .status-sent { color: rgba(255, 255, 255, 0.7); }
+    .error-icon { color: var(--bs-danger); }
 }
 
-.message-status::before {
-    content: '✓';
-}
-
-.message-status.status-sent {
-    opacity: 0.6;
-}
-
-.message-status.status-delivered::before {
-    content: '✓✓';
-}
-
-.message-status.status-read {
-    opacity: 1;
-}
-
-.message-status.status-read::before {
-    content: '✓✓';
-}
-
-/* Разделитель по дате */
-.date-separator {
+.retry-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bs-danger);
+    border: none;
+    color: white;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 16px 0;
-}
-
-.date-label {
-    padding: 6px 14px;
-    background: var(--bs-secondary-bg);
-    border-radius: 12px;
     font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--bs-secondary-color);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
+
+    &:hover {
+        transform: rotate(180deg);
+    }
 }
 
-/* Индикатор "печатает..." */
+// Индикатор "печатает..."
+.typing-indicator {
+    align-self: flex-start;
+    padding: 4px 0;
+}
+
 .typing-bubble {
     display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    background: var(--bs-secondary-bg);
-    border-radius: 18px;
-    border-bottom-left-radius: 4px;
-    width: fit-content;
-}
-
-.typing-dots {
-    display: flex;
     gap: 4px;
-}
+    padding: 10px 14px;
+    background: var(--bs-secondary-bg);
+    border-radius: 16px;
+    border-bottom-left-radius: 4px;
 
-.typing-dots span {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--bs-secondary-color);
-    animation: typing 1.4s ease-in-out infinite;
-}
+    span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--bs-secondary-color);
+        animation: typing 1.4s infinite;
 
-.typing-dots span:nth-child(2) {
-    animation-delay: 0.2s;
-}
-
-.typing-dots span:nth-child(3) {
-    animation-delay: 0.4s;
+        &:nth-child(2) { animation-delay: 0.2s; }
+        &:nth-child(3) { animation-delay: 0.4s; }
+    }
 }
 
 @keyframes typing {
     0%, 60%, 100% {
         transform: translateY(0);
-        opacity: 0.4;
+        opacity: 0.5;
     }
     30% {
         transform: translateY(-6px);
         opacity: 1;
-    }
-}
-
-/* ==========================================
-   ПОЛЕ ВВОДА
-   ========================================== */
-.chat-input-wrapper {
-    background: var(--bs-body-bg);
-    border-top: 1px solid var(--bs-border-color);
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
-    position: sticky;
-    bottom: 0;
-    z-index: 100;
-}
-
-/* ==========================================
-   АДАПТИВ
-   ========================================== */
-@media (max-width: 576px) {
-    .header-content {
-        padding: 10px 12px;
-        gap: 10px;
-    }
-
-    .back-btn {
-        width: 36px;
-        height: 36px;
-    }
-
-    .header-avatar {
-        width: 40px;
-        height: 40px;
-    }
-
-    .header-name {
-        font-size: 0.95rem;
-    }
-
-    .header-status {
-        font-size: 0.75rem;
-    }
-
-    .action-btn {
-        width: 32px;
-        height: 32px;
-    }
-
-    .messages-container {
-        padding: 12px;
-    }
-
-    .message-bubble {
-        max-width: 80%;
-    }
-
-    .message-text {
-        font-size: 0.9rem;
     }
 }
 </style>

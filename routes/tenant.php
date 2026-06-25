@@ -67,10 +67,15 @@ $routes = function () {
             abort(404);
         }
 
-        return response(file_get_contents($path), 200, [
+        $content = file_get_contents($path);
+
+        // Заменяем метку на реальную версию из .env
+        $content = str_replace('___MY_PROJECT_VERSION___', env('APP_VERSION', '1.0.0'), $content);
+
+        return response($content, 200, [
             'Content-Type' => 'application/javascript',
             'Service-Worker-Allowed' => '/pwa/',
-            'Cache-Control' => 'no-cache, no-store, must-revalidate', // Важно! Чтобы обновления подхватывались
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
         ]);
     });
 

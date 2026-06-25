@@ -451,7 +451,7 @@ export default {
 .field-icon {
     width: 48px;
     display: flex;
-    align-items: center;
+    align-items: normal;
     justify-content: center;
     color: var(--bs-primary);
     font-size: 1rem;
@@ -505,6 +505,7 @@ export default {
     margin-bottom: 12px;
     border-radius: 14px;
     overflow: hidden;
+    padding: 5px;
     border: 2px solid var(--bs-border-color);
 }
 

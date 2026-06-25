@@ -502,7 +502,8 @@ export default {
 .hero-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 6px;
+    overflow-x: auto;
 }
 
 .stat-pill {

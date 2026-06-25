@@ -1,5 +1,5 @@
 <template>
-    <div class="cashback-page pb-5" v-if="self">
+    <div class="cashback-page pb-5 pt-3" v-if="self">
 
         <!-- ===== HERO: ГЛАВНЫЙ БАЛАНС ===== -->
         <div class="balance-hero">

@@ -208,9 +208,22 @@
 </template>
 
 <script>
+import { useChat } from '@/MobileClient/Composables/useChat.js';
+import {useBasket} from "@/MobileClient/composables/useBasket.js";
+
 export default {
     name: "AppSidebar",
 
+    data(){
+        const basket = useBasket();
+        const chat = useChat();
+
+        return {
+            cartTotalCount: basket.cartTotalCount,
+            isEmpty: basket.isEmpty,
+            chatUnreadCount: chat.totalUnread,
+        }
+    },
     computed: {
         tenant() {
             return window.Tenant || null;
@@ -379,8 +392,8 @@ export default {
 
 .sidebar-close-btn {
     position: absolute;
-    top: 16px;
-    right: 16px;
+    top: 0px;
+    right: 0px;
     width: 32px;
     height: 32px;
     border-radius: 50%;

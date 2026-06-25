@@ -23,7 +23,7 @@
 
 <script>
 import { useChatStore } from '@/MobileClient/stores/Shop/chat';
-import ChatList from "@/MobileClient/Components/Chat/ChatList.vue";
+import ChatList from "@/MobileClient/Components/Chat/DailogList.vue";
 import Chat from "@/MobileClient/Components/Chat/Chat.vue";
 
 export default {

@@ -118,14 +118,16 @@
                                 <span class="add-btn-label">
                                     {{ isProductLoading(item.id) ? 'Добавляем...' : 'В корзину' }}
                                 </span>
-                                <span class="add-btn-price">
-                                    <template v-if="item?.is_weight_product">
-                                        от {{ formatPrice(pricePerUnit * minWeight) }}
-                                        <span class="weight-hint">
-                                            / {{ minWeight }}{{ weightUnit }}
+                                <template v-if="item?.is_weight_product">
+                                    <span class="weight-price">
+                                          от {{ formatPrice(pricePerUnit * minWeight) }}
+                                    </span>
+                                    <span class="weight-hint">
+                                            от {{ minWeight }}{{ weightUnit }}
                                         </span>
-                                    </template>
-                                    <template v-else>
+                                </template>
+                                <span class="add-btn-price">
+                                    <template v-if="!item?.is_weight_product">
                                         {{ formatPrice(item?.price) }}
                                         <span v-if="item?.old_price > 0" class="old-price">
                                             {{ formatPrice(item.old_price) }}
@@ -850,14 +852,14 @@ $bg-secondary: #f8f9fa;
 }
 
 .add-btn-label {
-    font-size: 0.7rem;
+    font-size: 0.5rem;
     opacity: 0.9;
     line-height: 1;
     margin-bottom: 2px;
 }
 
 .add-btn-price {
-    font-size: 0.95rem;
+    font-size: 0.7rem;
     font-weight: 700;
     line-height: 1;
     display: flex;
@@ -866,7 +868,7 @@ $bg-secondary: #f8f9fa;
 }
 
 .old-price {
-    font-size: 0.75rem;
+    font-size: 0.5rem;
     font-weight: 400;
     text-decoration: line-through;
     opacity: 0.7;
@@ -896,7 +898,7 @@ $bg-secondary: #f8f9fa;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.85rem;
+    font-size: 0.65rem;
     cursor: pointer;
     transition: all 0.2s ease;
 
@@ -929,7 +931,7 @@ $bg-secondary: #f8f9fa;
 }
 
 .value-number {
-    font-size: 1rem;
+    font-size: 0.7rem;
     font-weight: 700;
     color: var(--bs-primary, #{$primary});
 }
@@ -1009,7 +1011,7 @@ $bg-secondary: #f8f9fa;
     }
 
     .add-btn-price {
-        font-size: 0.9rem;
+        font-size: 0.7rem;
     }
 
     .stepper-btn {
@@ -1020,7 +1022,7 @@ $bg-secondary: #f8f9fa;
     .favorite-btn {
         width: 32px;
         height: 32px;
-        font-size: 0.9rem;
+        font-size: 0.7rem;
     }
 }
 
@@ -1039,9 +1041,15 @@ $bg-secondary: #f8f9fa;
     text-align: center;
 }
 
+.weight-price {
+    font-size: 0.7rem;
+    font-weight: 900;
+    opacity: 0.85;
+    margin-left: 2px;
+}
 // Подсказка "от X ₽ / Y г" на кнопке
 .weight-hint {
-    font-size: 0.7rem;
+    font-size: 0.5rem;
     font-weight: 500;
     opacity: 0.85;
     margin-left: 2px;
@@ -1050,7 +1058,7 @@ $bg-secondary: #f8f9fa;
 // Счётчик для весовых товаров — чуть шире для отображения граммов
 .quantity-stepper.is-weight {
     .stepper-value {
-        min-width: 70px;
+        min-width: 60px;
     }
 }
 

@@ -1,5 +1,5 @@
 <template>
-    <div class="container py-3 pb-5" v-if="self">
+    <div class=" py-3 pb-5" v-if="self">
 
         <!-- Карточка профиля -->
         <ProfileCard v-on:profile-edit="openEditModal"/>
