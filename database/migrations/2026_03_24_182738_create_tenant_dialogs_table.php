@@ -25,11 +25,17 @@ return new class extends Migration
 
             $table->boolean('is_closed')->default(false);
 
+            $table->boolean('is_archived')->default(false);
+            $table->timestamp('archived_at')->nullable();
+
+
             $table->timestamp('last_message_at')->nullable();
 
             $table->timestamps();
 
-            $table->index(['tenant_id', 'tenant_user_id']);
+
+
+            $table->index(['tenant_id', 'tenant_user_id', 'is_archived']);
         });
     }
 

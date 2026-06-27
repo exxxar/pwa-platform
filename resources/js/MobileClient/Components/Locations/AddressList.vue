@@ -794,7 +794,7 @@ export default {
 }
 
 .address-modal .modal-body {
-    padding: 20px;
+    padding: 20px 10px;
 }
 
 /* ==========================================

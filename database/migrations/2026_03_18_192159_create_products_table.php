@@ -36,9 +36,13 @@ return new class extends Migration
 
         Schema::create('product_categories', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('product_id')->nullable()->constrained('products');;
-            $table->foreignId('category_id')->nullable()->constrained('categories');
+            $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
+            $table->foreignId('category_id')->constrained('categories')->onDelete('cascade');
             $table->timestamps();
+
+            $table->unique(['product_id', 'category_id']);
+            $table->index('category_id');
+            $table->index('product_id');
         });
     }
 

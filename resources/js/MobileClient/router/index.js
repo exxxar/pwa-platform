@@ -4,6 +4,7 @@ import { defineAsyncComponent } from 'vue'
 
 
 const Menu = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Menu.vue'))
+const Achievements = defineAsyncComponent(() => import('@/MobileClient/Pages/AchievementsPage.vue'))
 const Profile = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Profile.vue'))
 const Catalog = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Catalog.vue'))
 const Chat = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Chat.vue'))
@@ -19,6 +20,7 @@ const NotFound = defineAsyncComponent(() => import('@/MobileClient/Pages/NotFoun
 const PromoCode = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/PromoCode.vue'))
 
 const AdminShop = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Shop.vue'))
+const AdminTenant = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/TenantSettings.vue'))
 const AdminInvoice = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Invoice.vue'))
 const AdminPartners = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Partners.vue'))
 const AdminStories = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/StoryManager.vue'))
@@ -55,6 +57,15 @@ const routes = [
         name: 'Contacts',
         component: Contacts,
         meta: { public: true }
+    },
+    {
+        path: '/achievements',
+        name: 'Achievements',
+        component: Achievements,
+        meta: {
+          //  requiresAuth: true,
+            title: 'Мои достижения'
+        }
     },
     {
         path: '/booking',
@@ -104,7 +115,7 @@ const routes = [
         path: '/chat',
         name: 'Chat',
         component: Chat,
-        meta: { auth: true }
+        meta: { auth: true,  hideBottomMenu: true, hideFooter: true }
     },
     {
         path: '/games',
@@ -244,16 +255,32 @@ const routes = [
         }
     },
     {
+        path: '/calculator',
+        name: 'Calculator',
+        component: defineAsyncComponent(() => import('@/MobileClient/Pages/CalculatorPage.vue')),
+        meta: {
+            hideBottomMenu: true,
+            title: 'Калькулятор стоимости'
+        }
+    },
+    {
         path: '/about',
         name: 'AboutDeveloper',
         component: defineAsyncComponent(() => import('@/MobileClient/Pages/AboutDeveloper.vue')),
-        meta: { public: true }
+        meta: { public: true, hideBottomMenu: true }
     },
     {
         path: '/admin/tap-links',
         name: 'TapLinkAdmin',
         component: defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/TapLinkAdmin.vue')),
         meta: { auth: true, role: 'admin' } // Доступ только админу/владельцу
+    },
+
+    {
+        path: '/admin/tenant',
+        name: 'AdminTenant',
+        component:AdminTenant,
+        meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
     },
 
     {

@@ -4,53 +4,31 @@ import axios from 'axios';
 const BASE = '/stories';
 
 export const useStoriesStore = defineStore('stories', {
-    // ==========================================
-    // STATE
-    // ==========================================
     state: () => ({
-        // Данные
         stories: [],
         stories_paginate_object: null,
 
-        // Состояние загрузки
+        // 🆕 Просмотренные истории (в памяти + localStorage)
+        viewedStoryIds: JSON.parse(localStorage.getItem('viewed_stories') || '[]'),
+
         isLoading: false,
         isHydrated: false,
-
-        // Действия над историями: { [storyId]: 'delete' | 'update' }
+        isStoring: false,
         storyActions: {},
-
-        // Ошибки
         lastError: null,
         errors: [],
-
-        // Время последней синхронизации
         lastSyncAt: null,
     }),
 
-    // ==========================================
-    // GETTERS
-    // ==========================================
     getters: {
-        /**
-         * Все истории
-         */
         getStories: (state) => state.stories || [],
 
-        /**
-         * Пагинация
-         */
         getStoriesPaginateObject: (state) => state.stories_paginate_object || null,
 
-        /**
-         * Найти историю по ID
-         */
         getStoryById: (state) => (id) => {
             return state.stories.find(item => String(item.id) === String(id)) || null;
         },
 
-        /**
-         * Истории отсортированные (новые сверху)
-         */
         sortedStories: (state) => {
             return [...(state.stories || [])].sort((a, b) => {
                 const dateA = new Date(a.created_at || a.published_at || 0);
@@ -59,9 +37,6 @@ export const useStoriesStore = defineStore('stories', {
             });
         },
 
-        /**
-         * Активные (опубликованные) истории
-         */
         activeStories: (state) => {
             return (state.stories || []).filter(s =>
                 s.is_active !== false &&
@@ -70,57 +45,98 @@ export const useStoriesStore = defineStore('stories', {
             );
         },
 
-        /**
-         * Архивные истории
-         */
         archivedStories: (state) => {
             return (state.stories || []).filter(s => s.is_archived);
         },
 
-        /**
-         * Недавно добавленные (за последние 24 часа)
-         */
         recentStories: (state) => {
-            const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-            return (state.stories || []).filter(s => {
-                const date = new Date(s.created_at || s.published_at || 0);
-                return date > dayAgo;
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            return (state.stories || []).filter(r => {
+                const date = new Date(r.created_at || 0);
+                return date >= weekAgo;
             });
         },
 
-        /**
-         * Проверка, загружается ли конкретная история
-         */
-        isStoryLoading: (state) => (id) => {
-            return !!state.storyActions[String(id)];
+        // 🆕 Проверка, просмотрена ли история
+        isViewed: (state) => (storyId) => {
+            return state.viewedStoryIds.includes(String(storyId));
         },
 
-        /**
-         * Общее количество историй
-         */
         storiesCount: (state) => state.stories?.length || 0,
-
-        /**
-         * Количество активных историй
-         */
-        activeStoriesCount: (state) => {
-            return (state.stories || []).filter(s =>
-                s.is_active !== false && !s.is_archived
-            ).length;
-        },
     },
 
-    // ==========================================
-    // ACTIONS
-    // ==========================================
     actions: {
+        // ==========================================
+        // 🆕 ПРОСМОТРЕННЫЕ ИСТОРИИ
+        // ==========================================
+
+        /**
+         * Отметить историю как просмотренную
+         */
+        markAsViewed(storyId) {
+            const id = String(storyId);
+            if (!this.viewedStoryIds.includes(id)) {
+                this.viewedStoryIds.push(id);
+                localStorage.setItem('viewed_stories', JSON.stringify(this.viewedStoryIds));
+            }
+        },
+
+        /**
+         * Сбросить историю просмотров
+         */
+        clearViewedHistory() {
+            this.viewedStoryIds = [];
+            localStorage.removeItem('viewed_stories');
+        },
+
         // ==========================================
         // ЗАГРУЗКА
         // ==========================================
+        async loadPartnersStories(partnerId = null) {
+            this.isLoading = true;
+            this.lastError = null;
 
-        /**
-         * Загрузка списка историй
-         */
+            try {
+                const page =  1;
+                const size = 20;
+                const link = `${BASE}?page=${page}&size=${size}`;
+
+                const response = await axios.get(link, {
+                    params: { partner_id: partnerId }
+                });
+                const dataObject = response.data;
+
+                this.stories = dataObject.data || [];
+                const { data, ...paginate } = dataObject;
+                this.stories_paginate_object = paginate;
+
+                this.isHydrated = true;
+                this.lastSyncAt = new Date();
+
+                localStorage.setItem('cashman_stories', JSON.stringify(this.stories));
+                localStorage.setItem('cashman_stories_paginate_object', JSON.stringify(paginate));
+
+                return paginate;
+            } catch (err) {
+                console.error('[Stories Store] Ошибка загрузки:', err);
+                this.lastError = err.response?.data?.message || 'Не удалось загрузить истории';
+                this.errors = err.response?.data?.errors || [];
+
+                const cached = localStorage.getItem('cashman_stories');
+                if (cached && this.stories.length === 0) {
+                    try {
+                        this.stories = JSON.parse(cached);
+                    } catch {
+                        this.stories = [];
+                    }
+                }
+
+                throw err;
+            } finally {
+                this.isLoading = false;
+            }
+        },
         async loadStories(payload = { page: 1, size: 20 }) {
             this.isLoading = true;
             this.lastError = null;
@@ -140,17 +156,15 @@ export const useStoriesStore = defineStore('stories', {
                 this.isHydrated = true;
                 this.lastSyncAt = new Date();
 
-                // Сохраняем в localStorage как fallback
                 localStorage.setItem('cashman_stories', JSON.stringify(this.stories));
                 localStorage.setItem('cashman_stories_paginate_object', JSON.stringify(paginate));
 
                 return paginate;
             } catch (err) {
-                console.error('[Stories Store] Ошибка загрузки историй:', err);
+                console.error('[Stories Store] Ошибка загрузки:', err);
                 this.lastError = err.response?.data?.message || 'Не удалось загрузить истории';
                 this.errors = err.response?.data?.errors || [];
 
-                // Fallback: пробуем загрузить из localStorage
                 const cached = localStorage.getItem('cashman_stories');
                 if (cached && this.stories.length === 0) {
                     try {
@@ -166,25 +180,10 @@ export const useStoriesStore = defineStore('stories', {
             }
         },
 
-        /**
-         * Загрузка одной истории
-         */
         async fetchStory(payload = { id: null }) {
-            if (!payload.id) throw new Error('Не указан ID истории');
-
             try {
                 const response = await axios.get(`${BASE}/${payload.id}`);
-                const story = response.data?.data || response.data;
-
-                // Обновляем в списке, если есть
-                if (story?.id) {
-                    const index = this.stories.findIndex(s => String(s.id) === String(story.id));
-                    if (index !== -1) {
-                        this.stories[index] = { ...this.stories[index], ...story };
-                    }
-                }
-
-                return story;
+                return response.data;
             } catch (err) {
                 console.error('[Stories Store] Ошибка загрузки истории:', err);
                 throw err;
@@ -195,98 +194,68 @@ export const useStoriesStore = defineStore('stories', {
         // CRUD
         // ==========================================
 
-        /**
-         * Создание/обновление истории
-         */
-        async saveStory(payload = { storyForm: {} }) {
-            this.lastError = null;
+        async saveStory(storyForm) {
+            this.isStoring = true;
 
-            const storyId = payload.storyForm?.id;
-            const isUpdate = !!storyId;
-
-            if (isUpdate) {
+            const storyId = storyForm?.id;
+            if (storyId) {
                 this.storyActions[String(storyId)] = 'update';
             }
 
-            // Сохраняем предыдущее состояние для отката
-            let previousStory = null;
-            let previousIndex = -1;
-            if (isUpdate) {
-                previousIndex = this.stories.findIndex(s => String(s.id) === String(storyId));
-                if (previousIndex !== -1) {
-                    previousStory = { ...this.stories[previousIndex] };
-                }
-            }
+            const previousState = storyId ? { ...this.getStoryById(storyId) } : null;
 
             try {
-                const response = await axios.post(BASE, payload.storyForm);
+                const response = await axios.post(BASE, storyForm);
                 const savedStory = response.data?.data || response.data;
 
                 if (savedStory?.id) {
-                    if (isUpdate) {
-                        // Обновляем существующую
+                    if (storyId) {
                         const index = this.stories.findIndex(s => String(s.id) === String(savedStory.id));
                         if (index !== -1) {
                             this.stories[index] = { ...this.stories[index], ...savedStory };
                         }
                     } else {
-                        // Добавляем новую в начало
                         this.stories.unshift(savedStory);
                     }
                 }
 
                 return savedStory;
             } catch (err) {
-                console.error('[Stories Store] Ошибка сохранения истории:', err);
-                this.lastError = err.response?.data?.message || 'Не удалось сохранить историю';
+                console.error('[Stories Store] Ошибка сохранения:', err);
                 throw err;
             } finally {
-                if (isUpdate) {
+                this.isStoring = false;
+                if (storyId) {
                     delete this.storyActions[String(storyId)];
                 }
             }
         },
 
-        /**
-         * Удаление истории (оптимистично)
-         */
-        async deleteStory(payload = { id: null }) {
-            if (!payload.id) throw new Error('Не указан ID истории');
+        async deleteStory(storyId) {
+            this.storyActions[String(storyId)] = 'delete';
 
-            this.storyActions[String(payload.id)] = 'delete';
-
-            // Сохраняем для отката
-            const previousStories = [...this.stories];
-            const removedIndex = this.stories.findIndex(s => String(s.id) === String(payload.id));
+            const removedIndex = this.stories.findIndex(s => String(s.id) === String(storyId));
             const removedStory = removedIndex !== -1 ? this.stories[removedIndex] : null;
 
-            // Оптимистично удаляем
             if (removedIndex !== -1) {
                 this.stories.splice(removedIndex, 1);
             }
 
             try {
-                const response = await axios.delete(`${BASE}/${payload.id}`);
+                const response = await axios.delete(`${BASE}/${storyId}`);
                 return response.data;
             } catch (err) {
-                // Откат
                 if (removedStory && removedIndex !== -1) {
                     this.stories.splice(removedIndex, 0, removedStory);
                 }
-                console.error('[Stories Store] Ошибка удаления истории:', err);
-                this.lastError = err.response?.data?.message || 'Не удалось удалить историю';
+                console.error('[Stories Store] Ошибка удаления:', err);
                 throw err;
             } finally {
-                delete this.storyActions[String(payload.id)];
+                delete this.storyActions[String(storyId)];
             }
         },
 
-        /**
-         * Архивация истории (оптимистично)
-         */
         async archiveStory(storyId) {
-            if (!storyId) throw new Error('Не указан ID истории');
-
             this.storyActions[String(storyId)] = 'archive';
 
             const story = this.getStoryById(storyId);
@@ -316,12 +285,7 @@ export const useStoriesStore = defineStore('stories', {
             }
         },
 
-        /**
-         * Переключение активности истории (оптимистично)
-         */
         async toggleStoryActive(storyId) {
-            if (!storyId) throw new Error('Не указан ID истории');
-
             this.storyActions[String(storyId)] = 'toggle-active';
 
             const story = this.getStoryById(storyId);
@@ -351,26 +315,13 @@ export const useStoriesStore = defineStore('stories', {
             }
         },
 
-        /**
-         * Отметить историю как просмотренную
-         */
-        markAsViewed(storyId) {
-            const story = this.getStoryById(storyId);
-            if (story) {
-                story.is_viewed = true;
-                story.viewed_at = new Date().toISOString();
-            }
-        },
-
-        // ==========================================
-        // СБРОС
-        // ==========================================
-
         $reset() {
             this.stories = [];
             this.stories_paginate_object = null;
+            this.viewedStoryIds = [];
             this.isLoading = false;
             this.isHydrated = false;
+            this.isStoring = false;
             this.storyActions = {};
             this.lastError = null;
             this.errors = [];

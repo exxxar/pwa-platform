@@ -1,88 +1,107 @@
 <template>
     <div class="add-partner-form">
-
-        <!-- Кнопка добавления -->
         <button class="btn-add-partner" @click="openModal">
             <i class="fa-solid fa-plus"></i>
-            <span>Добавить партнера</span>
+            <span>Добавить партнёра</span>
         </button>
 
         <!-- ========================================== -->
-        <!-- МОДАЛКА: ДОБАВЛЕНИЕ ПАРТНЕРА (BOTTOM SHEET) -->
+        <!-- МОДАЛКА ДОБАВЛЕНИЯ -->
         <!-- ========================================== -->
-        <div v-if="showModal" class="modal-overlay bottom-sheet" @click.self="closeModal">
-            <div class="modal-container add-modal">
-                <div class="modal-header">
-                    <h3>Добавление партнера</h3>
-                    <button class="modal-close" @click="closeModal">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-
-                <div class="modal-body">
-                    <!-- Подсказка -->
-                    <div class="info-alert">
-                        <i class="fa-solid fa-circle-info"></i>
-                        <span>Настройка партнера происходит после его добавления</span>
+        <transition name="modal-fade">
+            <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+                <div class="modal-container">
+                    <div class="modal-header">
+                        <button class="modal-close" @click="closeModal">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                        <div class="modal-header-content">
+                            <div class="modal-icon">
+                                <i class="fa-brands fa-telegram"></i>
+                            </div>
+                            <div>
+                                <h3 class="modal-title">Добавление партнёра</h3>
+                                <p class="modal-subtitle">Укажите ссылку на Telegram-бот</p>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Форма -->
-                    <form @submit.prevent="handleSubmit" class="partner-form">
-                        <div class="form-group">
-                            <label class="form-label" for="telegram-input">
-                                <i class="fa-brands fa-telegram"></i>
-                                Ссылка на Telegram-бота <span class="required">*</span>
-                            </label>
-                            <input
-                                id="telegram-input"
-                                type="text"
-                                v-model="telegramInput"
-                                class="form-input"
-                                placeholder="https://t.me/your_bot или @your_bot"
-                                :disabled="isLoading"
-                                required
-                                @input="validateTelegram"
-                            >
-                            <span v-if="errors.telegram" class="form-error">{{ errors.telegram }}</span>
-                            <span v-else class="form-hint">
-                                Пример: https://t.me/my_bot или @my_bot
-                            </span>
+                    <div class="modal-body">
+                        <div class="info-alert">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span>Настройка партнёра происходит после его добавления</span>
                         </div>
 
-                        <div class="form-actions">
-                            <button
-                                type="button"
-                                class="btn-secondary-modern"
-                                @click="closeModal"
-                                :disabled="isLoading"
-                            >
-                                Отмена
-                            </button>
-                            <button
-                                type="submit"
-                                class="btn-primary-modern"
-                                :disabled="isLoading || !isValid"
-                            >
-                                <span v-if="isLoading" class="spinner-small"></span>
-                                <template v-else>
-                                    <i class="fa-solid fa-plus"></i>
-                                    Добавить
-                                </template>
-                            </button>
-                        </div>
-                    </form>
+                        <form @submit.prevent="handleSubmit" class="partner-form">
+                            <div class="form-group">
+                                <label class="form-label" for="telegram-input">
+                                    <i class="fa-brands fa-telegram"></i>
+                                    Ссылка на Telegram-бота
+                                    <span class="required">*</span>
+                                </label>
+                                <input
+                                    id="telegram-input"
+                                    type="text"
+                                    v-model="telegramInput"
+                                    class="form-input"
+                                    :class="{ 'has-error': errors.telegram }"
+                                    placeholder="https://t.me/your_bot или @your_bot"
+                                    :disabled="isLoading"
+                                    required
+                                    @input="validateTelegram"
+                                >
+                                <span v-if="errors.telegram" class="form-error">
+                                    <i class="fa-solid fa-circle-exclamation"></i>
+                                    {{ errors.telegram }}
+                                </span>
+                                <span v-else class="form-hint">
+                                    Пример: https://t.me/my_bot или @my_bot
+                                </span>
+                            </div>
+
+                            <div class="form-actions">
+                                <button
+                                    type="button"
+                                    class="btn-cancel"
+                                    @click="closeModal"
+                                    :disabled="isLoading"
+                                >
+                                    Отмена
+                                </button>
+                                <button
+                                    type="submit"
+                                    class="btn-submit"
+                                    :disabled="isLoading || !isValid"
+                                >
+                                    <span v-if="isLoading" class="spinner-small"></span>
+                                    <template v-else>
+                                        <i class="fa-solid fa-plus"></i>
+                                        Добавить
+                                    </template>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </div>
-
+        </transition>
     </div>
 </template>
 
 <script>
+import { usePartners } from '@/MobileClient/Composables/usePartners.js'
+
 export default {
     name: 'AddPartnerForm',
 
     emits: ['callback'],
+
+    setup() {
+        const partners = usePartners()
+        return {
+            storePartner: partners.storePartner,
+        }
+    },
 
     data() {
         return {
@@ -92,109 +111,97 @@ export default {
             errors: {
                 telegram: '',
             },
-        };
+        }
     },
 
     computed: {
         isValid() {
-            return this.telegramInput.trim().length > 0 && !this.errors.telegram;
+            return this.telegramInput.trim().length > 0 && !this.errors.telegram
         },
     },
 
     methods: {
         openModal() {
-            this.showModal = true;
+            this.showModal = true
+            document.body.style.overflow = 'hidden'
         },
 
         closeModal() {
-            this.showModal = false;
-            this.telegramInput = '';
-            this.errors.telegram = '';
+            this.showModal = false
+            this.telegramInput = ''
+            this.errors.telegram = ''
+            document.body.style.overflow = ''
         },
 
         validateTelegram() {
-            this.errors.telegram = '';
+            this.errors.telegram = ''
+            const input = this.telegramInput.trim()
 
-            const input = this.telegramInput.trim();
+            if (!input) return
 
-            if (!input) {
-                return; // Пустое поле — не показываем ошибку, но isValid будет false
-            }
-
-            // Проверяем формат
-            const processed = this.processTelegramLink(input);
-
-            // Telegram username: 5-32 символа, буквы, цифры, подчеркивания
-            const telegramRegex = /^[a-zA-Z0-9_]{5,32}$/;
+            const processed = this.processTelegramLink(input)
+            const telegramRegex = /^[a-zA-Z0-9_]{5,32}$/
 
             if (!telegramRegex.test(processed)) {
-                this.errors.telegram = 'Некорректный формат. Используйте @username или https://t.me/username';
+                this.errors.telegram = 'Некорректный формат. Используйте @username или https://t.me/username'
             }
         },
 
         processTelegramLink(link) {
-            let processedLink = link.trim();
+            let processedLink = link.trim()
 
-            // Убираем https://t.me/ если это ссылка
             if (processedLink.startsWith('https://t.me/')) {
-                processedLink = processedLink.replace('https://t.me/', '');
-            }
-            // Убираем http://t.me/ (на всякий случай)
-            else if (processedLink.startsWith('http://t.me/')) {
-                processedLink = processedLink.replace('http://t.me/', '');
-            }
-            // Убираем @ если это домен
-            else if (processedLink.startsWith('@')) {
-                processedLink = processedLink.replace('@', '');
+                processedLink = processedLink.replace('https://t.me/', '')
+            } else if (processedLink.startsWith('http://t.me/')) {
+                processedLink = processedLink.replace('http://t.me/', '')
+            } else if (processedLink.startsWith('@')) {
+                processedLink = processedLink.replace('@', '')
             }
 
-            // Убираем лишние символы в конце (/, ?, и т.д.)
-            processedLink = processedLink.split(/[/?#]/)[0];
-
-            return processedLink;
+            processedLink = processedLink.split(/[/?#]/)[0]
+            return processedLink
         },
 
         async handleSubmit() {
-            if (!this.isValid) return;
+            if (!this.isValid) return
 
-            this.isLoading = true;
+            this.isLoading = true
 
             try {
-                const processedTelegram = this.processTelegramLink(this.telegramInput);
+                const processedTelegram = this.processTelegramLink(this.telegramInput)
 
-                const data = new FormData();
-                data.append('telegram_domain', processedTelegram);
+                const data = new FormData()
+                data.append('telegram_domain', processedTelegram)
 
-                await this.$store.dispatch('storePartner', { form: data });
+                await this.storePartner({ form: data })
 
                 this.$notify?.({
                     title: 'Успех',
-                    text: 'Партнер успешно добавлен',
+                    text: 'Партнёр успешно добавлен',
                     type: 'success',
-                });
+                })
 
-                this.closeModal();
-                this.$emit('callback');
+                this.closeModal()
+                this.$emit('callback')
             } catch (err) {
-                console.error('Ошибка добавления партнера:', err);
+                console.error('Ошибка добавления партнёра:', err)
 
-                const errorMessage = err?.response?.data?.message || 'Не удалось добавить партнера';
+                const errorMessage = err?.response?.data?.message || 'Не удалось добавить партнёра'
 
                 this.$notify?.({
                     title: 'Ошибка',
                     text: errorMessage,
                     type: 'error',
-                });
+                })
             } finally {
-                this.isLoading = false;
+                this.isLoading = false
             }
         },
     },
-};
+}
 </script>
 
 <style lang="scss" scoped>
-@use "sass:color";
 $admin-bg: #f4f6f9;
 $admin-card-bg: #ffffff;
 $admin-text: #2c3e50;
@@ -219,7 +226,7 @@ $admin-telegram: #0088cc;
     justify-content: center;
     gap: 10px;
     padding: 14px 20px;
-    background: $admin-primary;
+    background: linear-gradient(135deg, $admin-primary 0%, #2563eb 100%);
     color: white;
     border: none;
     border-radius: 12px;
@@ -230,96 +237,56 @@ $admin-telegram: #0088cc;
     box-shadow: 0 4px 12px rgba($admin-primary, 0.3);
     min-height: 48px;
 
-    i {
-        font-size: 1rem;
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba($admin-primary, 0.4);
     }
 
     &:active {
-        transform: scale(0.98);
-        background:  color.adjust($admin-primary, $lightness: -5%);
+        transform: translateY(0);
     }
 }
 
 // ==========================================
-// МОДАЛКА (BOTTOM SHEET)
+// МОДАЛКА
 // ==========================================
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
     z-index: 9999;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
-    padding: 0;
-    animation: fadeIn 0.2s ease;
-
-    &.bottom-sheet {
-        align-items: flex-end;
-    }
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    padding: 20px;
 }
 
 .modal-container {
     background: $admin-card-bg;
     width: 100%;
+    max-width: 500px;
     max-height: 90vh;
+    border-radius: 20px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    border-radius: 16px 16px 0 0;
-    animation: slideUp 0.3s ease;
-
-    .bottom-sheet & {
-        border-radius: 16px 16px 0 0;
-        max-height: 80vh;
-    }
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(100%);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.add-modal {
-    max-width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 16px;
+    padding: 20px;
     border-bottom: 1px solid $admin-border;
-    position: sticky;
-    top: 0;
-    background: $admin-card-bg;
-    z-index: 10;
-
-    h3 {
-        flex: 1;
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin: 0;
-    }
+    position: relative;
 }
 
 .modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
     width: 36px;
     height: 36px;
-    border-radius: 8px;
+    border-radius: 50%;
     background: $admin-bg;
     border: none;
     color: $admin-text-muted;
@@ -329,21 +296,52 @@ $admin-telegram: #0088cc;
     justify-content: center;
     transition: all 0.2s;
 
-    &:active {
+    &:hover {
         background: $admin-danger;
         color: white;
     }
 }
 
+.modal-header-content {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.modal-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, $admin-telegram 0%, #0066aa 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+
+.modal-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0 0 2px;
+    color: $admin-text;
+}
+
+.modal-subtitle {
+    font-size: 0.85rem;
+    color: $admin-text-muted;
+    margin: 0;
+}
+
 .modal-body {
-    padding: 16px;
+    padding: 20px;
     overflow-y: auto;
     flex: 1;
-    -webkit-overflow-scrolling: touch;
 }
 
 // ==========================================
-// ИНФОРМАЦИОННОЕ СООБЩЕНИЕ
+// ФОРМА
 // ==========================================
 .info-alert {
     display: flex;
@@ -366,9 +364,6 @@ $admin-telegram: #0088cc;
     }
 }
 
-// ==========================================
-// ФОРМА
-// ==========================================
 .partner-form {
     display: flex;
     flex-direction: column;
@@ -403,7 +398,7 @@ $admin-telegram: #0088cc;
 .form-input {
     padding: 12px 16px;
     border: 1px solid $admin-border;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.95rem;
     color: $admin-text;
     background: $admin-card-bg;
@@ -414,6 +409,14 @@ $admin-telegram: #0088cc;
         outline: none;
         border-color: $admin-primary;
         box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+    }
+
+    &.has-error {
+        border-color: $admin-danger;
+
+        &:focus {
+            box-shadow: 0 0 0 3px rgba($admin-danger, 0.1);
+        }
     }
 
     &:disabled {
@@ -439,31 +442,22 @@ $admin-telegram: #0088cc;
     display: flex;
     align-items: center;
     gap: 6px;
-
-    &::before {
-        content: '⚠';
-        font-size: 0.9rem;
-    }
 }
 
-// ==========================================
-// ДЕЙСТВИЯ
-// ==========================================
 .form-actions {
     display: flex;
     gap: 12px;
     padding-top: 8px;
 }
 
-.btn-primary-modern,
-.btn-secondary-modern {
+.btn-cancel, .btn-submit {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     padding: 14px 20px;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.95rem;
     font-weight: 600;
     border: none;
@@ -478,26 +472,27 @@ $admin-telegram: #0088cc;
     &:disabled {
         opacity: 0.5;
         cursor: not-allowed;
-        transform: none;
     }
 }
 
-.btn-primary-modern {
-    background: $admin-primary;
-    color: white;
-
-    &:active:not(:disabled) {
-        background:  color.adjust($admin-primary, $lightness: -5%);
-    }
-}
-
-.btn-secondary-modern {
+.btn-cancel {
     background: $admin-bg;
     color: $admin-text;
     border: 1px solid $admin-border;
 
-    &:active:not(:disabled) {
-        background: color.adjust($admin-bg, $lightness: -3%);
+    &:hover:not(:disabled) {
+        background: $admin-border;
+    }
+}
+
+.btn-submit {
+    background: linear-gradient(135deg, $admin-primary 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba($admin-primary, 0.3);
+
+    &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba($admin-primary, 0.4);
     }
 }
 
@@ -512,38 +507,49 @@ $admin-telegram: #0088cc;
 }
 
 @keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
 }
 
 // ==========================================
-// АДАПТИВ
+// АНИМАЦИИ
 // ==========================================
-@media (min-width: 768px) {
-    .add-partner-form {
-        max-width: 500px;
-        margin: 0 auto;
+.modal-fade-enter-active {
+    transition: opacity 0.3s ease;
+
+    .modal-container {
+        animation: modalSlideUp 0.3s ease;
     }
+}
 
+.modal-fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+    opacity: 0;
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (max-width: 640px) {
     .modal-overlay {
-        padding: 20px;
-        align-items: center;
-
-        &.bottom-sheet {
-            align-items: center;
-        }
+        padding: 0;
     }
 
     .modal-container {
-        max-width: 500px;
-        border-radius: 16px;
-        max-height: 90vh;
-
-        .bottom-sheet & {
-            border-radius: 16px;
-            max-height: 90vh;
-        }
+        max-width: 100%;
+        max-height: 100vh;
+        border-radius: 0;
     }
 }
 </style>

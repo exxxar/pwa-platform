@@ -1,39 +1,31 @@
 import { defineStore } from 'pinia';
-import { apiRequest } from '../utils/api.js';
+import axios from 'axios';
 
-const BASE_BASKET_LINK = '/basket';
-
-/**
- * Состояние загрузки для действий с товарами
- * @typedef {Object} LoadingState
- * @property {boolean} isLoading - Общая загрузка корзины
- * @property {boolean} isHydrated - Загружена ли корзина с сервера
- * @property {Object} productActions - Загрузка по конкретным товарам { [productId]: 'inc' | 'dec' | 'remove' }
- * @property {number} pendingCount - Количество товаров в процессе изменения
- * @property {Date|null} lastSyncAt - Время последней синхронизации
- * @property {string|null} lastError - Последняя ошибка
- */
+const BASE = '/basket';
 
 export const useBasketStore = defineStore('basket', {
     // ==========================================
     // STATE
     // ==========================================
     state: () => ({
-        // Данные корзины
+        // Данные
         basket_items: [],
         basket_items_paginate_object: null,
 
-        // Отслеживание загрузки
+        // Состояние загрузки
         isLoading: false,
         isHydrated: false,
-        lastSyncAt: null,
-        lastError: null,
+        isSending: false,
 
-        // Загрузка по конкретным товарам: { [productId]: 'inc' | 'dec' | 'remove' }
+        // Действия над товарами: { [productId]: 'inc' | 'dec' | 'remove' }
         productActions: {},
 
-        // Debounce-таймеры для предотвращения спама запросов
-        _debounceTimers: {},
+        // Ошибки
+        lastError: null,
+        errors: [],
+
+        // Время последней синхронизации
+        lastSyncAt: null,
     }),
 
     // ==========================================
@@ -46,12 +38,12 @@ export const useBasketStore = defineStore('basket', {
         getProductsInBasket: (state) => state.basket_items || [],
 
         /**
-         * Объект пагинации
+         * Пагинация
          */
         getBasketPaginateObject: (state) => state.basket_items_paginate_object || null,
 
         /**
-         * Количество конкретного товара в корзине (для подборок)
+         * Количество товара в подборке
          */
         inCollectionCart: (state) => (id, variantId) => {
             return state.basket_items.find(bItem =>
@@ -61,7 +53,7 @@ export const useBasketStore = defineStore('basket', {
         },
 
         /**
-         * Количество конкретного товара в корзине
+         * Количество товара в корзине
          */
         inCart: (state) => (id) => {
             return (state.basket_items.find(item => item.product?.id === id))?.count || 0;
@@ -73,7 +65,7 @@ export const useBasketStore = defineStore('basket', {
         cartProducts: (state) => state.basket_items || [],
 
         /**
-         * Только подборки (коллекции)
+         * Только подборки
          */
         cartCollections: (state) => (state.basket_items || []).filter(item => item.collection),
 
@@ -88,7 +80,7 @@ export const useBasketStore = defineStore('basket', {
         },
 
         /**
-         * Общая сумма корзины
+         * Общая сумма корзины (с учётом весовых товаров и подборок)
          */
         cartTotalPrice: (state) => {
             if (!state.basket_items?.length) return 0;
@@ -96,20 +88,25 @@ export const useBasketStore = defineStore('basket', {
             return state.basket_items.reduce((sum, item) => {
                 // Обычный товар
                 if (item.product) {
-                    const currentPrice = item.params?.discount_price || item.product.price || 0;
+                    const currentPrice = item.params?.discount_price
+                        ? item.params.discount_price
+                        : (item.product.current_price || 0);
+
                     const count = item.product?.is_weight_product ? 1 : item.count;
                     const price = item.product?.is_weight_product
                         ? (currentPrice * item.count) / (item.product.weight_config?.step || 100)
                         : currentPrice;
+
                     return sum + price * count;
                 }
 
                 // Подборка (коллекция)
                 if (item.collection) {
                     const selected = item.params?.ids || [];
-                    const collectionPrice = item.collection.products
-                        .filter(sub => selected.includes(sub.id))
-                        .reduce((acc, sub) => acc + (sub.price || 0), 0);
+                    const collectionPrice = item.collection.products.reduce((acc, sub) => {
+                        return acc + (selected.includes(sub.id) ? (sub.current_price || 0) : 0);
+                    }, 0);
+
                     const discountedPrice = collectionPrice * (1 - (item.collection.discount || 0) / 100);
                     return sum + discountedPrice * item.count;
                 }
@@ -124,9 +121,11 @@ export const useBasketStore = defineStore('basket', {
         isEmpty: (state) => !state.basket_items?.length,
 
         /**
-         * Проверка, идёт ли действие над конкретным товаром
+         * Проверка, загружается ли товар
          */
-        isProductLoading: (state) => (productId) => !!state.productActions[productId],
+        isProductLoading: (state) => (productId) => {
+            return !!state.productActions[String(productId)];
+        },
 
         /**
          * Получить товар из корзины по ID
@@ -147,276 +146,332 @@ export const useBasketStore = defineStore('basket', {
     // ACTIONS
     // ==========================================
     actions: {
-        // ------------------------------------------
-        // Вспомогательные методы
-        // ------------------------------------------
+        // ==========================================
+        // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+        // ==========================================
 
         /**
-         * Универсальный обработчик API-запросов корзины
-         * Автоматически обновляет состояние корзины после успешного запроса
+         * Обновление корзины из ответа сервера
          */
-        async _basketApiRequest(link, method = 'POST', payload = null) {
-            try {
-                const response = await apiRequest(link, method, payload);
-                const dataObject = response.data;
+        _updateBasketFromResponse(dataObject) {
+            if (!dataObject) return;
 
-                // Обновляем корзину из ответа сервера
-                if (dataObject?.data) {
-                    this.basket_items = dataObject.data;
-                    const { data, ...pagination } = dataObject;
-                    this.basket_items_paginate_object = pagination;
-                }
-
-                this.lastSyncAt = new Date();
-                this.lastError = null;
-                return response.data;
-            } catch (err) {
-                const errorMessage = err.response?.data?.message || 'Ошибка запроса';
-                this.lastError = errorMessage;
-                console.error('[Basket Store] Ошибка:', errorMessage, err.response?.data?.errors || []);
-                throw err;
-            }
+            this.basket_items = dataObject.data || [];
+            const { data, ...pagination } = dataObject;
+            this.basket_items_paginate_object = pagination;
+            this.lastSyncAt = new Date();
         },
+
+        // ==========================================
+        // ЗАГРУЗКА
+        // ==========================================
 
         /**
-         * Debounce для предотвращения спама запросов при быстром клике
+         * Загрузка товаров корзины
          */
-        _debounce(key, fn, delay = 300) {
-            if (this._debounceTimers[key]) {
-                clearTimeout(this._debounceTimers[key]);
-            }
-            this._debounceTimers[key] = setTimeout(fn, delay);
-        },
-
-        // ------------------------------------------
-        // Сеттеры
-        // ------------------------------------------
-
-        setBasket(payload) {
-            this.basket_items = payload || [];
-        },
-
-        setBasketPaginateObject(payload) {
-            this.basket_items_paginate_object = payload || null;
-        },
-
-        // ------------------------------------------
-        // Оптимистичные обновления (с откатом)
-        // ------------------------------------------
-
-        /**
-         * Мгновенное изменение количества товара в UI (оптимистично)
-         * Сохраняет предыдущее значение для возможного отката
-         */
-        _optimisticUpdate(productId, delta) {
-            const cartItem = this.basket_items.find(
-                item => item.product?.id === productId || item.collection?.id === productId
-            );
-
-            if (!cartItem) return null;
-
-            // Сохраняем предыдущее значение для отката
-            const previousCount = cartItem.count;
-
-            // Применяем изменение
-            cartItem.count = Math.max(0, cartItem.count + delta);
-
-            // Если количество стало 0 — удаляем из корзины визуально
-            if (cartItem.count === 0) {
-                const index = this.basket_items.indexOf(cartItem);
-                if (index !== -1) {
-                    this.basket_items.splice(index, 1);
-                }
-            }
-
-            return previousCount;
-        },
-
-        /**
-         * Откат изменений при ошибке API
-         */
-        _rollbackUpdate(productId, previousCount) {
-            if (previousCount === null) return;
-
-            const cartItem = this.basket_items.find(
-                item => item.product?.id === productId || item.collection?.id === productId
-            );
-
-            if (cartItem) {
-                cartItem.count = previousCount;
-            } else if (previousCount > 0) {
-                // Товар был удалён — нужно вернуть (упрощённо)
-                console.warn('[Basket Store] Откат: товар не найден для восстановления');
-            }
-        },
-
-        // ------------------------------------------
-        // Загрузка корзины
-        // ------------------------------------------
-
-        /**
-         * Загрузка товаров корзины с сервера
-         */
-        async loadProductsInBasket(payload = { dataObject: { search: null, categories: null }, page: 0, size: 20 }) {
+        async loadProductsInBasket(payload = { dataObject: {}, page: 0, size: 20 }) {
             this.isLoading = true;
             this.lastError = null;
 
             try {
                 const page = payload.page || 0;
                 const size = payload.size || 20;
-                const link = `${BASE_BASKET_LINK}?page=${page}&size=${size}`;
+                const link = `${BASE}?page=${page}&size=${size}`;
 
-                await this._basketApiRequest(link, 'POST');
+                const response = await axios.post(link);
+                this._updateBasketFromResponse(response.data);
                 this.isHydrated = true;
+
+                return response.data;
             } catch (err) {
-                // Ошибка уже залогирована в _basketApiRequest
+                console.error('[Basket Store] Ошибка загрузки корзины:', err);
+                this.lastError = err.response?.data?.message || 'Не удалось загрузить корзину';
+                this.errors = err.response?.data?.errors || [];
                 throw err;
             } finally {
                 this.isLoading = false;
             }
         },
 
-        // ------------------------------------------
-        // Добавление / удаление товаров
-        // ------------------------------------------
+        // ==========================================
+        // ТОВАРЫ: ДОБАВЛЕНИЕ/УДАЛЕНИЕ
+        // ==========================================
 
         /**
-         * Увеличение количества товара
-         * С оптимистичным обновлением и debouncing
+         * Добавление товара в корзину (через /inc-product)
          */
         async addProductToCart(productId) {
-            // Помечаем товар как "в процессе изменения"
-            this.productActions[productId] = 'inc';
+            this.productActions[String(productId)] = 'inc';
 
-            // Оптимистично обновляем UI
-            const previousCount = this._optimisticUpdate(productId, 1);
-
-            try {
-                await this._basketApiRequest(
-                    `${BASE_BASKET_LINK}/inc-product`,
-                    'POST',
-                    { product_id: productId }
-                );
-            } catch (err) {
-                // Откатываем изменения
-                this._rollbackUpdate(productId, previousCount);
-                throw err;
-            } finally {
-                delete this.productActions[productId];
-            }
-        },
-
-        /**
-         * Уменьшение количества товара
-         * С оптимистичным обновлением и debouncing
-         */
-        async removeProductFromCart(productId) {
-            this.productActions[productId] = 'dec';
-
-            const previousCount = this._optimisticUpdate(productId, -1);
-
-            try {
-                await this._basketApiRequest(
-                    `${BASE_BASKET_LINK}/dec-product`,
-                    'POST',
-                    { product_id: productId }
-                );
-            } catch (err) {
-                this._rollbackUpdate(productId, previousCount);
-                throw err;
-            } finally {
-                delete this.productActions[productId];
-            }
-        },
-
-        /**
-         * Увеличение количества (legacy, для совместимости)
-         */
-        incrementItemQuantity(id) {
-            const cartItem = this.basket_items.find(
-                item => item.product?.id === id || item.collection?.id === id
-            );
+            // Оптимистичное обновление
+            const cartItem = this.basket_items.find(item => item.product?.id === productId);
             if (cartItem) {
                 cartItem.count++;
             }
-        },
 
-        /**
-         * Уменьшение количества (legacy, для совместимости)
-         */
-        decrementItemQuantity(id) {
-            const cartItem = this.basket_items.find(
-                item => item.product?.id === id || item.collection?.id === id
-            );
-            if (cartItem && cartItem.count > 1) {
-                cartItem.count--;
+            try {
+                const response = await axios.post(`${BASE}/inc-product`, {
+                    product_id: productId,
+                });
+
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                // Откат
+                if (cartItem) {
+                    cartItem.count--;
+                }
+                console.error('[Basket Store] Ошибка добавления товара:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(productId)];
             }
         },
 
-        // ------------------------------------------
-        // Очистка корзины
-        // ------------------------------------------
-
         /**
-         * Полная очистка корзины
+         * Удаление товара из корзины (через /dec-product)
          */
-        async clearCart() {
-            // Сохраняем предыдущее состояние для отката
-            const previousItems = [...this.basket_items];
-            const previousPaginate = this.basket_items_paginate_object;
+        async removeProductFromCart(productId) {
+            this.productActions[String(productId)] = 'dec';
 
-            // Оптимистично очищаем
-            this.basket_items = [];
-            this.basket_items_paginate_object = null;
+            // Оптимистичное обновление
+            const cartItem = this.basket_items.find(item => item.product?.id === productId);
+            if (cartItem && cartItem.count > 1) {
+                cartItem.count--;
+            } else if (cartItem && cartItem.count === 1) {
+                const index = this.basket_items.indexOf(cartItem);
+                this.basket_items.splice(index, 1);
+            }
 
             try {
-                await apiRequest(`${BASE_BASKET_LINK}/clear`, 'DELETE');
-                this.lastSyncAt = new Date();
+                const response = await axios.post(`${BASE}/dec-product`, {
+                    product_id: productId,
+                });
+
+                this._updateBasketFromResponse(response.data);
+                return response.data;
             } catch (err) {
-                // Откатываем
-                this.basket_items = previousItems;
-                this.basket_items_paginate_object = previousPaginate;
+                console.error('[Basket Store] Ошибка удаления товара:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(productId)];
+            }
+        },
+
+        /**
+         * Увеличение количества товара (через /increment/{id})
+         */
+        async incQuantity(productId) {
+            this.productActions[String(productId)] = 'inc';
+
+            const cartItem = this.basket_items.find(item => item.product?.id === productId);
+            if (cartItem) {
+                cartItem.count++;
+            }
+
+            try {
+                const response = await axios.post(`${BASE}/increment/${productId}`);
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                if (cartItem) {
+                    cartItem.count--;
+                }
+                console.error('[Basket Store] Ошибка увеличения количества:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(productId)];
+            }
+        },
+
+        /**
+         * Уменьшение количества товара (через /decrement/{id})
+         */
+        async decQuantity(productId) {
+            this.productActions[String(productId)] = 'dec';
+
+            const cartItem = this.basket_items.find(item => item.product?.id === productId);
+            if (cartItem && cartItem.count > 1) {
+                cartItem.count--;
+            } else if (cartItem && cartItem.count === 1) {
+                const index = this.basket_items.indexOf(cartItem);
+                this.basket_items.splice(index, 1);
+            }
+
+            try {
+                const response = await axios.post(`${BASE}/decrement/${productId}`);
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка уменьшения количества:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(productId)];
+            }
+        },
+
+        /**
+         * Полное удаление товара из корзины (через /remove/{id})
+         */
+        async removeProduct(productId) {
+            this.productActions[String(productId)] = 'remove';
+
+            // Сохраняем для отката
+            const previousItems = [...this.basket_items];
+            const removedIndex = this.basket_items.findIndex(item => item.product?.id === productId);
+            const removedItem = removedIndex !== -1 ? this.basket_items[removedIndex] : null;
+
+            if (removedIndex !== -1) {
+                this.basket_items.splice(removedIndex, 1);
+            }
+
+            try {
+                const response = await axios.delete(`${BASE}/remove/${productId}`);
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                // Откат
+                if (removedItem && removedIndex !== -1) {
+                    this.basket_items.splice(removedIndex, 0, removedItem);
+                }
+                console.error('[Basket Store] Ошибка удаления товара:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(productId)];
+            }
+        },
+
+        // ==========================================
+        // ПОДБОРКИ (КОЛЛЕКЦИИ)
+        // ==========================================
+
+        /**
+         * Добавление подборки в корзину
+         */
+        async addCollectionToCart(collection) {
+            const collectionId = collection?.id;
+            if (collectionId) {
+                this.productActions[String(collectionId)] = 'inc-collection';
+            }
+
+            try {
+                const response = await axios.post(`${BASE}/inc-collection`, {
+                    product_collection: collection,
+                });
+
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка добавления подборки:', err);
+                throw err;
+            } finally {
+                if (collectionId) {
+                    delete this.productActions[String(collectionId)];
+                }
+            }
+        },
+
+        /**
+         * Увеличение количества подборки
+         */
+        async incCollectionQuantity(payload) {
+            const collectionId = payload?.id || payload?.collection_id;
+            if (collectionId) {
+                this.productActions[String(collectionId)] = 'inc-collection';
+            }
+
+            try {
+                const response = await axios.post(`${BASE}/inc-collection`, payload);
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка увеличения подборки:', err);
+                throw err;
+            } finally {
+                if (collectionId) {
+                    delete this.productActions[String(collectionId)];
+                }
+            }
+        },
+
+        /**
+         * Уменьшение количества подборки
+         */
+        async decCollectionQuantity(payload) {
+            const collectionId = payload?.id || payload?.collection_id;
+            if (collectionId) {
+                this.productActions[String(collectionId)] = 'dec-collection';
+            }
+
+            try {
+                const response = await axios.post(`${BASE}/dec-collection`, payload);
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка уменьшения подборки:', err);
+                throw err;
+            } finally {
+                if (collectionId) {
+                    delete this.productActions[String(collectionId)];
+                }
+            }
+        },
+
+        /**
+         * Удаление подборки из корзины
+         */
+        async removeCollectionFromCart(payload) {
+            const collectionId = payload?.id || payload?.collection_id;
+            if (collectionId) {
+                this.productActions[String(collectionId)] = 'remove-collection';
+            }
+
+            try {
+                const response = await axios.post(`${BASE}/dec-collection`, payload);
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка удаления подборки:', err);
+                throw err;
+            } finally {
+                if (collectionId) {
+                    delete this.productActions[String(collectionId)];
+                }
+            }
+        },
+
+        // ==========================================
+        // КОММЕНТАРИИ
+        // ==========================================
+
+        /**
+         * Добавление комментария к товару
+         */
+        async addCommentToProduct(payload) {
+            try {
+                const response = await axios.post(`${BASE}/comment-product`, {
+                    product_id: payload.id,
+                    comment: payload.comment || null,
+                });
+
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка добавления комментария:', err);
                 throw err;
             }
         },
 
-        // ------------------------------------------
-        // Checkout
-        // ------------------------------------------
-
-        /**
-         * Начало оформления заказа
-         */
-        async startCheckout(payload = { deliveryForm: null }) {
-            this.isLoading = true;
-
-            try {
-                const result = await this._basketApiRequest(
-                    `${BASE_BASKET_LINK}/checkout`,
-                    'POST',
-                    payload.deliveryForm
-                );
-
-                // Очищаем корзину после успешного оформления
-                this.basket_items = [];
-                this.basket_items_paginate_object = null;
-
-                return result;
-            } finally {
-                this.isLoading = false;
-            }
-        },
+        // ==========================================
+        // ОФОРМЛЕНИЕ ЗАКАЗА
+        // ==========================================
 
         /**
          * Создание ссылки на оплату
          */
         async createCheckoutLink(payload = { deliveryForm: null }) {
             try {
-                const response = await apiRequest(
-                    `${BASE_BASKET_LINK}/checkout-link`,
-                    'POST',
-                    payload.deliveryForm
-                );
+                const response = await axios.post(`${BASE}/checkout-link`, payload.deliveryForm);
                 return response.data;
             } catch (err) {
                 console.error('[Basket Store] Ошибка создания ссылки:', err);
@@ -424,41 +479,25 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        // ------------------------------------------
-        // Дополнительные действия
-        // ------------------------------------------
-
         /**
-         * Расчёт стоимости доставки
+         * Оформление заказа
          */
-        async requestDeliveryPriceNew(payload) {
+        async startCheckout(payload = { deliveryForm: null }) {
+            this.isSending = true;
+
             try {
-                const response = await apiRequest(
-                    `${BASE_BASKET_LINK}/get-delivery-price-new`,
-                    'POST',
-                    payload
-                );
+                const response = await axios.post(`${BASE}/checkout`, payload.deliveryForm);
+
+                // Очищаем корзину после успешного оформления
+                this.basket_items = [];
+                this.basket_items_paginate_object = null;
+
                 return response.data;
             } catch (err) {
-                console.error('[Basket Store] Ошибка расчёта доставки:', err);
+                console.error('[Basket Store] Ошибка оформления заказа:', err);
                 throw err;
-            }
-        },
-
-        /**
-         * Добавление комментария к товару
-         */
-        async addCommentToProduct(payload = { form: null }) {
-            try {
-                const response = await apiRequest(
-                    `${BASE_BASKET_LINK}/comment-product`,
-                    'POST',
-                    payload.form
-                );
-                return response.data;
-            } catch (err) {
-                console.error('[Basket Store] Ошибка добавления комментария:', err);
-                throw err;
+            } finally {
+                this.isSending = false;
             }
         },
 
@@ -467,11 +506,7 @@ export const useBasketStore = defineStore('basket', {
          */
         async useWheelOfFortunePrize(payload = { form: null }) {
             try {
-                const response = await apiRequest(
-                    `${BASE_BASKET_LINK}/use-wheel-of-fortune-prize`,
-                    'POST',
-                    payload.form
-                );
+                const response = await axios.post(`${BASE}/use-wheel-of-fortune-prize`, payload.form);
                 return response.data;
             } catch (err) {
                 console.error('[Basket Store] Ошибка использования приза:', err);
@@ -479,25 +514,46 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        // ------------------------------------------
-        // Сброс состояния
-        // ------------------------------------------
+        // ==========================================
+        // ОЧИСТКА
+        // ==========================================
 
         /**
-         * Полный сброс состояния стора (например, при выходе)
+         * Полная очистка корзины
          */
+        async clearCart() {
+            // Оптимистичная очистка
+            const previousItems = [...this.basket_items];
+            const previousPaginate = this.basket_items_paginate_object;
+
+            this.basket_items = [];
+            this.basket_items_paginate_object = null;
+
+            try {
+                await axios.delete(`${BASE}/clear`);
+            } catch (err) {
+                // Откат
+                this.basket_items = previousItems;
+                this.basket_items_paginate_object = previousPaginate;
+                console.error('[Basket Store] Ошибка очистки корзины:', err);
+                throw err;
+            }
+        },
+
+        // ==========================================
+        // СБРОС
+        // ==========================================
+
         $reset() {
             this.basket_items = [];
             this.basket_items_paginate_object = null;
             this.isLoading = false;
             this.isHydrated = false;
-            this.lastSyncAt = null;
-            this.lastError = null;
+            this.isSending = false;
             this.productActions = {};
-
-            // Очищаем все debounce-таймеры
-            Object.values(this._debounceTimers).forEach(clearTimeout);
-            this._debounceTimers = {};
+            this.lastError = null;
+            this.errors = [];
+            this.lastSyncAt = null;
         },
     },
 });

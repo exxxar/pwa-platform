@@ -1,5 +1,5 @@
 <template>
-    <div class="product-grid album" style="min-height: 100vh;">
+    <div class="product-grid album pb-5 " style="min-height: 100vh;">
         <div class="container g-2">
 
             <!-- Комбо-меню -->

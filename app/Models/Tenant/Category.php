@@ -4,6 +4,8 @@ namespace App\Models\Tenant;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Category extends Model
 {
@@ -19,12 +21,28 @@ class Category extends Model
       "is_active"=>"boolean"
     ];
 
-    public function tenant() {
+    protected $appends = ["title"];
+
+    public function tenant(): BelongsTo
+    {
         return $this->belongsTo(Tenant::class);
     }
 
-    public function products() {
-        return $this->hasMany(Product::class);
+
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'product_categories',  // pivot-таблица
+            'category_id',         // FK в pivot к categories
+            'product_id'           // FK в pivot к products
+        );
+    }
+
+
+    public function getTitleAttribute()
+    {
+        return $this->attributes['name'] ?? null;
     }
 
     public static  function getCategoriesWithProducts(int $tenantId)

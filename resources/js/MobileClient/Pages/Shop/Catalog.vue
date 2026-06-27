@@ -33,7 +33,7 @@
         <!-- ========================================== -->
         <!-- РЕЖИМ: БРОНИРОВАНИЕ -->
         <!-- ========================================== -->
-        <div v-else-if="currentMode === 'booking'" class="booking-section">
+        <div v-else-if="currentMode === 'booking'" class="booking-section p-0">
             <TableBookingPlanner />
         </div>
 
@@ -64,7 +64,7 @@
                             aria-label="Закрыть"
                         ></button>
                     </div>
-                    <div class="modal-body">
+                    <div class="modal-body p-0">
                         <CoffeeProgress />
                     </div>
                 </div>
@@ -75,6 +75,12 @@
             :count="favoritesCount"
             @click="openFavorites"
         />
+
+
+        <CoffeeButton
+            @click="showCoffee"
+        />
+
 
         <!-- ========================================== -->
         <!-- МОДАЛКА: ИЗБРАННОЕ -->
@@ -155,6 +161,7 @@ import ProductCard from "@/MobileClient/Components/Shop/ProductCard.vue";
 import { useBasketStore } from "@/MobileClient/stores/Shop/basket.js";
 import { useFavoritesStore } from "@/MobileClient/stores/Shop/favorites.js";
 import FavoritesButton from '@/MobileClient/Components/Shop/FavoritesButton.vue';
+import CoffeeButton from '@/MobileClient/Components/Shop/CoffeeButton.vue';
 
 export default {
     name: "ShopContainer",
@@ -164,6 +171,7 @@ export default {
         TableBookingPlanner,
         CoffeeProgress,
         ProductCard,
+        CoffeeButton,
         FavoritesButton
     },
 

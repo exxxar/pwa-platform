@@ -14,6 +14,17 @@ export const usePartnersStore = defineStore('partners', {
         categories: [],
         selfPartner: null,
 
+        // 🆕 Статистика по товарам партнёров
+        partnersStats: {
+            total_products: 0,
+            total_products_sum: 0,
+            total_products_categories: 0,
+            loading: false,
+        },
+
+        // 🆕 Для товаров партнёра
+        partnerProducts: {}, // { [partnerId]: { categories: [], loading: false } }
+
         // Состояние загрузки
         isLoading: false,
         isHydrated: false,
@@ -109,12 +120,74 @@ export const usePartnersStore = defineStore('partners', {
          * Общее количество партнёров
          */
         partnersCount: (state) => state.partners?.length || 0,
+
+        // 🆕 Получить товары партнёра из стора
+        getPartnerProducts: (state) => (partnerId) => {
+            return state.partnerProducts[String(partnerId)] || { categories: [], loading: false };
+        },
+
+        // 🆕 Геттеры для статистики товаров
+        totalPartnerProducts: (state) => state.partnersStats.total_products || 0,
+        totalPartnerCategories: (state) => state.partnersStats.total_products_categories || 0,
+        totalPartnerProductsSum: (state) => state.partnersStats.total_products_sum || 0,
+        isPartnersStatsLoading: (state) => state.partnersStats.loading || false,
+
+
     },
 
     // ==========================================
     // ACTIONS
     // ==========================================
     actions: {
+
+        /**
+         * Загрузка статистики по товарам всех партнёров
+         */
+        async loadPartnersStats() {
+            this.partnersStats.loading = true;
+
+            try {
+                const response = await axios.get(`${BASE}/products-stats`);
+                const data = response.data?.data || response.data || {};
+
+                this.partnersStats = {
+                    total_products: data.total_products || 0,
+                    total_products_sum: data.total_products_sum || 0,
+                    total_products_categories: data.total_products_categories || 0,
+                    loading: false,
+                };
+
+                return this.partnersStats;
+            } catch (err) {
+                console.error('[Partners] Ошибка загрузки статистики товаров:', err);
+                this.partnersStats.loading = false;
+                throw err;
+            }
+        },
+
+        /**
+         * Альтернатива: подсчёт на основе уже загруженных данных
+         * (если товары уже есть в partnerProducts)
+         */
+        recalculatePartnersStats() {
+            let totalProducts = 0;
+            let totalSum = 0;
+
+            Object.values(this.partnerProducts).forEach(partnerData => {
+                const categories = partnerData.categories || [];
+                categories.forEach(category => {
+                    const products = category.products || [];
+                    totalProducts += products.length;
+                    products.forEach(product => {
+                        totalSum += parseFloat(product.price || product.current_price || 0);
+                    });
+                });
+            });
+
+            this.partnersStats.total_products = totalProducts;
+            this.partnersStats.total_products_sum = totalSum;
+        },
+
         // ------------------------------------------
         // ЗАГРУЗКА ДАННЫХ
         // ------------------------------------------
@@ -449,6 +522,64 @@ export const usePartnersStore = defineStore('partners', {
                 throw err;
             } finally {
                 delete this.partnerActions[String(partnerId)];
+            }
+        },
+
+        /**
+         * Загрузка товаров партнёра по категориям
+         */
+        async loadProductsByCategory(payload = { partner_id: null }) {
+            if (!payload.partner_id) {
+                throw new Error('partner_id is required');
+            }
+
+            const partnerId = String(payload.partner_id);
+
+            // Инициализируем состояние для этого партнёра
+            if (!this.partnerProducts[partnerId]) {
+                this.partnerProducts[partnerId] = { categories: [], loading: false };
+            }
+
+            this.partnerProducts[partnerId].loading = true;
+
+            try {
+                const response = await axios.get(`${BASE}/products-by-category`, {
+                    params: { partner_id: payload.partner_id },
+                });
+
+                const categories = response.data?.data || response.data || [];
+                this.partnerProducts[partnerId].categories = categories;
+
+                return { data: categories };
+            } catch (err) {
+                console.error('[Partners] Ошибка загрузки товаров партнёра:', err);
+                throw err;
+            } finally {
+                this.partnerProducts[partnerId].loading = false;
+            }
+        },
+
+        /**
+         * Загрузка дополнительных товаров категории
+         */
+        async loadMoreProductsByCategory(payload = { partner_id: null, category_id: null, offset: 0 }) {
+            if (!payload.partner_id || !payload.category_id) {
+                throw new Error('partner_id and category_id are required');
+            }
+
+            try {
+                const response = await axios.get(`${BASE}/products-by-category/more`, {
+                    params: {
+                        partner_id: payload.partner_id,
+                        category_id: payload.category_id,
+                        offset: payload.offset,
+                    },
+                });
+
+                return response.data?.data || response.data || [];
+            } catch (err) {
+                console.error('[Partners] Ошибка дозагрузки товаров:', err);
+                throw err;
             }
         },
 

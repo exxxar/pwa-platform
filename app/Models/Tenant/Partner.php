@@ -59,4 +59,29 @@ class Partner extends Model
     {
         return $query->orderBy('order_position');
     }
+
+    /**
+     * 🆕 Отношение к товарам партнёра через tenant_partner_id
+     * HasMany: Partner -> Tenant (по tenant_partner_id) -> Products
+     */
+    public function partnerProducts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(
+            Product::class,      // целевая модель
+            'tenant_id',         // FK в products
+            'tenant_partner_id'  // FK в partners
+        );
+    }
+
+    /**
+     * 🆕 Отношение к активным категориям партнёра
+     */
+    public function partnerCategories(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(
+            Category::class,
+            'tenant_id',
+            'tenant_partner_id'
+        );
+    }
 }

@@ -11,18 +11,23 @@
             <div class="form-group">
                 <label class="form-label" for="self-title">
                     <i class="fa-solid fa-heading"></i>
-                    Заголовок <span class="required">*</span>
+                    Заголовок
+                    <span class="required">*</span>
                 </label>
                 <input
                     id="self-title"
                     type="text"
                     v-model="form.title"
                     class="form-input"
+                    :class="{ 'has-error': errors.title }"
                     placeholder="Название вашей компании"
                     :disabled="isLoading"
                     required
                 >
-                <span v-if="errors.title" class="form-error">{{ errors.title }}</span>
+                <span v-if="errors.title" class="form-error">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    {{ errors.title }}
+                </span>
             </div>
 
             <div class="form-group">
@@ -111,7 +116,7 @@
         <div class="form-actions">
             <button
                 type="button"
-                class="btn-secondary-modern"
+                class="btn-cancel"
                 @click="$emit('cancel')"
                 :disabled="isLoading"
             >
@@ -119,7 +124,7 @@
             </button>
             <button
                 type="submit"
-                class="btn-primary-modern"
+                class="btn-submit"
                 :disabled="isLoading || !isValid"
             >
                 <span v-if="isLoading" class="spinner-small"></span>
@@ -133,7 +138,7 @@
 </template>
 
 <script>
-import { mapActions } from 'pinia'
+import { usePartners } from '@/MobileClient/Composables/usePartners.js'
 
 export default {
     name: 'SelfConfigForm',
@@ -146,6 +151,13 @@ export default {
     },
 
     emits: ['success', 'cancel'],
+
+    setup() {
+        const partners = usePartners()
+        return {
+            updateSelfPartner: partners.updateSelfPartner,
+        }
+    },
 
     data() {
         return {
@@ -177,7 +189,6 @@ export default {
             return this.form.title?.trim().length > 0
         },
 
-        // Показываем либо новый файл, либо существующее изображение
         previewImage() {
             if (this.preview) return this.preview
             if (this.form.image && this.bot?.id) {
@@ -189,12 +200,11 @@ export default {
 
     mounted() {
         if (this.bot?.settings?.partners) {
-            this.form = { ...this.bot.settings.partners }
+            this.form = { ...this.form, ...this.bot.settings.partners }
         }
     },
 
     beforeUnmount() {
-        // Очистка URL объекта для освобождения памяти
         if (this.preview) {
             URL.revokeObjectURL(this.preview)
         }
@@ -221,7 +231,6 @@ export default {
         handleFile(file) {
             if (!file) return
 
-            // Освобождаем старый URL
             if (this.preview) {
                 URL.revokeObjectURL(this.preview)
             }
@@ -239,7 +248,6 @@ export default {
             this.preview = null
             this.form.image = ''
 
-            // Сбрасываем input, чтобы можно было загрузить тот же файл снова
             if (this.$refs.fileInput) {
                 this.$refs.fileInput.value = ''
             }
@@ -282,11 +290,11 @@ export default {
                     data.append('file', this.file)
                 }
 
-                await this.$store.dispatch('updateSelfPartner', { form: data })
+                await this.updateSelfPartner({ form: data })
 
                 this.$notify?.({
                     title: 'Успех',
-                    text: 'Параметры успешно сохранены',
+                    text: 'Параметры сохранены',
                     type: 'success',
                 })
 
@@ -307,7 +315,6 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-@use "sass:color";
 $admin-bg: #f4f6f9;
 $admin-card-bg: #ffffff;
 $admin-text: #2c3e50;
@@ -315,7 +322,7 @@ $admin-text-muted: #6c757d;
 $admin-border: #e9ecef;
 $admin-primary: #3b82f6;
 $admin-danger: #ef4444;
-$admin-success: #00ff38;
+$admin-success: #10b981;
 
 .self-config-form {
     display: flex;
@@ -390,7 +397,7 @@ $admin-success: #00ff38;
 .form-textarea {
     padding: 12px 16px;
     border: 1px solid $admin-border;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.95rem;
     color: $admin-text;
     background: $admin-card-bg;
@@ -402,6 +409,14 @@ $admin-success: #00ff38;
         outline: none;
         border-color: $admin-primary;
         box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+    }
+
+    &.has-error {
+        border-color: $admin-danger;
+
+        &:focus {
+            box-shadow: 0 0 0 3px rgba($admin-danger, 0.1);
+        }
     }
 
     &:disabled {
@@ -427,15 +442,10 @@ $admin-success: #00ff38;
     display: flex;
     align-items: center;
     gap: 6px;
-
-    &::before {
-        content: '⚠';
-        font-size: 0.9rem;
-    }
 }
 
 // ==========================================
-// ЗАГРУЗЧИК ФАЙЛОВ
+// ЗАГРУЗКА ФАЙЛОВ
 // ==========================================
 .file-uploader {
     position: relative;
@@ -528,6 +538,11 @@ $admin-success: #00ff38;
     transition: all 0.2s;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 
+    &:hover {
+        background: $admin-danger;
+        transform: scale(1.1);
+    }
+
     &:active {
         transform: scale(0.9);
     }
@@ -567,7 +582,7 @@ $admin-success: #00ff38;
     padding: 12px;
     background: $admin-card-bg;
     border: 1px solid $admin-border;
-    border-radius: 8px;
+    border-radius: 10px;
     color: $admin-primary;
     font-size: 0.9rem;
     font-weight: 600;
@@ -575,9 +590,12 @@ $admin-success: #00ff38;
     transition: all 0.2s;
     min-height: 44px;
 
-    &:active:not(:disabled) {
+    &:hover:not(:disabled) {
         background: rgba($admin-primary, 0.04);
         border-color: $admin-primary;
+    }
+
+    &:active:not(:disabled) {
         transform: scale(0.98);
     }
 
@@ -596,15 +614,14 @@ $admin-success: #00ff38;
     padding-top: 8px;
 }
 
-.btn-primary-modern,
-.btn-secondary-modern {
+.btn-cancel, .btn-submit {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     padding: 14px 20px;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.95rem;
     font-weight: 600;
     border: none;
@@ -619,26 +636,27 @@ $admin-success: #00ff38;
     &:disabled {
         opacity: 0.5;
         cursor: not-allowed;
-        transform: none;
     }
 }
 
-.btn-primary-modern {
-    background: $admin-primary;
-    color: white;
-
-    &:active:not(:disabled) {
-        background:  color.adjust($admin-primary, $lightness: -5%);
-    }
-}
-
-.btn-secondary-modern {
+.btn-cancel {
     background: $admin-bg;
     color: $admin-text;
     border: 1px solid $admin-border;
 
-    &:active:not(:disabled) {
-        background: color.adjust($admin-bg, $lightness: -3%);
+    &:hover:not(:disabled) {
+        background: $admin-border;
+    }
+}
+
+.btn-submit {
+    background: linear-gradient(135deg, $admin-primary 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba($admin-primary, 0.3);
+
+    &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba($admin-primary, 0.4);
     }
 }
 
@@ -653,14 +671,9 @@ $admin-success: #00ff38;
 }
 
 @keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
 }
 
-// ==========================================
-// АДАПТИВ
-// ==========================================
 @media (min-width: 768px) {
     .self-config-form {
         max-width: 700px;
@@ -671,8 +684,7 @@ $admin-success: #00ff38;
         justify-content: flex-end;
     }
 
-    .btn-primary-modern,
-    .btn-secondary-modern {
+    .btn-cancel, .btn-submit {
         flex: 0 1 auto;
         min-width: 140px;
     }

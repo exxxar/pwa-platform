@@ -11,10 +11,7 @@
                 <ChatList @select-dialog="onSelectDialog" />
             </div>
 
-            <!-- ОТКРЫТЫЙ ЧАТ -->
-            <div v-else key="chat" class="chat-view">
-                <Chat @back="onBackToList" />
-            </div>
+            <Chat v-else @back="onBackToList" />
 
         </transition>
 
@@ -22,7 +19,7 @@
 </template>
 
 <script>
-import { useChatStore } from '@/MobileClient/stores/Shop/chat';
+import { useChat } from '@/MobileClient/Composables/useChat.js';
 import ChatList from "@/MobileClient/Components/Chat/DailogList.vue";
 import Chat from "@/MobileClient/Components/Chat/Chat.vue";
 
@@ -35,8 +32,25 @@ export default {
     },
 
     setup() {
-        const store = useChatStore();
-        return { store };
+        const chat = useChat();
+
+        return {
+            // Реактивные данные
+            currentDialog: chat.currentDialog,
+            dialogs: chat.dialogs,
+            messages: chat.messages,
+            isLoading: chat.isLoading,
+            isHydrated: chat.isHydrated,
+            unreadCount: chat.totalUnread,
+
+            // Методы
+            openDialog: chat.openDialog,
+            closeDialog: chat.closeDialog,
+            loadDialogs: chat.loadDialogs,
+            sendMessage: chat.sendMessage,
+            loadOlderMessages: chat.loadOlderMessages,
+            markDialogAsRead: chat.markDialogAsRead,
+        };
     },
 
     data() {
@@ -45,23 +59,45 @@ export default {
         };
     },
 
-    computed: {
-        currentDialog() {
-            return this.store.getCurrentDialog;
-        },
+    async mounted() {
+        // Загружаем список диалогов при входе
+        if (!this.isHydrated) {
+            await this.loadDialogs();
+        }
     },
 
     methods: {
-        // Выбор диалога из списка
-        onSelectDialog(dialog) {
+        /**
+         * Выбор диалога из списка
+         */
+        async onSelectDialog(dialog) {
+            if (!dialog?.id) {
+                console.warn('[ChatContainer] Диалог без ID');
+                return;
+            }
+
             this.transitionName = 'slide-left';
-            this.store.setCurrentDialog(dialog);
+
+            try {
+                // openDialog загружает сообщения и помечает диалог как прочитанный
+                await this.openDialog(dialog.id);
+            } catch (error) {
+                console.error('[ChatContainer] Ошибка открытия диалога:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось открыть диалог',
+                    type: 'error',
+                });
+            }
         },
 
-        // Возврат к списку
+        /**
+         * Возврат к списку
+         */
         onBackToList() {
             this.transitionName = 'slide-right';
-            this.store.closeDialog();
+            // Закрываем диалог (переход на список произойдёт автоматически через currentDialog = null)
+            this.closeDialog();
         },
     },
 };

@@ -25,6 +25,8 @@ class TenantDialog extends Model
         'last_message_at' => 'datetime',
     ];
 
+    protected $appends = ["unread_count","has_unread"];
+
     public function user()
     {
         return $this->belongsTo(TenantUser::class, 'tenant_user_id');
@@ -38,5 +40,42 @@ class TenantDialog extends Model
     public function lastMessage()
     {
         return $this->hasOne(TenantMessage::class, 'dialog_id')->latest();
+    }
+
+    /**
+     * Непрочитанные сообщения диалога
+     */
+    public function unreadMessages()
+    {
+        return $this->messages()
+            ->where('is_read', false)
+            ->where('tenant_user_id', '!=', $this->tenant_user_id);
+    }
+
+    /**
+     * Количество непрочитанных сообщений
+     */
+    public function getUnreadCountAttribute(): int
+    {
+        return $this->unreadMessages()->count();
+    }
+
+    /**
+     * Отметить все сообщения диалога как прочитанные
+     */
+    public function markAllAsRead(): int
+    {
+        return $this->unreadMessages()->update([
+            'is_read' => true,
+            'read_at' => now(),
+        ]);
+    }
+
+    /**
+     * Есть ли непрочитанные сообщения
+     */
+    public function getHasUnreadAttribute(): bool
+    {
+        return $this->unreadMessages()->exists();
     }
 }

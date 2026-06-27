@@ -739,7 +739,7 @@ export default {
 
 .field-icon {
     width: 35px;
-    margin-right: 5px;
+    margin-right: 10px;
     display: flex;
     align-items: center;
     justify-content: center;

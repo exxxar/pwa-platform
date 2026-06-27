@@ -64,19 +64,39 @@ class PartnerService
         }
 
         $config = $tenantUser->meta ?? [];
-
         $favPartners = !$isForApi ? ($config["fav_partners"] ?? []) : [];
 
         $partnersQuery = Partner::query()
-            ->with([ "partner","partner.products"])
             ->where("tenant_id", $tenant->id);
 
+        // 🆕 Считаем количество активных товаров каждого партнёра
+        // через подзапрос к таблице products по tenant_partner_id
+        $partnersQuery->withCount([
+            'partnerProducts as products_count' => function ($query) {
+                $query->where('products.is_active', true)
+                    ->where(function ($q) {
+                        $q->whereNull('products.in_stop_list')
+                            ->orWhere('products.in_stop_list', false);
+                    });
+            }
+        ]);
+
+        // 🆕 Общая сумма товаров (для статистики)
+        $partnersQuery->withSum([
+            'partnerProducts as products_sum' => function ($query) {
+                $query->where('products.is_active', true)
+                    ->where(function ($q) {
+                        $q->whereNull('products.in_stop_list')
+                            ->orWhere('products.in_stop_list', false);
+                    });
+            }
+        ], 'price');
+
+        // Сортировка
         if (!empty($favPartners)) {
-            // сортировка по порядку ID в массиве
             $ids = implode(',', $favPartners);
             $partnersQuery->orderByRaw("FIELD(id, $ids) desc");
         } else {
-            // fallback сортировка
             $partnersQuery->orderBy("order_position", "DESC");
         }
 
@@ -97,7 +117,7 @@ class PartnerService
             ->with('tenant')
             ->whereIn('tenant_id', $partnersId)
             ->where('is_active', true)
-            ->orderByRaw('LENGTH(title) ASC')
+            ->orderBy('name', 'asc')
             ->get();
 
         $grouped = [];
@@ -334,14 +354,13 @@ class PartnerService
         $tenantUser = Auth::guard('tenant')->user();
 
         $validator = Validator::make($data, [
-            "is_active" => "required",
             "id" => "required",
         ]);
 
         if ($validator->fails())
             throw new ValidationException($validator);
 
-        $isActive = ($data["is_active"] ?? false) == "true";;
+     //   $isActive = ($data["is_active"] ?? false) == "true";;
         $partnerId = $data["id"];
 
         $partner = Partner::query()
@@ -351,10 +370,10 @@ class PartnerService
         if (is_null($partner))
             throw new HttpException(404, "Партнер не найден!");
 
-        $partner->is_active = $isActive;
+        $partner->is_active = !$partner->is_active;
         $partner->save();
 
-        if (!$isActive) {
+        if (!$partner->is_active) {
             $basket = Basket::query()
                 ->where("tenant_id", $partner->tenant_partner_id)
                 ->get();
@@ -376,39 +395,55 @@ class PartnerService
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
-        $validator = Validator::make($data, [
-            "is_active" => "required",
-            "display_self" => "required",
-        ]);
-
-        if ($validator->fails())
-            throw new ValidationException($validator);
-
-        $isActive = ($data["is_active"] ?? false) == "true";;
-        $displaySelf = ($data["display_self"] ?? false) == "true";
-
-        $config = $tenant->config ?? [];
-        $partnersConfig = $config["partners"] ?? [];
-        $partnersConfig["is_active"] = $isActive;
-        $partnersConfig["display_self"] = $displaySelf;
-
-        $config["partners"] = $partnersConfig;
-
-        $tenant->config = $config;
-        $tenant->save();
-
-        if (!$isActive) {
-            $basket = Basket::query()
-                ->where("tenant_id", $tenant->id)
-                ->get();
-
-            foreach ($basket as $item)
-                $item->delete();
-
-
+        if (!$tenantUser) {
+            throw new ValidationException(
+                Validator::make([], [], ['required' => 'Пользователь не авторизован'])
+            );
         }
 
-        return $config["partners"];
+        // 🆕 Разрешённые поля для обновления
+        $allowedFields = [
+            'is_active' => 'sometimes|boolean',
+            'display_self' => 'sometimes|boolean',
+            // Можно добавить в будущем:
+            // 'commission_rate' => 'sometimes|numeric|min:0|max:100',
+            // 'auto_approve' => 'sometimes|boolean',
+        ];
+
+        $validator = Validator::make($data, $allowedFields);
+
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
+        }
+
+        // 🆕 Получаем текущие настройки
+        $meta = $tenant->meta ?? [];
+        $partnersConfig = $meta["partners"] ?? [];
+
+        // 🆕 Обновляем только переданные поля
+        foreach (array_keys($allowedFields) as $field) {
+            if (array_key_exists($field, $data)) {
+                $partnersConfig[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN);
+            }
+        }
+
+        // 🆕 Логическая проверка: display_self требует is_active
+        if (($partnersConfig['display_self'] ?? false) && !($partnersConfig['is_active'] ?? false)) {
+            $partnersConfig['display_self'] = false;
+        }
+
+        $meta["partners"] = $partnersConfig;
+        $tenant->meta = $meta;
+        $tenant->save();
+
+        // 🆕 При отключении программы — деактивируем партнёров
+        if (!($partnersConfig['is_active'] ?? false)) {
+            Partner::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->update(['is_active' => false]);
+        }
+
+        return $meta["partners"];
     }
 
     /**

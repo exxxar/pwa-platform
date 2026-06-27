@@ -78,141 +78,88 @@ export default {
     name: 'StoryModal',
 
     props: {
-        stories: {
-            type: Array,
-            required: true,
-        },
-        initialIndex: {
-            type: Number,
-            default: 0,
-        },
+        stories: { type: Array, required: true },
+        initialIndex: { type: Number, default: 0 },
     },
 
-    emits: ['close'],
+    emits: ['close', 'story-viewed'],
 
     data() {
         return {
             currentIndex: this.initialIndex,
             progress: 0,
-            isPaused: false,
-            isVisible: false,
-            isTextExpanded: false, // 🌟 Новое состояние
-            storyDuration: 5000,
             timer: null,
-            lastFrameTime: 0,
+            duration: 5000, // 5 секунд на историю
         };
     },
 
     computed: {
         currentStory() {
-            return this.stories[this.currentIndex] || {};
+            return this.stories[this.currentIndex];
         },
     },
 
     mounted() {
-        setTimeout(() => {
-            this.isVisible = true;
-            this.startTimer();
-        }, 50);
-
-        window.addEventListener('keydown', this.handleKeydown);
+        this.startTimer();
+        document.addEventListener('keydown', this.handleKeydown);
     },
 
     beforeUnmount() {
         this.stopTimer();
-        window.removeEventListener('keydown', this.handleKeydown);
+        document.removeEventListener('keydown', this.handleKeydown);
     },
 
     methods: {
-        // 🌟 Переключение состояния текста
-        toggleText() {
-            this.isTextExpanded = !this.isTextExpanded;
-
-            // Если раскрываем текст, ставим историю на паузу, чтобы пользователь успел прочитать
-            if (this.isTextExpanded) {
-                this.isPaused = true;
-            } else {
-                this.isPaused = false;
-                this.lastFrameTime = performance.now();
-            }
-        },
-
         startTimer() {
             this.stopTimer();
             this.progress = 0;
-            this.lastFrameTime = performance.now();
 
-            const animate = (currentTime) => {
-                if (this.isPaused || !this.isVisible) {
-                    this.lastFrameTime = currentTime;
-                    this.timer = requestAnimationFrame(animate);
-                    return;
-                }
-
-                const deltaTime = currentTime - this.lastFrameTime;
-                this.lastFrameTime = currentTime;
-
-                const progressIncrement = (deltaTime / this.storyDuration) * 100;
-                this.progress += progressIncrement;
+            this.timer = setInterval(() => {
+                this.progress += 100 / (this.duration / 100);
 
                 if (this.progress >= 100) {
                     this.nextStory();
-                } else {
-                    this.timer = requestAnimationFrame(animate);
                 }
-            };
-
-            this.timer = requestAnimationFrame(animate);
+            }, 100);
         },
 
         stopTimer() {
             if (this.timer) {
-                cancelAnimationFrame(this.timer);
+                clearInterval(this.timer);
                 this.timer = null;
             }
         },
 
         nextStory() {
+            // 🆕 Отмечаем текущую как просмотренную
+            if (this.currentStory) {
+                this.$emit('story-viewed', this.currentStory.id);
+            }
+
             if (this.currentIndex < this.stories.length - 1) {
                 this.currentIndex++;
-                this.isTextExpanded = false; // Сбрасываем текст при переключении
                 this.startTimer();
             } else {
-                this.closeModal();
+                this.close();
             }
         },
 
         prevStory() {
             if (this.currentIndex > 0) {
                 this.currentIndex--;
-                this.isTextExpanded = false; // Сбрасываем текст при переключении
-                this.startTimer();
-            } else {
                 this.startTimer();
             }
         },
 
-        handleTouchStart() {
-            this.isPaused = true;
-        },
-
-        handleTouchEnd() {
-            this.isPaused = false;
-            this.lastFrameTime = performance.now();
+        close() {
+            this.stopTimer();
+            this.$emit('close');
         },
 
         handleKeydown(e) {
+            if (e.key === 'Escape') this.close();
             if (e.key === 'ArrowRight') this.nextStory();
             if (e.key === 'ArrowLeft') this.prevStory();
-            if (e.key === 'Escape') this.closeModal();
-        },
-
-        closeModal() {
-            this.isVisible = false;
-            this.stopTimer();
-            setTimeout(() => {
-                this.$emit('close');
-            }, 300);
         },
     },
 };

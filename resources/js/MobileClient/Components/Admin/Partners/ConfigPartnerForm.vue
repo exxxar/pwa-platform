@@ -11,12 +11,12 @@
             <!-- Статус -->
             <div class="setting-row">
                 <div class="setting-info">
-                    <div class="setting-icon">
+                    <div class="setting-icon status">
                         <i class="fa-solid fa-toggle-on"></i>
                     </div>
                     <div class="setting-text">
                         <h4 class="setting-title">Активен</h4>
-                        <p class="setting-description">Партнер отображается в системе</p>
+                        <p class="setting-description">Партнёр отображается в системе</p>
                     </div>
                 </div>
                 <div class="switch-control">
@@ -35,18 +35,23 @@
             <div class="form-group">
                 <label class="form-label" for="partner-title">
                     <i class="fa-solid fa-heading"></i>
-                    Заголовок <span class="required">*</span>
+                    Заголовок
+                    <span class="required">*</span>
                 </label>
                 <input
                     id="partner-title"
                     type="text"
                     v-model="form.title"
                     class="form-input"
-                    placeholder="Название партнера"
+                    :class="{ 'has-error': errors.title }"
+                    placeholder="Название партнёра"
                     :disabled="isLoading"
                     required
                 >
-                <span v-if="errors.title" class="form-error">{{ errors.title }}</span>
+                <span v-if="errors.title" class="form-error">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    {{ errors.title }}
+                </span>
             </div>
 
             <!-- Позиция -->
@@ -64,6 +69,7 @@
                     min="0"
                     :disabled="isLoading"
                 >
+                <span class="form-hint">Чем меньше число, тем выше в списке</span>
             </div>
         </div>
 
@@ -85,7 +91,7 @@
                     id="partner-description"
                     v-model="form.description"
                     class="form-textarea"
-                    placeholder="Расскажите о партнере"
+                    placeholder="Расскажите о партнёре"
                     rows="4"
                     :disabled="isLoading"
                 ></textarea>
@@ -179,6 +185,7 @@
                     >
                     <span class="input-suffix">%</span>
                 </div>
+                <span class="form-hint">Процент наценки на товары партнёра</span>
             </div>
         </div>
 
@@ -186,7 +193,7 @@
         <div class="form-actions">
             <button
                 type="button"
-                class="btn-secondary-modern"
+                class="btn-cancel"
                 @click="$emit('cancel')"
                 :disabled="isLoading"
             >
@@ -194,7 +201,7 @@
             </button>
             <button
                 type="submit"
-                class="btn-primary-modern"
+                class="btn-submit"
                 :disabled="isLoading || !isValid"
             >
                 <span v-if="isLoading" class="spinner-small"></span>
@@ -209,6 +216,8 @@
 </template>
 
 <script>
+import { usePartners } from '@/MobileClient/Composables/usePartners.js'
+
 export default {
     name: 'ConfigPartnerForm',
 
@@ -221,6 +230,13 @@ export default {
 
     emits: ['success', 'cancel', 'select'],
 
+    setup() {
+        const partners = usePartners()
+        return {
+            updatePartner: partners.updatePartner,
+        }
+    },
+
     data() {
         return {
             isLoading: false,
@@ -229,30 +245,6 @@ export default {
             isDragging: false,
             errors: {
                 title: '',
-            },
-            // Сохраняем структуру для возможного будущего использования (раскомментирования UI)
-            labels: {
-                partner: {
-                    organization_name: 'Название организации',
-                    inn: ' ИНН',
-                    ogrn: 'ОГРН',
-                    kpp: 'КПП',
-                    legal_address: 'Юридический адрес',
-                    actual_address: 'Фактический адрес',
-                    email: 'E-mail',
-                    phone: 'Телефон',
-                    status: 'Статус'
-                },
-                contract: {
-                    contract_number: 'Номер договора',
-                    contract_name: 'Название',
-                    start_date: 'Дата начала',
-                    end_date: 'Дата окончания',
-                    contract_status: 'Статус',
-                    total_amount: 'Сумма'
-                },
-                contact: { full_name: 'ФИО', position: 'Должность', email: 'E-mail', phone: 'Телефон' },
-                document: { file_name: 'Файл', document_type: 'Тип документа' },
             },
             form: {
                 id: null,
@@ -267,215 +259,147 @@ export default {
                     excludes: [],
                     bg_color: 'transparent',
                 },
-                legal_info: {
-                    partner: {
-                        organization_name: '',
-                        legal_form: 'ООО',
-                        inn: '',
-                        ogrn: '',
-                        kpp: '',
-                        registration_date: '',
-                        legal_address: '',
-                        actual_address: '',
-                        bank_name: '',
-                        bik: '',
-                        checking_account: '',
-                        correspondent_account: '',
-                        email: '',
-                        phone: '',
-                        status: 'Активен',
-                        notes: ''
-                    },
-                    contacts: [],
-                    contracts: {
-                        contract_number: '',
-                        contract_name: '',
-                        contract_type: 'Услуги',
-                        start_date: '',
-                        end_date: '',
-                        contract_status: 'Подписан',
-                        total_amount: 0,
-                        currency: 'RUB',
-                        payment_terms: '',
-                        responsible_person: '',
-                        signed_by: '',
-                        signature_date: '',
-                        auto_renewal: false,
-                        termination_reason: null
-                    },
-                    documents: []
-                }
             }
-        };
+        }
     },
 
     computed: {
         bot() {
-            return window.currentBot || null;
+            return window.currentBot || null
         },
 
         isValid() {
-            return this.form.title?.trim().length > 0;
+            return this.form.title?.trim().length > 0
         },
 
         previewImage() {
-            if (this.preview) return this.preview;
+            if (this.preview) return this.preview
             if (this.form.image && this.bot?.id) {
-                return `/images-by-bot-id/${this.bot.id}/${this.form.image}`;
+                return `/images-by-bot-id/${this.bot.id}/${this.form.image}`
             }
-            return null;
+            return null
         }
     },
 
     mounted() {
         if (this.initialData) {
-            // Глубокое слияние, чтобы не потерять структуру legal_info, если она неполная в initialData
-            this.form = { ...this.form, ...this.initialData };
-
-            // Если legal_info пришел, мержим его аккуратно
-            if (this.initialData.legal_info) {
-                this.form.legal_info = { ...this.form.legal_info, ...this.initialData.legal_info };
-            }
+            this.form = { ...this.form, ...this.initialData }
         }
     },
 
     beforeUnmount() {
         if (this.preview) {
-            URL.revokeObjectURL(this.preview);
+            URL.revokeObjectURL(this.preview)
         }
     },
 
     methods: {
         triggerFileInput() {
-            this.$refs.fileInput?.click();
+            this.$refs.fileInput?.click()
         },
 
         onFileChange(e) {
-            const file = e.target.files?.[0];
-            this.handleFile(file);
+            const file = e.target.files?.[0]
+            this.handleFile(file)
         },
 
         onFileDrop(e) {
-            this.isDragging = false;
-            const file = e.dataTransfer?.files?.[0];
+            this.isDragging = false
+            const file = e.dataTransfer?.files?.[0]
             if (file && file.type.startsWith('image/')) {
-                this.handleFile(file);
+                this.handleFile(file)
             }
         },
 
         handleFile(file) {
-            if (!file) return;
+            if (!file) return
 
             if (this.preview) {
-                URL.revokeObjectURL(this.preview);
+                URL.revokeObjectURL(this.preview)
             }
 
-            this.file = file;
-            this.preview = URL.createObjectURL(file);
-            this.$emit('select', file);
+            this.file = file
+            this.preview = URL.createObjectURL(file)
+            this.$emit('select', file)
         },
 
         removeImage() {
             if (this.preview) {
-                URL.revokeObjectURL(this.preview);
+                URL.revokeObjectURL(this.preview)
             }
-            this.file = null;
-            this.preview = null;
-            this.form.image = '';
+            this.file = null
+            this.preview = null
+            this.form.image = ''
 
             if (this.$refs.fileInput) {
-                this.$refs.fileInput.value = '';
+                this.$refs.fileInput.value = ''
             }
         },
 
         validateForm() {
-            this.errors.title = '';
+            this.errors.title = ''
 
             if (!this.form.title?.trim()) {
-                this.errors.title = 'Заголовок обязателен для заполнения';
-                return false;
+                this.errors.title = 'Заголовок обязателен для заполнения'
+                return false
             }
 
             if (this.form.title.trim().length < 2) {
-                this.errors.title = 'Заголовок должен содержать минимум 2 символа';
-                return false;
+                this.errors.title = 'Заголовок должен содержать минимум 2 символа'
+                return false
             }
 
-            return true;
+            return true
         },
 
         async handleSubmit() {
-            if (!this.validateForm()) return;
+            if (!this.validateForm()) return
 
-            this.isLoading = true;
+            this.isLoading = true
 
             try {
-                const data = new FormData();
+                const data = new FormData()
 
                 Object.keys(this.form).forEach(key => {
-                    const item = this.form[key];
+                    const item = this.form[key]
                     if (item !== null && item !== undefined) {
                         if (typeof item === 'object') {
-                            data.append(key, JSON.stringify(item));
+                            data.append(key, JSON.stringify(item))
                         } else {
-                            data.append(key, item);
+                            data.append(key, item)
                         }
                     }
-                });
+                })
 
                 if (this.file) {
-                    data.append('file', this.file);
+                    data.append('file', this.file)
                 }
 
-                await this.$store.dispatch('updatePartner', { form: data });
+                await this.updatePartner({ form: data })
 
                 this.$notify?.({
                     title: 'Успех',
-                    text: 'Параметры партнера успешно сохранены',
+                    text: 'Параметры партнёра сохранены',
                     type: 'success',
-                });
+                })
 
-                this.$emit('success');
+                this.$emit('success')
             } catch (err) {
-                console.error('Ошибка сохранения партнера:', err);
+                console.error('Ошибка сохранения партнёра:', err)
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Не удалось сохранить параметры',
                     type: 'error',
-                });
+                })
             } finally {
-                this.isLoading = false;
+                this.isLoading = false
             }
         },
-
-        // Исправленные методы для будущего использования (раскомментирования UI)
-        addContact() {
-            if (!this.form.legal_info.contacts) this.form.legal_info.contacts = [];
-            this.form.legal_info.contacts.push({
-                id: Date.now(),
-                full_name: '',
-                position: '',
-                email: '',
-                phone: ''
-            });
-        },
-
-        addDocument() {
-            if (!this.form.legal_info.documents) this.form.legal_info.documents = [];
-            this.form.legal_info.documents.push({
-                id: Date.now(),
-                file_name: '',
-                document_type: '',
-                file_path: ''
-            });
-        }
     }
-};
+}
 </script>
 
 <style lang="scss" scoped>
-@use "sass:color";
-
 $admin-bg: #f4f6f9;
 $admin-card-bg: #ffffff;
 $admin-text: #2c3e50;
@@ -520,7 +444,7 @@ $admin-danger: #ef4444;
 }
 
 // ==========================================
-// НАСТРОЙКИ (SWITCH)
+// НАСТРОЙКИ
 // ==========================================
 .setting-row {
     display: flex;
@@ -539,16 +463,19 @@ $admin-danger: #ef4444;
 }
 
 .setting-icon {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border-radius: 10px;
-    background: rgba($admin-primary, 0.1);
-    color: $admin-primary;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.1rem;
     flex-shrink: 0;
+
+    &.status {
+        background: rgba($admin-success, 0.1);
+        color: $admin-success;
+    }
 }
 
 .setting-text {
@@ -567,57 +494,6 @@ $admin-danger: #ef4444;
     font-size: 0.75rem;
     color: $admin-text-muted;
     margin: 0;
-}
-
-.switch-control {
-    position: relative;
-    width: 48px;
-    height: 28px;
-    flex-shrink: 0;
-}
-
-.switch-input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-
-    &:checked + .switch-slider {
-        background: $admin-success;
-
-        &::before {
-            transform: translateX(20px);
-        }
-    }
-
-    &:disabled + .switch-slider {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-}
-
-.switch-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: $admin-border;
-    transition: 0.3s;
-    border-radius: 28px;
-
-    &::before {
-        position: absolute;
-        content: '';
-        height: 22px;
-        width: 22px;
-        left: 3px;
-        bottom: 3px;
-        background: white;
-        transition: 0.3s;
-        border-radius: 50%;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
 }
 
 // ==========================================
@@ -659,7 +535,7 @@ $admin-danger: #ef4444;
 .form-textarea {
     padding: 12px 16px;
     border: 1px solid $admin-border;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.95rem;
     color: $admin-text;
     background: $admin-card-bg;
@@ -671,6 +547,14 @@ $admin-danger: #ef4444;
         outline: none;
         border-color: $admin-primary;
         box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+    }
+
+    &.has-error {
+        border-color: $admin-danger;
+
+        &:focus {
+            box-shadow: 0 0 0 3px rgba($admin-danger, 0.1);
+        }
     }
 
     &:disabled {
@@ -688,6 +572,20 @@ $admin-danger: #ef4444;
     resize: vertical;
     min-height: 100px;
     line-height: 1.5;
+}
+
+.form-hint {
+    font-size: 0.8rem;
+    color: $admin-text-muted;
+    line-height: 1.4;
+}
+
+.form-error {
+    font-size: 0.85rem;
+    color: $admin-danger;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .input-with-suffix {
@@ -710,21 +608,8 @@ $admin-danger: #ef4444;
     pointer-events: none;
 }
 
-.form-error {
-    font-size: 0.85rem;
-    color: $admin-danger;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-
-    &::before {
-        content: '⚠';
-        font-size: 0.9rem;
-    }
-}
-
 // ==========================================
-// ЗАГРУЗЧИК ФАЙЛОВ
+// ЗАГРУЗКА ФАЙЛОВ
 // ==========================================
 .file-uploader {
     position: relative;
@@ -817,6 +702,11 @@ $admin-danger: #ef4444;
     transition: all 0.2s;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 
+    &:hover {
+        background: $admin-danger;
+        transform: scale(1.1);
+    }
+
     &:active {
         transform: scale(0.9);
     }
@@ -856,7 +746,7 @@ $admin-danger: #ef4444;
     padding: 12px;
     background: $admin-card-bg;
     border: 1px solid $admin-border;
-    border-radius: 8px;
+    border-radius: 10px;
     color: $admin-primary;
     font-size: 0.9rem;
     font-weight: 600;
@@ -864,15 +754,69 @@ $admin-danger: #ef4444;
     transition: all 0.2s;
     min-height: 44px;
 
-    &:active:not(:disabled) {
+    &:hover:not(:disabled) {
         background: rgba($admin-primary, 0.04);
         border-color: $admin-primary;
+    }
+
+    &:active:not(:disabled) {
         transform: scale(0.98);
     }
 
     &:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+}
+
+// ==========================================
+// SWITCH
+// ==========================================
+.switch-control {
+    position: relative;
+    width: 48px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.switch-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+
+    &:checked + .switch-slider {
+        background: $admin-success;
+
+        &::before {
+            transform: translateX(20px);
+        }
+    }
+
+    &:disabled + .switch-slider {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: $admin-border;
+    transition: 0.3s;
+    border-radius: 28px;
+
+    &::before {
+        position: absolute;
+        content: '';
+        height: 22px;
+        width: 22px;
+        left: 3px;
+        bottom: 3px;
+        background: white;
+        transition: 0.3s;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 }
 
@@ -885,15 +829,14 @@ $admin-danger: #ef4444;
     padding-top: 8px;
 }
 
-.btn-primary-modern,
-.btn-secondary-modern {
+.btn-cancel, .btn-submit {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     padding: 14px 20px;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.95rem;
     font-weight: 600;
     border: none;
@@ -908,26 +851,27 @@ $admin-danger: #ef4444;
     &:disabled {
         opacity: 0.5;
         cursor: not-allowed;
-        transform: none;
     }
 }
 
-.btn-primary-modern {
-    background: $admin-primary;
-    color: white;
-
-    &:active:not(:disabled) {
-        background:  color.adjust($admin-primary, $lightness: -5%);
-    }
-}
-
-.btn-secondary-modern {
+.btn-cancel {
     background: $admin-bg;
     color: $admin-text;
     border: 1px solid $admin-border;
 
-    &:active:not(:disabled) {
-        background: color.adjust($admin-bg, $lightness: -3%);
+    &:hover:not(:disabled) {
+        background: $admin-border;
+    }
+}
+
+.btn-submit {
+    background: linear-gradient(135deg, $admin-primary 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba($admin-primary, 0.3);
+
+    &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba($admin-primary, 0.4);
     }
 }
 
@@ -942,14 +886,9 @@ $admin-danger: #ef4444;
 }
 
 @keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
 }
 
-// ==========================================
-// АДАПТИВ
-// ==========================================
 @media (min-width: 768px) {
     .partner-config-form {
         max-width: 700px;
@@ -960,8 +899,7 @@ $admin-danger: #ef4444;
         justify-content: flex-end;
     }
 
-    .btn-primary-modern,
-    .btn-secondary-modern {
+    .btn-cancel, .btn-submit {
         flex: 0 1 auto;
         min-width: 140px;
     }

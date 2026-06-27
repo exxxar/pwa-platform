@@ -18,7 +18,9 @@
                         <small class="greeting-label">Добро пожаловать 👋</small>
                         <h2 class="greeting-name">{{ self?.name || 'Гость' }}</h2>
                     </div>
-                    <div class="hero-avatar">
+                    <div
+                        @click="goTo('Auth')"
+                        class="hero-avatar">
                         <img v-if="self?.avatar" :src="self.avatar" alt="">
                         <i v-else class="fa-solid fa-user"></i>
                     </div>

@@ -73,6 +73,13 @@ export default {
                     hasItems: () => !this.isEmpty,
                 },
                 {
+                    route: 'Chat',
+                    label: 'Чат',
+                    icon: 'fa-regular fa-comments',
+                    badge: () => 10,
+                    hasItems: () => true,
+                },
+                {
                     route: 'Profile',
                     label: 'Профиль',
                     icon: 'fa-solid fa-user'

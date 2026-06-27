@@ -807,6 +807,9 @@ export default {
     min-height: 100vh;
     background: var(--bs-body-bg);
     padding-bottom: 120px;
+    overflow-x: hidden; /* ← Убираем горизонтальный скролл */
+    width: 100%;
+    max-width: 100vw;
 }
 
 /* ==========================================
@@ -814,7 +817,7 @@ export default {
    ========================================== */
 .coffee-hero {
     position: relative;
-    padding: 48px 24px 40px;
+    padding: 40px 20px 32px;
     background: linear-gradient(135deg, #3e2723 0%, #5d4037 50%, #8d6e63 100%);
     color: white;
     text-align: center;
@@ -837,6 +840,7 @@ export default {
     right: 0;
     height: 100px;
     pointer-events: none;
+    overflow: hidden; /* ← Пар не вылезает */
 }
 
 .steam {
@@ -872,11 +876,11 @@ export default {
 .hero-icon-wrapper {
     position: relative;
     display: inline-block;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .hero-icon {
-    font-size: 4rem;
+    font-size: 3.5rem;
     animation: iconBounce 3s ease-in-out infinite;
 }
 
@@ -887,13 +891,13 @@ export default {
 
 .hero-sparkle {
     position: absolute;
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     animation: sparkleFloat 3s ease-in-out infinite;
 }
 
-.sparkle-1 { top: -10px; right: -15px; animation-delay: 0s; }
-.sparkle-2 { bottom: -10px; left: -15px; animation-delay: 1s; }
-.sparkle-3 { top: 50%; right: -25px; animation-delay: 2s; }
+.sparkle-1 { top: -5px; right: -10px; animation-delay: 0s; }
+.sparkle-2 { bottom: -5px; left: -10px; animation-delay: 1s; }
+.sparkle-3 { top: 50%; right: -18px; animation-delay: 2s; }
 
 @keyframes sparkleFloat {
     0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
@@ -901,49 +905,52 @@ export default {
 }
 
 .hero-title {
-    font-size: 2rem;
+    font-size: 1.75rem;
     font-weight: 800;
     margin-bottom: 8px;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .hero-subtitle {
-    font-size: 1rem;
+    font-size: 0.95rem;
     opacity: 0.95;
     margin: 0;
+    padding: 0 8px; /* ← Отступ по бокам для длинных текстов */
 }
 
 /* ==========================================
    КОНТЕНТ
    ========================================== */
 .calculator-content {
-    padding: 20px 16px;
+    padding: 16px;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* ==========================================
    СЕКЦИИ
    ========================================== */
 .section {
-    margin-bottom: 28px;
+    margin-bottom: 24px;
 }
 
 .section-header {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
 .section-icon {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 12px;
     background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 1rem;
     flex-shrink: 0;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -951,7 +958,7 @@ export default {
 .section-title {
     margin: 0;
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 1rem;
     color: var(--bs-body-color);
 }
 
@@ -965,15 +972,15 @@ export default {
    ВИЗУАЛИЗАЦИЯ СТАКАНЧИКА
    ========================================== */
 .cup-preview-section {
-    margin-bottom: 32px;
+    margin-bottom: 28px;
     text-align: center;
 }
 
 .cup-preview {
     position: relative;
-    width: 200px;
-    height: 320px;
-    margin: 0 auto 20px;
+    width: 180px;
+    height: 290px;
+    margin: 0 auto 16px;
 }
 
 .cup-svg {
@@ -1010,49 +1017,57 @@ export default {
 
 .drink-name-badge {
     position: absolute;
-    bottom: -10px;
+    bottom: -8px;
     left: 50%;
     transform: translateX(-50%);
-    padding: 6px 16px;
+    padding: 5px 14px;
     background: linear-gradient(135deg, #3e2723 0%, #5d4037 100%);
     color: white;
     border-radius: 20px;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 700;
     white-space: nowrap;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Быстрая статистика */
 .quick-stats {
     display: inline-flex;
     align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
+    gap: 12px;
+    padding: 10px 16px;
     background: var(--bs-body-bg);
     border: 1px solid var(--bs-border-color);
     border-radius: 14px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    max-width: 100%;
+    flex-wrap: wrap; /* ← Перенос на узких экранах */
+    justify-content: center;
 }
 
 .stat-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.85rem;
+    gap: 5px;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--bs-body-color);
+    white-space: nowrap;
 }
 
 .stat-item i {
     color: #8d6e63;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
 }
 
 .stat-divider {
     width: 1px;
-    height: 20px;
+    height: 18px;
     background: var(--bs-border-color);
+    flex-shrink: 0;
 }
 
 /* ==========================================
@@ -1060,22 +1075,24 @@ export default {
    ========================================== */
 .drink-types-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
 }
 
 .drink-type-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 14px 8px;
+    gap: 4px;
+    padding: 10px 4px;
     background: var(--bs-body-bg);
     border: 2px solid var(--bs-border-color);
-    border-radius: 14px;
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: center;
+    min-width: 0; /* ← Важно для grid */
+    overflow: hidden;
 }
 
 .drink-type-card:hover {
@@ -1091,19 +1108,20 @@ export default {
 }
 
 .drink-type-emoji {
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     line-height: 1;
 }
 
 .drink-type-name {
     font-weight: 700;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--bs-body-color);
     line-height: 1.2;
+    word-break: break-word;
 }
 
 .drink-type-volume {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: var(--bs-secondary-color);
 }
 
@@ -1113,21 +1131,22 @@ export default {
 .size-options {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    gap: 8px;
 }
 
 .size-card {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px;
+    gap: 8px;
+    padding: 12px 10px;
     background: var(--bs-body-bg);
     border: 2px solid var(--bs-border-color);
-    border-radius: 14px;
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;
     position: relative;
+    min-width: 0;
 }
 
 .size-card:hover {
@@ -1140,15 +1159,16 @@ export default {
 }
 
 .size-icon {
-    width: 30px;
+    width: 24px;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    height: 60px;
+    height: 50px;
+    flex-shrink: 0;
 }
 
 .size-cup {
-    width: 20px;
+    width: 16px;
     background: linear-gradient(180deg, #8d6e63 0%, #5d4037 100%);
     border-radius: 2px 2px 4px 4px;
     transition: height 0.3s ease;
@@ -1156,105 +1176,29 @@ export default {
 
 .size-info {
     flex: 1;
+    min-width: 0;
 }
 
 .size-name {
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--bs-body-color);
     margin-bottom: 2px;
 }
 
 .size-volume {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--bs-secondary-color);
 }
 
 .size-extra {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: #8d6e63;
     font-weight: 600;
     margin-top: 2px;
 }
 
 .size-check {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #5d4037;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.65rem;
-    opacity: 0;
-    transform: scale(0);
-    transition: all 0.3s ease;
-}
-
-.size-card.selected .size-check {
-    opacity: 1;
-    transform: scale(1);
-}
-
-/* ==========================================
-   МОЛОКО
-   ========================================== */
-.milk-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 10px;
-}
-
-.milk-card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px;
-    background: var(--bs-body-bg);
-    border: 2px solid var(--bs-border-color);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
-}
-
-.milk-card:hover {
-    border-color: #8d6e63;
-}
-
-.milk-card.selected {
-    border-color: #5d4037;
-    background: linear-gradient(135deg, rgba(93, 64, 55, 0.05) 0%, transparent 100%);
-}
-
-.milk-color {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid rgba(0, 0, 0, 0.1);
-    flex-shrink: 0;
-}
-
-.milk-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.milk-name {
-    font-weight: 600;
-    font-size: 0.8rem;
-    color: var(--bs-body-color);
-    margin-bottom: 2px;
-}
-
-.milk-extra {
-    font-size: 0.7rem;
-    color: #8d6e63;
-    font-weight: 600;
-}
-
-.milk-check {
     width: 20px;
     height: 20px;
     border-radius: 50%;
@@ -1267,6 +1211,87 @@ export default {
     opacity: 0;
     transform: scale(0);
     transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.size-card.selected .size-check {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* ==========================================
+   МОЛОКО
+   ========================================== */
+.milk-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.milk-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    background: var(--bs-body-bg);
+    border: 2px solid var(--bs-border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    min-width: 0;
+}
+
+.milk-card:hover {
+    border-color: #8d6e63;
+}
+
+.milk-card.selected {
+    border-color: #5d4037;
+    background: linear-gradient(135deg, rgba(93, 64, 55, 0.05) 0%, transparent 100%);
+}
+
+.milk-color {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+.milk-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.milk-name {
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--bs-body-color);
+    margin-bottom: 2px;
+    word-break: break-word;
+}
+
+.milk-extra {
+    font-size: 0.7rem;
+    color: #8d6e63;
+    font-weight: 600;
+}
+
+.milk-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #5d4037;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    opacity: 0;
+    transform: scale(0);
+    transition: all 0.3s ease;
+    flex-shrink: 0;
 }
 
 .milk-card.selected .milk-check {
@@ -1280,20 +1305,21 @@ export default {
 .shots-selector {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    gap: 8px;
 }
 
 .shot-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 16px 12px;
+    gap: 6px;
+    padding: 12px 8px;
     background: var(--bs-body-bg);
     border: 2px solid var(--bs-border-color);
-    border-radius: 14px;
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
+    min-width: 0;
 }
 
 .shot-card:hover {
@@ -1307,8 +1333,8 @@ export default {
 
 .shot-cups {
     display: flex;
-    gap: 4px;
-    font-size: 1.3rem;
+    gap: 2px;
+    font-size: 1.1rem;
 }
 
 .mini-cup {
@@ -1331,7 +1357,7 @@ export default {
 
 .shot-count {
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--bs-body-color);
 }
 
@@ -1343,27 +1369,28 @@ export default {
 }
 
 /* ==========================================
-   СИРОПЫ
+   СИРОПЫ И ТОППИНГИ
    ========================================== */
 .syrups-grid,
 .toppings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
 }
 
 .syrup-card,
 .topping-card {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
     background: var(--bs-body-bg);
     border: 2px solid var(--bs-border-color);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     position: relative;
+    min-width: 0;
 }
 
 .syrup-card:hover:not(.disabled),
@@ -1384,15 +1411,15 @@ export default {
 }
 
 .syrup-color {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     flex-shrink: 0;
     box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .topping-emoji {
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     flex-shrink: 0;
 }
 
@@ -1405,9 +1432,10 @@ export default {
 .syrup-name,
 .topping-name {
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--bs-body-color);
     margin-bottom: 2px;
+    word-break: break-word;
 }
 
 .syrup-extra,
@@ -1419,18 +1447,19 @@ export default {
 
 .syrup-check,
 .topping-check {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: #5d4037;
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     opacity: 0;
     transform: scale(0);
     transition: all 0.3s ease;
+    flex-shrink: 0;
 }
 
 .syrup-card.selected .syrup-check,
@@ -1445,14 +1474,14 @@ export default {
 .extras-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .extra-toggle {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 14px 16px;
+    gap: 12px;
+    padding: 12px 14px;
     background: var(--bs-body-bg);
     border: 2px solid var(--bs-border-color);
     border-radius: 14px;
@@ -1476,15 +1505,15 @@ export default {
 }
 
 .extra-icon {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: 10px;
     background: rgba(141, 110, 99, 0.1);
     color: #5d4037;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 1rem;
     flex-shrink: 0;
     transition: all 0.3s ease;
 }
@@ -1496,17 +1525,18 @@ export default {
 
 .extra-info {
     flex: 1;
+    min-width: 0;
 }
 
 .extra-name {
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--bs-body-color);
     margin-bottom: 2px;
 }
 
 .extra-desc {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--bs-secondary-color);
 }
 
@@ -1522,49 +1552,56 @@ export default {
     border-top: 1px solid var(--bs-border-color);
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
     z-index: 100;
-    padding: 16px;
+    padding: 12px 16px;
+    max-width: 100vw;
+    box-sizing: border-box;
 }
 
 .summary-content {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
     max-width: 600px;
     margin: 0 auto;
 }
 
 .summary-info {
     flex: 1;
+    min-width: 0;
 }
 
 .summary-label {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--bs-secondary-color);
     margin-bottom: 2px;
 }
 
 .summary-price {
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     font-weight: 800;
     color: #5d4037;
     line-height: 1;
 }
 
 .summary-details {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--bs-secondary-color);
     margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .summary-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 .clear-btn {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: var(--bs-secondary-bg);
     border: 1px solid var(--bs-border-color);
@@ -1572,9 +1609,10 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 0.95rem;
     cursor: pointer;
     transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
 .clear-btn:hover {
@@ -1586,17 +1624,18 @@ export default {
 .add-to-cart-btn {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 14px 24px;
+    gap: 8px;
+    padding: 12px 18px;
     background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%);
     border: none;
-    border-radius: 14px;
+    border-radius: 12px;
     color: white;
     font-weight: 700;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 4px 16px rgba(93, 64, 55, 0.3);
+    white-space: nowrap;
 }
 
 .add-to-cart-btn:hover:not(:disabled) {
@@ -1610,47 +1649,285 @@ export default {
 }
 
 /* ==========================================
-   АДАПТИВ
+   АДАПТИВ: ПЛАНШЕТЫ И БОЛЬШИЕ ТЕЛЕФОНЫ
    ========================================== */
 @media (max-width: 576px) {
+    .coffee-hero {
+        padding: 36px 16px 28px;
+    }
+
+    .hero-title {
+        font-size: 1.5rem;
+    }
+
+    .hero-subtitle {
+        font-size: 0.9rem;
+    }
+
+    .calculator-content {
+        padding: 14px 12px;
+    }
+
     .cup-preview {
         width: 160px;
         height: 260px;
     }
 
+    .quick-stats {
+        gap: 10px;
+        padding: 8px 14px;
+    }
+
+    .stat-item {
+        font-size: 0.75rem;
+    }
+
+    .summary-price {
+        font-size: 1.2rem;
+    }
+
+    .add-to-cart-btn {
+        padding: 12px 16px;
+        font-size: 0.85rem;
+    }
+}
+
+/* ==========================================
+   АДАПТИВ: УЗКИЕ ТЕЛЕФОНЫ (iPhone SE, etc.)
+   ========================================== */
+@media (max-width: 400px) {
+    .coffee-hero {
+        padding: 32px 12px 24px;
+    }
+
+    .hero-icon {
+        font-size: 3rem;
+    }
+
     .hero-title {
-        font-size: 1.6rem;
+        font-size: 1.35rem;
+    }
+
+    .hero-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .hero-sparkle {
+        font-size: 1.1rem;
+    }
+
+    .calculator-content {
+        padding: 12px 10px;
+    }
+
+    .section-header {
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .section-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 0.9rem;
+    }
+
+    .section-title {
+        font-size: 0.9rem;
+    }
+
+    .section-subtitle {
+        font-size: 0.7rem;
+    }
+
+    .cup-preview {
+        width: 140px;
+        height: 230px;
+    }
+
+    .drink-name-badge {
+        font-size: 0.7rem;
+        padding: 4px 12px;
+    }
+
+    .quick-stats {
+        gap: 8px;
+        padding: 8px 12px;
+        flex-direction: column; /* ← Вертикально на очень узких */
+    }
+
+    .stat-divider {
+        width: 40px;
+        height: 1px;
     }
 
     .drink-types-grid {
         grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+    }
+
+    .drink-type-card {
+        padding: 8px 2px;
+        gap: 2px;
     }
 
     .drink-type-emoji {
-        font-size: 1.5rem;
-    }
-
-    .drink-type-name {
-        font-size: 0.7rem;
-    }
-
-    .syrups-grid,
-    .toppings-grid,
-    .milk-options {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .summary-price {
         font-size: 1.3rem;
     }
 
-    .add-to-cart-btn {
-        padding: 12px 20px;
+    .drink-type-name {
+        font-size: 0.65rem;
+    }
+
+    .drink-type-volume {
+        font-size: 0.55rem;
+    }
+
+    .size-options,
+    .shots-selector {
+        gap: 6px;
+    }
+
+    .size-card {
+        padding: 10px 8px;
+        gap: 6px;
+    }
+
+    .size-name {
+        font-size: 0.75rem;
+    }
+
+    .size-volume,
+    .size-extra {
+        font-size: 0.65rem;
+    }
+
+    .milk-options,
+    .syrups-grid,
+    .toppings-grid {
+        gap: 6px;
+    }
+
+    .milk-card,
+    .syrup-card,
+    .topping-card {
+        padding: 8px;
+        gap: 6px;
+    }
+
+    .milk-color {
+        width: 24px;
+        height: 24px;
+    }
+
+    .milk-name,
+    .syrup-name,
+    .topping-name {
+        font-size: 0.7rem;
+    }
+
+    .shot-card {
+        padding: 10px 6px;
+    }
+
+    .shot-cups {
+        font-size: 1rem;
+    }
+
+    .shot-count {
+        font-size: 0.75rem;
+    }
+
+    .extra-toggle {
+        padding: 10px 12px;
+        gap: 10px;
+    }
+
+    .extra-icon {
+        width: 34px;
+        height: 34px;
         font-size: 0.9rem;
     }
 
+    .extra-name {
+        font-size: 0.8rem;
+    }
+
+    .extra-desc {
+        font-size: 0.65rem;
+    }
+
+    /* Sticky панель */
+    .summary-panel {
+        padding: 10px 12px;
+    }
+
+    .summary-content {
+        gap: 8px;
+    }
+
+    .summary-label {
+        font-size: 0.65rem;
+    }
+
+    .summary-price {
+        font-size: 1.1rem;
+    }
+
+    .summary-details {
+        font-size: 0.65rem;
+    }
+
+    .clear-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 0.85rem;
+    }
+
+    .add-to-cart-btn {
+        padding: 10px 14px;
+        font-size: 0.8rem;
+        gap: 6px;
+    }
+
     .add-to-cart-btn span {
-        display: none;
+        display: none; /* ← Скрываем текст на очень узких */
+    }
+}
+
+/* ==========================================
+   АДАПТИВ: ОЧЕНЬ УЗКИЕ ЭКРАНЫ (< 360px)
+   ========================================== */
+@media (max-width: 359px) {
+    .drink-types-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .size-options {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .milk-options,
+    .syrups-grid,
+    .toppings-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-title {
+        font-size: 1.2rem;
+    }
+
+    .cup-preview {
+        width: 120px;
+        height: 200px;
+    }
+}
+
+/* ==========================================
+   БЕЗОПАСНЫЕ ЗОНЫ (safe-area для iPhone с чёлкой)
+   ========================================== */
+@supports (padding: max(0px)) {
+    .summary-panel {
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
     }
 }
 </style>

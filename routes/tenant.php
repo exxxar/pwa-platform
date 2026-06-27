@@ -10,9 +10,12 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TableController;
+use App\Http\Controllers\Tenant\AchievementController;
 use App\Http\Controllers\Tenant\TenantAuthController;
+use App\Http\Controllers\Tenant\TenantPwaController;
 use App\Http\Controllers\Tenant\TenantSocialAuthController;
 use App\Http\Controllers\Tenant\TenantTapLinkController;
+use App\Http\Controllers\TenantDialogController;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantUser;
 use App\Notifications\NewOrderNotification;
@@ -114,6 +117,20 @@ $routes = function () {
 
     Route::get('/taplink', [TenantTapLinkController::class, 'index']);
 
+    Route::prefix('admin')->group(function () {
+        // Существующие роуты...
+
+        Route::prefix("tenant-settings")->group(function () {
+            // 🆕 PWA
+            Route::get('/pwa', [TenantPwaController::class, 'getPwaSettings']);
+            Route::post('/pwa', [TenantPwaController::class, 'savePwaSettings']);
+            Route::post('/pwa/upload-icon', [TenantPwaController::class, 'uploadIcon']);
+            Route::post('/pwa/upload-screenshot', [TenantPwaController::class, 'uploadScreenshot']);
+            Route::delete('/pwa/icon', [TenantPwaController::class, 'deleteIcon']);
+            Route::delete('/pwa/screenshot', [TenantPwaController::class, 'deleteScreenshot']);
+        });
+    });
+
     Route::prefix("tables")
         ->controller(TableController::class)
         ->group(function () {
@@ -151,32 +168,56 @@ $routes = function () {
 
 
     Route::prefix("dialogs")
-        ->controller(\App\Http\Controllers\TenantDialogController::class)
         ->group(function () {
-            Route::get('/', 'index');
-            Route::get('/{id}/messages', 'messages');
-            Route::post('/{id}/messages', 'send');
+
+            // 🆕 Счётчики непрочитанных
+            Route::get('/unread-count', [TenantDialogController::class, 'unreadCount']);
+            Route::get('/{dialogId}/unread-count', [TenantDialogController::class, 'dialogUnreadCount']);
+
+            Route::get('/', [TenantDialogController::class, 'index']);
+            Route::get('/{dialogId}', [TenantDialogController::class, 'show']);
+            Route::get('/{dialogId}/messages', [TenantDialogController::class, 'messages']);
+            Route::post('/{dialogId}/messages', [TenantDialogController::class, 'sendMessage']);
+            Route::post('/{dialogId}/read', [TenantDialogController::class, 'markAsRead']);
+            Route::post('/{dialogId}/close', [TenantDialogController::class, 'close']);
+
+            Route::post('/{dialogId}/archive', [TenantDialogController::class, 'archive']);
+            Route::post('/{dialogId}/restore', [TenantDialogController::class, 'restore']);
+            Route::delete('/{dialogId}', [TenantDialogController::class, 'destroy']);
+            Route::delete('/archive', [TenantDialogController::class, 'emptyArchive']);
+            Route::post('/archive-multiple', [TenantDialogController::class, 'archiveMultiple']);
+            Route::get('/{dialogId}/attachments', [TenantDialogController::class, 'attachments']);
         });
     Route::prefix("basket")
         ->controller(BasketController::class)
         ->group(function () {
             Route::post('/', "loadProductsInBasket");
-            Route::post('/checkout', "checkout");
+            Route::post('/checkout', "checkout")
+                ->middleware([ 'track.order']);
             Route::post("/get-delivery-price-new", [ProductController::class, "getDeliveryPriceNew"]);
             Route::post('/checkout-link', "checkoutLink");
             Route::post("/use-wheel-of-fortune-prize", "useWheelOfFortunePrize");
-            Route::post('/increment/{id}', "incrementItem");
+            Route::post('/increment/{id}', "incrementItem")
+                ->middleware(['track.stats:products_in_cart']);
             Route::post('/decrement/{id}', "decrementItem");
-            Route::post('/inc-product', "incProductInBasket");
+            Route::post('/inc-product', "incProductInBasket")
+                ->middleware(['track.stats:products_in_cart']);
             Route::post('/comment-product', "commentProductInBasket");
             Route::post('/dec-product', "decProductInBasket");
-            Route::post('/inc-collection', "incCollectionInBasket");
+            Route::post('/inc-collection', "incCollectionInBasket")
+                ->middleware(['track.stats:collections_in_cart']);
             Route::post('/dec-collection', "decCollectionInBasket");
             Route::delete('/clear', "clearBasket");
             Route::delete('/remove/{id}', "removeBasketItem");
 
         });
 
+    Route::prefix("achievements")
+        ->group(function () {
+        Route::get('/', [AchievementController::class, 'index']);
+        Route::get('//stats', [AchievementController::class, 'stats']);
+        Route::post('//{id}/claim', [AchievementController::class, 'claimReward']);
+    });
 
     Route::prefix("stories")
         ->group(function () {
@@ -289,6 +330,13 @@ $routes = function () {
             Route::post("/update", "update");
             Route::post("/update-self", "updateSelf");
             Route::post("/remove/{partnerId}", "destroy");
+
+            // 🆕 Статистика товаров
+            Route::get('/products-stats', [PartnersController::class, 'productsStats']);
+
+            Route::get('/products-by-category', [PartnersController::class, 'productsByCategory']);
+            Route::get('/products-by-category/more', [PartnersController::class, 'productsByCategoryMore']);
+            Route::post('/change-product-status', [PartnersController::class, 'changePartnerProductStatus']);
         });
 
 

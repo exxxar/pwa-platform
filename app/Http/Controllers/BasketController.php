@@ -266,7 +266,7 @@ class BasketController extends Controller
     /**
      * @throws ValidationException
      */
-    public function checkout(Request $request): ?object
+    public function checkout(Request $request): ?string
     {
         return BasketService::call()
             ->checkout($request->all(),

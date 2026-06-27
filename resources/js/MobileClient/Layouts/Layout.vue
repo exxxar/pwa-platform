@@ -249,6 +249,9 @@ import Footer from "@/MobileClient/Components/Footer.vue";
 import AppSidebar from '@/MobileClient/Components/AppSidebar.vue';
 import HamburgerMenu from '@/MobileClient/Components/HamburgerMenu.vue';
 import pushNotifications from '@/MobileClient/mixins/pushNotifications';
+import {useFavorites} from "@/MobileClient/composables/useFavorites";
+import {useBasket} from "@/MobileClient/composables/useBasket";
+import {useChat} from "@/MobileClient/composables/useChat";
 export default {
     name: "AppLayout",
     mixins: [pushNotifications],
@@ -264,7 +267,13 @@ export default {
         AppSidebar,
         HamburgerMenu,
     },
+    setup() {
+        const favorites = useFavorites();
+        const basket = useBasket();
+        const chat = useChat();
 
+        return { favorites, basket, chat };
+    },
     data() {
         return {
             loadedCashback: false,
@@ -386,7 +395,7 @@ export default {
             }
         },
         toggleSidebar() {
-
+             this.chat.fetchUnreadCount()
 
             // Если используешь Bootstrap Offcanvas программно:
             const el = document.getElementById('sidebar-menu');

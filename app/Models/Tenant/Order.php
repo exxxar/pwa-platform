@@ -21,7 +21,6 @@ class Order extends Model
     protected $fillable = [
         'tenant_id',
         'tenant_user_id',
-        'table_id',
         'delivery_service_info',
         'deliveryman_info',
         'product_details',
@@ -31,44 +30,32 @@ class Order extends Model
         'delivery_range',
         'deliveryman_latitude',
         'deliveryman_longitude',
-        "service_rating",
-        "service_review",
         'delivery_note',
         'receiver_name',
         'receiver_phone',
-        "location_id",
+        'location_id',
         'status',
         'order_type',
-        'is_cashback_crediting',
         'payed_at',
     ];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array
-     */
     protected $casts = [
-        'id' => 'integer',
-        'bot_id' => 'integer',
-        'table_id' => 'integer',
-        'deliveryman_id' => 'integer',
-        'status' => 'integer',
-        'customer_id' => 'integer',
-        'is_cashback_crediting' => 'boolean',
-        'delivery_service_info' => 'array',
-        'deliveryman_info' => 'array',
-        'product_details' => 'array',
-        'summary_price' => 'double',
-        'delivery_price' => 'double',
-        'delivery_range' => 'double',
+        'tenant_id' => 'integer',
 
-        'deliveryman_latitude' => 'double',
-        'deliveryman_longitude' => 'double',
-        'payed_at' => 'timestamp',
-        'created_at' => 'datetime:Y-m-d H:i:s',
-        'updated_at' => 'datetime:Y-m-d H:i:s',
+        'tenant_user_id' => 'integer',
+        'product_details' => 'array',
+        'product_count' => 'integer',
+        'summary_price' => 'float',
+        'delivery_price' => 'float',
+        'delivery_range' => 'float',
+        'deliveryman_latitude' => 'float',
+        'deliveryman_longitude' => 'float',
+        'location_id' => 'integer',
+        'status' => 'integer',
+        'order_type' => 'integer',
+        'payed_at' => 'datetime',
     ];
+
 
     public function review(): HasOne
     {

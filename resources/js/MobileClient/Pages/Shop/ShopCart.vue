@@ -236,14 +236,26 @@ export default {
             basket_items: basket.basket_items,
             isLoading: basket.isLoading,
             isHydrated: basket.isHydrated,
+            isSending: basket.isSending,
             cartTotalPrice: basket.cartTotalPrice,
+            cartTotalCount: basket.cartTotalCount,
+            isEmpty: basket.isEmpty,
             lastError: basket.lastError,
             addProduct: basket.addProduct,
             removeProduct: basket.removeProduct,
+            removeProductCompletely: basket.removeProductCompletely,
+            incrementQuantity: basket.incrementQuantity,
+            decrementQuantity: basket.decrementQuantity,
+            addCollection: basket.addCollection,
+            incrementCollection: basket.incrementCollection,
+            decrementCollection: basket.decrementCollection,
+            removeCollection: basket.removeCollection,
+            addComment: basket.addComment,
             isProductLoading: basket.isProductLoading,
             clearCart: basket.clearCart,
             startCheckoutAction: basket.startCheckout,
             createCheckoutLink: basket.createCheckoutLink,
+            useWheelOfFortunePrize: basket.useWheelOfFortunePrize,
         };
     },
 
@@ -252,7 +264,6 @@ export default {
             currentStep: 0,
             sending: false,
 
-            // Все шаги оформления
             allSteps: [
                 {
                     label: 'Корзина',
@@ -320,7 +331,6 @@ export default {
                 action_prize: null,
             },
 
-            // Обработчики глобальных событий (для корректного удаления)
             _scrollToBasketHandler: null,
             _switchToCartHandler: null,
         };
@@ -335,44 +345,23 @@ export default {
             return this.tenant?.settings || {};
         },
 
-        cartTotalCount() {
-            return this.basket_items?.reduce((sum, item) => {
-                return sum + (item.product?.is_weight_product ? 1 : item.count);
-            }, 0) || 0;
-        },
-
-        /**
-         * Итоговая сумма с учётом доставки
-         */
         totalToPay() {
             return (this.cartTotalPrice || 0) + (this.deliveryForm.delivery_price || 0);
         },
 
-        /**
-         * Видимые шаги (скрываем шаг "Чек", если не нужен скриншот)
-         */
         visibleSteps() {
             const steps = [...this.allSteps];
-
-            // Если не нужна оплата переводом — скрываем шаг "Чек"
             const needReceiptStep = this.deliveryForm.payment_type === 2;
             if (!needReceiptStep) {
-                steps.splice(2, 1); // Удаляем шаг с индексом 2 (Чек)
+                steps.splice(2, 1);
             }
-
             return steps;
         },
 
-        /**
-         * Конфигурация текущего шага
-         */
         currentStepConfig() {
             return this.visibleSteps[this.currentStep] || this.allSteps[0];
         },
 
-        /**
-         * Текст кнопки действия в футере
-         */
         actionButtonText() {
             const paymentType = this.deliveryForm.payment_type;
 
@@ -387,12 +376,9 @@ export default {
             return 'Далее';
         },
 
-        /**
-         * Иконка кнопки действия
-         */
         actionButtonIcon() {
             if (this.currentStep === 0) return 'fa-solid fa-arrow-right';
-            if (this.actionButtonImage) return null; // Для Т-Банка используем картинку
+            if (this.actionButtonImage) return null;
             if (this.currentStep === 1 && this.deliveryForm.payment_type === 2) return 'fa-solid fa-receipt';
             if (this.currentStep === 1 && this.deliveryForm.payment_type === 3) return 'fa-solid fa-hourglass';
             if (this.currentStep === 3 && this.deliveryForm.payment_type === 2) return 'fa-solid fa-receipt';
@@ -400,9 +386,6 @@ export default {
             return 'fa-solid fa-arrow-right';
         },
 
-        /**
-         * Картинка для кнопки (Т-Банк)
-         */
         actionButtonImage() {
             if (this.currentStep === 3 && this.deliveryForm.payment_type === 4) {
                 return '/images/Т-Банк.png';
@@ -410,9 +393,6 @@ export default {
             return null;
         },
 
-        /**
-         * CSS-класс кнопки действия
-         */
         actionButtonClass() {
             if (this.currentStep === 3 && this.deliveryForm.payment_type === 4) {
                 return 'tbank-btn';
@@ -420,11 +400,7 @@ export default {
             return '';
         },
 
-        /**
-         * Активна ли кнопка действия
-         */
         isActionButtonEnabled() {
-            // На шаге корзины — всегда активна, если есть товары
             if (this.currentStep === 0) return this.cartTotalCount > 0;
             return true;
         },
@@ -451,9 +427,6 @@ export default {
             this.deliveryForm.allergy = null;
         },
 
-        /**
-         * Если корзина опустела во время оформления — возвращаем на шаг 0
-         */
         cartTotalCount(newCount) {
             if (newCount === 0 && this.currentStep > 0) {
                 this.currentStep = 0;
@@ -462,7 +435,6 @@ export default {
     },
 
     mounted() {
-        // Регистрируем глобальные обработчики с сохранением ссылок
         this._scrollToBasketHandler = () => {
             this.currentStep = 1;
         };
@@ -475,7 +447,6 @@ export default {
     },
 
     beforeUnmount() {
-        // Корректно удаляем обработчики (предотвращаем утечки памяти)
         if (this._scrollToBasketHandler) {
             window.removeEventListener("scroll-to-basket", this._scrollToBasketHandler);
         }
@@ -485,107 +456,69 @@ export default {
     },
 
     methods: {
-        // ==========================================
-        // НАВИГАЦИЯ
-        // ==========================================
-
-        /**
-         * Переход к шагу (только на предыдущие или текущий)
-         */
         goToStep(index) {
             if (index <= this.currentStep) {
                 this.currentStep = index;
             }
         },
 
-        /**
-         * Изменение шага из дочерних компонентов
-         */
         changeTab(index) {
             this.currentStep = index;
         },
 
-        /**
-         * Переход в каталог
-         */
         goToCatalog() {
             this.$router.push({ name: 'Catalog' });
         },
 
-        /**
-         * Выбор приза
-         */
         selectPrize(item) {
             this.deliveryForm.action_prize = item;
         },
 
-        // ==========================================
-        // ОБРАБОТКА КНОПКИ ДЕЙСТВИЯ
-        // ==========================================
-
-        /**
-         * Универсальный обработчик клика по кнопке действия
-         */
         handleActionClick() {
             const paymentType = this.deliveryForm.payment_type;
 
-            // Шаг 0: Переход к оформлению
             if (this.currentStep === 0) {
                 this.currentStep = 1;
                 return;
             }
 
-            // Шаг 1: Оплата переводом → переход к скриншоту
             if (this.currentStep === 1 && paymentType === 2) {
                 this.currentStep = 2;
                 return;
             }
 
-            // Шаг 1: Оплата после звонка → оформление
             if (this.currentStep === 1 && paymentType === 3 && this.settings.need_pay_after_call) {
                 this.startCheckout();
                 return;
             }
 
-            // Шаг 2: Подтверждение скриншота
             if (this.currentStep === 2) {
                 this.startCheckout();
                 return;
             }
 
-            // Шаг 3: Т-Банк → оплата
             if (this.currentStep === 3 && paymentType === 4) {
                 this.startCheckout();
                 return;
             }
 
-            // Шаг 3: Перевод → к скриншоту
             if (this.currentStep === 3 && paymentType === 2) {
                 this.currentStep = 2;
                 return;
             }
 
-            // Шаг 3: Подтверждение после звонка
             if (this.currentStep === 3 && paymentType === 3 && this.settings.need_pay_after_call) {
                 this.startCheckout();
                 return;
             }
         },
 
-        // ==========================================
-        // ОФОРМЛЕНИЕ ЗАКАЗА
-        // ==========================================
-
-        /**
-         * Начало оформления заказа
-         */
         async startCheckout() {
             if (this.sending) return;
 
             const data = new FormData();
             data.append("display_type", this.settings.shop_display_type || 0);
 
-            // Сериализация формы
             Object.keys(this.deliveryForm).forEach(key => {
                 const item = this.deliveryForm[key];
                 if (item === null || item === undefined) {
@@ -602,13 +535,11 @@ export default {
                 data.append("need_automatic_delivery_request", true);
             }
 
-            // Фото чека (если это File, а не строка)
             if (this.deliveryForm.image instanceof File) {
                 data.append('photo', this.deliveryForm.image);
                 data.delete("image");
             }
 
-            // Оплата картой онлайн — создаём ссылку на оплату
             if (this.deliveryForm.payment_type === 0 && this.settings.can_use_card) {
                 try {
                     this.sending = true;
@@ -629,7 +560,6 @@ export default {
                 return;
             }
 
-            // Стандартное оформление
             this.sending = true;
 
             try {
@@ -640,8 +570,6 @@ export default {
                     text: 'Инструкция отправлена вам в бот!',
                     type: 'success',
                 });
-
-                // Корзина уже очищена в Pinia action
             } catch (error) {
                 console.error('Ошибка оформления заказа:', error);
                 this.$notify?.({
@@ -653,10 +581,6 @@ export default {
                 this.sending = false;
             }
         },
-
-        // ==========================================
-        // УТИЛИТЫ
-        // ==========================================
 
         formatPrice(price) {
             return new Intl.NumberFormat('ru-RU', {

@@ -1,28 +1,43 @@
 <template>
     <div class="stories-container">
-        <div class="stories-scroll">
-            <StoryItem
-                v-for="(story, index) in stories"
-                :key="story.id"
-                :story="story"
-                :is-viewed="viewedStories.includes(story.id)"
-                @open-story="openStory(index)"
-            />
+
+        <!-- Состояние загрузки -->
+        <div v-if="isLoading && !isHydrated" class="stories-loading">
+            <div v-for="i in 5" :key="i" class="story-skeleton">
+                <div class="skeleton-circle shimmer"></div>
+                <div class="skeleton-text shimmer"></div>
+            </div>
         </div>
 
-        <!-- Модалка историй -->
-        <StoryModal
-            v-if="showModal"
-            :stories="stories"
-            :initial-index="currentStoryIndex"
-            @close="closeModal"
-        />
+        <!-- Список историй -->
+        <template v-else-if="displayedStories.length > 0">
+            <div class="stories-scroll">
+                <StoryItem
+                    v-for="(story, index) in displayedStories"
+                    :key="story.id"
+                    :story="story"
+                    :is-viewed="isViewed(story.id)"
+                    @open-story="openStory(index)"
+                />
+            </div>
+
+            <!-- Модалка историй -->
+            <StoryModal
+                v-if="showModal"
+                :stories="displayedStories"
+                :initial-index="currentStoryIndex"
+                @close="closeModal"
+                @story-viewed="onStoryViewed"
+            />
+        </template>
+
     </div>
 </template>
 
 <script>
+import { useStories } from '@/MobileClient/Composables/useStories.js';
 import StoryItem from '@/MobileClient/Components/Shop/Stories/StoryItem.vue';
-import StoryModal from '@/MobileClient/Components/Shop/Stories/StoryModal.vue'; // <-- Импортируем модалку
+import StoryModal from '@/MobileClient/Components/Shop/Stories/StoryModal.vue';
 
 export default {
     name: 'StoryList',
@@ -32,55 +47,113 @@ export default {
         StoryModal,
     },
 
-    props: {
-        stories: {
-            type: Array,
-            required: true,
-        },
+    setup() {
+        const stories = useStories();
+
+        return {
+            // Состояние
+            storiesList: stories.stories,
+            isLoading: stories.isLoading,
+            isHydrated: stories.isHydrated,
+
+            // Геттеры
+            sortedStories: stories.sortedStories,
+            activeStories: stories.activeStories,
+            recentStories: stories.recentStories,
+            storiesCount: stories.storiesCount,
+
+            // Методы
+            loadStories: stories.loadStories,
+            isViewed: stories.isViewed,
+            markAsViewed: stories.markAsViewed,
+        };
     },
 
     data() {
         return {
-            viewedStories: [],
             showModal: false,
             currentStoryIndex: 0,
         };
     },
 
-    mounted() {
-        const saved = localStorage.getItem('viewed_stories');
-        if (saved) {
-            this.viewedStories = JSON.parse(saved);
+    computed: {
+        /**
+         * Отображаемые истории
+         * По умолчанию — активные, отсортированные
+         */
+        displayedStories() {
+            return this.activeStories;
+        },
+    },
+
+    async mounted() {
+        // Загружаем истории при первом входе
+        if (!this.isHydrated) {
+            try {
+                await this.loadStories();
+            } catch (error) {
+                console.error('[StoryList] Ошибка загрузки историй:', error);
+            }
         }
     },
 
     methods: {
+        /**
+         * Открытие истории
+         */
         openStory(index) {
             this.currentStoryIndex = index;
             this.showModal = true;
 
-            // Отмечаем как просмотренную
-            const storyId = this.stories[index].id;
-            if (!this.viewedStories.includes(storyId)) {
-                this.viewedStories.push(storyId);
-                localStorage.setItem('viewed_stories', JSON.stringify(this.viewedStories));
+            // Отмечаем как просмотренную через стор
+            const story = this.displayedStories[index];
+            if (story && !this.isViewed(story.id)) {
+                this.markAsViewed(story.id);
             }
         },
 
+        /**
+         * Обработчик события "история просмотрена" из модалки
+         * (когда пользователь досмотрел историю до конца)
+         */
+        onStoryViewed(storyId) {
+            if (!this.isViewed(storyId)) {
+                this.markAsViewed(storyId);
+            }
+        },
+
+        /**
+         * Закрытие модалки
+         */
         closeModal() {
             this.showModal = false;
+            this.currentStoryIndex = 0;
         },
     },
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+// ==========================================
+// ПЕРЕМЕННЫЕ
+// ==========================================
+$bg: var(--bs-body-bg, #ffffff);
+$border: var(--bs-border-color, #e5e7eb);
+$primary: var(--bs-primary, #667eea);
+$text-muted: var(--bs-secondary-color, #6b7280);
+
+// ==========================================
+// КОНТЕЙНЕР
+// ==========================================
 .stories-container {
     padding: 12px 0;
-    background: var(--bs-body-bg);
-    border-bottom: 1px solid var(--bs-border-color);
+    background: $bg;
+    border-bottom: 1px solid $border;
 }
 
+// ==========================================
+// СКРОЛЛ
+// ==========================================
 .stories-scroll {
     display: flex;
     gap: 12px;
@@ -88,23 +161,71 @@ export default {
     padding: 0 16px;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: $border;
+        border-radius: 2px;
+
+        &:hover {
+            background: $primary;
+        }
+    }
 }
 
-/* Скроллбар */
-.stories-scroll::-webkit-scrollbar {
-    height: 4px;
+// ==========================================
+// ЗАГРУЗКА (SKELETON)
+// ==========================================
+.stories-loading {
+    display: flex;
+    gap: 12px;
+    padding: 0 16px;
+    overflow: hidden;
 }
 
-.stories-scroll::-webkit-scrollbar-track {
-    background: transparent;
+.story-skeleton {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
-.stories-scroll::-webkit-scrollbar-thumb {
-    background: var(--bs-border-color);
-    border-radius: 2px;
+.skeleton-circle {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--bs-secondary-bg, #f3f4f6);
 }
 
-.stories-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--bs-primary);
+.skeleton-text {
+    width: 50px;
+    height: 10px;
+    border-radius: 5px;
+    background: var(--bs-secondary-bg, #f3f4f6);
+}
+
+// Shimmer анимация
+.shimmer {
+    background: linear-gradient(
+            90deg,
+            var(--bs-secondary-bg, #f3f4f6) 0%,
+            var(--bs-border-color, #e5e7eb) 50%,
+            var(--bs-secondary-bg, #f3f4f6) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 </style>

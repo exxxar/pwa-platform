@@ -45,4 +45,33 @@ class Handler extends ExceptionHandler
             //
         });
     }
+
+    public function render($request, Throwable $e)
+    {
+        // Обработка ModelNotFoundException
+        if ($e instanceof ModelNotFoundException) {
+            $model = class_basename($e->getModel());
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => "{$model} не найден",
+                    'error' => 'not_found',
+                ], 404);
+            }
+
+            abort(404, "{$model} не найден");
+        }
+
+        // Обработка NotFoundHttpException с моделью
+        if ($e instanceof NotFoundHttpException && str_contains($e->getMessage(), 'No query results for model')) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Запись не найдена',
+                    'error' => 'not_found',
+                ], 404);
+            }
+        }
+
+        return parent::render($request, $e);
+    }
 }

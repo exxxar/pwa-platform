@@ -22,7 +22,9 @@
 
                 <!-- Профиль пользователя -->
                 <div class="user-profile">
-                    <div class="user-avatar">
+                    <div
+                        @click="goTo('Auth')"
+                        class="user-avatar">
                         <img v-if="self?.avatar" :src="self.avatar" alt="">
                         <i v-else class="fa-solid fa-user"></i>
 
@@ -214,21 +216,26 @@ import {useBasket} from "@/MobileClient/composables/useBasket.js";
 export default {
     name: "AppSidebar",
 
-    data(){
+    setup(){
         const basket = useBasket();
         const chat = useChat();
 
+        return {basket, chat}
+    },
+    data(){
+
+
         return {
-            cartTotalCount: basket.cartTotalCount,
-            isEmpty: basket.isEmpty,
-            chatUnreadCount: chat.totalUnread,
+            isEmpty: this.basket.isEmpty,
         }
     },
     computed: {
         tenant() {
             return window.Tenant || null;
         },
-
+        cartTotalCount(){
+            return this.basket.cartTotalCount || 0
+        },
         self() {
             return window.TenantUser || null;
         },
@@ -245,7 +252,9 @@ export default {
                 site: links.site || null,
             };
         },
-
+        totalUnread() {
+            return this.chat.totalUnread.value;
+        },
         hasContacts() {
             return (
                 this.settings?.phones?.length > 0 ||
@@ -268,7 +277,12 @@ export default {
                     title: 'Каталог товаров',
                     icon: 'fa-solid fa-store',
                 },
-
+                {
+                    route: 'Chat',
+                    title: 'Сообщения',
+                    icon: 'fa-solid fa-comments',
+                    badge: () => this.totalUnread ,
+                },
                 {
                     route: 'GroceryOrder',
                     title: 'Заказать продукты',
@@ -311,12 +325,7 @@ export default {
                     title: 'Профиль',
                     icon: 'fa-solid fa-user',
                 },
-                {
-                    route: 'Chat',
-                    title: 'Чат поддержки',
-                    icon: 'fa-solid fa-comments',
-                    badge: () => this.chatUnreadCount,
-                },
+
                 {
                     route: 'FeedBack',
                     title: 'Обратная связь',
@@ -325,21 +334,17 @@ export default {
             ];
         },
 
-        cartTotalCount() {
-            // TODO: Подключи свой basket store
-            return 0;
-        },
 
-        chatUnreadCount() {
-            // TODO: Подключи свой chat store
-            return 0;
-        },
+
+
 
         currentYear() {
             return new Date().getFullYear();
         },
     },
-
+    mounted() {
+        this.chat.fetchUnreadCount()
+    },
     methods: {
         goTo(routeName) {
             if (!routeName) return;

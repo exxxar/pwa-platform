@@ -1,5 +1,5 @@
 <template>
-    <footer class="app-footer">
+    <footer class="app-footer" v-if="!$route.meta.hideBottomMenu">
         <div class="footer-content">
 
             <!-- Секция 1: Информация о компании -->
@@ -170,7 +170,6 @@ export default {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     color: #e0e0e0;
     padding: 0;
-    margin-top: 40px;
     position: relative;
     overflow: hidden;
 }

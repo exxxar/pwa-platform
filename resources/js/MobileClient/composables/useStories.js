@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useStoriesStore } from '@/stores/stories.js';
+import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
 
 /**
  * Composable для работы с историями
@@ -14,6 +14,7 @@ export function useStories() {
         stories_paginate_object,
         isLoading,
         isHydrated,
+        isStoring,
         storyActions,
         lastError,
         errors,
@@ -26,21 +27,19 @@ export function useStories() {
     const archivedStories = computed(() => store.archivedStories);
     const recentStories = computed(() => store.recentStories);
     const storiesCount = computed(() => store.storiesCount);
-    const activeStoriesCount = computed(() => store.activeStoriesCount);
 
     /**
-     * Проверка, загружается ли история
+     * Проверка, просмотрена ли история (реактивно)
      */
-    const isStoryLoading = (storyId) => {
-        return store.isStoryLoading(storyId);
+    const isViewed = (storyId) => {
+        return store.isViewed(storyId);
     };
 
     /**
-     * Проверка, просмотрена ли история
+     * Отметить историю как просмотренную
      */
-    const isViewed = (storyId) => {
-        const story = store.getStoryById(storyId);
-        return story?.is_viewed || false;
+    const markAsViewed = (storyId) => {
+        store.markAsViewed(storyId);
     };
 
     // ==========================================
@@ -58,7 +57,7 @@ export function useStories() {
 
     const fetchStory = async (storyId) => {
         try {
-            return await store.fetchStory({ id: storyId });
+            return await store.fetchStory(storyId);
         } catch (error) {
             console.error('Ошибка загрузки истории:', error);
             throw error;
@@ -67,7 +66,7 @@ export function useStories() {
 
     const saveStory = async (storyForm) => {
         try {
-            return await store.saveStory({ storyForm });
+            return await store.saveStory(storyForm);
         } catch (error) {
             console.error('Ошибка сохранения истории:', error);
             throw error;
@@ -76,7 +75,7 @@ export function useStories() {
 
     const deleteStory = async (storyId) => {
         try {
-            return await store.deleteStory({ id: storyId });
+            return await store.deleteStory(storyId);
         } catch (error) {
             console.error('Ошибка удаления истории:', error);
             throw error;
@@ -101,16 +100,13 @@ export function useStories() {
         }
     };
 
-    const markAsViewed = (storyId) => {
-        store.markAsViewed(storyId);
-    };
-
     return {
         // Состояние
         stories,
         stories_paginate_object,
         isLoading,
         isHydrated,
+        isStoring,
         storyActions,
         lastError,
         errors,
@@ -122,9 +118,7 @@ export function useStories() {
         archivedStories,
         recentStories,
         storiesCount,
-        activeStoriesCount,
         getStoryById: store.getStoryById,
-        isStoryLoading,
         isViewed,
 
         // Методы
@@ -135,7 +129,7 @@ export function useStories() {
         archiveStory,
         toggleActive,
         markAsViewed,
-
+        loadPartnersStories: store.loadPartnersStories,
         // Сброс
         $reset: store.$reset,
     };

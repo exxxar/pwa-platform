@@ -133,20 +133,31 @@ class TenantAuthController extends Controller
     public function manifest($tenantSlug)
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
-
-        // Базовый URL текущего тенанта
-        $baseUrl = url('/'); // автоматически https://test.mypwa.ru
+        $baseUrl = url('/');
 
         $tenantIconBase = "{$baseUrl}/storage/tenants/{$tenant->id}/icons";
         $tenantScreenshotBase = "{$baseUrl}/storage/tenants/{$tenant->id}/screenshots";
-
         $defaultIconBase = "{$baseUrl}/storage/defaults/icons";
         $defaultScreenshotBase = "{$baseUrl}/storage/defaults/screenshots";
 
-        // Хелперы теперь используют абсолютные URL
-        $getIconUrl = function (string $filename) use ($tenant, $tenantIconBase, $defaultIconBase) {
-            $tenantStoragePath = "tenants/{$tenant->id}/icons/{$filename}";
+        // 🆕 PWA настройки из settings
+        $pwa = $tenant->settings['pwa'] ?? [];
+        $icons = $pwa['icons'] ?? [];
+        $screenshots = $pwa['screenshots'] ?? [];
+        $shortcuts = $pwa['shortcuts'] ?? [];
 
+        // Хелпер для иконок
+        $getIconUrl = function (string $filename, $customPath = null) use ($tenant, $tenantIconBase, $defaultIconBase) {
+            // Если задан кастомный путь из настроек
+            if ($customPath) {
+                $tenantStoragePath = "tenants/{$tenant->id}/icons/{$customPath}";
+                if (Storage::disk('public')->exists($tenantStoragePath)) {
+                    return "{$tenantIconBase}/{$customPath}";
+                }
+            }
+
+            // Иначе ищем по имени файла
+            $tenantStoragePath = "tenants/{$tenant->id}/icons/{$filename}";
             if (Storage::disk('public')->exists($tenantStoragePath)) {
                 return "{$tenantIconBase}/{$filename}";
             }
@@ -154,123 +165,105 @@ class TenantAuthController extends Controller
             return "{$defaultIconBase}/{$filename}";
         };
 
-        $getScreenshotUrl = function (string $filename) use ($tenant, $tenantScreenshotBase, $defaultScreenshotBase) {
-            $tenantStoragePath = "tenants/{$tenant->id}/screenshots/{$filename}";
-
-            if (Storage::disk('public')->exists($tenantStoragePath)) {
-                return "{$tenantScreenshotBase}/{$filename}";
+        // Хелпер для скриншотов
+        $getScreenshotUrl = function (string $filename, $customPath = null) use ($tenant, $tenantScreenshotBase, $defaultScreenshotBase) {
+            if ($customPath) {
+                $tenantStoragePath = "tenants/{$tenant->id}/screenshots/{$customPath}";
+                if (Storage::disk('public')->exists($tenantStoragePath)) {
+                    return "{$tenantScreenshotBase}/{$customPath}";
+                }
             }
+
+            $tenantStoragePath = "tenants/{$tenant->id}/screenshots/{$filename}";
+            if (Storage::disk('public')->exists($tenantStoragePath)) {
+                return "{$tenantScreenshotBase}/{$filename}";        }
 
             return "{$defaultScreenshotBase}/{$filename}";
         };
 
+        // 🆕 Формируем список иконок
+        $manifestIcons = [
+            [
+                "src" => $getIconUrl('icon-192x192.png', $icons['icon_192'] ?? null),
+                "sizes" => "192x192",
+                "type" => "image/png"
+            ],
+            [
+                "src" => $getIconUrl('icon-512x512.png', $icons['icon_512'] ?? null),
+                "sizes" => "512x512",
+                "type" => "image/png"
+            ],
+            [
+                "src" => $getIconUrl('icon-192x192-maskable.png', $icons['icon_192_maskable'] ?? null),
+                "sizes" => "192x192",
+                "type" => "image/png",
+                "purpose" => "maskable"
+            ],
+            [
+                "src" => $getIconUrl('icon-512x512-maskable.png', $icons['icon_512_maskable'] ?? null),
+                "sizes" => "512x512",
+                "type" => "image/png",
+                "purpose" => "maskable"
+            ]
+        ];
+
+        // 🆕 Формируем скриншоты
+        $manifestScreenshots = [
+            [
+                "src" => $getScreenshotUrl('shop-mobile.png', $screenshots['mobile'] ?? null),
+                "sizes" => "375x667",
+                "type" => "image/png",
+                "form_factor" => "narrow"
+            ],
+            [
+                "src" => $getScreenshotUrl('shop-desktop.png', $screenshots['desktop'] ?? null),
+                "sizes" => "1920x1080",
+                "type" => "image/png",
+                "form_factor" => "wide"
+            ]
+        ];
+
+        // 🆕 Формируем шорткаты (только включённые)
+        $manifestShortcuts = [];
+        foreach ($shortcuts as $key => $shortcut) {
+            if (!($shortcut['enabled'] ?? false)) continue;
+
+            $manifestShortcuts[] = [
+                "name" => $shortcut['name'],
+                "short_name" => $shortcut['short_name'] ?? $shortcut['name'],
+                "url" => $shortcut['url'],
+                "icons" => [
+                    [
+                        "src" => $getIconUrl("shortcut-{$key}.png", $shortcut['icon'] ?? null),
+                        "sizes" => "192x192",
+                        "type" => "image/png"
+                    ]
+                ]
+            ];
+        }
+
         $manifest = [
             "id" => "/pwa/{$tenant->slug}/",
-            "name" => $tenant->name,
-            "short_name" => $tenant->short_name ?? $tenant->name,
-
-            // Используем относительные пути для start_url и scope
+            "name" => $pwa['name'] ?? $tenant->name,
+            "short_name" => $pwa['short_name'] ?? $tenant->short_name ?? $tenant->name,
             "start_url" => "/pwa/#/menu?source=pwa",
             "scope" => "/pwa/",
-
-            "display" => "standalone",
+            "display" => $pwa['display'] ?? 'standalone',
             "display_override" => ["standalone", "minimal-ui"],
-            "orientation" => "portrait",
-            "theme_color" => $tenant->theme_color ?? '#ff8a00',
-            "background_color" => $tenant->background_color ?? "#ffffff",
-            "lang" => "ru",
-            "description" => $tenant->description ?? "Официальное приложение {$tenant->name}",
-            "categories" => ["shopping", "food", "business"],
-
+            "orientation" => $pwa['orientation'] ?? 'portrait',
+            "theme_color" => $pwa['theme_color'] ?? $tenant->theme_color ?? '#ff8a00',
+            "background_color" => $pwa['background_color'] ?? $tenant->background_color ?? "#ffffff",
+            "lang" => $pwa['lang'] ?? 'ru',
+            "description" => $pwa['description'] ?? $tenant->description ?? "Официальное приложение {$tenant->name}",
+            "categories" => $pwa['categories'] ?? ["shopping", "food", "business"],
             "protocol_handlers" => [
-                [
-                    "protocol" => "mailto",
-                    "url" => "/pwa/compose?to=%s"
-                ],
-                [
-                    "protocol" => "web+tel",
-                    "url" => "/pwa/call?number=%s"
-                ]
+                ["protocol" => "mailto", "url" => "/pwa/compose?to=%s"],
+                ["protocol" => "web+tel", "url" => "/pwa/call?number=%s"]
             ],
-
-            "icons" => [
-                [
-                    "src" => $getIconUrl('icon-192x192.png'),
-                    "sizes" => "192x192",
-                    "type" => "image/png"
-                ],
-                [
-                    "src" => $getIconUrl('icon-512x512.png'),
-                    "sizes" => "512x512",
-                    "type" => "image/png"
-                ],
-                [
-                    "src" => $getIconUrl('icon-192x192-maskable.png'),
-                    "sizes" => "192x192",
-                    "type" => "image/png",
-                    "purpose" => "maskable"
-                ],
-                [
-                    "src" => $getIconUrl('icon-512x512-maskable.png'),
-                    "sizes" => "512x512",
-                    "type" => "image/png",
-                    "purpose" => "maskable"
-                ]
-            ],
-
-            "screenshots" => [
-                [
-                    "src" => $getScreenshotUrl('shop-mobile.png'),
-                    "sizes" => "375x667",
-                    "type" => "image/png",
-                    "form_factor" => "narrow"
-                ],
-                [
-                    "src" => $getScreenshotUrl('shop-desktop.png'),
-                    "sizes" => "1920x1080",
-                    "type" => "image/png",
-                    "form_factor" => "wide"
-                ]
-            ],
-
-            "shortcuts" => [
-                [
-                    "name" => "Меню",
-                    "short_name" => "Меню",
-                    "url" => "/pwa/#/menu",
-                    "icons" => [
-                        ["src" => $getIconUrl('shortcut-menu.png'), "sizes" => "192x192", "type" => "image/png"]
-                    ]
-                ],
-                [
-                    "name" => "Корзина",
-                    "short_name" => "Корзина",
-                    "url" => "/pwa/#/cart",
-                    "icons" => [
-                        ["src" => $getIconUrl('shortcut-cart.png'), "sizes" => "192x192", "type" => "image/png"]
-                    ]
-                ],
-                [
-                    "name" => "Кэшбэк",
-                    "short_name" => "Кэшбэк",
-                    "url" => "/pwa/#/cashback",
-                    "icons" => [
-                        ["src" => $getIconUrl('shortcut-cashback.png'), "sizes" => "192x192", "type" => "image/png"]
-                    ]
-                ],
-                [
-                    "name" => "Колесо",
-                    "short_name" => "Колесо",
-                    "url" => "/pwa/#/wheel-classic",
-                    "icons" => [
-                        ["src" => $getIconUrl('shortcut-wheel.png'), "sizes" => "192x192", "type" => "image/png"]
-                    ]
-                ]
-            ],
-
-            "launch_handler" => [
-                "client_mode" => "focus-existing"
-            ]
+            "icons" => $manifestIcons,
+            "screenshots" => $manifestScreenshots,
+            "shortcuts" => $manifestShortcuts,
+            "launch_handler" => ["client_mode" => "focus-existing"]
         ];
 
         return response()->json($manifest)

@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { usePartnersStore } from '@/stores/partners.js';
+import { usePartnersStore } from '@/MobileClient/stores/Shop/partners.js';
 
 /**
  * Composable для работы с партнёрами
@@ -29,6 +29,10 @@ export function usePartners() {
     const favoritePartners = computed(() => store.favoritePartners);
     const partnersCount = computed(() => store.partnersCount);
     const getCategories = computed(() => store.getCategories);
+
+    // 🆕 Новый геттер
+    const getPartnerProducts = (partnerId) => store.getPartnerProducts(partnerId);
+
 
     /**
      * Проверка, является ли партнёр избранным (реактивно)
@@ -109,6 +113,34 @@ export function usePartners() {
         }
     };
 
+    // 🆕 Новые методы для товаров партнёра
+    const loadProductsByCategory = async (payload = {}) => {
+        try {
+            return await store.loadProductsByCategory(payload);
+        } catch (error) {
+            console.error('Ошибка загрузки товаров партнёра:', error);
+            throw error;
+        }
+    };
+
+    const loadMoreProductsByCategory = async (payload = {}) => {
+        try {
+            return await store.loadMoreProductsByCategory(payload);
+        } catch (error) {
+            console.error('Ошибка дозагрузки товаров:', error);
+            throw error;
+        }
+    };
+
+    const changePartnerProductStatus = async (payload = {}) => {
+        try {
+            return await store.changePartnerProductStatus(payload);
+        } catch (error) {
+            console.error('Ошибка изменения статуса товара:', error);
+            throw error;
+        }
+    };
+
     return {
         // Состояние
         partners,
@@ -132,6 +164,21 @@ export function usePartners() {
         isFavorite,
         isPartnerLoading,
         getPartnerById: store.getPartnerById,
+        getPartnerProducts, // 🆕
+
+        totalPartnerProducts: computed(() => store.totalPartnerProducts),
+        totalPartnerCategories: computed(() => store.totalPartnerCategories),
+        totalPartnerProductsSum: computed(() => store.totalPartnerProductsSum),
+        isPartnersStatsLoading: computed(() => store.isPartnersStatsLoading),
+        loadPartnersStats: async () => {
+            try {
+                return await store.loadPartnersStats();
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+                throw error;
+            }
+        },
+        recalculatePartnersStats: store.recalculatePartnersStats,
 
         // Методы
         loadPartners,
@@ -144,7 +191,12 @@ export function usePartners() {
         toggleFavorite,
         toggleActive,
         updatePartnersSettings: store.updatePartnersSettings,
-        changePartnerProductStatus: store.changePartnerProductStatus,
+
+
+        // 🆕 Новые методы
+        loadProductsByCategory,
+        loadMoreProductsByCategory,
+        changePartnerProductStatus,
 
         // Сброс
         $reset: store.$reset,

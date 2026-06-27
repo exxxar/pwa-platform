@@ -780,7 +780,7 @@ $bg-secondary: #f8f9fa;
 // ДЕЙСТВИЕ
 // ==========================================
 .product-action {
-    padding: 0 12px 12px;
+    padding: 0 5px 5px;
 }
 
 .add-btn {

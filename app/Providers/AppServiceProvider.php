@@ -3,6 +3,9 @@
 namespace App\Providers;
 
 use App\Facades\PromoCodeService;
+use App\Models\Tenant\TenantDialog;
+use App\Models\Tenant\TenantUser;
+use App\Observers\TenantUserObserver;
 use App\Services\CashBackService;
 use App\Services\FrontPadService;
 use App\Services\GEOService;
@@ -16,6 +19,7 @@ use App\Services\TableService;
 use App\Services\TenantService;
 use App\Services\TenantUserService;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -85,6 +89,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        TenantUser::observe(TenantUserObserver::class);
 
         URL::forceScheme('https');
 
@@ -118,6 +123,25 @@ class AppServiceProvider extends ServiceProvider
 
         Blade::directive('endanypermission', function () {
             return "<?php endif; ?>";
+        });
+
+        Route::bind('dialog', function ($value) {
+            $tenant = app('tenant');
+            $user = auth('tenant')->user();
+
+            // Поддержка как ID, так и external_task_id
+            $dialog = TenantDialog::where('tenant_id', $tenant->id)
+                ->where(function ($q) use ($value) {
+                    $q->where('id', $value)
+                        ->orWhere('external_task_id', $value);
+                });
+
+            // Если есть пользователь — проверяем принадлежность
+            if ($user) {
+                $dialog->where('tenant_user_id', $user->id);
+            }
+
+            return $dialog->firstOrFail();
         });
 
     }

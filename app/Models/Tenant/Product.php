@@ -47,14 +47,19 @@ class Product extends Model
 
     protected $appends = ["rating"];
 
-    public function tenant()
+    public function tenant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Tenant::class);
     }
 
-    public function categories()
+    public function categories(): BelongsToMany
     {
-        return $this->belongsToMany(Category::class, 'product_categories');
+        return $this->belongsToMany(
+            Category::class,
+            'product_categories',
+            'product_id',
+            'category_id'
+        );
     }
 
     public function attributes()

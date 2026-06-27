@@ -4,85 +4,190 @@ namespace App\Services;
 
 use App\Models\Tenant\TenantDialog;
 use App\Models\Tenant\TenantMessage;
-use Exxxar\Kanban\Enums\KanbanTaskTypeEnum;
-use Exxxar\Kanban\Facades\Kanban;
-use Illuminate\Support\Facades\Auth;
+use Exxxar\Kanban\Services\KanbanClient;
+use Illuminate\Support\Facades\Log;
 
 class MessageService
 {
+    protected $tenant;
+    protected $tenantUser;
+    protected ?KanbanClient $kanbanClient = null;
+    protected bool $crmEnabled = false;
+
     public static function call(): self
     {
         return app(self::class);
     }
 
-    /**
-     * Универсальный прокси
-     */
-    public static function __callStatic($method, $args)
+    public function __construct()
     {
-        return app(self::class)->$method(...$args);
+        $this->tenant = app('tenant');
+        $this->tenantUser = auth('tenant')->user();
+        $this->initCrmClient();
     }
 
-    public function sendMessage($params = null): static
+    protected function initCrmClient(): void
     {
-        $tenant = app('tenant');
-        $tenantUser = Auth::guard('tenant')->user();
+        try {
+            $token = $this->tenant->settings['crm']['token'] ?? null;
 
-        $message = $params["message"] ?? '-';
+            if (empty($token) || !is_string($token)) {
+                $this->crmEnabled = false;
+                return;
+            }
 
-        $dialogId = $params["dialog_id"] ?? null;
+            $this->kanbanClient = app(KanbanClient::class);
+            $this->crmEnabled = true;
+        } catch (\Throwable $e) {
+            $this->crmEnabled = false;
+            Log::warning('[MessageService] CRM не инициализирована: ' . $e->getMessage());
+        }
+    }
 
-        $dialogTitle = $params["title"] ?? 'Информация от администратора';
-        $dialogType = $params["type"] ?? 'system';
-        $attachments = $params["attachments"] ?? [];
-        $keyboard = $params["keyboard"] ?? [];
-        // $needSendToUser = $params["send_to_user"] ?? true;
-        $taskType = $params["task_type"] ?? 3;
-
-
-        $payload = [
-            'from' => [
-                'id' => $tenantUser->id ?? '-',
-                'name' => $tenantUser->name ?? '-',
-                'email' => $tenantUser->email ?? '-',
-                'phone' => $tenantUser->phone ?? '-',
-                'sex' => $tenantUser->sex ?? 'male',
-            ],
-            'thread_id' => $params["thread_id"] ?? 0,
-            'attachments' => json_encode($attachments),
-            'keyboard' => json_encode($keyboard)
+    /**
+     * Универсальный метод отправки
+     *
+     * @param array $data [
+     *   'message' => string,           // Текст сообщения
+     *   'dialog_id' => int|null,       // ID диалога (если есть — пишем в него)
+     *   'thread_id' => string|null,    // ID потока для CRM/уведомлений
+     *   'title' => string|null,        // Заголовок для CRM
+     *   'meta' => array,               // Метаданные
+     *   'recipients' => [              // 🆕 Кому отправлять
+     *       'client' => bool,          // Клиенту (в его диалог заказа)
+     *       'partners' => bool,        // Партнёрам (в их треды)
+     *       'crm' => bool,             // В CRM
+     *   ],
+     * ]
+     */
+    public function sendMessage(array $data): array
+    {
+        $result = [
+            'client' => null,
+            'partners' => null,
+            'crm' => null,
         ];
 
-        if (is_null($dialogId)) {
-            $dialog = TenantDialog::query()->create([
-                'tenant_id' => $tenant->id,
-                'tenant_user_id' => $tenantUser->id,
-                'title' => $dialogTitle,
-                'type' => $dialogType,
-            ]);
+        $recipients = $data['recipients'] ?? ['client' => true];
 
-            $task = Kanban::tasks()->create([
-                'thread' => $params["thread_id"],
-                'type' => KanbanTaskTypeEnum::from($taskType)->value,
-                'payload' => $payload
-            ]);
+        // 1. Отправка КЛИЕНТУ (в диалог заказа)
+        if (!empty($recipients['client']) && !empty($data['dialog_id'])) {
+            try {
+                $result['client'] = $this->sendToDialog($data);
+            } catch (\Throwable $e) {
+                Log::error('[MessageService] Ошибка отправки клиенту: ' . $e->getMessage());
+            }
+        }
 
-            $dialog->external_task_id = $task->id;
-            $dialog->save();
-        } else
-            $dialog = TenantDialog::query()
-                ->findOrFail($dialogId);
+        // 2. Отправка ПАРТНЁРАМ (в их треды уведомлений)
+        if (!empty($recipients['partners']) && !empty($data['thread_id'])) {
+            try {
+                $result['partners'] = $this->sendToPartnerThread($data);
+            } catch (\Throwable $e) {
+                Log::error('[MessageService] Ошибка отправки партнёрам: ' . $e->getMessage());
+            }
+        }
 
-        TenantMessage::create([
-            'tenant_id' => $tenant->id,
-            'dialog_id' => $dialog->id,
-            'meta' => json_encode($payload),
-            'message' => $message,
-        ]);
+        // 3. Отправка в CRM
+        if (!empty($recipients['crm']) && $this->crmEnabled) {
+            try {
+                $result['crm'] = $this->sendToCrm($data);
+            } catch (\Throwable $e) {
+                Log::error('[MessageService] Ошибка отправки в CRM: ' . $e->getMessage());
+            }
+        }
 
-        Kanban::tasks()->sendMessage($dialog->external_task_id, $payload);
-
-        return $this;
+        return $result;
     }
 
+    /**
+     * Отправка в конкретный диалог (клиенту)
+     */
+    protected function sendToDialog(array $data): array
+    {
+        $dialogId = $data['dialog_id'];
+        $dialog = TenantDialog::find($dialogId);
+
+        if (!$dialog) {
+            throw new \Exception("Диалог #{$dialogId} не найден");
+        }
+
+        $isSystem = $data['meta']['is_system'] ?? false;
+
+        $message = TenantMessage::create([
+            'tenant_id' => $dialog->tenant_id,
+            'dialog_id' => $dialog->id,
+            'message' => $data['message'] ?? '',
+            'meta' => array_merge(
+                $data['meta'] ?? [],
+                [
+                    'is_system' => $isSystem,
+                    'sender_type' => $isSystem ? 'system' : 'user',
+                ]
+            ),
+            'is_read' => false,
+        ]);
+
+        $dialog->update(['last_message_at' => now()]);
+
+        return [
+            'dialog_id' => $dialog->id,
+            'message_id' => $message->id,
+        ];
+    }
+
+    /**
+     * Отправка в тред партнёра (уведомление)
+     */
+    protected function sendToPartnerThread(array $data): array
+    {
+        $threadId = $data['thread_id'];
+
+        // TODO: Реализовать отправку в Telegram-тред партнёра
+        // Пока просто логируем
+        Log::info('[MessageService] Уведомление партнёру', [
+            'thread_id' => $threadId,
+            'message_preview' => mb_substr($data['message'] ?? '', 0, 100),
+        ]);
+
+        return [
+            'thread_id' => $threadId,
+            'status' => 'sent',
+        ];
+    }
+
+    /**
+     * Отправка в CRM (Kanban)
+     */
+    protected function sendToCrm(array $data): array
+    {
+        if (!$this->crmEnabled || !$this->kanbanClient) {
+            return ['status' => 'skipped', 'reason' => 'CRM not configured'];
+        }
+
+        try {
+            // TODO: Реальная логика отправки в CRM
+            Log::info('[MessageService] CRM: сообщение подготовлено', [
+                'title' => $data['title'] ?? 'Без заголовка',
+                'thread_id' => $data['thread_id'] ?? null,
+                'message_preview' => mb_substr($data['message'] ?? '', 0, 100),
+            ]);
+
+            return [
+                'status' => 'stub',
+                'message' => 'CRM integration is not implemented yet',
+            ];
+        } catch (\Throwable $e) {
+            Log::error('[MessageService] CRM ошибка: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Проверка, включена ли CRM
+     */
+    public function isCrmEnabled(): bool
+    {
+        return $this->crmEnabled;
+    }
 }

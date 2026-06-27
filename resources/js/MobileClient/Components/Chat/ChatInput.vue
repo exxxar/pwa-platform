@@ -186,10 +186,15 @@ export default {
 
 <style lang="scss" scoped>
 .chat-input-wrapper {
-    position: relative;
+
     border-top: 1px solid var(--bs-border-color);
     background: var(--bs-body-bg);
     flex-shrink: 0;
+
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    z-index: 1047;
 }
 
 .chat-input-form {

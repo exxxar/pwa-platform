@@ -59,6 +59,7 @@
 
 <script>
 import { useMenuStore } from '@/MobileClient/stores/Shop/menu.js';
+import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
 import PartnersMain from '@/MobileClient/Components/Partners/PartnersMain.vue';
 import MenuHeader from '@/MobileClient/Components/Shop/Menu/MenuHeader.vue';
 import CategoryList from '@/MobileClient/Components/Shop/Menu/CategoryList.vue';
@@ -79,7 +80,8 @@ export default {
 
     setup() {
         const menuStore = useMenuStore();
-        return { menuStore };
+        const storiesStore = useStoriesStore();
+        return { menuStore, storiesStore };
     },
 
     data() {
@@ -113,7 +115,7 @@ export default {
             try {
                 await Promise.all([
                     this.menuStore.loadProductsByCategory(this.menuStore.selectedPartner?.bot_partner_id),
-                    this.menuStore.loadStories(this.menuStore.selectedPartner?.bot_partner_id),
+                    this.storiesStore.loadPartnersStories(this.menuStore.selectedPartner?.bot_partner_id),
                 ]);
                 this.activeTab = 'products';
             } catch (error) {

@@ -23,6 +23,7 @@ import Layout from "@/MobileClient/Layouts/Layout.vue";
 import RouteLoader from "@/MobileClient/Components/Common/RouteLoader.vue";
 import { useFavorites } from '@/MobileClient/Composables/useFavorites.js';
 import { useBasket } from '@/MobileClient/Composables/useBasket.js';
+import { useChat } from '@/MobileClient/Composables/useChat.js';
 
 export default {
     name: "App",
@@ -46,18 +47,26 @@ export default {
             default: null
         }
     },
+    data() {
+        return {
+            unreadInterval: null,
+        };
+    },
     setup() {
         const favorites = useFavorites();
         const basket = useBasket();
+        const chat = useChat();
 
-        return { favorites, basket };
+        return { favorites, basket, chat };
     },
 
     computed: {
         self() {
             return window.TenantUser || null;
         },
-
+        totalUnread() {
+            return this.chat.totalUnread.value;
+        },
         qr() {
             // Исправлено: используем tenant.link вместо несуществующего this.link
             const link = this.tenant?.link || '';
@@ -99,12 +108,27 @@ export default {
             await Promise.allSettled([
                 this.favorites.loadFavorites(),
                 this.basket.loadProductsInBasket(),
+                // Загружаем начальный счётчик
+                await this.chat.fetchUnreadCount()
             ]);
+
+            // Обновляем каждые 30 секунд
+            this.unreadInterval = setInterval(async () => {
+                try {
+                    await this.chat.fetchUnreadCount();
+                } catch (error) {
+                    // Игнорируем ошибки
+                }
+            }, 60000);
         } catch (error) {
             console.error('Ошибка инициализации:', error);
         }
     },
-
+    beforeUnmount() {
+        if (this.unreadInterval) {
+            clearInterval(this.unreadInterval);
+        }
+    },
     methods: {
         /**
          * Проверяет корректность массива расписания

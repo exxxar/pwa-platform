@@ -449,9 +449,10 @@ export default {
 }
 
 .field-icon {
-    width: 48px;
+    width: 35px;
+    margin-right: 10px;
     display: flex;
-    align-items: normal;
+    align-items: center;
     justify-content: center;
     color: var(--bs-primary);
     font-size: 1rem;

@@ -208,7 +208,7 @@ export default {
                     time: '10-15 мин',
                     available: true,
                     badge: 'soon',
-                    route: null,
+                    route: 'WafflesCalculator',
                     category: 'desserts',
                 },
                 {
@@ -222,7 +222,7 @@ export default {
                     time: '25-35 мин',
                     available: true,
                     badge: 'new',
-                    route: null,
+                    route: 'SushiCalculator',
                     category: 'main',
                 },
                 {
@@ -236,7 +236,7 @@ export default {
                     time: '15-20 мин',
                     available: true,
                     badge: 'soon',
-                    route: null,
+                    route: 'PancakesCalculator',
                     category: 'desserts',
                 },
                 {
@@ -250,7 +250,7 @@ export default {
                     time: '15-20 мин',
                     available: true,
                     badge: 'new',
-                    route: null,
+                    route: 'BurgerCalculator',
                     category: 'main',
                 },
             ],
@@ -340,6 +340,8 @@ export default {
 </script>
 
 <style scoped>
+
+
 .calculators-page {
     min-height: 100vh;
     background: var(--bs-body-bg);

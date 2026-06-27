@@ -91,5 +91,8 @@ class Kernel extends HttpKernel
         'tenant.role' => \App\Http\Middleware\Tenant\CheckTenantRole::class,
         'tenant.permission' => \App\Http\Middleware\Tenant\CheckTenantPermission::class,
 
+        'track.stats' => \App\Http\Middleware\Tenant\TrackUserStats::class,
+        'track.order' => \App\Http\Middleware\Tenant\TrackOrderStats::class,
+
     ];
 }

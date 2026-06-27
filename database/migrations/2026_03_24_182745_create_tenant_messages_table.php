@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('tenant_user_id')->nullable();
             $table->foreignId('dialog_id')->constrained('tenant_dialogs')->cascadeOnDelete();
 
 

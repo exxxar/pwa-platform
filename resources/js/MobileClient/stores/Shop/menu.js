@@ -108,17 +108,7 @@ export const useMenuStore = defineStore('menu', {
             }
         },
 
-        // Загрузка историй (новинки)
-        async loadStories(partnerId = null) {
-            try {
-                const response = await axios.get('/api/stories', {
-                    params: { partner_id: partnerId }
-                });
-                this.stories = response.data.data;
-            } catch (error) {
-                console.error('Ошибка загрузки историй:', error);
-            }
-        },
+
 
         // Установка партнёра
         setPartner(partner) {
