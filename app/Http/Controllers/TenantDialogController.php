@@ -8,6 +8,7 @@ use App\Models\Tenant\TenantUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TenantDialogController extends Controller
 {
@@ -59,10 +60,17 @@ class TenantDialogController extends Controller
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
 
-        $dialog = TenantDialog::where('id', $dialogId)
+        $dialog = TenantDialog::query()
+            ->where('id', $dialogId)
             ->where('tenant_id', $tenant->id)
             ->where('tenant_user_id', $user->id)
             ->first();
+
+        Log::info(print_r([
+            $dialogId,
+            $user->toArray() ?? 'нет пользователя',
+            $tenant->toArray() ?? 'нет тенанта'
+        ], true));
 
         if (!$dialog) {
             return response()->json([
