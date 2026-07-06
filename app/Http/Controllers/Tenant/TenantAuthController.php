@@ -8,6 +8,7 @@ use App\Models\Tenant\TenantUser;
 use App\Notifications\NewOrderNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
@@ -114,20 +115,24 @@ class TenantAuthController extends Controller
 
     public function handler($tenant)
     {
+        if (empty($tenant) || !preg_match('/^[a-zA-Z0-9_-]+$/', $tenant)) {
+            return redirect()->route('public.landing');
+        }
 
+        $tenantModel = Tenant::query()->where('slug', $tenant)->first();
 
-        \Illuminate\Support\Facades\Session::put("tenant", $tenant ?? null);
+        if (is_null($tenantModel)) {
+            return redirect()->route('public.landing')->with('requested_slug', $tenant);
+        }
 
+        Session::put("tenant", $tenantModel);
         $tenantUser = Auth::guard('tenant')->user();
 
-
-        $tenant = Tenant::where('slug', $tenant)->firstOrFail();
         Inertia::setRootView("mobile");
         return Inertia::render('MobileMain', [
-            'tenant' => $tenant,
-            'tenant_user' => $tenantUser
+            'tenant' => $tenantModel,
+            'tenant_user' => $tenantUser,
         ]);
-
     }
 
     public function manifest($tenantSlug)

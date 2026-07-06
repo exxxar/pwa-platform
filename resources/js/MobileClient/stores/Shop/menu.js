@@ -52,7 +52,7 @@ export const useMenuStore = defineStore('menu', {
             this.isLoading = true;
             try {
                 const response = await axios.post('/shop/products/by-category', {
-                    params: { partner_id: partnerId }
+                    partner_id: partnerId
                 });
                 this.products = response.data.data;
             } catch (error) {

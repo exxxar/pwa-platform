@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use Exxxar\Kanban\Facades\Kanban;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 class TenantPwaController extends Controller
 {
@@ -113,10 +116,77 @@ class TenantPwaController extends Controller
     public function savePwaSettings(Request $request)
     {
         $tenant = app('tenant');
-        $pwaData = $request->input('pwa', []);
 
-        // Валидация основных полей
-        $validator = validator($pwaData, [
+        if (!$tenant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Тенант не найден',
+            ], 404);
+        }
+
+        $updatedSections = [];
+        $allErrors = [];
+
+        // === 1. ОБРАБОТКА PWA ===
+        if ($request->has('pwa')) {
+            $pwaResult = $this->savePwaSection($tenant, $request->input('pwa', []));
+
+            if ($pwaResult['success']) {
+                $updatedSections[] = 'pwa';
+            } else {
+                $allErrors['pwa'] = $pwaResult['errors'];
+            }
+        }
+
+        // === 2. ОБРАБОТКА KANBAN ===
+        if ($request->has('kanban')) {
+            $kanbanResult = $this->saveKanbanSection($tenant, $request->input('kanban', []));
+
+            if ($kanbanResult['success']) {
+                $updatedSections[] = 'kanban';
+            } else {
+                $allErrors['kanban'] = $kanbanResult['errors'];
+            }
+        }
+
+        // === 3. ПРОВЕРКА ОШИБОК ===
+        if (!empty($allErrors)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибки валидации',
+                'errors' => $allErrors,
+                'updated_sections' => $updatedSections,
+            ], 422);
+        }
+
+        if (empty($updatedSections)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Нет данных для сохранения',
+            ], 400);
+        }
+
+        // === 4. СОХРАНЕНИЕ ===
+        $tenant->save();
+
+        // Возвращаем актуальные настройки из meta
+        $meta = $tenant->meta ?? [];
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Настройки сохранены: ' . implode(', ', $updatedSections),
+            'updated_sections' => $updatedSections,
+            'pwa' => $meta['pwa'] ?? null,
+            'kanban' => $meta['kanban'] ?? null,
+        ]);
+    }
+
+    /**
+     * Сохранение PWA настроек
+     */
+    private function savePwaSection($tenant, array $pwaData): array
+    {
+        $validator = Validator::make($pwaData, [
             'name' => 'nullable|string|max:50',
             'short_name' => 'nullable|string|max:12',
             'description' => 'nullable|string|max:300',
@@ -126,29 +196,31 @@ class TenantPwaController extends Controller
             'display' => 'nullable|string|in:standalone,fullscreen,minimal-ui,browser',
             'lang' => 'nullable|string|max:5',
             'categories' => 'nullable|array',
-            'categories.*' => 'string',
+            'categories.*' => 'string|max:50',
+            'icons' => 'nullable|array',
+            'screenshots' => 'nullable|array',
+            'shortcuts' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
+            return [
                 'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+                'errors' => $validator->errors()->toArray(),
+            ];
         }
 
         // Обновляем meta
         $meta = $tenant->meta ?? [];
+        $pwaSettings = $meta['pwa'] ?? [];
 
-        // Сохраняем только разрешённые поля
         $allowedFields = [
             'name', 'short_name', 'description', 'theme_color',
             'background_color', 'orientation', 'display', 'lang',
             'categories', 'icons', 'screenshots', 'shortcuts'
         ];
 
-        $pwaSettings = $meta['pwa'] ?? [];
         foreach ($allowedFields as $field) {
-            if (isset($pwaData[$field])) {
+            if (array_key_exists($field, $pwaData)) {
                 $pwaSettings[$field] = $pwaData[$field];
             }
         }
@@ -156,7 +228,7 @@ class TenantPwaController extends Controller
         $meta['pwa'] = $pwaSettings;
         $tenant->meta = $meta;
 
-        // Также обновляем основные поля тенанта
+        // Обновляем основные поля тенанта
         if (!empty($pwaData['theme_color'])) {
             $tenant->theme_color = $pwaData['theme_color'];
         }
@@ -164,12 +236,305 @@ class TenantPwaController extends Controller
             $tenant->background_color = $pwaData['background_color'];
         }
 
-        $tenant->save();
+        return ['success' => true];
+    }
+
+    /**
+     * Сохранение Kanban CRM настроек
+     *
+     * ⚠️ ВАЖНО: settings — это computed attribute на основе meta,
+     * поэтому сохраняем в meta['kanban'], а не в settings
+     */
+    private function saveKanbanSection($tenant, array $kanbanData): array
+    {
+        $validator = Validator::make($kanbanData, [
+            'enabled' => 'required|boolean',
+            'is_active' => 'nullable|boolean',
+            'base_url' => 'nullable|url|max:255',
+            'token' => 'nullable|string|max:255',
+            'board_uuid' => 'nullable|string|regex:/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i',
+            'order_thread' => 'nullable|integer|min:0|max:100',
+            'auto_create_client' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return [
+                'success' => false,
+                'errors' => $validator->errors()->toArray(),
+            ];
+        }
+
+        // === СОХРАНЯЕМ В meta, а НЕ в settings ===
+        $meta = $tenant->meta ?? [];
+        $kanbanSettings = $meta['kanban'] ?? [];
+
+        // Разрешённые поля
+        $allowedFields = [
+            'enabled', 'is_active', 'base_url', 'token',
+            'board_uuid', 'order_thread', 'auto_create_client',
+        ];
+
+        foreach ($allowedFields as $field) {
+            if (array_key_exists($field, $kanbanData)) {
+                $kanbanSettings[$field] = $kanbanData[$field];
+            }
+        }
+
+        // Синхронизация is_active и enabled
+        if (isset($kanbanData['enabled'])) {
+            $kanbanSettings['is_active'] = $kanbanData['enabled'];
+        }
+        if (isset($kanbanData['is_active'])) {
+            $kanbanSettings['enabled'] = $kanbanData['is_active'];
+        }
+
+        // Дефолтные значения
+        $kanbanSettings['enabled'] = $kanbanSettings['enabled'] ?? false;
+        $kanbanSettings['is_active'] = $kanbanSettings['is_active'] ?? false;
+        $kanbanSettings['base_url'] = $kanbanSettings['base_url'] ?? 'https://crm.mypwa.ru/api/v1';
+        $kanbanSettings['order_thread'] = $kanbanSettings['order_thread'] ?? 0;
+        $kanbanSettings['auto_create_client'] = $kanbanSettings['auto_create_client'] ?? true;
+
+        // === КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ===
+        $meta['kanban'] = $kanbanSettings;
+        $tenant->meta = $meta; // ← сохраняем в meta, а не в settings
+
+        // Логируем изменение
+        Log::info('[TenantPwa] Kanban settings updated', [
+            'tenant_id' => $tenant->id,
+            'enabled' => $kanbanSettings['enabled'],
+            'board_uuid' => $kanbanSettings['board_uuid'] ?? null,
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * Тестовый метод для проверки подключения к Kanban
+     */
+    public function testKanbanConnection(Request $request)
+    {
+        // === ВАЛИДАЦИЯ ===
+        $validated = $request->validate([
+            'settings.base_url' => 'required|url|max:255',
+            'settings.token' => 'required|string|max:255',
+            'settings.timeout' => 'nullable|integer|min:1|max:120',
+            'settings.connect_timeout' => 'nullable|integer|min:1|max:60',
+        ]);
+
+        $settings = $validated['settings'];
+
+        try {
+            // === НАСТРОЙКА SDK ЧЕРЕЗ FLUENT INTERFACE ===
+            Kanban::setBaseUrl($settings['base_url'])
+                ->setToken($settings['token'])
+                ->setTimeout($settings['timeout'] ?? 30)
+                ->setConnectTimeout($settings['connect_timeout'] ?? 10)
+                ->setRetryTimes(3)
+                ->setRetrySleep(100)
+                ->setLoggingEnabled(false); // При тесте логи не нужны
+
+            // === ПРОВЕРКА ПОДКЛЮЧЕНИЯ ===
+            $boards = Kanban::boards()->list();
+
+            // === СБОР ДОПОЛНИТЕЛЬНОЙ ИНФОРМАЦИИ ===
+            $boardsData = array_map(fn($board) => [
+                'uuid' => $board->uuid,
+                'title' => $board->title,
+                'columns_count' => count($board->columns ?? []),
+                'tags_count' => count($board->tags ?? []),
+            ], $boards);
+
+            // === ПОЛУЧЕНИЕ СПИСКА ШАБЛОНОВ ===
+            $templates = [];
+            try {
+                $templates = Kanban::boards()->templates();
+            } catch (\Throwable $e) {
+                // Шаблоны — опциональны
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => '✅ Подключение к KanbanCRM установлено',
+                'connection' => [
+                    'base_url' => $settings['base_url'],
+                    'token_preview' => substr($settings['token'], 0, 8) . '...',
+                    'timeout' => $settings['timeout'] ?? 30,
+                    'connect_timeout' => $settings['connect_timeout'] ?? 10,
+                ],
+                'stats' => [
+                    'boards_count' => count($boards),
+                    'templates_count' => count($templates),
+                ],
+                'boards' => $boardsData,
+                'templates' => array_map(fn($t) => [
+                    'id' => $t['id'] ?? null,
+                    'title' => $t['title'] ?? null,
+                ], $templates),
+            ]);
+
+        } catch (\Exxxar\Kanban\Exceptions\KanbanException $e) {
+            Log::warning('[TenantPwa] Kanban API error: ' . $e->getMessage(), [
+                'code' => $e->getCode(),
+                'base_url' => $settings['base_url'] ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Ошибка API KanbanCRM: ' . $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'hint' => $this->getErrorHint($e->getCode()),
+            ], 400);
+
+        } catch (\Exxxar\Kanban\Exceptions\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Ошибка валидации на стороне KanbanCRM',
+                'validation_errors' => $e->errors(),
+            ], 422);
+
+        } catch (\Exxxar\Kanban\Exceptions\NotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Ресурс не найден в KanbanCRM',
+                'hint' => 'Проверьте правильность base_url и токена',
+            ], 404);
+
+        } catch (\GuzzleHttp\Exception\ConnectException $e) {
+            Log::error('[TenantPwa] Kanban connection failed: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Не удалось подключиться к серверу KanbanCRM',
+                'hint' => 'Проверьте URL и доступность сервера',
+                'details' => $e->getMessage(),
+            ], 503);
+
+        } catch (\Throwable $e) {
+            Log::error('[TenantPwa] Kanban test failed: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Непредвиденная ошибка при подключении',
+                'hint' => 'Обратитесь в поддержку',
+            ], 500);
+        }
+    }
+
+    /**
+     * Подсказка по коду ошибки
+     */
+    private function getErrorHint(int $code): string
+    {
+        return match ($code) {
+            401, 403 => 'Неверный токен или недостаточно прав',
+            404 => 'API endpoint не найден. Проверьте base_url',
+            422 => 'Ошибка валидации данных',
+            429 => 'Слишком много запросов. Попробуйте позже',
+            500, 502, 503, 504 => 'Сервер KanbanCRM временно недоступен',
+            default => 'Проверьте настройки подключения',
+        };
+    }
+
+    /**
+     * Тест конкретной доски по UUID
+     */
+    public function testKanbanBoard(Request $request, string $boardUuid)
+    {
+        $validated = $request->validate([
+            'base_url' => 'required|url',
+            'token' => 'required|string',
+        ]);
+
+        try {
+            Kanban::setBaseUrl($validated['base_url'])
+                ->setToken($validated['token'])
+                ->setTimeout(15)
+                ->setConnectTimeout(5)
+                ->setLoggingEnabled(false);
+
+            $board = Kanban::boards()->get($boardUuid);
+
+            return response()->json([
+                'success' => true,
+                'message' => '✅ Доска найдена и доступна',
+                'board' => [
+                    'id' => $board->id,
+                    'uuid' => $board->uuid,
+                    'title' => $board->title,
+                    'description' => $board->description,
+                    'columns_count' => count($board->columns),
+                    'columns' => array_map(fn($col) => [
+                        'id' => $col->id,
+                        'thread' => $col->thread,
+                        'title' => $col->title,
+                        'position' => $col->position,
+                    ], $board->columns),
+                    'tags_count' => count($board->tags),
+                    'tags' => array_map(fn($tag) => [
+                        'id' => $tag->id,
+                        'name' => $tag->name,
+                        'color' => $tag->color,
+                    ], $board->tags),
+                ],
+            ]);
+
+        } catch (\Exxxar\Kanban\Exceptions\NotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Доска не найдена',
+                'hint' => 'Проверьте правильность UUID доски',
+            ], 404);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Ошибка при проверке доски: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Получить текущие настройки PWA и Kanban
+     */
+    public function getSettings()
+    {
+        $tenant = app('tenant');
+
+        if (!$tenant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Тенант не найден',
+            ], 404);
+        }
+
+        // Берём из meta, а не из settings
+        $meta = $tenant->meta ?? [];
 
         return response()->json([
             'success' => true,
-            'message' => 'PWA настройки сохранены',
-            'settings' => $tenant->settings,
+            'pwa' => $meta['pwa'] ?? [
+                    'name' => null,
+                    'short_name' => null,
+                    'description' => null,
+                    'theme_color' => '#667eea',
+                    'background_color' => '#ffffff',
+                    'orientation' => 'any',
+                    'display' => 'standalone',
+                    'lang' => 'ru',
+                    'categories' => [],
+                ],
+            'kanban' => $meta['kanban'] ?? [
+                    'enabled' => false,
+                    'is_active' => false,
+                    'base_url' => 'https://crm.mypwa.ru/api/v1',
+                    'token' => '',
+                    'board_uuid' => '',
+                    'order_thread' => 0,
+                    'auto_create_client' => true,
+                ],
         ]);
     }
 

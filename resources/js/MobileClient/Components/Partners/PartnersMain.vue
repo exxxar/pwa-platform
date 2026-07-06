@@ -3,11 +3,8 @@ import PartnerList from "@/MobileClient/Components/Partners/PartnerList.vue";
 import PartnerTagList from "@/MobileClient/Components/Partners/PartnerTagList.vue";
 </script>
 <template>
-    <div class="container">
-        <PartnerList
-            v-on:select="selectPartner"></PartnerList>
-        <!--        <PartnerTagList></PartnerTagList>-->
-    </div>
+    <PartnerList
+        v-on:select="selectPartner"></PartnerList>
 
 </template>
 <script>

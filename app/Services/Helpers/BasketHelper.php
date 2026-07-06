@@ -537,6 +537,46 @@ trait BasketHelper
      */
     private function foodShopCheckout(): string
     {
+        /*
+        {
+            "kanban": {
+            "enabled": true,
+            "base_url": "https://crm.mypwa.ru/api/v1",
+            "token": "kb_SyXvkcnhRu7hD0nZAOwga6blD1TFSUEyXNdW9UyQ",
+            "board_uuid": "928e6e06-b9b0-4cca-a45c-0926ba7539f6",
+            "order_thread": 0,
+            "auto_create_client": true,
+            "sync_on_checkout": true
+          }
+        }*/
+        // ==========================================
+        // 0. 🆕 НАСТРОЙКА KANBAN CRM SDK
+        // ==========================================
+        $kanbanConfig = $this->tenant->settings['kanban'] ?? [];
+        $kanbanEnabled = $kanbanConfig['enabled'] ?? false;
+        $kanbanBoardUuid = $kanbanConfig['board_uuid'] ?? null;
+        $kanbanBaseUrl = $kanbanConfig['base_url'] ?? config('kanban.base_url');
+        $kanbanToken = $kanbanConfig['token'] ?? config('kanban.token');
+        $kanbanThread = $kanbanConfig['order_thread'] ?? 0; // В какую колонку создавать заказы
+
+
+        if ($kanbanEnabled && $kanbanBoardUuid && $kanbanToken) {
+            try {
+                \Exxxar\Kanban\Facades\Kanban::setBaseUrl($kanbanBaseUrl)
+                    ->setToken($kanbanToken)
+                    ->setTimeout(30)
+                    ->setConnectTimeout(10)
+                    ->setRetryTimes(3)
+                    ->setRetrySleep(100)
+                    ->setLoggingEnabled(true);
+            } catch (\Throwable $e) {
+                Log::error('[KanbanCRM] Ошибка настройки SDK: ' . $e->getMessage());
+                $kanbanEnabled = false; // Отключаем при ошибке
+            }
+        } else {
+            $kanbanEnabled = false;
+        }
+
         $needPickup = ($this->data["need_pickup"] ?? "false") === "true";
         $deliveryPrice = $this->data["delivery_price"] ?? 0;
         $distance = $this->data["distance"] ?? 0;
@@ -730,23 +770,20 @@ trait BasketHelper
         ]);
 
         // ==========================================
-        // 3. 🆕 СОЗДАНИЕ ЕДИНСТВЕННОГО ДИАЛОГА ДЛЯ ЗАКАЗА
+        // 3. СОЗДАНИЕ ДИАЛОГА ДЛЯ ЗАКАЗА
         // ==========================================
         $orderDialogService = app(\App\Services\OrderDialogService::class);
         $orderDialog = null;
 
         try {
-            // Создаём ОДИН диалог на заказ (или получаем существующий)
             $orderDialog = $orderDialogService->getOrCreateDialog($order);
 
-            // Системное сообщение о создании заказа
             $orderDialogService->addStatusMessage(
                 $order,
                 'new',
                 "Сумма: " . number_format($summaryPrice - $cashback, 0, '.', ' ') . " ₽, товаров: {$summaryCount} шт."
             );
 
-            // Сообщение о способе оплаты
             if (in_array($paymentType, [1, 2, 3])) {
                 $orderDialogService->addPaymentMessage($order, $summaryPrice - $cashback, $paymentType);
             }
@@ -779,22 +816,15 @@ trait BasketHelper
         // ==========================================
         // 5. ФОРМИРОВАНИЕ СООБЩЕНИЙ
         // ==========================================
-
-        // Сообщение для КЛИЕНТА (красивое, с деталями)
         $clientMessage = $this->buildClientMessage($order, $partnerProductBox, $summaryPrice, $cashback, $summaryCount, $summaryDiscount, $deliveryPrice, $distance, $needPickup);
-
-        // Сообщение для ПАРТНЁРОВ (с их товарами)
         $partnerMessages = $this->buildPartnerMessages($order, $partnerProductBox, $cashback, $needPickup);
-
-        // Сводное сообщение для CRM
         $crmMessage = $this->buildCrmMessage($order, $partnerProductBox, $summaryPrice, $cashback, $summaryCount, $summaryDiscount, $deliveryPrice, $distance, $needPickup);
 
         // ==========================================
-        // 6. 🆕 ОТПРАВКА КЛИЕНТУ (в его диалог заказа)
+        // 6. ОТПРАВКА КЛИЕНТУ
         // ==========================================
         if ($orderDialog) {
             try {
-                // Главное сообщение с деталями заказа
                 $orderDialogService->addOrderDetailsMessage(
                     $order,
                     $clientMessage,
@@ -810,7 +840,7 @@ trait BasketHelper
         }
 
         // ==========================================
-        // 7. 🆕 ОТПРАВКА ПАРТНЁРАМ (в их треды)
+        // 7. ОТПРАВКА ПАРТНЁРАМ
         // ==========================================
         foreach ($partnerMessages as $partnerUuid => $partnerData) {
             try {
@@ -835,28 +865,126 @@ trait BasketHelper
         }
 
         // ==========================================
-        // 8. 🆕 ОТПРАВКА В CRM
+        // 8. 🆕 ОТПРАВКА В KANBAN CRM
         // ==========================================
-        try {
-            MessageService::call()->sendMessage([
-                "message" => $crmMessage,
-                "title" => "Заказ #{$order->id}",
-                "thread_id" => "order_{$order->id}",
-                "recipients" => [
-                    "crm" => true,
-                ],
-                "meta" => [
-                    "order_id" => $order->id,
-                    "tenant_user_id" => $this->tenantUser->id,
-                    "customer_name" => $this->data["name"] ?? null,
-                    "customer_phone" => $this->data["phone"] ?? null,
-                    "summary_price" => $summaryPrice - $cashback,
-                    "type" => "crm_sync",
-                    "is_system" => true,
-                ],
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('[Checkout] Ошибка отправки в CRM: ' . $e->getMessage());
+        $kanbanTaskId = null;
+        $kanbanMessageId = null;
+
+        if ($kanbanEnabled) {
+            try {
+                $customerName = $this->data["name"] ?? 'Нет имени';
+                $customerPhone = $this->data["phone"] ?? null;
+
+                // === ПОИСК СУЩЕСТВУЮЩЕГО КЛИЕНТА ПО ТЕЛЕФОНУ ===
+                $existingTaskId = $this->findKanbanClientByPhone($kanbanBoardUuid, $customerPhone);
+
+                if ($existingTaskId) {
+                    // === КЛИЕНТ НАЙДЕН — ОТПРАВЛЯЕМ СООБЩЕНИЕ В СУЩЕСТВУЮЩУЮ ЗАДАЧУ ===
+                    $result = \Exxxar\Kanban\Facades\Kanban::query()
+                        ->task($existingTaskId)
+                        ->message($crmMessage)
+                        ->senderType('system')
+                        ->senderLabel('FoodShop Checkout')
+                        ->payload([
+                            'source' => 'foodshop',
+                            'order_id' => $order->id,
+                            'tenant_id' => $this->tenant->id,
+                            'tenant_user_id' => $this->tenantUser->id,
+                            'customer_name' => $customerName,
+                            'customer_phone' => $customerPhone,
+                            'summary_price' => $summaryPrice - $cashback,
+                            'summary_count' => $summaryCount,
+                            'payment_type' => $paymentType,
+                            'type' => 'new_order',
+                        ])
+                        ->send();
+
+                    $kanbanTaskId = $result['task_id'];
+                    $kanbanMessageId = $result['message_id'];
+
+                    Log::info('[KanbanCRM] Сообщение отправлено существующему клиенту', [
+                        'task_id' => $kanbanTaskId,
+                        'message_id' => $kanbanMessageId,
+                        'order_id' => $order->id,
+                    ]);
+                } else {
+                    // === КЛИЕНТ НЕ НАЙДЕН — СОЗДАЁМ НОВОГО КЛИЕНТА + ПЕРВОЕ СООБЩЕНИЕ ===
+                    $result = \Exxxar\Kanban\Facades\Kanban::client()
+                        ->board($kanbanBoardUuid)
+                        ->thread($kanbanThread)
+                        ->title($customerName)
+                        ->priority('medium')
+                        ->label('order')
+                        ->label('foodshop')
+                        ->clientData([
+                            'company_name' => $customerName,
+                            'contact_person' => $customerName,
+                            'phone' => $customerPhone,
+                            'source' => 'FoodShop',
+                            'cost' => $summaryPrice - $cashback,
+                            'placement_type' => $needPickup ? 'Самовывоз' : 'Доставка',
+                            'custom_data' => [
+                                'tenant_id' => $this->tenant->id,
+                                'tenant_name' => $this->tenant->name ?? $this->tenant->title,
+                                'tenant_user_id' => $this->tenantUser->id,
+                                'last_order_id' => $order->id,
+                                'last_order_date' => now()->toIso8601String(),
+                                'total_orders' => 1,
+                            ],
+                        ])
+                        ->message($crmMessage)
+                        ->senderType('system')
+                        ->senderLabel('FoodShop Checkout')
+                        ->payload([
+                            'source' => 'foodshop',
+                            'order_id' => $order->id,
+                            'tenant_id' => $this->tenant->id,
+                            'tenant_user_id' => $this->tenantUser->id,
+                            'customer_name' => $customerName,
+                            'customer_phone' => $customerPhone,
+                            'summary_price' => $summaryPrice - $cashback,
+                            'summary_count' => $summaryCount,
+                            'payment_type' => $paymentType,
+                            'type' => 'new_client_and_order',
+                        ])
+                        ->send();
+
+                    $kanbanTaskId = $result['task_id'];
+                    $kanbanMessageId = $result['message_id'];
+
+                    Log::info('[KanbanCRM] Создан новый клиент с заказом', [
+                        'task_id' => $kanbanTaskId,
+                        'message_id' => $kanbanMessageId,
+                        'order_id' => $order->id,
+                        'customer_name' => $customerName,
+                    ]);
+                }
+
+                // Сохраняем связь заказа с Kanban задачей
+                $order->update([
+                    'meta' => array_merge($order->meta ?? [], [
+                        'kanban_task_id' => $kanbanTaskId,
+                        'kanban_message_id' => $kanbanMessageId,
+                        'kanban_board_uuid' => $kanbanBoardUuid,
+                    ]),
+                ]);
+
+            } catch (\Exxxar\Kanban\Exceptions\ValidationException $e) {
+                Log::error('[KanbanCRM] Ошибка валидации: ' . $e->getMessage(), [
+                    'errors' => $e->errors(),
+                    'order_id' => $order->id,
+                ]);
+            } catch (\Exxxar\Kanban\Exceptions\KanbanException $e) {
+                Log::error('[KanbanCRM] Ошибка API: ' . $e->getMessage(), [
+                    'code' => $e->getCode(),
+                    'order_id' => $order->id,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('[KanbanCRM] Неизвестная ошибка: ' . $e->getMessage(), [
+                    'order_id' => $order->id,
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
         }
 
         // ==========================================
@@ -890,7 +1018,6 @@ trait BasketHelper
                 cashback: $cashback
             );
 
-            // Отправляем чек в диалог заказа (клиенту)
             if ($invoicePath && $orderDialog) {
                 try {
                     $orderDialogService->sendInvoiceToDialog(
@@ -905,13 +1032,31 @@ trait BasketHelper
                     Log::error('[Checkout] Ошибка отправки чека: ' . $e->getMessage());
                 }
             }
+
+            // 🆕 ОТПРАВКА ЧЕКА В KANBAN CRM
+            if ($invoicePath && $kanbanEnabled && $kanbanTaskId) {
+                try {
+                    \Exxxar\Kanban\Facades\Kanban::query()
+                        ->task($kanbanTaskId)
+                        ->message("📄 Чек по заказу #{$order->id} прикреплён")
+                        ->senderType('system')
+                        ->senderLabel('FoodShop Checkout')
+                        ->file($invoicePath)
+                        ->payload([
+                            'type' => 'invoice_attached',
+                            'order_id' => $order->id,
+                        ])
+                        ->send();
+                } catch (\Throwable $e) {
+                    Log::error('[KanbanCRM] Ошибка отправки чека: ' . $e->getMessage());
+                }
+            }
         }
 
-        // Отправка чека в канал (если есть фото)
         $this->sendPaidReceiptToChannel($order, $crmMessage);
 
         // ==========================================
-        // 10. 🆕 ФИНАЛЬНОЕ СООБЩЕНИЕ КЛИЕНТУ
+        // 10. ФИНАЛЬНОЕ СООБЩЕНИЕ КЛИЕНТУ
         // ==========================================
         if ($orderDialog) {
             try {
@@ -943,6 +1088,43 @@ trait BasketHelper
         $this->tenantUser->save();
 
         return $crmMessage;
+    }
+
+    /**
+     * 🆕 Поиск клиента в KanbanCRM по телефону (серверный поиск)
+     *
+     * @return int|null ID задачи клиента или null если не найден
+     */
+    private function findKanbanClientByPhone(string $boardUuid, ?string $phone): ?int
+    {
+        if (empty($phone)) {
+            return null;
+        }
+
+        try {
+            // Используем серверный поиск вместо загрузки всех задач
+            $taskId = \Exxxar\Kanban\Facades\Kanban::clients()
+                ->getTaskIdByPhone($boardUuid, $phone);
+
+            if ($taskId) {
+                Log::info('[KanbanCRM] Клиент найден по телефону', [
+                    'phone' => $phone,
+                    'task_id' => $taskId,
+                ]);
+            } else {
+                Log::info('[KanbanCRM] Клиент не найден по телефону', [
+                    'phone' => $phone,
+                ]);
+            }
+
+            return $taskId;
+        } catch (\Exxxar\Kanban\Exceptions\KanbanException $e) {
+            Log::warning('[KanbanCRM] Ошибка поиска клиента: ' . $e->getMessage());
+            return null;
+        } catch (\Throwable $e) {
+            Log::error('[KanbanCRM] Неизвестная ошибка поиска: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**

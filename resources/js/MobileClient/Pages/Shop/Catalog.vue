@@ -71,6 +71,7 @@
             </div>
         </div>
 
+<!--
         <FavoritesButton
             :count="favoritesCount"
             @click="openFavorites"
@@ -79,6 +80,13 @@
 
         <CoffeeButton
             @click="showCoffee"
+        />
+-->
+
+        <FloatingMenu
+            :items="menuItems"
+            :has-unread="favoritesCount > 0"
+            @item-click="handleMenuClick"
         />
 
 
@@ -162,6 +170,7 @@ import { useBasketStore } from "@/MobileClient/stores/Shop/basket.js";
 import { useFavoritesStore } from "@/MobileClient/stores/Shop/favorites.js";
 import FavoritesButton from '@/MobileClient/Components/Shop/FavoritesButton.vue';
 import CoffeeButton from '@/MobileClient/Components/Shop/CoffeeButton.vue';
+import FloatingMenu from '@/MobileClient/Components/Shop/FloatingMenu.vue';
 
 export default {
     name: "ShopContainer",
@@ -170,6 +179,7 @@ export default {
         ShopMenu,
         TableBookingPlanner,
         CoffeeProgress,
+        FloatingMenu,
         ProductCard,
         CoffeeButton,
         FavoritesButton
@@ -197,6 +207,26 @@ export default {
     },
 
     computed: {
+        menuItems() {
+            return [
+                {
+                    key: 'favorites',
+                    label: 'Избранное',
+                    icon: 'fa-solid fa-heart',
+                    color: '#ef4444', // красный
+                    badge: this.favoritesCount > 0 ? this.favoritesCount : null,
+                    action: () => this.openFavorites(),
+                },
+                {
+                    key: 'coffee',
+                    label: 'Кофе в подарок',
+                    icon: 'fa-solid fa-mug-hot',
+                    color: '#8b5cf6', // фиолетовый
+                    badge: null,
+                    action: () => this.showCoffee(),
+                },
+            ];
+        },
         tenant() {
             return window.Tenant || null;
         },
@@ -270,7 +300,10 @@ export default {
                 }
             });
         },
-
+        handleMenuClick(item) {
+            console.log('Clicked:', item.key);
+            // Действия уже выполняются через item.action
+        },
         // Загрузка данных корзины
         async loadBasketData() {
             try {

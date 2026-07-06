@@ -102,7 +102,15 @@ class Tenant extends Model
             'pick_up_type' => 0,
             'schedule' => [],
             'map_tiler' => null,
-
+            'kanban' => [
+                'enabled' => false,
+                'is_active' => false,
+                'base_url' => 'https://crm.mypwa.ru/api/v1',
+                'token' => null,
+                'board_uuid' => null,
+                'order_thread' => 0,
+                'auto_create_client' => true,
+            ],
             'pwa' => [
                 'name' => null,              // Название приложения (если null — берётся tenant->name)
                 'short_name' => null,        // Короткое название

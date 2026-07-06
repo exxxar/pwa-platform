@@ -1,14 +1,18 @@
 <template>
     <div
         class="partner-card"
-        :class="{ 'is-self': isSelf, 'is-favorite': isFavorite }"
+        :class="{
+            'is-self': isSelf,
+            'is-favorite': isFavorite,
+            'view-grid': viewMode === 'grid'
+        }"
         @click="$emit('select', partner)"
     >
 
         <!-- Изображение -->
         <div class="card-image-wrapper">
             <img
-                :src="partner.image || partner.logo || '/images/partner-placeholder.png'"
+                v-lazy="partner.image || partner.logo || '/images/partner-placeholder.png'"
                 :alt="partner.name"
                 class="card-image"
             >
@@ -91,6 +95,12 @@ export default {
             type: Boolean,
             default: false,
         },
+        // 🆕 Режим отображения
+        viewMode: {
+            type: String,
+            default: 'list',
+            validator: (v) => ['list', 'grid'].includes(v),
+        },
     },
 
     emits: ['select', 'toggle-favorite'],
@@ -98,8 +108,10 @@ export default {
     computed: {
         shortAddress() {
             const addr = this.partner.address || '';
-            if (addr.length <= 40) return addr;
-            return addr.slice(0, 40) + '...';
+            // В grid-режиме показываем больше символов
+            const maxLength = this.viewMode === 'grid' ? 50 : 40;
+            if (addr.length <= maxLength) return addr;
+            return addr.slice(0, maxLength) + '...';
         },
     },
 };
@@ -141,6 +153,33 @@ export default {
 
 .partner-card.is-favorite {
     border-color: rgba(220, 53, 69, 0.2);
+}
+
+/* ==========================================
+   🆕 GRID-РЕЖИМ (карточка на всю ширину)
+   ========================================== */
+.partner-card.view-grid {
+    flex-direction: column;
+    height: 100%;
+}
+
+.partner-card.view-grid .card-image-wrapper {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: auto;
+}
+
+.partner-card.view-grid .card-content {
+    flex: 1;
+    padding: 16px;
+}
+
+.partner-card.view-grid .card-description {
+    -webkit-line-clamp: 3;
+}
+
+.partner-card.view-grid .card-action {
+    margin-top: auto;
 }
 
 /* ==========================================
@@ -361,7 +400,7 @@ export default {
    АДАПТИВ
    ========================================== */
 @media (max-width: 576px) {
-    .card-image-wrapper {
+    .partner-card:not(.view-grid) .card-image-wrapper {
         width: 100px;
         min-height: 120px;
     }
@@ -373,6 +412,10 @@ export default {
     .card-description {
         font-size: 0.75rem;
         -webkit-line-clamp: 1;
+    }
+
+    .partner-card.view-grid .card-description {
+        -webkit-line-clamp: 2;
     }
 
     .card-meta {

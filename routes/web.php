@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicLandingController;
 use App\Models\Tenant\Tenant;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Services\PricingService;
 
 /*
 |--------------------------------------------------------------------------
@@ -26,9 +28,22 @@ use Inertia\Inertia;
     ]);
 });*/
 
+
 Route::view('/maintenance', 'pages.maintenance')
     ->name('maintenance');
 
+Route::get('/landing', [PublicLandingController::class, 'index'])
+    ->name('public.landing');
+
+// В routes/api.php
+
+
+Route::get('/pricing', function () {
+    return response()->json([
+        'data' => PricingService::getActivePlans(),
+        'display' => PricingService::getDisplaySettings(),
+    ])->header('Cache-Control', 'public, max-age=300');
+});
 
 Route::get('/', function () {
     Inertia::setRootView("app");
@@ -53,4 +68,5 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__.'/auth.php';
 
+require __DIR__. "/test.php";
 

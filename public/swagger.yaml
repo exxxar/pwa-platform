@@ -1,0 +1,1937 @@
+
+openapi: 3.0.3
+info:
+  title: KanbanCRM API
+  description: |
+    REST API для управления Kanban досками, задачами, клиентами и сообщениями.
+
+    ## Аутентификация
+    Все запросы требуют Bearer токен в заголовке `Authorization`.
+
+    ## Основные возможности
+    - Управление досками и колонками
+    - Создание задач и клиентов
+    - Обмен сообщениями
+    - Загрузка вложений
+    - Система тегов и категорий
+  version: 1.0.0
+  contact:
+    email: support@kanbancrm.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://crm.mypwa.ru/api/v1
+    description: Production сервер
+  - url: http://localhost:8000/api/v1
+    description: Локальный сервер
+
+tags:
+  - name: Boards
+    description: Управление досками
+  - name: Columns
+    description: Управление колонками
+  - name: Tasks
+    description: Управление задачами
+  - name: Clients
+    description: Управление клиентами
+  - name: Messages
+    description: Обмен сообщениями
+  - name: Comments
+    description: Комментарии к задачам
+  - name: Attachments
+    description: Вложения
+  - name: Tags
+    description: Теги
+
+# === АУТЕНТИФИКАЦИЯ ===
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: API токен в формате `kb_XXXXXXXXXXXXXXXX`
+
+  # === СХЕМЫ ДАННЫХ ===
+  schemas:
+    # --- Ошибки ---
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Error message"
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    # --- Доска ---
+    Board:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        uuid:
+          type: string
+          format: uuid
+          example: "928e6e06-b9b0-4cca-a45c-0926ba7539f6"
+        title:
+          type: string
+          example: "Моя доска"
+        description:
+          type: string
+          nullable: true
+          example: "Описание доски"
+        config:
+          type: object
+          additionalProperties: true
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/Column'
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    BoardCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          example: "Новая доска"
+        description:
+          type: string
+          nullable: true
+          example: "Описание доски"
+
+    # --- Колонка ---
+    Column:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        board_id:
+          type: integer
+          example: 1
+        thread:
+          type: integer
+          description: Порядковый номер колонки (0, 1, 2...)
+          example: 0
+        title:
+          type: string
+          example: "Новые лиды"
+        position:
+          type: integer
+          example: 0
+        tasks_count:
+          type: integer
+          example: 5
+
+    ColumnCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          example: "Новая колонка"
+
+    # --- Задача ---
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        column_id:
+          type: integer
+          example: 1
+        board_id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "Исправить баг"
+        description:
+          type: string
+          nullable: true
+          example: "Описание задачи"
+        priority:
+          type: string
+          enum: [low, medium, high]
+          example: "medium"
+        type:
+          type: integer
+          description: "1=Задача, 2=Клиент, 3=Текст, 4=Финансы, 5=Разработка, 6=Заказ"
+          example: 1
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2026-07-15"
+        labels:
+          type: array
+          items:
+            type: string
+          example: ["development", "bug"]
+        subtasks:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              done:
+                type: boolean
+        custom_data:
+          type: object
+          additionalProperties: true
+        position:
+          type: integer
+          example: 0
+        comments_count:
+          type: integer
+          example: 3
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        client:
+          $ref: '#/components/schemas/Client'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TaskCreate:
+      type: object
+      required:
+        - thread
+        - title
+        - type
+      properties:
+        thread:
+          type: integer
+          description: Порядковый номер колонки (0, 1, 2...)
+          example: 0
+        title:
+          type: string
+          maxLength: 255
+          example: "Новая задача"
+        description:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          enum: [low, medium, high]
+          default: low
+          example: "medium"
+        type:
+          type: integer
+          enum: [1, 2, 3, 4, 5, 6]
+          description: "1=Задача, 2=Клиент, 3=Текст, 4=Финансы, 5=Разработка, 6=Заказ"
+          example: 1
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        labels:
+          type: array
+          items:
+            type: string
+          example: ["development", "test"]
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          example: [1, 2]
+        subtasks:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              done:
+                type: boolean
+        custom_data:
+          type: object
+          additionalProperties: true
+        client:
+          $ref: '#/components/schemas/ClientCreate'
+
+    # --- Клиент ---
+    Client:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        task_id:
+          type: integer
+          example: 123
+        company_name:
+          type: string
+          example: "ООО Ромашка"
+        contact_person:
+          type: string
+          example: "Иванов Иван"
+        phone:
+          type: string
+          example: "+79991234567"
+        source:
+          type: string
+          example: "Сайт"
+        address:
+          type: string
+          nullable: true
+        placement_type:
+          type: string
+          example: "Премиум"
+        cost:
+          type: number
+          format: float
+          nullable: true
+          example: 150000
+        partner:
+          type: string
+          nullable: true
+        deal_comment:
+          type: string
+          nullable: true
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              title:
+                type: string
+        custom_data:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ClientCreate:
+      type: object
+      properties:
+        company_name:
+          type: string
+          maxLength: 255
+          example: "ООО Ромашка"
+        contact_person:
+          type: string
+          maxLength: 255
+          example: "Иванов Иван"
+        phone:
+          type: string
+          maxLength: 50
+          example: "+79991234567"
+        source:
+          type: string
+          maxLength: 255
+          example: "Сайт"
+        address:
+          type: string
+          nullable: true
+        placement_type:
+          type: string
+          maxLength: 255
+          example: "Премиум"
+        cost:
+          type: number
+          format: float
+          minimum: 0
+          example: 150000
+        partner:
+          type: string
+          nullable: true
+        deal_comment:
+          type: string
+          nullable: true
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              title:
+                type: string
+        custom_data:
+          type: object
+          additionalProperties: true
+
+    # --- Сообщение ---
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 456
+        task_id:
+          type: integer
+          example: 123
+        sender_type:
+          type: string
+          enum: [external, manager, system, bot, api]
+          example: "external"
+        sender_label:
+          type: string
+          nullable: true
+          example: "Клиент с сайта"
+        message:
+          type: string
+          nullable: true
+          example: "Здравствуйте!"
+        payload:
+          type: object
+          additionalProperties: true
+          example: {"source": "telegram"}
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        is_read:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MessageCreate:
+      type: object
+      required:
+        - sender_type
+      properties:
+        message:
+          type: string
+          nullable: true
+          example: "Текст сообщения"
+        sender_type:
+          type: string
+          enum: [external, manager, system, bot, api]
+          example: "external"
+        sender_label:
+          type: string
+          nullable: true
+          example: "Telegram Bot"
+        payload:
+          type: object
+          additionalProperties: true
+          example: {"chat_id": 123456}
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+          description: Массив файлов (multipart/form-data)
+
+    # --- Комментарий ---
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 789
+        task_id:
+          type: integer
+          example: 123
+        author:
+          type: string
+          example: "Менеджер"
+        text:
+          type: string
+          example: "Комментарий к задаче"
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CommentCreate:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          example: "Текст комментария"
+        author:
+          type: string
+          nullable: true
+          example: "Иван Петров"
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+
+    # --- Вложение ---
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "document.pdf"
+        path:
+          type: string
+          example: "attachments/abc123.pdf"
+        url:
+          type: string
+          format: uri
+          example: "https://crm.mypwa.ru/storage/attachments/abc123.pdf"
+        mime:
+          type: string
+          example: "application/pdf"
+        size:
+          type: integer
+          example: 245678
+        created_at:
+          type: string
+          format: date-time
+
+    # --- Тег ---
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "VIP"
+        color:
+          type: string
+          example: "#FFD700"
+
+    TagCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          example: "VIP"
+        color:
+          type: string
+          maxLength: 7
+          example: "#FFD700"
+
+    # --- Шаблон ---
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "crm_sales"
+        title:
+          type: string
+          example: "CRM: Воронка продаж"
+        icon:
+          type: string
+          example: "fa-handshake"
+
+  # === ПАРАМЕТРЫ ===
+  parameters:
+    BoardUuid:
+      in: path
+      name: uuid
+      required: true
+      description: UUID доски
+      schema:
+        type: string
+        format: uuid
+      example: "928e6e06-b9b0-4cca-a45c-0926ba7539f6"
+
+    TaskId:
+      in: path
+      name: taskId
+      required: true
+      description: ID задачи
+      schema:
+        type: integer
+      example: 123
+
+    MessageId:
+      in: path
+      name: messageId
+      required: true
+      description: ID сообщения
+      schema:
+        type: integer
+      example: 456
+
+    ColumnId:
+      in: path
+      name: columnId
+      required: true
+      description: ID колонки
+      schema:
+        type: integer
+      example: 1
+
+    CommentId:
+      in: path
+      name: commentId
+      required: true
+      description: ID комментария
+      schema:
+        type: integer
+
+    TagId:
+      in: path
+      name: tagId
+      required: true
+      description: ID тега
+      schema:
+        type: integer
+
+    AttachmentId:
+      in: path
+      name: attachmentId
+      required: true
+      description: ID вложения
+      schema:
+        type: integer
+
+  # === ОТВЕТЫ ===
+  responses:
+    Unauthorized:
+      description: Не авторизован или неверный токен
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Unauthenticated"
+
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Resource not found"
+
+    ValidationError:
+      description: Ошибка валидации
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "The given data was invalid."
+            errors:
+              title:
+                - "The title field is required."
+
+# === ЭНДПОИНТЫ ===
+paths:
+  # ==========================================
+  # ДОСКИ (BOARDS)
+  # ==========================================
+  /boards:
+    get:
+      tags: [Boards]
+      summary: Получить список всех досок
+      operationId: getBoards
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  boards:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Board'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Boards]
+      summary: Создать новую доску
+      operationId: createBoard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoardCreate'
+      responses:
+        '201':
+          description: Доска создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  board:
+                    $ref: '#/components/schemas/Board'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /boards/{uuid}/clients/search:
+    get:
+      tags: [Clients]
+      summary: Универсальный поиск клиента
+      operationId: searchClient
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+          description: Поисковый запрос (телефон, email, имя, компания)
+          example: "+79991234567"
+      responses:
+        '200':
+          description: Результаты поиска
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  query:
+                    type: string
+                    example: "+79991234567"
+                  found:
+                    type: integer
+                    example: 1
+                  clients:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        task_id:
+                          type: integer
+                        title:
+                          type: string
+                        client:
+                          $ref: '#/components/schemas/Client'
+
+  /boards/{uuid}/clients/search/phone:
+    get:
+      tags: [Clients]
+      summary: Поиск клиента по телефону
+      operationId: searchClientByPhone
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+        - in: query
+          name: phone
+          required: true
+          schema:
+            type: string
+          description: Телефон в любом формате
+          example: "+7 (999) 123-45-67"
+      responses:
+        '200':
+          description: Найденные клиенты
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  query:
+                    type: string
+                  normalized:
+                    type: string
+                    description: Нормализованный телефон (только цифры)
+                  found:
+                    type: integer
+                  clients:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        task_id:
+                          type: integer
+                        title:
+                          type: string
+                        client:
+                          $ref: '#/components/schemas/Client'
+
+  /boards/{uuid}/clients/search/email:
+    get:
+      tags: [Clients]
+      summary: Поиск клиента по email
+      operationId: searchClientByEmail
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+        - in: query
+          name: email
+          required: true
+          schema:
+            type: string
+            format: email
+          example: "client@example.com"
+      responses:
+        '200':
+          description: Найденные клиенты
+
+  /boards/templates:
+    get:
+      tags: [Boards]
+      summary: Получить список доступных шаблонов
+      operationId: getTemplates
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Template'
+
+  /boards/{uuid}:
+    get:
+      tags: [Boards]
+      summary: Получить доску по UUID
+      operationId: getBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  board:
+                    $ref: '#/components/schemas/Board'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Boards]
+      summary: Обновить доску
+      operationId: updateBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoardCreate'
+      responses:
+        '200':
+          description: Доска обновлена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  board:
+                    $ref: '#/components/schemas/Board'
+
+    delete:
+      tags: [Boards]
+      summary: Удалить доску
+      operationId: deleteBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      responses:
+        '200':
+          description: Доска удалена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Board deleted"
+
+  /boards/{uuid}/apply-template:
+    post:
+      tags: [Boards]
+      summary: Применить шаблон к доске
+      operationId: applyTemplate
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template]
+              properties:
+                template:
+                  type: string
+                  example: "crm_sales"
+      responses:
+        '200':
+          description: Шаблон применён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  board:
+                    $ref: '#/components/schemas/Board'
+
+  /boards/{uuid}/config:
+    post:
+      tags: [Boards]
+      summary: Обновить конфигурацию доски
+      operationId: updateBoardConfig
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Конфиг обновлён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  config:
+                    type: object
+                    additionalProperties: true
+
+  # ==========================================
+  # КОЛОНКИ (COLUMNS)
+  # ==========================================
+  /boards/{uuid}/columns:
+    post:
+      tags: [Columns]
+      summary: Создать новую колонку
+      operationId: createColumn
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ColumnCreate'
+      responses:
+        '201':
+          description: Колонка создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  column:
+                    $ref: '#/components/schemas/Column'
+
+  /boards/{uuid}/columns/reorder:
+    put:
+      tags: [Columns]
+      summary: Изменить порядок колонок
+      operationId: reorderColumns
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order]
+              properties:
+                order:
+                  type: array
+                  items:
+                    type: integer
+                  description: Массив ID колонок в новом порядке
+                  example: [3, 1, 2, 4]
+      responses:
+        '200':
+          description: Порядок изменён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Columns reordered"
+
+  /columns/{columnId}:
+    put:
+      tags: [Columns]
+      summary: Обновить колонку
+      operationId: updateColumn
+      parameters:
+        - $ref: '#/components/parameters/ColumnId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ColumnCreate'
+      responses:
+        '200':
+          description: Колонка обновлена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  column:
+                    $ref: '#/components/schemas/Column'
+
+    delete:
+      tags: [Columns]
+      summary: Удалить колонку
+      operationId: deleteColumn
+      parameters:
+        - $ref: '#/components/parameters/ColumnId'
+      responses:
+        '200':
+          description: Колонка удалена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Column deleted"
+
+  /columns/{columnId}/notifications:
+    post:
+      tags: [Columns]
+      summary: Обновить уведомления колонки
+      operationId: updateColumnNotifications
+      parameters:
+        - $ref: '#/components/parameters/ColumnId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Уведомления обновлены
+
+  /columns/{columnId}/tasks:
+    get:
+      tags: [Tasks]
+      summary: Получить задачи колонки
+      operationId: getColumnTasks
+      parameters:
+        - $ref: '#/components/parameters/ColumnId'
+      responses:
+        '200':
+          description: Список задач
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+
+  /columns/{columnId}/tasks/reorder:
+    put:
+      tags: [Tasks]
+      summary: Изменить порядок задач в колонке
+      operationId: reorderTasks
+      parameters:
+        - $ref: '#/components/parameters/ColumnId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order]
+              properties:
+                order:
+                  type: array
+                  items:
+                    type: integer
+                  description: Массив ID задач в новом порядке
+      responses:
+        '200':
+          description: Порядок изменён
+
+  # ==========================================
+  # ЗАДАЧИ (TASKS)
+  # ==========================================
+  /boards/{uuid}/tasks:
+    get:
+      tags: [Tasks]
+      summary: Получить все задачи доски
+      operationId: getBoardTasks
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      responses:
+        '200':
+          description: Список задач
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+
+    post:
+      tags: [Tasks]
+      summary: Создать новую задачу
+      operationId: createTask
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Задача создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  task:
+                    $ref: '#/components/schemas/Task'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /tasks/{taskId}:
+    get:
+      tags: [Tasks]
+      summary: Получить задачу по ID
+      operationId: getTask
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  task:
+                    $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Tasks]
+      summary: Обновить задачу
+      operationId: updateTask
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                priority:
+                  type: string
+                  enum: [low, medium, high]
+                due_date:
+                  type: string
+                  format: date
+                  nullable: true
+                labels:
+                  type: array
+                  items:
+                    type: string
+                tag_ids:
+                  type: array
+                  items:
+                    type: integer
+                subtasks:
+                  type: array
+                  items:
+                    type: object
+                custom_data:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Задача обновлена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  task:
+                    $ref: '#/components/schemas/Task'
+
+    delete:
+      tags: [Tasks]
+      summary: Удалить задачу
+      operationId: deleteTask
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Задача удалена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Task deleted"
+
+  /tasks/{taskId}/duplicate:
+    post:
+      tags: [Tasks]
+      summary: Дублировать задачу
+      operationId: duplicateTask
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '201':
+          description: Задача дублирована
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  task:
+                    $ref: '#/components/schemas/Task'
+
+  /tasks/{taskId}/view:
+    post:
+      tags: [Tasks]
+      summary: Отметить задачу как просмотренную
+      operationId: markTaskViewed
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Задача отмечена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  last_viewed_at:
+                    type: string
+                    format: date-time
+
+  /tasks/move:
+    post:
+      tags: [Tasks]
+      summary: Переместить задачу в другую колонку
+      operationId: moveTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_id, column_id]
+              properties:
+                task_id:
+                  type: integer
+                  example: 123
+                column_id:
+                  type: integer
+                  example: 2
+      responses:
+        '200':
+          description: Задача перемещена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  task:
+                    $ref: '#/components/schemas/Task'
+
+  # ==========================================
+  # КЛИЕНТЫ (CLIENTS)
+  # ==========================================
+  /tasks/{taskId}/client:
+    get:
+      tags: [Clients]
+      summary: Получить клиента задачи
+      operationId: getClient
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  client:
+                    $ref: '#/components/schemas/Client'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Clients]
+      summary: Обновить данные клиента
+      operationId: updateClient
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientCreate'
+      responses:
+        '200':
+          description: Клиент обновлён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  client:
+                    $ref: '#/components/schemas/Client'
+
+  # ==========================================
+  # СООБЩЕНИЯ (MESSAGES)
+  # ==========================================
+  /tasks/{taskId}/messages:
+    get:
+      tags: [Messages]
+      summary: Получить все сообщения задачи
+      operationId: getMessages
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Список сообщений
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+
+    post:
+      tags: [Messages]
+      summary: Отправить сообщение
+      description: |
+        Отправка сообщения с опциональными файлами.
+        Используйте `multipart/form-data` для загрузки файлов.
+      operationId: sendMessage
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+      responses:
+        '201':
+          description: Сообщение отправлено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    $ref: '#/components/schemas/Message'
+
+  /tasks/{taskId}/messages/read-all:
+    post:
+      tags: [Messages]
+      summary: Отметить все сообщения как прочитанные
+      operationId: markAllMessagesRead
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Все сообщения отмечены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Marked 5 messages as read"
+                  updated_count:
+                    type: integer
+                    example: 5
+
+  /messages/{messageId}/read:
+    post:
+      tags: [Messages]
+      summary: Отметить сообщение как прочитанное
+      operationId: markMessageRead
+      parameters:
+        - $ref: '#/components/parameters/MessageId'
+      responses:
+        '200':
+          description: Сообщение отмечено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    $ref: '#/components/schemas/Message'
+
+  /messages/{messageId}:
+    put:
+      tags: [Messages]
+      summary: Обновить сообщение
+      operationId: updateMessage
+      parameters:
+        - $ref: '#/components/parameters/MessageId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                payload:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Сообщение обновлено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    $ref: '#/components/schemas/Message'
+
+    delete:
+      tags: [Messages]
+      summary: Удалить сообщение
+      operationId: deleteMessage
+      parameters:
+        - $ref: '#/components/parameters/MessageId'
+      responses:
+        '200':
+          description: Сообщение удалено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Message deleted"
+
+  /messages/{messageId}/attachments:
+    post:
+      tags: [Messages]
+      summary: Добавить вложения к сообщению
+      operationId: addMessageAttachments
+      parameters:
+        - $ref: '#/components/parameters/MessageId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Вложения добавлены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    $ref: '#/components/schemas/Message'
+
+  /messages/{messageId}/attachments/{attachmentIndex}:
+    delete:
+      tags: [Messages]
+      summary: Удалить вложение из сообщения
+      operationId: removeMessageAttachment
+      parameters:
+        - $ref: '#/components/parameters/MessageId'
+        - in: path
+          name: attachmentIndex
+          required: true
+          schema:
+            type: integer
+          description: Индекс вложения в массиве
+      responses:
+        '200':
+          description: Вложение удалено
+
+  # ==========================================
+  # КОММЕНТАРИИ (COMMENTS)
+  # ==========================================
+  /tasks/{taskId}/comments:
+    get:
+      tags: [Comments]
+      summary: Получить комментарии задачи
+      operationId: getComments
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Список комментариев
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  comments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+
+    post:
+      tags: [Comments]
+      summary: Добавить комментарий
+      operationId: addComment
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CommentCreate'
+      responses:
+        '201':
+          description: Комментарий добавлен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  comment:
+                    $ref: '#/components/schemas/Comment'
+
+  /comments/{commentId}:
+    put:
+      tags: [Comments]
+      summary: Обновить комментарий
+      operationId: updateComment
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: Комментарий обновлён
+
+    delete:
+      tags: [Comments]
+      summary: Удалить комментарий
+      operationId: deleteComment
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      responses:
+        '200':
+          description: Комментарий удалён
+
+  # ==========================================
+  # ВЛОЖЕНИЯ (ATTACHMENTS)
+  # ==========================================
+  /tasks/{taskId}/attachments:
+    get:
+      tags: [Attachments]
+      summary: Получить вложения задачи
+      operationId: getAttachments
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Список вложений
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  attachments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Attachment'
+
+    post:
+      tags: [Attachments]
+      summary: Загрузить вложения
+      operationId: uploadAttachments
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Массив файлов для загрузки
+      responses:
+        '201':
+          description: Файлы загружены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  attachments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Attachment'
+
+  /tasks/{taskId}/attachments/{attachmentId}:
+    delete:
+      tags: [Attachments]
+      summary: Удалить вложение
+      operationId: deleteAttachment
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/AttachmentId'
+      responses:
+        '200':
+          description: Вложение удалено
+
+  # ==========================================
+  # ТЕГИ (TAGS)
+  # ==========================================
+  /boards/{uuid}/tags:
+    get:
+      tags: [Tags]
+      summary: Получить все теги доски
+      operationId: getTags
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      responses:
+        '200':
+          description: Список тегов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+
+    post:
+      tags: [Tags]
+      summary: Создать новый тег
+      operationId: createTag
+      parameters:
+        - $ref: '#/components/parameters/BoardUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCreate'
+      responses:
+        '201':
+          description: Тег создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  tag:
+                    $ref: '#/components/schemas/Tag'
+
+  /tags/{tagId}:
+    put:
+      tags: [Tags]
+      summary: Обновить тег
+      operationId: updateTag
+      parameters:
+        - $ref: '#/components/parameters/TagId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCreate'
+      responses:
+        '200':
+          description: Тег обновлён
+
+    delete:
+      tags: [Tags]
+      summary: Удалить тег
+      operationId: deleteTag
+      parameters:
+        - $ref: '#/components/parameters/TagId'
+      responses:
+        '200':
+          description: Тег удалён
+
+  /tasks/{taskId}/tags:
+    post:
+      tags: [Tags]
+      summary: Привязать теги к задаче
+      operationId: attachTags
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tag_ids]
+              properties:
+                tag_ids:
+                  type: array
+                  items:
+                    type: integer
+                  example: [1, 2, 3]
+      responses:
+        '200':
+          description: Теги привязаны
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+
+  /tasks/{taskId}/tags/{tagId}:
+    delete:
+      tags: [Tags]
+      summary: Отвязать тег от задачи
+      operationId: detachTag
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/TagId'
+      responses:
+        '200':
+          description: Тег отвязан

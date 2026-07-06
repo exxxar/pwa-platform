@@ -21,6 +21,7 @@ const PromoCode = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/P
 
 const AdminShop = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Shop.vue'))
 const AdminTenant = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/TenantSettings.vue'))
+const AdminKanban = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/KanbanSettings.vue'))
 const AdminInvoice = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Invoice.vue'))
 const AdminPartners = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Partners.vue'))
 const AdminStories = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/StoryManager.vue'))
@@ -282,6 +283,13 @@ const routes = [
         component:AdminTenant,
         meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
     },
+    {
+        path: '/admin/kanban',
+        name: 'AdminKanban',
+        component:AdminKanban,
+        meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
+    },
+
 
     {
         path: '/admin/shop-landing',

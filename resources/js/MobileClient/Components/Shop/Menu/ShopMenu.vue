@@ -114,8 +114,8 @@ export default {
         async loadInitialData() {
             try {
                 await Promise.all([
-                    this.menuStore.loadProductsByCategory(this.menuStore.selectedPartner?.bot_partner_id),
-                    this.storiesStore.loadPartnersStories(this.menuStore.selectedPartner?.bot_partner_id),
+                    this.menuStore.loadProductsByCategory(this.menuStore.selectedPartner?.tenant_partner_id),
+                    this.storiesStore.loadPartnersStories(this.menuStore.selectedPartner?.tenant_partner_id),
                 ]);
                 this.activeTab = 'products';
             } catch (error) {
@@ -125,6 +125,7 @@ export default {
 
         // Выбор партнёра
         async onPartnerSelect(partner) {
+            console.log("partner", partner)
             this.menuStore.setPartner(partner);
             this.shopMode = 'shop';
             await this.loadInitialData();
@@ -159,7 +160,7 @@ export default {
                 await this.menuStore.loadMoreProducts(
                     categoryId,
                     offset,
-                    this.menuStore.selectedPartner?.bot_partner_id
+                    this.menuStore.selectedPartner?.tenant_partner_id
                 );
             } catch (error) {
                 console.error('Ошибка загрузки:', error);
