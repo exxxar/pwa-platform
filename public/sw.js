@@ -2,7 +2,7 @@
 // Кэш-версия. Меняй при каждом обновлении!
 // ==========================================
 
-const CACHE_VERSION = 'v2.0.0'
+const CACHE_VERSION = '___MY_PROJECT_VERSION___'
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
@@ -19,17 +19,96 @@ const PRECACHE_URLS = [
 // ==========================================
 // INSTALL — пре-кэшируем App Shell
 // ==========================================
-self.addEventListener('install', (event) => {
-    console.log('[SW] Install');
+self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(STATIC_CACHE)
-            .then((cache) => {
-                console.log('[SW] Precaching app shell');
+        Promise.all([
+            // Кэшируем статические ресурсы
+            caches.open(STATIC_CACHE).then(cache => {
                 return cache.addAll(PRECACHE_URLS);
-            })
-            .then(() => self.skipWaiting()) // Активируем сразу, не ждём закрытия вкладок
+            }),
+            // 🆕 Динамически загружаем манифест и кэшируем картинки
+            preloadManifestImages()
+        ])
     );
+    self.skipWaiting();
 });
+// ==========================================
+// 🆕 Функция для загрузки манифеста и кэширования картинок
+// ==========================================
+async function preloadManifestImages() {
+    try {
+        // Определяем tenant из URL (адаптируйте под вашу структуру)
+        const pathParts = self.location.pathname.split('/');
+        const tenantSlug = pathParts[2] || 'default'; // /pwa/{tenant}/sw.js
+
+        // Загружаем манифест
+        const manifestUrl = `/pwa/${tenantSlug}/manifest.json`;
+        const response = await fetch(manifestUrl, {
+            cache: 'no-cache'
+        });
+
+        if (!response.ok) throw new Error('Manifest not found');
+
+        const manifest = await response.json();
+
+        // Собираем все URL картинок из манифеста
+        const imageUrls = [];
+
+        // Иконки
+        if (manifest.icons) {
+            manifest.icons.forEach(icon => {
+                if (icon.src) imageUrls.push(icon.src);
+            });
+        }
+
+        // Скриншоты
+        if (manifest.screenshots) {
+            manifest.screenshots.forEach(screenshot => {
+                if (screenshot.src) imageUrls.push(screenshot.src);
+            });
+        }
+
+        // Иконки шорткатов
+        if (manifest.shortcuts) {
+            manifest.shortcuts.forEach(shortcut => {
+                if (shortcut.icons) {
+                    shortcut.icons.forEach(icon => {
+                        if (icon.src) imageUrls.push(icon.src);
+                    });
+                }
+            });
+        }
+
+        // Кэшируем все картинки
+        if (imageUrls.length > 0) {
+            const imageCache = await caches.open(IMAGE_CACHE);
+
+            // Загружаем параллельно с ограничением параллелизма
+            await Promise.all(
+                imageUrls.map(async url => {
+                    try {
+                        const imgResponse = await fetch(url, {
+                            mode: 'cors',
+                            credentials: 'omit'
+                        });
+
+                        if (imgResponse.ok) {
+                            await imageCache.put(url, imgResponse);
+                            console.log('[SW] Cached image:', url);
+                        }
+                    } catch (err) {
+                        console.warn('[SW] Failed to cache image:', url, err);
+                    }
+                })
+            );
+
+            console.log(`[SW] Cached ${imageUrls.length} images from manifest`);
+        }
+
+    } catch (error) {
+        console.error('[SW] Error preloading manifest images:', error);
+    }
+}
 
 // ==========================================
 // ACTIVATE — чистим старые кэши
