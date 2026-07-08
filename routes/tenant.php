@@ -15,6 +15,7 @@ use App\Http\Controllers\Tenant\TenantAuthController;
 use App\Http\Controllers\Tenant\TenantPwaController;
 use App\Http\Controllers\Tenant\TenantSocialAuthController;
 use App\Http\Controllers\Tenant\TenantTapLinkController;
+use App\Http\Controllers\Tenant\WebhookReceiverController;
 use App\Http\Controllers\TenantDialogController;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantUser;
@@ -30,6 +31,10 @@ use Inertia\Inertia;
 use Jenssegers\Agent\Agent;
 
 $routes = function () {
+
+
+    Route::post('/webhook', [WebhookReceiverController::class, 'handle'])
+        ->name('webhook.workspace');
 
     Route::get('/', function (Request $request) {
         $agent = new Agent();

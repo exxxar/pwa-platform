@@ -14,7 +14,8 @@ class Category extends Model
         'name',
         'icon',
         'is_active',
-        'order_position'
+        'order_position',
+        'external_id'
     ];
 
     protected $casts = [
