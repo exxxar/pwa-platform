@@ -10,11 +10,11 @@
             <template #back-btn>
                 <button
                     v-if="showBackButton"
-                    class="btn btn-primary p-2 mt-2"
+                    class="btn-back-glass"
                     @click="$emit('back-to-partners')"
                 >
-                    <i class="fa-solid fa-arrow-left me-2"></i>
-                    К магазинам
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>К магазинам</span>
                 </button>
             </template>
         </CategorySlider>
@@ -45,5 +45,32 @@ export default {
 <style scoped>
 .menu-header {
     top: 0;
+}
+
+.btn-back-glass {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    margin: 0.25rem 0.25rem;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    color: #667eea;
+    border: 2px solid rgba(102, 126, 234, 0.2);
+    border-radius: 25px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-back-glass:hover {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: #667eea;
+    transform: scale(1.05);
+}
+
+.btn-back-glass:active {
+    transform: scale(0.98);
 }
 </style>
