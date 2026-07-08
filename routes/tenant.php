@@ -33,7 +33,7 @@ use Jenssegers\Agent\Agent;
 $routes = function () {
 
 
-    Route::post('/webhook', [WebhookReceiverController::class, 'handle'])
+    Route::any('/webhook', [WebhookReceiverController::class, 'handle'])
         ->name('webhook.workspace');
 
     Route::get('/', function (Request $request) {
