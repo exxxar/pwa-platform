@@ -71,7 +71,6 @@ class WebhookSyncService
                 }
             }
 
-            // ✅ Опционально: деактивируем товары, которых нет в payload
             if ($deactivateMissing && !empty($syncedExternalIds)) {
                 $stats['deactivated'] = Product::where('tenant_id', $tenant->id)
                     ->where('is_active', true)
@@ -94,38 +93,35 @@ class WebhookSyncService
     }
 
     /**
-     * ✅ Синхронизация одного товара
-     * Поиск: external_id → sku → создание нового
+     * Синхронизация одного товара
      */
     protected function syncProduct(Tenant $tenant, array $data): Product
     {
         $externalId = (string) ($data['id'] ?? '');
         $sku = $data['sku'] ?? null;
 
-        // 🔍 Ищем существующий товар
+        // 🔍 Поиск существующего товара
         $product = null;
 
-        // Приоритет 1: по external_id
         if ($externalId) {
             $product = Product::where('tenant_id', $tenant->id)
                 ->where('external_id', $externalId)
                 ->first();
         }
 
-        // Приоритет 2: по SKU (фоллбэк)
         if (!$product && $sku) {
             $product = Product::where('tenant_id', $tenant->id)
                 ->where('sku', $sku)
                 ->first();
         }
 
+        // ✅ ВСЕ поля для обновления/создания
         $mappedData = $this->mapProductData($data, $externalId);
 
         if ($product) {
-            // ✅ Обновляем существующий товар
+            // ✅ Полное обновление всех полей
             $product->update($mappedData);
         } else {
-            // ✅ Создаём новый товар
             $product = Product::create(array_merge($mappedData, [
                 'tenant_id' => $tenant->id,
             ]));
@@ -140,16 +136,16 @@ class WebhookSyncService
     }
 
     /**
-     * Маппинг данных товара
+     * ✅ Маппинг ВСЕХ полей товара
      */
     protected function mapProductData(array $data, string $externalId): array
     {
         return [
-            'external_id' => $externalId, // ✅ ID с платформы
+            'external_id' => $externalId,
             'name' => $data['name'] ?? '',
             'price' => (float) ($data['price'] ?? 0),
             'old_price' => isset($data['old_price']) ? (float) $data['old_price'] : null,
-            'sku' => $data['sku'] ?? null, // ✅ SKU остаётся отдельным полем
+            'sku' => $data['sku'] ?? null,
             'description' => $data['description'] ?? '',
             'is_active' => (bool) ($data['is_active'] ?? true),
             'in_stop_list' => (bool) ($data['in_stop_list'] ?? false),
@@ -158,7 +154,7 @@ class WebhookSyncService
     }
 
     /**
-     * ✅ Маппинг картинок — возвращаем массив URL-строк
+     * Маппинг картинок — массив URL-строк
      */
     protected function mapImages(array $images): array
     {
@@ -175,7 +171,7 @@ class WebhookSyncService
     }
 
     /**
-     * Синхронизация категорий
+     * ✅ Синхронизация категорий с ПОЛНЫМ обновлением полей
      */
     protected function syncCategories(Tenant $tenant, Product $product, array $categories): void
     {
@@ -189,6 +185,7 @@ class WebhookSyncService
                 continue;
             }
 
+            // 🔍 Поиск категории
             $category = null;
             if ($externalId) {
                 $category = Category::where('tenant_id', $tenant->id)
@@ -203,6 +200,7 @@ class WebhookSyncService
             }
 
             if (!$category) {
+                // ✅ Создание новой категории
                 $category = Category::create([
                     'tenant_id' => $tenant->id,
                     'name' => $name ?: "Категория #{$externalId}",
@@ -210,8 +208,23 @@ class WebhookSyncService
                     'is_active' => true,
                     'order_position' => 0,
                 ]);
-            } elseif ($externalId && !$category->external_id) {
-                $category->update(['external_id' => $externalId]);
+            } else {
+                // ✅ ПОЛНОЕ обновление существующей категории
+                $updateData = [];
+
+                // Обновляем name, если он изменился
+                if ($name && $category->name !== $name) {
+                    $updateData['name'] = $name;
+                }
+
+                // Привязываем external_id, если его не было
+                if ($externalId && !$category->external_id) {
+                    $updateData['external_id'] = $externalId;
+                }
+
+                if (!empty($updateData)) {
+                    $category->update($updateData);
+                }
             }
 
             $categoryIds[] = $category->id;
@@ -221,13 +234,10 @@ class WebhookSyncService
     }
 
     /**
-     * ✅ Синхронизация атрибутов + ингредиентов
-     * Атрибуты: section = null (или 'attributes')
-     * Ингридиенты: section = 'ingredients'
+     * Синхронизация атрибутов (полная замена)
      */
     protected function syncAttributes(Product $product, array $attributes): void
     {
-        // Удаляем только обычные атрибуты (не ингредиенты)
         $product->attributes()
             ->where(function ($q) {
                 $q->whereNull('section')
@@ -244,24 +254,21 @@ class WebhookSyncService
                 'product_id' => $product->id,
                 'name' => $attrData['name'],
                 'value' => $attrData['value'] ?? '',
-                'section' => null, // Обычные атрибуты
+                'section' => null,
                 'order_position' => $index,
             ]);
         }
     }
 
     /**
-     * ✅ Синхронизация ингредиентов через ProductAttribute
-     * section = 'ingredients'
+     * Синхронизация ингредиентов через ProductAttribute
      */
     protected function syncIngredients(Product $product, array $ingredients): void
     {
-        // Удаляем старые ингредиенты
         $product->attributes()
             ->where('section', 'ingredients')
             ->delete();
 
-        // Создаём новые
         foreach ($ingredients as $index => $ingData) {
             if (empty($ingData['name'])) {
                 continue;
@@ -270,8 +277,8 @@ class WebhookSyncService
             ProductAttribute::create([
                 'product_id' => $product->id,
                 'name' => $ingData['name'],
-                'value' => $ingData['id'] ?? '', // ID ингредиента с платформы
-                'section' => 'ingredients', // ✅ Маркер секции
+                'value' => $ingData['id'] ?? '',
+                'section' => 'ingredients',
                 'order_position' => $index,
             ]);
         }
