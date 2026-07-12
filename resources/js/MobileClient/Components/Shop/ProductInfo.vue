@@ -317,7 +317,7 @@
 
 <script>
 import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
-import ReviewCard from "@/MobileClient/Components/Shop/ReviewCard.vue";
+import ReviewCard from "@/MobileClient/Components/Shop/Reviews/ReviewCard.vue";
 
 export default {
     name: "ProductInfo",

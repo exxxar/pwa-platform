@@ -42,7 +42,7 @@
                             <span class="stat-label">Заказов</span>
                         </div>
                     </button>
-                    <button class="stat-pill" @click="goTo('Friends')">
+                    <button class="stat-pill" @click="goTo('ReferralsPage')">
                         <i class="fa-solid fa-user-group"></i>
                         <div class="stat-info">
                             <span class="stat-value">{{ self?.friends_count || 0 }}</span>
@@ -293,20 +293,24 @@ export default {
                 {key: 'chat', route: 'Chat', text: 'Чат', img: 'chat.png'},
                 {key: 'events', route: 'WheelClassic', text: 'Розыгрыши', img: 'events.png'},
                 {key: 'about', route: 'Contacts', text: 'Контакты', img: 'contacts.png'},
+                {key: 'referral', route: 'ReferralsPage', text: 'Реферальная программа', img: 'contacts.png'},
             ],
             adminMenuItems: [
                 {key: 'send_invoice', route: 'AdminInvoice', text: 'Счет на оплату', img: 'clients.png'},
                 {key: 'products_manage', route: 'AdminShop', text: 'Управление товарами', img: 'products.png'},
-                {key: 'shop_settings', modal: 'script-setting-editor', text: 'Настройка магазина', img: 'settings.png'},
+                {key: 'shop_settings', modal: 'AdminTenant', text: 'Настройка магазина', img: 'settings.png'},
                 {key: 'partners', route: 'AdminPartners', text: 'Работа с партнерами', img: 'partners.png'},
-                {key: 'stories_manage', route: 'Stories', text: 'Управление историями', img: 'stories.png'},
+                {key: 'stories_manage', route: 'AdminStories', text: 'Управление историями', img: 'stories.png'},
                 {key: 'tables_manage', route: 'TablesManager', text: 'Управление столиками', img: 'tables.png', condition: 'need_table_list'},
-                {key: 'clients', route: 'ClientsV2', text: 'Управление клиентами', img: 'clients.png'},
+                {key: 'clients', route: 'AdminClients', text: 'Управление клиентами', img: 'clients.png'},
                 {key: 'utm', route: 'LinkManagerV2', text: 'UTM-метки', img: 'utm.png'},
-                {key: 'mailing', route: 'MailingV2', text: 'Управление рассылками', img: 'mail.png'},
-                {key: 'admin_orders', route: 'AdminOrdersV2', text: 'Управление заказами', img: 'orders.png'},
-                {key: 'promo', route: 'PromoCodesV2', text: 'Управление промокодами', img: 'promo.png'},
-                {key: 'statistic', route: 'StatisticV2', text: 'Статистика', img: 'statistic.png'},
+                {key: 'mailing', route: 'AdminBroadcastsPage', text: 'Управление рассылками', img: 'mail.png'},
+                {key: 'admin_orders', route: 'AdminOrders', text: 'Управление заказами', img: 'orders.png'},
+                {key: 'promo', route: 'AdminPromoCodes', text: 'Управление промокодами', img: 'promo.png'},
+                {key: 'statistic', route: 'AdminStatistic', text: 'Статистика', img: 'statistic.png'},
+                {key: 'tap_link', route: 'TapLinkAdmin', text: 'Тап-линк', img: 'statistic.png'},
+                {key: 'kanban_crm', route: 'AdminKanban', text: 'CRM', img: 'statistic.png'},
+                {key: 'landing', route: 'AdminShopLanding', text: 'Лендинг', img: 'statistic.png'},
             ],
             entertainment: [
                 {key: 'wheel_of_fortune_btn', img: 'fortune.png', default: 'Колесо фортуны', route: 'WheelClassic'},

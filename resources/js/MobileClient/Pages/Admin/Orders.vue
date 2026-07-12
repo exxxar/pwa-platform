@@ -165,7 +165,7 @@
 <script>
 import { mapState, mapActions } from 'pinia'
 import Pagination from '@/MobileClient/Components/Pagination.vue'
-import ReviewCard from '@/MobileClient/Components/Shop/ReviewCard.vue'
+import ReviewCard from '@/MobileClient/Components/Shop/Reviews/ReviewCard.vue'
 import OrderItem from '@/MobileClient/Components/Admin/Orders/OrderItem.vue'
 
 export default {

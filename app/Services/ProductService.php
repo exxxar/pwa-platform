@@ -74,6 +74,59 @@ class ProductService
         return $category->products ?? [];
     }
 
+    /**
+     * 🆕 Количество активных товаров
+     */
+    public function getActiveProductsCount(int $tenantId): int
+    {
+        return Product::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->count();
+    }
+
+    /**
+     * 🆕 Рекомендованные товары
+     */
+    public function getRecommendedProducts(
+        int $tenantId,
+        ?int $userId,
+        int $limit = 8
+    ): array {
+        // Базовая логика рекомендаций
+        // Можно улучшить на основе истории покупок пользователя
+
+        $query = Product::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->with(['categories']);
+
+        // Если есть пользователь — учитываем его историю
+        if ($userId) {
+            $purchasedProductIds = \App\Models\Tenant\OrderProduct::whereHas('order', function ($q) use ($userId) {
+                $q->where('tenant_user_id', $userId);
+            })->pluck('product_id')->toArray();
+
+            if (!empty($purchasedProductIds)) {
+                $query->whereNotIn('id', $purchasedProductIds);
+            }
+        }
+
+        return $query->inRandomOrder()
+            ->limit($limit)
+            ->get()
+            ->map(function ($product) {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'price' => $product->price,
+                    'current_price' => $product->current_price,
+                    'old_price' => $product->old_price,
+                    'images' => $product->images,
+                    'rating' => $product->rating,
+                    'categories' => $product->categories->pluck('id'),
+                ];
+            })
+            ->toArray();
+    }
 
     public function listByCategories(array $data = null)
     {

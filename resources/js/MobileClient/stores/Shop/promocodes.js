@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 
-const BASE = '/promocodes';
+const BASE = '/admin/promocodes';
 
 export const usePromocodesStore = defineStore('promocodes', {
     // ==========================================
@@ -176,7 +176,7 @@ export const usePromocodesStore = defineStore('promocodes', {
                 const size = payload.size || 50;
                 const link = `${BASE}?page=${page}&size=${size}`;
 
-                const response = await axios.post(link, payload.dataObject || {});
+                const response = await axios.get(link, payload.dataObject || {});
                 const dataObject = response.data;
 
                 this.promocodes = dataObject.data || [];
@@ -270,7 +270,7 @@ export const usePromocodesStore = defineStore('promocodes', {
             this.lastError = null;
 
             try {
-                const response = await axios.post(`${BASE}/store`, payload.promoCodeForm);
+                const response = await axios.post(`${BASE}/`, payload.promoCodeForm);
                 const newPromocode = response.data?.data || response.data;
 
                 // Добавляем в начало списка

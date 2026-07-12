@@ -91,7 +91,10 @@
                         <!-- Заголовок группы (дата) -->
                         <div class="group-header">
                             <div class="group-date">{{ group.label }}</div>
-                            <div class="group-count">{{ group.orders.length }} {{ pluralize(group.orders.length, 'заказ', 'заказа', 'заказов') }}</div>
+                            <div class="group-count">
+                                {{ group.orders.length }}
+                                {{ pluralize(group.orders.length, 'заказ', 'заказа', 'заказов') }}
+                            </div>
                         </div>
 
                         <!-- Карточки заказов -->
@@ -122,11 +125,11 @@
                             <div class="order-products">
                                 <div
                                     v-for="(product, i) in getOrderProducts(order).slice(0, 3)"
-                                    :key="product.id || i"
+                                    :key="product.id || product.external_id || i"
                                     class="product-item"
                                 >
-                                    <span class="product-qty">{{ product.quantity || 1 }}×</span>
-                                    <span class="product-name">{{ product.title || 'Товар' }}</span>
+                                    <span class="product-qty">{{ getProductQty(product) }}×</span>
+                                    <span class="product-name">{{ getProductName(product) }}</span>
                                     <span v-if="product.price" class="product-price">
                                         {{ formatPrice(product.price) }}
                                     </span>
@@ -141,9 +144,9 @@
                             </div>
 
                             <!-- Итого -->
-                            <div v-if="order.total" class="order-total">
+                            <div v-if="getOrderTotal(order)" class="order-total">
                                 <span>Итого:</span>
-                                <span class="total-value">{{ formatPrice(order.total) }}</span>
+                                <span class="total-value">{{ formatPrice(getOrderTotal(order)) }}</span>
                             </div>
 
                             <!-- Отзыв -->
@@ -160,12 +163,40 @@
                                     class="repeat-btn"
                                     :class="{ disabled: order.disabled }"
                                     :disabled="order.disabled"
-                                    @click.stop="repeatOrder(order)"
+                                    @click.stop="repeatOrderHandler(order)"
                                 >
                                     <i class="fa-solid fa-arrow-rotate-right"></i>
                                     <span>Повторить заказ</span>
                                 </button>
                             </div>
+
+                            <!-- Кнопка отзыва -->
+                            <div v-if="canShowReviewButton(order)" class="review-actions">
+                                <button
+                                    v-if="!order.review && canReviewOrder(order)"
+                                    type="button"
+                                    class="review-btn"
+                                    @click.stop="openReviewForm(order)"
+                                >
+                                    <i class="fa-solid fa-star"></i>
+                                    <span>Оставить отзыв</span>
+                                </button>
+
+                                <div v-else-if="order.review" class="review-existing">
+                                    <div class="review-badge">
+                                        <i class="fa-solid fa-check-circle"></i>
+                                        <span>Отзыв оставлен</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="review-edit-btn"
+                                        @click.stop="openReviewForm(order, order.review)"
+                                    >
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
@@ -174,7 +205,7 @@
                         v-if="orders_paginate_object"
                         :simple="true"
                         :pagination="orders_paginate_object"
-                        @pagination_page="nextOrders"
+                        @pagination_page="loadOrdersHandler"
                         class="mt-3"
                     />
                 </div>
@@ -217,7 +248,7 @@
                         v-if="reviews_paginate_object"
                         :simple="true"
                         :pagination="reviews_paginate_object"
-                        @pagination_page="nextReviews"
+                        @pagination_page="loadReviewsHandler"
                         class="mt-3"
                     />
                 </div>
@@ -225,42 +256,77 @@
 
         </div>
     </div>
+
+    <ReviewForm
+        :is-visible="showReviewForm"
+        :order-id="selectedOrderForReview?.id"
+        :review="selectedReviewForEdit"
+        @close="closeReviewForm"
+        @success="onReviewSuccess"
+    />
 </template>
 
 <script>
+import { computed } from 'vue';
 import Pagination from '@/MobileClient/Components/Shop/Helpers/Pagination.vue';
-import ReviewCard from '@/MobileClient/Components/Shop/ReviewCard.vue';
-import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
+import ReviewCard from '@/MobileClient/Components/Shop/Reviews/ReviewCard.vue';
+import { useOrders } from '@/MobileClient/composables/useOrders.js';
+import ReviewForm from '@/MobileClient/Components/Shop/Reviews/ReviewForm.vue';
 
 export default {
     name: "OrdersList",
 
     components: {
         Pagination,
-        ReviewCard
+        ReviewForm,
+        ReviewCard,
     },
 
     props: {
         selected: { type: Object, default: null },
-        active: { type: Boolean, default: false },
+        active:   { type: Boolean, default: false },
     },
 
     emits: ['select'],
 
     setup() {
-        const basketStore = useBasketStore();
-        return { basketStore };
+        const orderComposable = useOrders();
+
+        return {
+            // Состояние заказов (из store через storeToRefs)
+            orders: orderComposable.orders,
+            orders_paginate_object: orderComposable.orders_paginate_object,
+            isLoading: orderComposable.isLoading,
+
+            // Состояние отзывов
+            reviews: orderComposable.reviews,
+            reviews_paginate_object: orderComposable.reviews_paginate_object,
+            isLoadingReviews: orderComposable.isLoadingReviews,
+
+            // Методы (заказы)
+            loadOrders: orderComposable.loadOrders,
+            repeatOrder: orderComposable.repeatOrder,
+            clearCart: orderComposable.clearCart,
+            addProductToCart: orderComposable.addProductToCart,
+
+            // Методы (отзывы)
+            loadReviews: orderComposable.loadReviews,
+
+            canReviewOrder: orderComposable.canReviewOrder,
+            storeReview: orderComposable.storeReview,
+            updateReview: orderComposable.updateReview,
+            deleteReview: orderComposable.deleteReview,
+        };
     },
 
     data() {
         return {
             tab: 0,
-            isLoading: false,
-            isLoadingReviews: false,
-            orders: [],
-            orders_paginate_object: null,
-            reviews: [],
-            reviews_paginate_object: null,
+            reviewsLoaded: false,
+
+            showReviewForm: false,
+            selectedOrderForReview: null,
+            selectedReviewForEdit: null,
         };
     },
 
@@ -269,16 +335,19 @@ export default {
             return this.orders_paginate_object?.total || this.orders.length;
         },
 
-        // Группировка заказов по датам
+        /**
+         * Группировка заказов по датам
+         */
         groupedOrders() {
             const groups = {};
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
 
-            this.orders.forEach(order => {
+            const ordersList = this.orders || [];
+
+            ordersList.forEach(order => {
                 const date = new Date(order.created_at);
-                const today = new Date();
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-
                 let key, label;
 
                 if (date.toDateString() === today.toDateString()) {
@@ -302,7 +371,7 @@ export default {
                 groups[key].orders.push(order);
             });
 
-            // Сортируем группы по ключу (новые сверху)
+            // Сортируем группы (новые сверху)
             return Object.fromEntries(
                 Object.entries(groups).sort((a, b) => {
                     if (a[0] === 'today') return -1;
@@ -316,14 +385,65 @@ export default {
     },
 
     mounted() {
-        this.loadOrders();
+        this.loadOrdersHandler(0);
     },
 
     methods: {
-        switchTab(index) {
+
+        canShowReviewButton(order) {
+            // Показываем кнопку только для выполненных заказов
+            const status = String(order.status ?? '').toLowerCase();
+            return ['2', 'completed', 'delivered', 'done'].includes(status);
+        },
+
+        async canReviewOrder(order) {
+            if (order._reviewChecked) {
+                return order._canReview;
+            }
+
+            try {
+                const result = await this.canReviewOrder(order.id);
+                order._reviewChecked = true;
+                order._canReview = result.can_review;
+
+                if (result.has_review && result.review) {
+                    order.review = result.review;
+                }
+
+                return result.can_review;
+            } catch (err) {
+                console.error('Ошибка проверки отзыва:', err);
+                return false;
+            }
+        },
+
+        openReviewForm(order, review = null) {
+            this.selectedOrderForReview = order;
+            this.selectedReviewForEdit = review;
+            this.showReviewForm = true;
+        },
+
+        closeReviewForm() {
+            this.showReviewForm = false;
+            this.selectedOrderForReview = null;
+            this.selectedReviewForEdit = null;
+        },
+
+        async onReviewSuccess(reviewData) {
+            // Обновляем отзыв в заказе
+            if (this.selectedOrderForReview) {
+                this.selectedOrderForReview.review = reviewData;
+                this.selectedOrderForReview._canReview = false;
+            }
+        },
+        // ==========================================
+        // Навигация и переключение
+        // ==========================================
+        async switchTab(index) {
             this.tab = index;
-            if (index === 1 && this.reviews.length === 0) {
-                this.loadProductInOrders(0);
+            if (index === 1 && !this.reviewsLoaded) {
+                await this.loadReviewsHandler(0);
+                this.reviewsLoaded = true;
             }
         },
 
@@ -331,20 +451,16 @@ export default {
             this.$emit('select', item);
         },
 
-        nextOrders(page) {
-            this.loadOrders(page);
+        goToCatalog() {
+            this.$router.push({ name: 'Catalog' });
         },
 
-        nextReviews(page) {
-            this.loadProductInOrders(page);
-        },
-
-        async loadOrders(page = 0) {
-            this.isLoading = true;
+        // ==========================================
+        // Обработчики загрузки (с маппингом пагинации Laravel)
+        // ==========================================
+        async loadOrdersHandler(page = 0) {
             try {
-                const resp = await this.basketStore.loadOrders({ page, size: 20 });
-                this.orders = resp.data || [];
-                this.orders_paginate_object = resp.paginate || null;
+                await this.loadOrders({ page, size: 20 });
             } catch (error) {
                 console.error('Ошибка загрузки заказов:', error);
                 this.$notify?.({
@@ -352,17 +468,12 @@ export default {
                     text: 'Ошибка загрузки заказов',
                     type: 'error',
                 });
-            } finally {
-                this.isLoading = false;
             }
         },
 
-        async loadProductInOrders(page = 0) {
-            this.isLoadingReviews = true;
+        async loadReviewsHandler(page = 0) {
             try {
-                const resp = await this.basketStore.loadReviews({ page, size: 20 });
-                this.reviews = resp.data || [];
-                this.reviews_paginate_object = resp.paginate || null;
+                await this.loadReviews({ page, size: 20 });
             } catch (error) {
                 console.error('Ошибка загрузки отзывов:', error);
                 this.$notify?.({
@@ -370,18 +481,20 @@ export default {
                     text: 'Ошибка загрузки отзывов',
                     type: 'error',
                 });
-            } finally {
-                this.isLoadingReviews = false;
             }
         },
 
-        async repeatOrder(item) {
+        // ==========================================
+        // Повтор заказа
+        // ==========================================
+        async repeatOrderHandler(item) {
             try {
-                const resp = await this.basketStore.repeatOrder({
-                    products: (item.product_details?.[0]?.products || []).map(o => o.title),
-                });
+                // Маппинг: API возвращает name, repeatOrder ожидает titles
+                const productTitles = (item.product_details?.[0]?.products || [])
+                    .map(p => p.name || p.title);
 
-                const currentProducts = resp.data || [];
+                const resp = await this.repeatOrder({ products: productTitles });
+                const currentProducts = resp?.data || resp || [];
 
                 if (currentProducts.length === 0) {
                     item.disabled = true;
@@ -393,10 +506,10 @@ export default {
                     return;
                 }
 
-                await this.basketStore.clearCart();
+                await this.clearCart();
 
                 for (const product of currentProducts) {
-                    await this.basketStore.addProductToCart(product);
+                    await this.addProductToCart(product);
                 }
 
                 this.$notify?.({
@@ -417,33 +530,95 @@ export default {
             }
         },
 
-        goToCatalog() {
-            this.$router.push({ name: 'Catalog' });
-        },
+        // ==========================================
+        // Вспомогательные функции (маппинг под формат API)
+        // ==========================================
 
-        // Получить товары заказа
+        /**
+         * Получить товары заказа
+         * API: order.product_details[0].products[]
+         */
         getOrderProducts(order) {
             return order.product_details?.[0]?.products || [];
         },
 
-        // Статус заказа
+        /**
+         * Количество товара
+         * API: product.count (а не product.quantity)
+         */
+        getProductQty(product) {
+            return product.count || product.quantity || 1;
+        },
+
+        /**
+         * Название товара
+         * API: product.name (а не product.title)
+         */
+        getProductName(product) {
+            return product.name || product.title || 'Товар';
+        },
+
+        /**
+         * Итого заказа
+         * API: order.summary_price (а не order.total)
+         */
+        getOrderTotal(order) {
+            return order.summary_price || order.total || 0;
+        },
+
+        /**
+         * Класс статуса заказа
+         * API: status — число (0, 1, 2, 3, 4, 5)
+         */
         getStatusClass(order) {
-            const status = (order.status || '').toLowerCase();
+            const status = String(order.status ?? '').toLowerCase();
+
+            const statusMap = {
+                '0': 'status-new',
+                '1': 'status-processing',
+                '2': 'status-completed',
+                '3': 'status-cancelled',
+                '4': 'status-processing',
+                '5': 'status-processing',
+            };
+
+            if (statusMap[status]) return statusMap[status];
+
+            // Фолбэк на строковые статусы
             if (status.includes('cancel') || status.includes('отмен')) return 'status-cancelled';
             if (status.includes('complet') || status.includes('выполн') || status.includes('доставлен')) return 'status-completed';
             if (status.includes('process') || status.includes('готов') || status.includes('в пути')) return 'status-processing';
+
             return 'status-new';
         },
 
+        /**
+         * Текстовое представление статуса
+         */
         getStatusText(order) {
-            const status = (order.status || '').toLowerCase();
+            const status = String(order.status ?? '').toLowerCase();
+
+            const statusTextMap = {
+                '0': 'Новый',
+                '1': 'В обработке',
+                '2': 'Выполнен',
+                '3': 'Отменён',
+                '4': 'Готов к доставке',
+                '5': 'Передан на кухню',
+            };
+
+            if (statusTextMap[status]) return statusTextMap[status];
+
             if (status.includes('cancel') || status.includes('отмен')) return 'Отменён';
             if (status.includes('complet') || status.includes('выполн') || status.includes('доставлен')) return 'Выполнен';
             if (status.includes('process') || status.includes('готов') || status.includes('в пути')) return 'В обработке';
+
             return 'Новый';
         },
 
-        // Форматирование даты и времени
+        /**
+         * Форматирование даты и времени
+         */
         formatDateTime(dateString) {
             if (!dateString) return '';
             const date = new Date(dateString);
@@ -453,7 +628,9 @@ export default {
             });
         },
 
-        // Форматирование цены
+        /**
+         * Форматирование цены
+         */
         formatPrice(price) {
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
@@ -462,7 +639,9 @@ export default {
             }).format(price || 0);
         },
 
-        // Склонение слов
+        /**
+         * Склонение слов
+         */
         pluralize(count, one, two, five) {
             const n = Math.abs(count) % 100;
             const n1 = n % 10;
@@ -1000,5 +1179,74 @@ export default {
     .product-item {
         font-size: 0.85rem;
     }
+}
+
+/* Добавляем стили */
+
+.review-actions {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.review-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    border: none;
+    border-radius: 12px;
+    color: #1a1a1a;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.review-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(255, 215, 0, 0.4);
+}
+
+.review-existing {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.review-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(25, 135, 84, 0.1);
+    border-radius: 20px;
+    color: #198754;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.review-edit-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bs-secondary-bg);
+    border: none;
+    color: var(--bs-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.review-edit-btn:hover {
+    background: var(--bs-primary);
+    color: white;
 }
 </style>

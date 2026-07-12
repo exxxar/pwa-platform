@@ -11,6 +11,14 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\Tenant\AchievementController;
+use App\Http\Controllers\Tenant\ClientsController;
+use App\Http\Controllers\Tenant\FavoriteController;
+use App\Http\Controllers\Tenant\PromoCodeController;
+use App\Http\Controllers\Tenant\StatisticController;
+use App\Http\Controllers\Tenant\UsersController;
+use App\Http\Controllers\Tenant\BroadcastController;
+use App\Http\Controllers\Tenant\OrderController;
+use App\Http\Controllers\Tenant\ReferralController;
 use App\Http\Controllers\Tenant\TenantAuthController;
 use App\Http\Controllers\Tenant\TenantPwaController;
 use App\Http\Controllers\Tenant\TenantSocialAuthController;
@@ -30,6 +38,26 @@ use App\Http\Controllers\Tenant\TenantEmailVerificationController;
 use Inertia\Inertia;
 use Jenssegers\Agent\Agent;
 
+$routesManager = function () {
+    Route::get('/job', function (Request $request) {
+
+        $agent = new Agent();
+
+        if ($agent->isMobile()) {
+            return redirect()->to('/agent', 301, [], false);
+        }
+
+        return view("job-landing");
+    });
+
+    Route::get('/agent/{any?}', [TenantAuthController::class, 'handlerAgent'])
+        ->where('any', '.*');
+
+    Route::get('/sw.js',  [TenantAuthController::class, 'serviceWorker']);
+
+    Route::get('/manifest.json', [TenantAuthController::class, 'manifest']);
+};
+
 $routes = function () {
 
 
@@ -46,46 +74,16 @@ $routes = function () {
         return view("landing");
     });
 
-    Route::get('/job', function (Request $request) {
-
-        $agent = new Agent();
-
-        if ($agent->isMobile()) {
-            return redirect()->to('/agent', 301, [], false);
-        }
-
-        return view("job-landing");
-    });
-
     Route::get('/shop/{any?}', [TenantAuthController::class, 'handlerShopLanding'])
         ->where('any', '.*');
 
-    Route::get('/agent/{any?}', [TenantAuthController::class, 'handlerAgent'])
-        ->where('any', '.*');
 
     Route::get('/pwa/{any?}', [TenantAuthController::class, 'handler'])
         ->where('any', '.*');
 
     Route::get('/manifest.json', [TenantAuthController::class, 'manifest']);
 
-    Route::get('/sw.js', function () {
-        $path = public_path('sw.js');
-
-        if (!file_exists($path)) {
-            abort(404);
-        }
-
-        $content = file_get_contents($path);
-
-        // Заменяем метку на реальную версию из .env
-        $content = str_replace('___MY_PROJECT_VERSION___', env('APP_VERSION', '1.0.0'), $content);
-
-        return response($content, 200, [
-            'Content-Type' => 'application/javascript',
-            'Service-Worker-Allowed' => '/pwa/',
-            'Cache-Control' => 'no-cache, no-store, must-revalidate',
-        ]);
-    });
+    Route::get('/sw.js',  [TenantAuthController::class, 'serviceWorker']);
 
 
     Route::post('/push/subscribe', function (Request $request) {
@@ -108,7 +106,7 @@ $routes = function () {
         return response()->json(['success' => true]);
     });
 
-    Route::get("/test-sub", function (){
+    Route::get("/test-sub", function () {
         $tenantUser = Auth::guard('tenant')->user();
 
         $tenantUserTMP = TenantUser::find($tenantUser->id);
@@ -122,8 +120,40 @@ $routes = function () {
 
     Route::get('/taplink', [TenantTapLinkController::class, 'index']);
 
+    Route::prefix('favorites')->middleware(['auth:tenant'])->group(function () {
+        Route::get('/', [FavoriteController::class, 'index']);
+        Route::get('/products', [FavoriteController::class, 'products']);
+        Route::post('/', [FavoriteController::class, 'store']);
+        Route::delete('/{productId}', [FavoriteController::class, 'destroy']);
+        Route::delete('/clear', [FavoriteController::class, 'clear']);
+    });
+
     Route::prefix('admin')->group(function () {
-        // Существующие роуты...
+
+        Route::prefix('clients')->middleware(['auth:tenant'])->group(function () {
+            Route::get('/{userId}', [ClientsController::class, 'show']);
+            Route::get('/{userId}/messages', [ClientsController::class, 'messages']);
+            Route::post('/{userId}/send', [ClientsController::class, 'sendMessage']);
+            Route::post('/{userId}/send-file', [ClientsController::class, 'sendFile']);
+            Route::post('/{userId}/read', [ClientsController::class, 'markAsRead']);
+            Route::delete('/messages/{messageId}', [ClientsController::class, 'deleteMessage']);
+        });
+
+
+        Route::prefix('statistic')->middleware(['auth:tenant'])->group(function () {
+            Route::get('/main', [StatisticController::class, 'main']);
+            Route::get('/traffic', [StatisticController::class, 'traffic']);
+            Route::get('/export', [StatisticController::class, 'export']);
+        });
+
+        Route::prefix('promocodes')->middleware(['auth:tenant'])->group(function () {
+            Route::get('/', [PromoCodeController::class, 'index']);
+            Route::post('/', [PromoCodeController::class, 'store']);
+            Route::get('/{id}', [PromoCodeController::class, 'show']);
+            Route::put('/{id}', [PromoCodeController::class, 'update']);
+            Route::delete('/{id}', [PromoCodeController::class, 'destroy']);
+            Route::post('/{id}/toggle-active', [PromoCodeController::class, 'toggleActive']);
+        });
 
         Route::prefix("tenant-settings")->group(function () {
             // 🆕 PWA
@@ -133,6 +163,39 @@ $routes = function () {
             Route::post('/pwa/upload-screenshot', [TenantPwaController::class, 'uploadScreenshot']);
             Route::delete('/pwa/icon', [TenantPwaController::class, 'deleteIcon']);
             Route::delete('/pwa/screenshot', [TenantPwaController::class, 'deleteScreenshot']);
+        });
+
+        Route::prefix('users')->middleware(['auth:tenant'])->group(function () {
+            Route::get('/search', [UsersController::class, 'search']);
+            Route::get('/download', [UsersController::class, 'download']);
+            Route::get('/cashback-history', [UsersController::class, 'cashbackHistory']);
+
+            Route::get('/{userId}/edit', [UsersController::class, 'edit']);
+            Route::put('/{userId}', [UsersController::class, 'update']);
+            Route::post('/{userId}/toggle-block', [UsersController::class, 'toggleBlock']);
+            Route::post('/{userId}/toggle-vip', [UsersController::class, 'toggleVip']);
+        });
+
+        Route::prefix('broadcasts')->middleware(['auth:tenant'])->group(function () {
+            Route::get('/', [BroadcastController::class, 'index']);
+            Route::post('/', [BroadcastController::class, 'store']);
+
+
+            Route::post('/{id}/send', [BroadcastController::class, 'send']);
+            Route::post('/{id}/cancel', [BroadcastController::class, 'cancel']);
+            Route::post('/{id}/duplicate', [BroadcastController::class, 'duplicate']);
+
+            // Медиа
+            Route::post('/{id}/media', [BroadcastController::class, 'uploadMedia']);
+            Route::delete('/media/{mediaId}', [BroadcastController::class, 'deleteMedia']);
+
+            // 🆕 Пользователи для рассылок
+            Route::get('/users', [BroadcastController::class, 'getUsers']);
+            Route::get('/recipients-count', [BroadcastController::class, 'getRecipientsCount']);
+
+            Route::get('/{id}', [BroadcastController::class, 'show']);
+            Route::put('/{id}', [BroadcastController::class, 'update']);
+            Route::delete('/{id}', [BroadcastController::class, 'destroy']);
         });
     });
 
@@ -198,7 +261,7 @@ $routes = function () {
         ->group(function () {
             Route::post('/', "loadProductsInBasket");
             Route::post('/checkout', "checkout")
-                ->middleware([ 'track.order']);
+                ->middleware(['track.order']);
             Route::post("/get-delivery-price-new", [ProductController::class, "getDeliveryPriceNew"]);
             Route::post('/checkout-link', "checkoutLink");
             Route::post("/use-wheel-of-fortune-prize", "useWheelOfFortunePrize");
@@ -219,10 +282,10 @@ $routes = function () {
 
     Route::prefix("achievements")
         ->group(function () {
-        Route::get('/', [AchievementController::class, 'index']);
-        Route::get('//stats', [AchievementController::class, 'stats']);
-        Route::post('//{id}/claim', [AchievementController::class, 'claimReward']);
-    });
+            Route::get('/', [AchievementController::class, 'index']);
+            Route::get('//stats', [AchievementController::class, 'stats']);
+            Route::post('//{id}/claim', [AchievementController::class, 'claimReward']);
+        });
 
     Route::prefix("stories")
         ->group(function () {
@@ -232,28 +295,48 @@ $routes = function () {
             Route::delete("/{id}", [StoryController::class, "destroy"]); // Удалить историю
         });
 
+    Route::prefix('referrals')
+        ->group(function () {
+            // Рефералы
+            Route::get('/tree', [ReferralController::class, 'tree']);
+            Route::get('/rewards', [ReferralController::class, 'rewards']);
+            Route::get('/link', [ReferralController::class, 'link']);
+
+            // Друзья
+            Route::get('/friends', [ReferralController::class, 'friends']);
+            Route::get('/friends/requests', [ReferralController::class, 'friendRequests']);
+            Route::post('/friends/request', [ReferralController::class, 'sendFriendRequest']);
+            Route::post('/friends/request/{requestId}/accept', [ReferralController::class, 'acceptFriendRequest']);
+            Route::post('/friends/request/{requestId}/reject', [ReferralController::class, 'rejectFriendRequest']);
+            Route::delete('/friends/{friendId}', [ReferralController::class, 'removeFriend']);
+        });
+
     Route::prefix("shop")
         ->group(function () {
             Route::prefix("orders")
                 ->group(function () {
-                    Route::post("/", [ProductController::class, "getOrders"]);
-                    Route::post("/send-sbp-invoice", [ProductController::class, "sendSBPInvoice"]);
-                    Route::post("/all", [ProductController::class, "getAllOrders"]);
-                    Route::post("/repeat-order", [ProductController::class, "repeatOrder"]);
-                    Route::post("/decline-order", [ProductController::class, "declineOrder"]);
-                    Route::post("/change-order-status", [ProductController::class, "changeStatusOrder"]);
-                    Route::post("/get-order-by-id", [ProductController::class, "loadOrderById"]);
-                    Route::post("/add-cashback-to-order", [ProductController::class, "addCashBackToOrder"]);
+                    Route::post("/", [OrderController::class, "getOrders"]);
+                    Route::post("/send-sbp-invoice", [OrderController::class, "sendSBPInvoice"]);
+                    Route::post("/all", [OrderController::class, "getAllOrders"]);
+                    Route::post("/repeat-order", [OrderController::class, "repeatOrder"]);
+                    Route::post("/decline-order", [OrderController::class, "declineOrder"]);
+                    Route::post("/change-order-status", [OrderController::class, "changeStatusOrder"]);
+                    Route::post("/get-order-by-id", [OrderController::class, "loadOrderById"]);
+                    Route::post("/add-cashback-to-order", [OrderController::class, "addCashBackToOrder"]);
 
-                    Route::post("/get-delivery-price", [ProductController::class, "getDeliveryPrice"]);
+                    Route::post("/get-delivery-price", [OrderController::class, "getDeliveryPrice"]);
                 });
 
             Route::prefix("reviews")
                 ->group(function () {
-                    Route::post("/", [ProductController::class, "getReviews"]);
-                    Route::post("/by-product-id", [ProductController::class, "getReviewsByProductId"]);
-                    Route::post("/store-review", [ProductController::class, "storeReview"]);
-                    Route::post("/notify-user", [ProductController::class, "notifyUser"]);
+
+                    Route::post("/", [OrderController::class, "getReviews"]);
+                    Route::post("/by-product-id", [OrderController::class, "getReviewsByProductId"]);
+                    Route::post("/can-review-order", [OrderController::class, "canReviewOrder"]);
+                    Route::post("/store-review", [OrderController::class, "storeReview"]);
+                    Route::put("/update-review/{id}", [OrderController::class, "updateReview"]);
+                    Route::delete("/delete-review/{id}", [OrderController::class, "deleteReview"]);
+                    Route::post("/notify-user", [OrderController::class, "notifyUser"]);
                 });
 
             Route::prefix("products")
@@ -354,18 +437,21 @@ $routes = function () {
             Route::post("/remove/{collectionId}", "destroy");
             Route::post("/duplicate/{collectionId}", "duplicate");
         });
+
+
 };
 
-if (env("APP_DEBUG") ?? false) {
+if (config('app.debug') ?? false) {
     Route::domain('localhost')->group($routes);
     Route::domain('127.0.0.1')->group($routes);
 }
 
 
-Route::domain('{tenant}.mypwa.ru')->group($routes);
-Route::domain('{tenant}.pwa-platform.test')->group($routes);
+Route::domain('{tenant}.mypwa.ru')->group($routesManager);
+Route::domain('{tenant}.pwa-platform.test')->group($routesManager);
 
-
+Route::domain('job.mypwa.ru')->group($routes);
+Route::domain('job.pwa-platform.test')->group($routes);
 
 
 Route::get('/auth/vk/redirect', [TenantSocialAuthController::class, 'redirect']);

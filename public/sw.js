@@ -11,6 +11,7 @@ const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 // Что кэшируем сразу при установке (App Shell)
 // ==========================================
 const PRECACHE_URLS = [
+    'pwa-lazy.jpg',
     '/pwa/',                          // index.html (точка входа Vue)
     '/offline.html',                  // fallback при оффлайне
     // Пути к критичной статике добавятся автоматически через manifest

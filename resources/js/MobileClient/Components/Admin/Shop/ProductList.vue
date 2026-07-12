@@ -495,7 +495,7 @@ import { mapState, mapActions } from 'pinia'
 import { useProductsStore } from '@/MobileClient/stores/Shop/products'
 import ProductForm from '@/MobileClient/Components/Admin/Shop/ProductForm.vue'
 import Pagination from '@/MobileClient/Components/Pagination.vue'
-import ReviewCard from '@/MobileClient/Components/Shop/ReviewCard.vue'
+import ReviewCard from '@/MobileClient/Components/Shop/Reviews/ReviewCard.vue'
 
 export default {
     name: 'ProductList',

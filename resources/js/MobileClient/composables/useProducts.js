@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useProductsStore } from '@/stores/products.js';
+import { useProductsStore } from '@/MobileClient/stores/Shop/products.js';
 
 /**
  * Composable для работы с товарами и категориями

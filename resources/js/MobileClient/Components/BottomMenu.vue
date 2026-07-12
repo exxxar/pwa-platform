@@ -39,14 +39,17 @@
 
 <script>
 import { useBasket } from '@/MobileClient/Composables/useBasket.js';
+import { useChat } from '@/MobileClient/Composables/useChat.js';
 
 export default {
     name: "BottomMenu",
 
     setup() {
         const basket = useBasket();
+        const chat = useChat();
 
         return {
+            totalUnread: chat.totalUnread,
             cartTotalCount: basket.cartTotalCount,
             isEmpty: basket.isEmpty,
         };
@@ -76,7 +79,7 @@ export default {
                     route: 'Chat',
                     label: 'Чат',
                     icon: 'fa-regular fa-comments',
-                    badge: () => 10,
+                    badge: () => this.totalUnread,
                     hasItems: () => true,
                 },
                 {
@@ -116,7 +119,7 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 1030;
+    z-index: 999;
     padding: 8px;
     background: transparent;
     pointer-events: none;

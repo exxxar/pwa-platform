@@ -26,10 +26,13 @@
         <!-- ========================================== -->
         <!-- ПЛАВАЮЩАЯ КНОПКА СОЗДАНИЯ (FAB) -->
         <!-- ========================================== -->
-        <button class="fab-button" @click="openCreateModal">
-            <i class="fa-solid fa-plus"></i>
-            <span>Создать промокод</span>
-        </button>
+        <div class="d-flex w-100 p-3">
+            <button class="fab-button" @click="openCreateModal">
+                <i class="fa-solid fa-plus"></i>
+                <span>Создать промокод</span>
+            </button>
+        </div>
+
 
         <!-- ========================================== -->
         <!-- МОДАЛКА: ФОРМА ПРОМОКОДА -->
@@ -74,7 +77,7 @@ export default {
     props: {
         bot: {
             type: Object,
-            required: true,
+            default: null,
         },
     },
 
@@ -82,39 +85,18 @@ export default {
         return {
             showModal: false,
             selectedPromoCode: null,
-            formKey: 0, // Используется для принудительного пересоздания формы
+            formKey: 0,
         }
     },
 
-    computed: {
-
-    },
-
-    mounted() {
-
-    },
-
-    beforeUnmount() {
-
-    },
-
     methods: {
-        handleBackButton() {
-            if (this.showModal) {
-                this.closeModal()
-            } else {
-                this.$router.back()
-            }
-        },
-
         openCreateModal() {
             this.selectedPromoCode = null
-            this.formKey++ // Сбрасываем состояние формы
+            this.formKey++
             this.showModal = true
         },
 
         openEditModal(code) {
-            // Создаем копию объекта, чтобы избежать прямой мутации пропсов в дочернем компоненте
             this.selectedPromoCode = { ...code }
             this.formKey++
             this.showModal = true
@@ -127,20 +109,11 @@ export default {
 
         onFormCallback() {
             this.closeModal()
-            // Можно добавить уведомление здесь или внутри PromoCodesForm
             this.$notify?.({
-                title: 'Успех',
-                text: 'Промокод успешно сохранен',
+                title: 'Успешно',
+                text: 'Промокод сохранён',
                 type: 'success',
             })
-
-            // Сообщаем списку, что нужно обновить данные (если он поддерживает это событие)
-            // Если PromoCodesList сам следит за изменениями, эту строку можно убрать
-            this.$emit('refresh-list')
-        },
-
-        onPromoCodeRefresh() {
-            // Дополнительная логика при обновлении списка, если нужна
         },
     },
 }
@@ -209,10 +182,6 @@ $admin-danger: #ef4444;
 // ПЛАВАЮЩАЯ КНОПКА (FAB)
 // ==========================================
 .fab-button {
-    position: fixed;
-    bottom: calc(16px + env(safe-area-inset-bottom));
-    left: 16px;
-    right: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -227,7 +196,7 @@ $admin-danger: #ef4444;
     cursor: pointer;
     box-shadow: 0 8px 24px rgba($admin-primary, 0.3);
     transition: all 0.2s ease;
-    z-index: 40;
+    width: 100%;
 
     &:active {
         transform: scale(0.96);

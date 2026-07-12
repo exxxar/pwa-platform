@@ -1,264 +1,235 @@
 <template>
-    <form class="promo-form" @submit.prevent="submitForm">
+    <form @submit.prevent="save" class="promo-form">
 
-        <!-- ========================================== -->
-        <!-- ОСНОВНАЯ ИНФОРМАЦИЯ -->
-        <!-- ========================================== -->
+        <!-- Код промокода -->
         <div class="form-section">
-            <div class="section-title">
+            <h4 class="section-title">
                 <i class="fa-solid fa-ticket"></i>
-                Основная информация
-            </div>
+                Промокод
+            </h4>
 
-            <div class="form-group">
-                <label class="form-label" for="promo-code">
-                    <i class="fa-solid fa-barcode"></i>
-                    Текст промокода <span class="required">*</span>
+            <div class="form-field">
+                <label>
+                    Код
+                    <span class="required">*</span>
                 </label>
-                <input
-                    id="promo-code"
-                    type="text"
-                    v-model="promoCodeForm.code"
-                    class="form-input"
-                    placeholder="Например: SUMMER2025"
-                    maxlength="255"
-                    required
-                    :disabled="isLoading"
-                >
-                <span v-if="errors.code" class="form-error">{{ errors.code }}</span>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="promo-description">
-                    <i class="fa-solid fa-align-left"></i>
-                    Назначение промокода <span class="required">*</span>
-                    <span v-if="promoCodeForm.description" class="char-count">
-                        {{ promoCodeForm.description.length }}/255
-                    </span>
-                </label>
-                <textarea
-                    id="promo-description"
-                    v-model="promoCodeForm.description"
-                    class="form-textarea"
-                    placeholder="Например: Скидка 10% на первый заказ"
-                    maxlength="255"
-                    rows="2"
-                    required
-                    :disabled="isLoading"
-                ></textarea>
-                <span v-if="errors.description" class="form-error">{{ errors.description }}</span>
-            </div>
-
-            <!-- Статус -->
-            <div class="setting-row">
-                <div class="setting-info">
-                    <div class="setting-icon">
-                        <i class="fa-solid fa-toggle-on"></i>
-                    </div>
-                    <div class="setting-text">
-                        <h4 class="setting-title">Доступен для активации</h4>
-                        <p class="setting-description">Клиенты смогут использовать этот промокод</p>
-                    </div>
-                </div>
-                <div class="switch-control">
+                <div class="code-input-wrapper">
                     <input
-                        id="promo-is-active"
-                        type="checkbox"
-                        v-model="promoCodeForm.is_active"
-                        class="switch-input"
-                        :disabled="isLoading"
+                        type="text"
+                        v-model="form.code"
+                        placeholder="SUMMER2024"
+                        :class="{ 'has-error': errors.code }"
+                        @input="normalizeCode"
+                        :disabled="isEdit"
                     >
-                    <span class="switch-slider"></span>
+                    <button
+                        type="button"
+                        class="generate-btn"
+                        @click="generateCode"
+                        :disabled="isEdit"
+                        title="Сгенерировать"
+                    >
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
                 </div>
+                <span v-if="errors.code" class="field-error">{{ errors.code }}</span>
+                <span class="field-hint">Только заглавные буквы и цифры</span>
+            </div>
+
+            <div class="form-field">
+                <label>Описание</label>
+                <textarea
+                    v-model="form.description"
+                    rows="2"
+                    placeholder="Например: Летняя акция 2024"
+                ></textarea>
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- ПАРАМЕТРЫ СКИДКИ -->
-        <!-- ========================================== -->
+        <!-- Скидка -->
         <div class="form-section">
-            <div class="section-title">
+            <h4 class="section-title">
                 <i class="fa-solid fa-percent"></i>
-                Параметры скидки
+                Скидка
+            </h4>
+
+            <div class="discount-type-selector">
+                <button
+                    type="button"
+                    class="type-btn"
+                    :class="{ 'is-active': form.discount_type === 'percent' }"
+                    @click="form.discount_type = 'percent'"
+                >
+                    <i class="fa-solid fa-percent"></i>
+                    <span>Процент</span>
+                </button>
+                <button
+                    type="button"
+                    class="type-btn"
+                    :class="{ 'is-active': form.discount_type === 'fixed' }"
+                    @click="form.discount_type = 'fixed'"
+                >
+                    <i class="fa-solid fa-ruble-sign"></i>
+                    <span>Фиксированная</span>
+                </button>
             </div>
 
-            <!-- Тип скидки -->
-            <div class="setting-row">
-                <div class="setting-info">
-                    <div class="setting-icon">
-                        <i class="fa-solid fa-sliders"></i>
-                    </div>
-                    <div class="setting-text">
-                        <h4 class="setting-title">Тип скидки</h4>
-                        <p class="setting-description">
-                            {{ promoCodeForm.config.discount_in_percent ? 'Процент от суммы заказа' : 'Фиксированная сумма в рублях' }}
-                        </p>
-                    </div>
-                </div>
-                <div class="switch-control">
-                    <input
-                        id="promo-percent"
-                        type="checkbox"
-                        v-model="promoCodeForm.config.discount_in_percent"
-                        class="switch-input"
-                        :disabled="isLoading"
-                    >
-                    <span class="switch-slider"></span>
-                </div>
-            </div>
-
-            <!-- Величина скидки (единое поле с динамическим суффиксом) -->
-            <div class="form-group">
-                <label class="form-label" for="promo-amount">
-                    <i class="fa-solid fa-coins"></i>
-                    Величина скидки <span class="required">*</span>
+            <div class="form-field">
+                <label>
+                    Размер скидки
+                    <span class="required">*</span>
                 </label>
                 <div class="input-with-suffix">
                     <input
-                        id="promo-amount"
                         type="number"
-                        v-model.number="promoCodeForm.cashback_amount"
-                        class="form-input"
-                        :placeholder="promoCodeForm.config.discount_in_percent ? '50' : '100'"
-                        :min="1"
-                        :max="promoCodeForm.config.discount_in_percent ? 100 : null"
+                        v-model.number="form.discount"
+                        :min="form.discount_type === 'percent' ? 1 : 0"
+                        :max="form.discount_type === 'percent' ? 100 : 999999"
                         step="1"
-                        required
-                        :disabled="isLoading"
+                        placeholder="0"
+                        :class="{ 'has-error': errors.discount }"
                     >
                     <span class="input-suffix">
-                        {{ promoCodeForm.config.discount_in_percent ? '%' : '₽' }}
+                        {{ form.discount_type === 'percent' ? '%' : '₽' }}
                     </span>
                 </div>
-                <span v-if="errors.cashback_amount" class="form-error">{{ errors.cashback_amount }}</span>
-                <span class="form-hint">
-                    {{ promoCodeForm.config.discount_in_percent
-                    ? 'От 1 до 100 процентов'
-                    : 'Фиксированная сумма в рублях' }}
-                </span>
+                <span v-if="errors.discount" class="field-error">{{ errors.discount }}</span>
             </div>
 
-            <!-- Максимум активаций -->
-            <div class="form-group">
-                <label class="form-label" for="promo-max-count">
-                    <i class="fa-solid fa-hashtag"></i>
-                    Максимум активаций <span class="required">*</span>
-                </label>
-                <input
-                    id="promo-max-count"
-                    type="number"
-                    v-model.number="promoCodeForm.max_activation_count"
-                    class="form-input"
-                    placeholder="1"
-                    min="1"
-                    step="1"
-                    required
-                    :disabled="isLoading"
-                >
-                <span class="form-hint">Сколько раз можно использовать этот промокод</span>
-            </div>
-        </div>
-
-        <!-- ========================================== -->
-        <!-- ОГРАНИЧЕНИЯ -->
-        <!-- ========================================== -->
-        <div class="form-section">
-            <div class="section-title">
-                <i class="fa-solid fa-lock"></i>
-                Ограничения
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="promo-activate-price">
-                    <i class="fa-solid fa-ruble-sign"></i>
-                    Минимальная сумма заказа
-                </label>
+            <div class="form-field">
+                <label>Минимальная сумма заказа</label>
                 <div class="input-with-suffix">
                     <input
-                        id="promo-activate-price"
                         type="number"
-                        v-model.number="promoCodeForm.activate_price"
-                        class="form-input"
-                        placeholder="0"
+                        v-model.number="form.min_order_amount"
                         min="0"
                         step="1"
-                        :disabled="isLoading"
+                        placeholder="0 — без ограничений"
                     >
                     <span class="input-suffix">₽</span>
                 </div>
-                <span class="form-hint">Промокод сработает только при заказе от этой суммы</span>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="promo-available-to">
-                    <i class="fa-solid fa-calendar-days"></i>
-                    Действует до
-                </label>
-                <input
-                    id="promo-available-to"
-                    type="datetime-local"
-                    v-model="promoCodeForm.available_to"
-                    class="form-input"
-                    :disabled="isLoading"
-                >
-                <span class="form-hint">Оставьте пустым, если срок не ограничен</span>
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- СЕРТИФИКАТ -->
-        <!-- ========================================== -->
+        <!-- Срок действия -->
         <div class="form-section">
-            <div class="section-title">
-                <i class="fa-solid fa-award"></i>
-                Сертификат
+            <h4 class="section-title">
+                <i class="fa-solid fa-calendar"></i>
+                Срок действия
+
+            </h4>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Начало действия
+                        <span class="required">*</span>
+                    </label>
+                    <input
+                        type="date"
+                        v-model="form.starts_at"
+                        :class="{ 'has-error': errors.starts_at }"
+                    >
+                    <span v-if="errors.starts_at" class="field-error">{{ errors.starts_at }}</span>
+                </div>
+
+                <div class="form-field">
+                    <label>Окончание
+                        <span class="required">*</span>
+                    </label>
+                    <input
+                        type="date"
+                        v-model="form.expires_at"
+                        :min="form.starts_at || today"
+                    >
+                </div>
             </div>
 
-            <div class="setting-row">
-                <div class="setting-info">
-                    <div class="setting-icon">
-                        <i class="fa-solid fa-certificate"></i>
-                    </div>
-                    <div class="setting-text">
-                        <h4 class="setting-title">Красивый сертификат</h4>
-                        <p class="setting-description">Сгенерировать изображение-сертификат для промокода</p>
-                    </div>
-                </div>
-                <div class="switch-control">
-                    <input
-                        id="promo-certificate"
-                        type="checkbox"
-                        v-model="promoCodeForm.need_certificate"
-                        class="switch-input"
-                        :disabled="isLoading"
-                    >
-                    <span class="switch-slider"></span>
-                </div>
+            <div class="form-field">
+                <label>Лимит использований</label>
+                <input
+                    type="number"
+                    v-model.number="form.usage_limit"
+                    min="0"
+                    placeholder="0 — без ограничений"
+                >
+                <span class="field-hint">Сколько раз можно активировать промокод</span>
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- ДЕЙСТВИЯ -->
-        <!-- ========================================== -->
+        <!-- Дополнительно -->
+        <div class="form-section">
+            <h4 class="section-title">
+                <i class="fa-solid fa-sliders"></i>
+                Дополнительно
+            </h4>
+
+            <div class="toggle-card">
+                <div class="toggle-info">
+                    <div class="toggle-icon">
+                        <i class="fa-solid fa-user-check"></i>
+                    </div>
+                    <div>
+                        <h5>Только для новых пользователей</h5>
+                        <p>Промокод доступен только при первой покупке</p>
+                    </div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" v-model="form.for_new_users">
+                    <span class="switch-slider"></span>
+                </label>
+            </div>
+
+            <div class="toggle-card">
+                <div class="toggle-info">
+                    <div class="toggle-icon">
+                        <i class="fa-solid fa-crown"></i>
+                    </div>
+                    <div>
+                        <h5>Только для VIP</h5>
+                        <p>Доступно только VIP-клиентам</p>
+                    </div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" v-model="form.for_vip">
+                    <span class="switch-slider"></span>
+                </label>
+            </div>
+
+            <div class="toggle-card">
+                <div class="toggle-info">
+                    <div class="toggle-icon">
+                        <i class="fa-solid fa-toggle-on"></i>
+                    </div>
+                    <div>
+                        <h5>Активен</h5>
+                        <p>Промокод сразу доступен пользователям</p>
+                    </div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" v-model="form.is_active">
+                    <span class="switch-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Действия -->
         <div class="form-actions">
             <button
                 type="button"
-                class="btn-secondary-modern"
+                class="action-btn cancel"
                 @click="$emit('cancel')"
-                :disabled="isLoading"
+                :disabled="promocodes.isSaving"
             >
                 Отмена
             </button>
             <button
                 type="submit"
-                class="btn-primary-modern"
-                :disabled="isLoading || !isValid"
+                class="action-btn save"
+                :disabled="promocodes.isSaving"
             >
-                <span v-if="isLoading" class="spinner-small"></span>
-                <template v-else>
-                    <i class="fa-solid fa-floppy-disk"></i>
-                    {{ promoCodeForm.id ? 'Обновить' : 'Создать' }}
-                </template>
+                <span v-if="promocodes.isSaving" class="btn-spinner"></span>
+                <i v-else class="fa-solid fa-check"></i>
+                <span>{{ promocodes.isSaving ? 'Сохранение...' : (isEdit ? 'Сохранить' : 'Создать') }}</span>
             </button>
         </div>
 
@@ -266,6 +237,8 @@
 </template>
 
 <script>
+import { usePromocodes } from '@/MobileClient/Composables/usePromocodes.js';
+
 export default {
     name: 'PromoCodesForm',
 
@@ -278,308 +251,434 @@ export default {
 
     emits: ['callback', 'cancel'],
 
+    setup() {
+        const promocodes = usePromocodes();
+        return { ...promocodes };
+    },
+
     data() {
         return {
-            isLoading: false,
-            promoCodeForm: this.getEmptyForm(),
-            errors: {
+            form: {
                 code: '',
                 description: '',
-                cashback_amount: '',
+                discount_type: 'percent',
+                discount: 0,
+                min_order_amount: 0,
+                starts_at: '',
+                expires_at: '',
+                usage_limit: 0,
+                for_new_users: false,
+                for_vip: false,
+                is_active: true,
             },
-        }
+            errors: {},
+        };
     },
 
     computed: {
-        bot() {
-            return window.currentBot
+        isEdit() {
+            return !!this.code?.id;
         },
 
-        isValid() {
-            return (
-                this.promoCodeForm.code?.trim().length > 0 &&
-                this.promoCodeForm.description?.trim().length > 0 &&
-                this.promoCodeForm.cashback_amount > 0 &&
-                this.promoCodeForm.max_activation_count > 0
-            )
+        today() {
+            return new Date().toISOString().split('T')[0];
         },
     },
 
     watch: {
-        // Если включили процент, но значение > 100 — сбрасываем до 50
-        'promoCodeForm.config.discount_in_percent'(isPercent) {
-            if (isPercent && this.promoCodeForm.cashback_amount > 100) {
-                this.promoCodeForm.cashback_amount = 50
-            }
+        code: {
+            immediate: true,
+            handler(code) {
+                if (code) {
+                    this.initializeForm(code);
+                } else {
+                    this.resetForm();
+                }
+            },
         },
-    },
-
-    mounted() {
-        if (this.code) {
-            this.promoCodeForm = {
-                id: this.code.id || null,
-                code: this.code.code || '',
-                description: this.code.description || '',
-                cashback_amount: this.code.cashback_amount || 0,
-                max_activation_count: this.code.max_activation_count || 1,
-                is_active: this.code.is_active ?? true,
-                available_to: this.formatDateForInput(this.code.available_to),
-                activate_price: this.code.activate_price || 0,
-                need_certificate: this.code.need_certificate ?? true,
-                config: {
-                    discount_in_percent: this.code.config?.discount_in_percent ?? false,
-                },
-            }
-        }
     },
 
     methods: {
-        getEmptyForm() {
-            return {
-                id: null,
+        initializeForm(code) {
+            this.form = {
+                code: code.code || '',
+                description: code.description || '',
+                discount_type: code.discount_type || 'percent',
+                discount: code.discount || 0,
+                min_order_amount: code.min_order_amount || 0,
+                starts_at: code.starts_at ? code.starts_at.split(' ')[0] : '',
+                expires_at: code.expires_at ? code.expires_at.split(' ')[0] : '',
+                usage_limit: code.usage_limit || 0,
+                for_new_users: !!code.for_new_users,
+                for_vip: !!code.for_vip,
+                is_active: code.is_active ?? true,
+            };
+        },
+
+        resetForm() {
+            this.form = {
                 code: '',
                 description: '',
-                cashback_amount: 0,
-                max_activation_count: 1,
+                discount_type: 'percent',
+                discount: 0,
+                min_order_amount: 0,
+                starts_at: '',
+                expires_at: '',
+                usage_limit: 0,
+                for_new_users: false,
+                for_vip: false,
                 is_active: true,
-                available_to: null,
-                activate_price: 0,
-                need_certificate: true,
-                config: {
-                    discount_in_percent: false,
-                },
-            }
+            };
+            this.errors = {};
         },
 
-        // Конвертируем дату в формат для input[type=datetime-local]
-        formatDateForInput(dateString) {
-            if (!dateString) return null
-
-            // Если уже в формате YYYY-MM-DDTHH:MM — возвращаем как есть
-            if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateString)) {
-                return dateString.slice(0, 16)
-            }
-
-            // Пробуем использовать глобальный фильтр, если он есть
-            if (this.$filters?.local) {
-                try {
-                    const formatted = this.$filters.local(dateString)
-                    if (formatted && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(formatted)) {
-                        return formatted.slice(0, 16)
-                    }
-                } catch (e) {
-                    // ignore
-                }
-            }
-
-            // Fallback: нативное форматирование
-            try {
-                const date = new Date(dateString)
-                if (isNaN(date.getTime())) return null
-                const pad = (n) => String(n).padStart(2, '0')
-                return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-            } catch (e) {
-                return null
-            }
+        normalizeCode() {
+            this.form.code = this.form.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
         },
 
-        validateForm() {
-            this.errors.code = ''
-            this.errors.description = ''
-            this.errors.cashback_amount = ''
-
-            let isValid = true
-
-            if (!this.promoCodeForm.code?.trim()) {
-                this.errors.code = 'Введите текст промокода'
-                isValid = false
+        generateCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 8; i++) {
+                code += chars[Math.floor(Math.random() * chars.length)];
             }
-
-            if (!this.promoCodeForm.description?.trim()) {
-                this.errors.description = 'Укажите назначение промокода'
-                isValid = false
-            }
-
-            if (!this.promoCodeForm.cashback_amount || this.promoCodeForm.cashback_amount <= 0) {
-                this.errors.cashback_amount = 'Укажите величину скидки'
-                isValid = false
-            } else if (this.promoCodeForm.config.discount_in_percent && this.promoCodeForm.cashback_amount > 100) {
-                this.errors.cashback_amount = 'Процент скидки не может быть больше 100'
-                isValid = false
-            }
-
-            return isValid
+            this.form.code = code;
         },
 
-        async submitForm() {
-            if (!this.validateForm()) return
+        validate() {
+            this.errors = {};
 
-            this.isLoading = true
+            if (!this.form.code || this.form.code.length < 3) {
+                this.errors.code = 'Код должен содержать минимум 3 символа';
+            }
 
-            try {
-                const data = new FormData()
+            if (!this.form.discount || this.form.discount <= 0) {
+                this.errors.discount = 'Укажите размер скидки';
+            }
 
-                Object.keys(this.promoCodeForm).forEach(key => {
-                    const item = this.promoCodeForm[key]
-                    if (item === null || item === undefined) return
+            if (this.form.discount_type === 'percent' && this.form.discount > 100) {
+                this.errors.discount = 'Процент не может быть больше 100';
+            }
 
-                    if (typeof item === 'object') {
-                        data.append(key, JSON.stringify(item))
-                    } else {
-                        data.append(key, item)
-                    }
-                })
+            if (!this.form.starts_at) {
+                this.errors.starts_at = 'Укажите дату начала';
+            }
 
-                data.append('bot_id', this.bot?.id)
+            if (this.form.expires_at && this.form.starts_at &&
+                this.form.expires_at < this.form.starts_at) {
+                this.errors.expires_at = 'Дата окончания должна быть позже начала';
+            }
 
-                const response = await this.$store.dispatch('storePromoCodes', {
-                    promoCodeForm: data,
-                })
+            return Object.keys(this.errors).length === 0;
+        },
 
-                this.$notify?.({
-                    title: 'Успех',
-                    text: this.promoCodeForm.id ? 'Промокод обновлён' : 'Промокод создан',
-                    type: 'success',
-                })
-
-                // Сбрасываем форму
-                this.promoCodeForm = this.getEmptyForm()
-
-                this.$emit('callback', response?.data)
-            } catch (err) {
-                console.error('Ошибка сохранения промокода:', err)
+        async save() {
+            if (!this.validate()) {
                 this.$notify?.({
                     title: 'Ошибка',
-                    text: 'Не удалось сохранить промокод',
+                    text: 'Проверьте правильность заполнения полей',
                     type: 'error',
-                })
-            } finally {
-                this.isLoading = false
+                });
+                return;
+            }
+
+            try {
+                if (this.isEdit) {
+                    await this.updatePromocode(this.code.id, this.form);
+                } else {
+                    await this.createPromocode(this.form);
+                }
+
+                this.$emit('callback');
+            } catch (error) {
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось сохранить',
+                    type: 'error',
+                });
             }
         },
     },
-}
+};
 </script>
 
 <style lang="scss" scoped>
-@use "sass:color";
-$admin-bg: #f4f6f9;
-$admin-card-bg: #ffffff;
-$admin-text: #2c3e50;
-$admin-text-muted: #6c757d;
-$admin-border: #e9ecef;
-$admin-primary: #3b82f6;
-$admin-success: #10b981;
-$admin-danger: #ef4444;
+$primary: #667eea;
+$primary-dark: #5a67d8;
+$success: #10b981;
+$danger: #ef4444;
+$warning: #f59e0b;
+$purple: #8b5cf6;
+$bg: var(--bs-body-bg, #ffffff);
+$bg-secondary: var(--bs-secondary-bg, #f8f9fa);
+$text: var(--bs-body-color, #1f2937);
+$text-muted: var(--bs-secondary-color, #6b7280);
+$border: var(--bs-border-color, #e5e7eb);
 
 .promo-form {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
 }
 
-// ==========================================
-// СЕКЦИИ
-// ==========================================
 .form-section {
-    background: $admin-card-bg;
-    border: 1px solid $admin-border;
-    border-radius: 12px;
+    background: $bg;
+    border: 1px solid $border;
+    border-radius: 14px;
     padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
 }
 
 .section-title {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: $admin-text;
-    padding-bottom: 8px;
-    border-bottom: 1px solid $admin-border;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: $text;
+    margin: 0 0 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid $border;
 
     i {
-        color: $admin-primary;
+        color: $primary;
     }
 }
 
-// ==========================================
-// НАСТРОЙКИ (SWITCH)
-// ==========================================
-.setting-row {
+.form-field {
+    margin-bottom: 14px;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+
+    label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: $text;
+        margin-bottom: 6px;
+
+        .required {
+            color: $danger;
+        }
+    }
+
+    input,
+    textarea,
+    select {
+        width: 100%;
+        padding: 10px 12px;
+        background: $bg;
+        border: 1.5px solid $border;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        color: $text;
+        font-family: inherit;
+        transition: all 0.2s;
+
+        &:focus {
+            outline: none;
+            border-color: $primary;
+            box-shadow: 0 0 0 3px rgba($primary, 0.1);
+        }
+
+        &.has-error {
+            border-color: $danger;
+        }
+
+        &:disabled {
+            background: $bg-secondary;
+            cursor: not-allowed;
+        }
+    }
+
+    textarea {
+        resize: vertical;
+        min-height: 60px;
+    }
+
+    .field-error {
+        display: block;
+        margin-top: 4px;
+        font-size: 0.75rem;
+        color: $danger;
+    }
+
+    .field-hint {
+        display: block;
+        margin-top: 4px;
+        font-size: 0.75rem;
+        color: $text-muted;
+    }
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+// Код
+.code-input-wrapper {
+    display: flex;
+    gap: 8px;
+}
+
+.generate-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, $purple, #7c3aed);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    transition: all 0.2s;
+    flex-shrink: 0;
+
+    &:hover:not(:disabled) {
+        transform: scale(1.05);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+// Тип скидки
+.discount-type-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.type-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    background: $bg-secondary;
+    border: 2px solid $border;
+    border-radius: 10px;
+    color: $text-muted;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        border-color: $primary;
+        color: $primary;
+    }
+
+    &.is-active {
+        background: rgba($primary, 0.08);
+        border-color: $primary;
+        color: $primary;
+    }
+}
+
+// Input с суффиксом
+.input-with-suffix {
+    display: flex;
+    align-items: stretch;
+
+    input {
+        flex: 1;
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+
+    .input-suffix {
+        padding: 10px 14px;
+        background: $bg-secondary;
+        border: 1.5px solid $border;
+        border-left: none;
+        border-radius: 0 10px 10px 0;
+        font-weight: 700;
+        color: $primary;
+        display: flex;
+        align-items: center;
+    }
+}
+
+// Toggle-карточки
+.toggle-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 4px 0;
+    padding: 12px;
+    background: $bg-secondary;
+    border: 1px solid $border;
+    border-radius: 10px;
+    margin-bottom: 10px;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
 }
 
-.setting-info {
+.toggle-info {
     display: flex;
     align-items: center;
     gap: 12px;
     flex: 1;
     min-width: 0;
+
+    h5 {
+        margin: 0 0 2px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: $text;
+    }
+
+    p {
+        margin: 0;
+        font-size: 0.7rem;
+        color: $text-muted;
+    }
 }
 
-.setting-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: rgba($admin-primary, 0.1);
-    color: $admin-primary;
+.toggle-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba($primary, 0.1);
+    color: $primary;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
-    flex-shrink: 0;
-}
-
-.setting-text {
-    flex: 1;
-    min-width: 0;
-}
-
-.setting-title {
     font-size: 0.9rem;
-    font-weight: 600;
-    color: $admin-text;
-    margin: 0 0 2px 0;
-}
-
-.setting-description {
-    font-size: 0.75rem;
-    color: $admin-text-muted;
-    margin: 0;
-    line-height: 1.3;
-}
-
-.switch-control {
-    position: relative;
-    width: 48px;
-    height: 28px;
     flex-shrink: 0;
 }
 
-.switch-input {
-    opacity: 0;
-    width: 0;
-    height: 0;
+// Switch
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 26px;
+    flex-shrink: 0;
 
-    &:checked + .switch-slider {
-        background: $admin-primary;
+    input {
+        opacity: 0;
+        width: 0;
+        height: 0;
 
-        &::before {
-            transform: translateX(20px);
+        &:checked + .switch-slider {
+            background: $primary;
+
+            &::before {
+                transform: translateX(18px);
+            }
         }
-    }
-
-    &:disabled + .switch-slider {
-        opacity: 0.5;
-        cursor: not-allowed;
     }
 }
 
@@ -587,192 +686,74 @@ $admin-danger: #ef4444;
     position: absolute;
     cursor: pointer;
     inset: 0;
-    background: $admin-border;
+    background: $border;
+    border-radius: 26px;
     transition: 0.3s;
-    border-radius: 28px;
 
     &::before {
         position: absolute;
         content: '';
-        height: 22px;
-        width: 22px;
+        height: 20px;
+        width: 20px;
         left: 3px;
         bottom: 3px;
         background: white;
-        transition: 0.3s;
         border-radius: 50%;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: 0.3s;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     }
 }
 
-// ==========================================
-// ФОРМЫ
-// ==========================================
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.form-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: $admin-text;
-
-    i {
-        color: $admin-primary;
-        font-size: 0.85rem;
-    }
-
-    .required {
-        color: $admin-danger;
-        font-weight: 700;
-    }
-
-    .char-count {
-        margin-left: auto;
-        font-size: 0.75rem;
-        color: $admin-text-muted;
-        font-weight: 400;
-    }
-}
-
-.form-input,
-.form-textarea {
-    padding: 12px 16px;
-    border: 1px solid $admin-border;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    color: $admin-text;
-    background: $admin-card-bg;
-    transition: all 0.2s;
-    min-height: 48px;
-    font-family: inherit;
-    width: 100%;
-
-    &:focus {
-        outline: none;
-        border-color: $admin-primary;
-        box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
-    }
-
-    &:disabled {
-        background: $admin-bg;
-        cursor: not-allowed;
-        opacity: 0.6;
-    }
-
-    &::placeholder {
-        color: $admin-text-muted;
-    }
-}
-
-.form-textarea {
-    resize: vertical;
-    min-height: 70px;
-    line-height: 1.5;
-}
-
-// Поле с суффиксом (% или ₽)
-.input-with-suffix {
-    position: relative;
-    display: flex;
-    align-items: center;
-
-    .form-input {
-        padding-right: 44px;
-        width: 100%;
-    }
-}
-
-.input-suffix {
-    position: absolute;
-    right: 16px;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: $admin-primary;
-    pointer-events: none;
-}
-
-.form-hint {
-    font-size: 0.8rem;
-    color: $admin-text-muted;
-    line-height: 1.4;
-}
-
-.form-error {
-    font-size: 0.85rem;
-    color: $admin-danger;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-
-    &::before {
-        content: '⚠';
-        font-size: 0.9rem;
-    }
-}
-
-// ==========================================
-// ДЕЙСТВИЯ
-// ==========================================
+// Действия
 .form-actions {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     padding-top: 8px;
 }
 
-.btn-primary-modern,
-.btn-secondary-modern {
+.action-btn {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 14px 20px;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-weight: 600;
+    padding: 12px;
     border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    min-height: 48px;
 
-    &:active:not(:disabled) {
-        transform: scale(0.98);
+    &.cancel {
+        background: $bg-secondary;
+        color: $text;
+        border: 1px solid $border;
+
+        &:hover:not(:disabled) {
+            border-color: $danger;
+            color: $danger;
+        }
+    }
+
+    &.save {
+        background: linear-gradient(135deg, $primary, $primary-dark);
+        color: white;
+        box-shadow: 0 4px 12px rgba($primary, 0.3);
+
+        &:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba($primary, 0.4);
+        }
     }
 
     &:disabled {
         opacity: 0.5;
         cursor: not-allowed;
-        transform: none;
     }
 }
 
-.btn-primary-modern {
-    background: $admin-primary;
-    color: white;
-
-    &:active:not(:disabled) {
-        background:  color.adjust($admin-primary, $lightness: -5%);
-    }
-}
-
-.btn-secondary-modern {
-    background: $admin-bg;
-    color: $admin-text;
-    border: 1px solid $admin-border;
-
-    &:active:not(:disabled) {
-        background: color.adjust($admin-bg, $lightness: -3%);
-    }
-}
-
-.spinner-small {
-    display: inline-block;
+.btn-spinner {
     width: 16px;
     height: 16px;
     border: 2px solid rgba(255, 255, 255, 0.3);
@@ -785,23 +766,9 @@ $admin-danger: #ef4444;
     to { transform: rotate(360deg); }
 }
 
-// ==========================================
-// АДАПТИВ
-// ==========================================
-@media (min-width: 768px) {
-    .promo-form {
-        max-width: 700px;
-        margin: 0 auto;
-    }
-
-    .form-actions {
-        justify-content: flex-end;
-    }
-
-    .btn-primary-modern,
-    .btn-secondary-modern {
-        flex: 0 1 auto;
-        min-width: 140px;
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
     }
 }
 </style>

@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { usePromocodesStore } from '@/stores/promocodes.js';
+import { usePromocodesStore } from '@/MobileClient/stores/Shop/promocodes.js';
 
 /**
  * Composable для работы с промокодами
@@ -13,6 +13,7 @@ export function usePromocodes() {
         promocodes,
         promocodes_paginate_object,
         isLoading,
+        isSaving,
         isHydrated,
         isActivating,
         isShopDiscountActivating,
@@ -93,6 +94,7 @@ export function usePromocodes() {
         promocodes_paginate_object,
         isLoading,
         isHydrated,
+        isSaving,
         isActivating,
         isShopDiscountActivating,
         promocodeActions,

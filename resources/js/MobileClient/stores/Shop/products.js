@@ -10,6 +10,7 @@ export const useProductsStore = defineStore('products', {
     state: () => ({
         // Данные
         products: [],
+        recommendations: [],
         categories: [],
         products_paginate_object: null,
         categories_paginate_object: null,
@@ -154,6 +155,20 @@ export const useProductsStore = defineStore('products', {
     // ACTIONS
     // ==========================================
     actions: {
+
+        /**
+         * 🆕 Установить рекомендации
+         */
+        setRecommendations(products) {
+            this.recommendations = products || [];
+        },
+
+        /**
+         * 🆕 Установить общее количество
+         */
+        setTotalCount(count) {
+            this.totalCount = count || 0;
+        },
         // ==========================================
         // ТОВАРЫ: ЗАГРУЗКА
         // ==========================================

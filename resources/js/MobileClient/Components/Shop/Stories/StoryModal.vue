@@ -11,12 +11,16 @@
                 @mouseleave="handleTouchEnd"
             >
 
-                <!-- Прогресс-бар -->
+                <!-- Прогресс-бары для каждой истории -->
                 <div class="story-progress-container">
-                    <div class="story-progress-bg">
+                    <div
+                        v-for="(story, index) in stories"
+                        :key="'progress-' + index"
+                        class="story-progress-bg"
+                    >
                         <div
                             class="story-progress-fill"
-                            :style="{ width: progress + '%' }"
+                            :style="{ width: getProgressForStory(index) + '%' }"
                         ></div>
                     </div>
                 </div>
@@ -25,11 +29,19 @@
                 <div class="story-header">
                     <div class="story-user-info">
                         <div class="story-user-avatar">
-                            <img v-lazy="currentStory.avatar || '/images/shop-v2/self.png'" alt="">
+                            <img
+                                v-if="currentStory"
+                                v-lazy="currentStory.avatar || '/pwa-lazy.jpg'"
+                                alt=""
+                            >
                         </div>
                         <div class="story-user-details">
-                            <span class="story-username">{{ currentStory.author || 'Магазин' }}</span>
-                            <span class="story-time">{{ currentStory.time || 'Только что' }}</span>
+                            <span class="story-username">
+                                {{ currentStory?.author || 'Магазин' }}
+                            </span>
+                            <span class="story-time">
+                                {{ currentStory?.time || 'Только что' }}
+                            </span>
                         </div>
                     </div>
                     <button class="story-close-btn" @click="closeModal">
@@ -37,18 +49,19 @@
                     </button>
                 </div>
 
-                <!-- Контент истории (Изображение) -->
+                <!-- Контент истории -->
                 <div class="story-media-container">
                     <img
-                        :src="currentStory.image || currentStory.thumbnail"
+                        v-if="currentStory"
+                        :src="currentStory.image || currentStory.thumbnail || 'pwa-lazy.jpg'"
                         :alt="currentStory.title"
                         class="story-image"
                     >
                 </div>
 
-                <!-- 🌟 РАСКРЫВАЮЩИЙСЯ ТЕКСТ ВНИЗУ -->
+                <!-- 🌟 РАСКРЫВАЮЩИЙСЯ ТЕКСТ -->
                 <div
-                    v-if="currentStory.description"
+                    v-if="currentStory?.description"
                     class="story-text-overlay"
                     :class="{ 'is-expanded': isTextExpanded }"
                     @click.stop="toggleText"
@@ -57,14 +70,13 @@
                         <p>{{ currentStory.description }}</p>
                     </div>
 
-                    <!-- Кнопка переключения -->
                     <div class="text-toggle-indicator">
                         <span>{{ isTextExpanded ? 'Свернуть' : 'Читать далее' }}</span>
                         <i :class="isTextExpanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
                     </div>
                 </div>
 
-                <!-- Зоны для тапа (невидимые, работают только если текст НЕ раскрыт) -->
+                <!-- Зоны для тапа -->
                 <div v-if="!isTextExpanded" class="tap-zone tap-zone-left" @click.stop="prevStory"></div>
                 <div v-if="!isTextExpanded" class="tap-zone tap-zone-right" @click.stop="nextStory"></div>
 
@@ -78,8 +90,14 @@ export default {
     name: 'StoryModal',
 
     props: {
-        stories: { type: Array, required: true },
-        initialIndex: { type: Number, default: 0 },
+        stories: {
+            type: Array,
+            required: true,
+        },
+        initialIndex: {
+            type: Number,
+            default: 0,
+        },
     },
 
     emits: ['close', 'story-viewed'],
@@ -89,36 +107,74 @@ export default {
             currentIndex: this.initialIndex,
             progress: 0,
             timer: null,
-            duration: 5000, // 5 секунд на историю
+            duration: 5000,
+            isTextExpanded: false,
+            touchStartTime: 0,
+            isPaused: false,
         };
     },
 
     computed: {
+        /**
+         * 🆕 Видимость модалки
+         */
+        isVisible() {
+            return true; // Модалка рендерится только когда v-if="showModal" в родителе
+        },
+
         currentStory() {
-            return this.stories[this.currentIndex];
+            return this.stories[this.currentIndex] || null;
+        },
+    },
+
+    watch: {
+        /**
+         * 🆕 Следим за изменением initialIndex (на случай обновления извне)
+         */
+        initialIndex(newIndex) {
+            if (newIndex !== this.currentIndex) {
+                this.currentIndex = newIndex;
+                this.startTimer();
+            }
         },
     },
 
     mounted() {
+        console.log('🎬 StoryModal mounted, starting at index:', this.currentIndex);
         this.startTimer();
         document.addEventListener('keydown', this.handleKeydown);
+        // Блокируем скролл body
+        document.body.style.overflow = 'hidden';
     },
 
     beforeUnmount() {
         this.stopTimer();
         document.removeEventListener('keydown', this.handleKeydown);
+        document.body.style.overflow = '';
     },
 
     methods: {
+        /**
+         * 🆕 Получить прогресс для конкретной истории
+         */
+        getProgressForStory(index) {
+            if (index < this.currentIndex) return 100;
+            if (index > this.currentIndex) return 0;
+            return this.progress;
+        },
+
         startTimer() {
             this.stopTimer();
             this.progress = 0;
+            this.isTextExpanded = false;
 
             this.timer = setInterval(() => {
-                this.progress += 100 / (this.duration / 100);
+                if (!this.isPaused) {
+                    this.progress += 100 / (this.duration / 100);
 
-                if (this.progress >= 100) {
-                    this.nextStory();
+                    if (this.progress >= 100) {
+                        this.nextStory();
+                    }
                 }
             }, 100);
         },
@@ -131,7 +187,6 @@ export default {
         },
 
         nextStory() {
-            // 🆕 Отмечаем текущую как просмотренную
             if (this.currentStory) {
                 this.$emit('story-viewed', this.currentStory.id);
             }
@@ -140,7 +195,7 @@ export default {
                 this.currentIndex++;
                 this.startTimer();
             } else {
-                this.close();
+                this.closeModal();
             }
         },
 
@@ -151,13 +206,48 @@ export default {
             }
         },
 
-        close() {
+        /**
+         * 🆕 Закрытие модалки
+         */
+        closeModal() {
             this.stopTimer();
             this.$emit('close');
         },
 
+        /**
+         * 🆕 Переключение раскрытия текста
+         */
+        toggleText() {
+            this.isTextExpanded = !this.isTextExpanded;
+            // При раскрытии ставим таймер на паузу
+            this.isPaused = this.isTextExpanded;
+        },
+
+        /**
+         * 🆕 Начало касания/зажатия
+         */
+        handleTouchStart(e) {
+            this.touchStartTime = Date.now();
+            this.isPaused = true; // Пауза при удержании
+        },
+
+        /**
+         * 🆕 Конец касания
+         */
+        handleTouchEnd(e) {
+            const touchDuration = Date.now() - this.touchStartTime;
+            this.isPaused = false;
+
+            // Если это был короткий тап (не удержание) — не делаем ничего
+            // Навигация уже обрабатывается через tap-zone
+            if (touchDuration > 500) {
+                // Долгое удержание — просто возобновляем таймер
+                this.isPaused = false;
+            }
+        },
+
         handleKeydown(e) {
-            if (e.key === 'Escape') this.close();
+            if (e.key === 'Escape') this.closeModal();
             if (e.key === 'ArrowRight') this.nextStory();
             if (e.key === 'ArrowLeft') this.prevStory();
         },
@@ -166,8 +256,6 @@ export default {
 </script>
 
 <style scoped>
-/* ... (все предыдущие стили для overlay, content, progress, header остаются без изменений) ... */
-
 .story-modal-overlay {
     position: fixed;
     inset: 0;
@@ -198,16 +286,21 @@ export default {
     }
 }
 
+/* ==========================================
+   ПРОГРЕСС-БАРЫ
+   ========================================== */
 .story-progress-container {
     position: absolute;
     top: 12px;
     left: 12px;
     right: 12px;
-    z-index: 30; /* Выше всего */
+    z-index: 30;
+    display: flex;
+    gap: 4px;
 }
 
 .story-progress-bg {
-    width: 100%;
+    flex: 1;
     height: 3px;
     background: rgba(255, 255, 255, 0.3);
     border-radius: 2px;
@@ -216,11 +309,15 @@ export default {
 
 .story-progress-fill {
     height: 100%;
-    background: var(--bs-primary, #ff8a00);
+    background: var(--bs-primary, #667eea);
     border-radius: 2px;
-    box-shadow: 0 0 8px var(--bs-primary, #ff8a00);
+    box-shadow: 0 0 8px var(--bs-primary, #667eea);
+    transition: width 0.1s linear;
 }
 
+/* ==========================================
+   ШАПКА
+   ========================================== */
 .story-header {
     position: absolute;
     top: 24px;
@@ -288,6 +385,9 @@ export default {
     background: rgba(255, 255, 255, 0.3);
 }
 
+/* ==========================================
+   МЕДИА
+   ========================================== */
 .story-media-container {
     flex: 1;
     position: relative;
@@ -304,45 +404,38 @@ export default {
 }
 
 /* ==========================================
-   🌟 СТИЛИ РАСКРЫВАЮЩЕГОСЯ ТЕКСТА
+   ТЕКСТ
    ========================================== */
 .story-text-overlay {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 25; /* Ниже хедера, но выше зон тапа */
-
-    /* Градиент для плавного перехода в картинку */
+    z-index: 25;
     background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.7) 60%, transparent 100%);
     color: white;
     padding: 40px 20px 20px;
-
-    /* Состояние: свернуто */
     max-height: 110px;
     overflow: hidden;
     cursor: pointer;
-
-    /* Плавная анимация раскрытия */
     transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     background 0.4s ease,
     padding 0.4s ease;
 }
 
-/* Состояние: раскрыто на всю высоту */
 .story-text-overlay.is-expanded {
-    max-height: 100vh; /* Или calc(100% - 60px), чтобы не перекрывать хедер */
+    max-height: 100vh;
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(15px);
     overflow-y: auto;
-    padding-top: 80px; /* Отступ сверху, чтобы текст не наезжал на хедер */
+    padding-top: 80px;
 }
 
 .text-content p {
     margin: 0;
     font-size: 0.95rem;
     line-height: 1.5;
-    white-space: pre-wrap; /* Сохраняет переносы строк из текста */
+    white-space: pre-wrap;
 }
 
 .text-toggle-indicator {
@@ -350,7 +443,6 @@ export default {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    margin-top: 12px;
     font-size: 0.8rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.8);
@@ -369,7 +461,9 @@ export default {
     transform: rotate(180deg);
 }
 
-/* Зоны тапа */
+/* ==========================================
+   ТАП-ЗОНЫ
+   ========================================== */
 .tap-zone {
     position: absolute;
     top: 0;
@@ -387,7 +481,9 @@ export default {
     width: 70%;
 }
 
-/* Анимации модалки */
+/* ==========================================
+   АНИМАЦИИ
+   ========================================== */
 .story-fade-enter-active,
 .story-fade-leave-active {
     transition: opacity 0.3s ease;

@@ -4,6 +4,8 @@ namespace App\Models\Tenant;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
@@ -29,22 +31,208 @@ class TenantUser extends Authenticatable
         'parent_id',
         'blocked_at',
         'blocked_message',
+
+        'referral_code',
+        'referred_by',
+        'referrals_count',
+        'friends_count',
+        'total_referral_earnings',
+        'cashback',
+
+        'is_active',
+        'is_vip',
+        'vip_activated_at',
+        'vip_expires_at',
     ];
 
     protected $casts = [
         'birthday' => 'date',
         'blocked_at' => 'datetime',
+        'cashback' => 'float',
+        'total_referral_earnings' => 'float',
         'meta' => 'array',
+
+        'is_active' => 'boolean',
+        'is_vip' => 'boolean',
+        'vip_activated_at' => 'datetime',
+        'vip_expires_at' => 'datetime',
     ];
 
     protected $hidden = [
         'password',
     ];
 
-    protected $appends = ['role_names','default_address', 'settings','cashback_balance','cashback_subs'];
+    protected $appends = [
+        'role_names',
+        'default_address',
+        'settings',
+        'cashback_balance',
+        'cashback_subs',
+        'referral_link'
+
+    ];
 
 
-    protected $with = ["cashbacks" , "addresses"];
+    protected $with = ["cashbacks", "addresses"];
+
+   /* protected $attributes = [
+        'is_active' => true,
+        'is_vip' => false,
+    ];*/
+
+    // ==========================================
+    // 🆕 SCOPES
+    // ==========================================
+
+    /**
+     * Только активные пользователи
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true)
+            ->whereNull('blocked_at');
+    }
+
+    /**
+     * Только заблокированные пользователи
+     */
+    public function scopeInactive($query)
+    {
+        return $query->where('is_active', false);
+    }
+
+    /**
+     * Только VIP пользователи
+     */
+    public function scopeVip($query)
+    {
+        return $query->where('is_vip', true);
+    }
+
+    /**
+     * Только обычные пользователи (не VIP)
+     */
+    public function scopeRegular($query)
+    {
+        return $query->where('is_vip', false);
+    }
+
+    /**
+     * VIP с действующей подпиской
+     */
+    public function scopeActiveVip($query)
+    {
+        return $query->where('is_vip', true)
+            ->where(function ($q) {
+                $q->whereNull('vip_expires_at')
+                    ->orWhere('vip_expires_at', '>', now());
+            });
+    }
+
+    // ==========================================
+    // 🆕 ACCESSORS & MUTATORS
+    // ==========================================
+
+    /**
+     * Проверка, активен ли VIP статус (с учётом срока)
+     */
+    public function getHasActiveVipAttribute(): bool
+    {
+        if (!$this->is_vip) {
+            return false;
+        }
+
+        if ($this->vip_expires_at && $this->vip_expires_at->isPast()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Осталось дней VIP
+     */
+    public function getVipDaysLeftAttribute(): ?int
+    {
+        if (!$this->has_active_vip || !$this->vip_expires_at) {
+            return null;
+        }
+
+        return max(0, now()->diffInDays($this->vip_expires_at, false));
+    }
+
+    // ==========================================
+    // 🆕 МЕТОДЫ УПРАВЛЕНИЯ СТАТУСОМ
+    // ==========================================
+
+    /**
+     * Активировать пользователя
+     */
+    public function activate(): self
+    {
+        $this->update(['is_active' => true]);
+        return $this;
+    }
+
+    /**
+     * Деактивировать пользователя
+     */
+    public function deactivate(): self
+    {
+        $this->update(['is_active' => false]);
+        return $this;
+    }
+
+    /**
+     * Выдать VIP статус
+     */
+    public function grantVip(?int $days = null): self
+    {
+        $data = [
+            'is_vip' => true,
+            'vip_activated_at' => now(),
+        ];
+
+        if ($days) {
+            $data['vip_expires_at'] = now()->addDays($days);
+        } else {
+            $data['vip_expires_at'] = null; // Бессрочно
+        }
+
+        $this->update($data);
+        return $this;
+    }
+
+    /**
+     * Отозвать VIP статус
+     */
+    public function revokeVip(): self
+    {
+        $this->update([
+            'is_vip' => false,
+            'vip_activated_at' => null,
+            'vip_expires_at' => null,
+        ]);
+        return $this;
+    }
+
+    /**
+     * Продлить VIP
+     */
+    public function extendVip(int $days): self
+    {
+        if (!$this->is_vip) {
+            return $this->grantVip($days);
+        }
+
+        $newExpiry = $this->vip_expires_at && $this->vip_expires_at->isFuture()
+            ? $this->vip_expires_at->addDays($days)
+            : now()->addDays($days);
+
+        $this->update(['vip_expires_at' => $newExpiry]);
+        return $this;
+    }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -52,16 +240,113 @@ class TenantUser extends Authenticatable
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * Кто пригласил этого пользователя
+     */
+    public function referrer(): BelongsTo
+    {
+        return $this->belongsTo(TenantUser::class, 'referred_by');
+    }
+
+    /**
+     * Кого пригласил этот пользователь (прямые рефералы 1-го уровня)
+     */
+    public function directReferrals(): HasMany
+    {
+        return $this->hasMany(UserReferral::class, 'referrer_id')
+            ->where('level', 1);
+    }
+
+    /**
+     * Все рефералы (все уровни)
+     */
+    public function allReferrals(): HasMany
+    {
+        return $this->hasMany(UserReferral::class, 'referrer_id');
+    }
+
+    /**
+     * Друзья (принятые заявки)
+     */
+    public function friends()
+    {
+        return $this->belongsToMany(
+            TenantUser::class,
+            'user_friends',
+            'user_id',
+            'friend_id'
+        )->wherePivot('status', 'accepted');
+    }
+
+    /**
+     * Исходящие заявки в друзья
+     */
+    public function sentFriendRequests(): HasMany
+    {
+        return $this->hasMany(UserFriend::class, 'initiator_id')
+            ->where('status', UserFriend::STATUS_PENDING);
+    }
+
+    /**
+     * Входящие заявки в друзья
+     */
+    public function receivedFriendRequests(): HasMany
+    {
+        return $this->hasMany(UserFriend::class, 'friend_id')
+            ->where('status', UserFriend::STATUS_PENDING);
+    }
+
+    /**
+     * История реферальных наград
+     */
+    public function referralRewards(): HasMany
+    {
+        return $this->hasMany(ReferralReward::class);
+    }
+
+    // ==========================================
+    // МЕТОДЫ
+    // ==========================================
+
+    /**
+     * Генерация уникального реферального кода
+     */
+    public static function generateReferralCode(): string
+    {
+        do {
+            $code = strtoupper(substr(md5(uniqid()), 0, 8));
+        } while (self::where('referral_code', $code)->exists());
+
+        return $code;
+    }
+
+    /**
+     * Получить реферальную ссылку
+     */
+    public function getReferralLinkAttribute(): string
+    {
+        $tenant = app('tenant');
+        return url("/{$tenant->slug}?ref={$this->referral_code}");
+    }
+
     protected function roleNames(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->roles->pluck('name')->toArray()
+            get: fn() => $this->roles->pluck('name')->toArray()
         );
     }
 
     public function parent()
     {
         return $this->belongsTo(TenantUser::class, 'parent_id');
+    }
+
+    /**
+     * Отзывы пользователя
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class, 'tenant_user_id');
     }
 
     public function children()
@@ -75,10 +360,6 @@ class TenantUser extends Authenticatable
     |--------------------------------------------------------------------------
     */
 
-    public function scopeActive($query)
-    {
-        return $query->whereNull('blocked_at');
-    }
 
     public function scopeBlocked($query)
     {
@@ -110,14 +391,14 @@ class TenantUser extends Authenticatable
     protected function password(): Attribute
     {
         return Attribute::make(
-            set: fn ($value) => $value ? bcrypt($value) : null,
+            set: fn($value) => $value ? bcrypt($value) : null,
         );
     }
 
     protected function fullName(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->name
+            get: fn() => $this->name
         );
     }
 
@@ -129,7 +410,7 @@ class TenantUser extends Authenticatable
     protected function defaultAddress(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->addresses()
+            get: fn() => $this->addresses()
                 ->where('is_default', true)
                 ->first()
         );
@@ -195,7 +476,7 @@ class TenantUser extends Authenticatable
                     $this->meta ?? []
                 );
             },
-            set: fn ($value) => $value
+            set: fn($value) => $value
         );
     }
 
@@ -219,7 +500,7 @@ class TenantUser extends Authenticatable
     protected function cashbackBalance(): Attribute
     {
         return Attribute::make(
-            get: fn () => (float) $this->cashBacks()->sum('amount'),
+            get: fn() => (float)$this->cashBacks()->sum('amount'),
         );
     }
 

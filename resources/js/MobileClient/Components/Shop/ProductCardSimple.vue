@@ -582,7 +582,7 @@ $bg-secondary: #f8f9fa;
     border: 1px solid $border;
     border-radius: 16px;
     overflow: hidden;
-    margin-bottom: 12px;
+    margin-bottom: 0px;
     transition: all 0.2s ease;
 
     &:hover {

@@ -2,7 +2,7 @@
     <div class="admin-clients">
 
         <!-- ========================================== -->
-        <!-- ШАПКА С НАВИГАЦИЕЙ -->
+        <!-- ШАПКА -->
         <!-- ========================================== -->
         <div class="admin-header">
             <button class="back-btn" @click="goBack">
@@ -15,221 +15,108 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- ТАБЫ -->
-        <!-- ========================================== -->
-        <div class="tabs-wrapper">
-            <div class="tabs">
-                <button
-                    class="tab"
-                    :class="{ 'is-active': tab === 0 }"
-                    @click="switchTab(0)"
-                >
-                    <i class="fa-solid fa-users"></i>
-                    <span>Поиск</span>
-                </button>
-                <button
-                    class="tab"
-                    :class="{ 'is-active': tab === 1 }"
-                    :disabled="!selected_bot_user"
-                    @click="switchTab(1)"
-                >
-                    <i class="fa-solid fa-user"></i>
-                    <span>Профиль</span>
-                    <span v-if="selected_bot_user" class="tab-badge">
-                        <i class="fa-solid fa-check"></i>
-                    </span>
-                </button>
-            </div>
-        </div>
-
-        <!-- ========================================== -->
-        <!-- КОНТЕНТ -->
+        <!-- ПОИСК ПОЛЬЗОВАТЕЛЕЙ -->
         <!-- ========================================== -->
         <div class="admin-content">
-
-            <!-- Вкладка: Поиск -->
-            <transition name="tab-fade" mode="out-in">
-                <div v-if="tab === 0" key="search" class="tab-content">
-                    <UserSearchForm
-                        :selected-bot-user="selected_bot_user"
-                        @cancel="cancelUserSelected"
-                        @select="selectUser"
-                    />
-                </div>
-
-                <!-- Вкладка: Профиль -->
-                <div v-else-if="tab === 1" key="profile" class="tab-content">
-
-                    <!-- Индикатор загрузки -->
-                    <div v-if="isLoading" class="loading-state">
-                        <div class="loading-spinner"></div>
-                        <p>Загружаем данные пользователя...</p>
-                    </div>
-
-                    <!-- Профиль пользователя -->
-                    <UserProfileCard
-                        v-else-if="loadedUser && selected_bot_user"
-                        v-model="selected_bot_user"
-                    />
-
-                    <!-- Пустое состояние -->
-                    <div v-else class="empty-state">
-                        <div class="empty-icon">
-                            <i class="fa-solid fa-user-slash"></i>
-                        </div>
-                        <h3>Пользователь не выбран</h3>
-                        <p>Вернитесь на вкладку поиска и выберите клиента</p>
-                        <button class="btn-primary" @click="switchTab(0)">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            Перейти к поиску
-                        </button>
-                    </div>
-
-                </div>
-            </transition>
-
+            <UserSearchForm
+                :selected-bot-user="selectedUser"
+                @select="openUserProfile"
+            />
         </div>
+
+        <!-- ========================================== -->
+        <!-- МОДАЛКА ПРОФИЛЯ -->
+        <!-- ========================================== -->
+        <transition name="modal-fade">
+            <div
+                v-if="showProfileModal"
+                class="modal-overlay"
+                @click.self="closeProfileModal"
+            >
+                <UserProfileModal
+                    :user="selectedUser"
+                    :loading="isLoadingClient"
+                    @close="closeProfileModal"
+                    @message="openChat"
+                />
+            </div>
+        </transition>
 
     </div>
 </template>
 
 <script>
 import UserSearchForm from "@/MobileClient/Components/Admin/Clients/Users.vue";
-import UserProfileCard from "@/MobileClient/Components/Admin/Clients/UserProfileCard.vue";
+import UserProfileModal from "@/MobileClient/Components/Admin/Clients/UserProfileModal.vue";
+import { useClients } from '@/MobileClient/Composables/useClients.js';
 
 export default {
     name: "AdminClients",
 
     components: {
         UserSearchForm,
-        UserProfileCard,
+        UserProfileModal,
+    },
+
+    setup() {
+        const clients = useClients();
+        return { ...clients };
     },
 
     data() {
         return {
-            tab: 0,
-            isLoading: false,
-            loadedUser: false,
-            request_telegram_chat_id: null,
-            selected_bot_user: null,
-            needClose: false,
+            selectedUser: null,
+            showProfileModal: false,
         };
     },
 
-    computed: {
-        currentBot() {
-            return window.currentBot || {};
-        },
-    },
-
     mounted() {
-        // Если компонент открыт с параметрами из URL — загружаем пользователя
         this.loadUserFromUrl();
     },
 
     methods: {
         /**
-         * Загрузка данных пользователя из URL-параметров
+         * Загрузка пользователя из URL
          */
         loadUserFromUrl() {
             try {
                 const urlParams = new URLSearchParams(window.location.search);
-                const userParam = urlParams.get('user');
-                this.needClose = urlParams.has('hide_menu');
+                const userId = urlParams.get('user');
 
-                if (userParam) {
-                    const user = JSON.parse(userParam);
-                    if (user) {
-                        this.request_telegram_chat_id = user;
-                        this.loadReceiverUserData();
+                if (userId) {
+                    const id = parseInt(userId);
+                    if (!isNaN(id)) {
+                        this.openUserProfile({ id });
                     }
                 }
             } catch (error) {
-                console.error('Ошибка парсинга URL-параметров:', error);
+                console.error('Ошибка парсинга URL:', error);
             }
         },
 
         /**
-         * Переключение между вкладками
+         * Открытие профиля пользователя
          */
-        switchTab(tabIndex) {
-            if (tabIndex === 1 && !this.selected_bot_user) return;
-            this.tab = tabIndex;
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        },
+        async openUserProfile(user) {
+            this.selectedUser = user;
+            this.showProfileModal = true;
 
-        /**
-         * Возврат назад
-         */
-        goBack() {
-            if (this.needClose) {
-                // Если нужно закрыть приложение (например, Telegram)
-                if (window.Telegram?.WebApp) {
-                    window.Telegram.WebApp.close();
-                } else {
-                    window.close();
-                }
-            } else {
-                this.$router.back();
-            }
-        },
+            // Блокируем скролл
+            document.body.style.overflow = 'hidden';
 
-        /**
-         * Сброс выбранного пользователя
-         */
-        cancelUserSelected() {
-            this.request_telegram_chat_id = null;
-            this.selected_bot_user = null;
-            this.loadedUser = false;
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        },
-
-        /**
-         * Обновление информации о пользователе
-         */
-        updateUserInfo() {
-            this.selected_bot_user = null;
-            this.request_telegram_chat_id = null;
-        },
-
-        /**
-         * Выбор пользователя из списка
-         */
-        selectUser(user) {
-            this.request_telegram_chat_id = user.telegram_chat_id;
-            this.loadReceiverUserData();
-        },
-
-        /**
-         * Загрузка данных пользователя с сервера
-         */
-        async loadReceiverUserData() {
-            this.isLoading = true;
-            this.loadedUser = false;
-            this.selected_bot_user = null;
-
+            // Загружаем полные данные
             try {
-                const resp = await this.$store.dispatch("loadReceiverUserData", {
-                    dataObject: {
-                        user_telegram_chat_id: this.request_telegram_chat_id
-                    },
-                });
+                await this.loadReceiverUserData(user.id);
 
-                this.selected_bot_user = resp.data;
-                this.request_telegram_chat_id = this.selected_bot_user.telegram_chat_id;
-
-                await this.$nextTick();
-
-                this.isLoading = false;
-                this.loadedUser = true;
-                this.tab = 1;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-
+                // Обновляем данные пользователя
+                if (this.receiverUserData) {
+                    this.selectedUser = {
+                        ...user,
+                        ...this.receiverUserData,
+                    };
+                }
             } catch (error) {
-                console.error('Ошибка загрузки данных пользователя:', error);
-                this.isLoading = false;
-                this.loadedUser = false;
-
+                console.error('Ошибка загрузки профиля:', error);
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Не удалось загрузить данные пользователя',
@@ -237,40 +124,56 @@ export default {
                 });
             }
         },
+
+        /**
+         * Закрытие модалки
+         */
+        closeProfileModal() {
+            this.showProfileModal = false;
+            document.body.style.overflow = '';
+
+            // Очищаем данные через небольшую задержку (для анимации)
+            setTimeout(() => {
+                this.selectedUser = null;
+                this.clearClient();
+            }, 300);
+        },
+
+        /**
+         * Открытие чата с пользователем
+         */
+        openChat(user) {
+            this.closeProfileModal();
+            this.$router.push({
+                name: 'Chat',
+                params: { userId: user.id }
+            });
+        },
+
+        /**
+         * Возврат назад
+         */
+        goBack() {
+            this.$router.back();
+        },
     },
 };
 </script>
 
 <style lang="scss" scoped>
-@use 'sass:color';
-
-// ==========================================
-// ПЕРЕМЕННЫЕ
-// ==========================================
-$primary: #3b82f6;
-$primary-dark: #2563eb;
-$primary-light: #60a5fa;
-$success: #10b981;
-$danger: #ef4444;
-$warning: #f59e0b;
-$text: #1f2937;
-$text-muted: #6b7280;
-$border: #e5e7eb;
+$primary: #667eea;
+$primary-dark: #5a67d8;
 $bg: #f9fafb;
 $card-bg: #ffffff;
+$border: #e5e7eb;
+$text: #1f2937;
+$text-muted: #6b7280;
 
-// ==========================================
-// БАЗА
-// ==========================================
 .admin-clients {
     min-height: 100vh;
     background: $bg;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-// ==========================================
-// ШАПКА
-// ==========================================
 .admin-header {
     display: flex;
     align-items: center;
@@ -296,7 +199,6 @@ $card-bg: #ffffff;
     justify-content: center;
     font-size: 1rem;
     transition: all 0.2s;
-    flex-shrink: 0;
 
     &:hover {
         background: $primary;
@@ -307,13 +209,12 @@ $card-bg: #ffffff;
 
 .header-info {
     flex: 1;
-    min-width: 0;
 }
 
 .header-title {
     font-size: 1.2rem;
     font-weight: 700;
-    margin: 0 0 2px 0;
+    margin: 0 0 2px;
     color: $text;
 }
 
@@ -323,234 +224,52 @@ $card-bg: #ffffff;
     margin: 0;
 }
 
-// ==========================================
-// ТАБЫ
-// ==========================================
-.tabs-wrapper {
-    background: $card-bg;
-    border-bottom: 1px solid $border;
-    padding: 12px 16px;
-    position: sticky;
-    top: 73px;
-    z-index: 99;
-}
-
-.tabs {
-    display: flex;
-    gap: 8px;
-    background: $bg;
-    padding: 4px;
-    border-radius: 12px;
-}
-
-.tab {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 14px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: $text-muted;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-
-    i {
-        font-size: 1rem;
-    }
-
-    &:hover:not(:disabled) {
-        color: $primary;
-        background: rgba($primary, 0.05);
-    }
-
-    &.is-active {
-        background: $card-bg;
-        color: $primary;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    }
-
-    &:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-    }
-}
-
-.tab-badge {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: $success;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.6rem;
-    margin-left: 4px;
-    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes popIn {
-    0% { transform: scale(0); }
-    100% { transform: scale(1); }
-}
-
-// ==========================================
-// КОНТЕНТ
-// ==========================================
 .admin-content {
     padding: 16px;
     max-width: 800px;
     margin: 0 auto;
 }
 
-.tab-content {
-    animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-// Переходы между табами
-.tab-fade-enter-active,
-.tab-fade-leave-active {
-    transition: all 0.3s ease;
-}
-
-.tab-fade-enter-from {
-    opacity: 0;
-    transform: translateX(-20px);
-}
-
-.tab-fade-leave-to {
-    opacity: 0;
-    transform: translateX(20px);
-}
-
 // ==========================================
-// СОСТОЯНИЯ
+// МОДАЛКА
 // ==========================================
-
-// Загрузка
-.loading-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: $text-muted;
-}
-
-.loading-spinner {
-    width: 48px;
-    height: 48px;
-    border: 3px solid $border;
-    border-top-color: $primary;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 16px;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.loading-state p {
-    font-size: 0.95rem;
-    margin: 0;
-}
-
-// Пустое состояние
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    background: $card-bg;
-    border: 1px solid $border;
-    border-radius: 16px;
-}
-
-.empty-icon {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: rgba($primary, 0.1);
-    color: $primary;
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2rem;
-    margin: 0 auto 16px;
+    padding: 20px;
 }
 
-.empty-state h3 {
-    font-size: 1.2rem;
-    font-weight: 700;
-    margin: 0 0 8px 0;
-    color: $text;
+.modal-fade-enter-active {
+    transition: opacity 0.3s ease;
 }
 
-.empty-state p {
-    font-size: 0.9rem;
-    color: $text-muted;
-    margin: 0 0 20px 0;
-    line-height: 1.5;
+.modal-fade-leave-active {
+    transition: opacity 0.2s ease;
 }
 
-.btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    background: $primary;
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    &:hover {
-        background: $primary-dark;
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba($primary, 0.3);
-    }
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+    opacity: 0;
 }
 
-// ==========================================
-// АДАПТИВНОСТЬ
-// ==========================================
 @media (max-width: 640px) {
     .admin-header {
         padding: 12px 16px;
     }
 
-    .header-title {
-        font-size: 1.1rem;
-    }
-
-    .tabs-wrapper {
-        padding: 10px 12px;
-    }
-
-    .tab {
-        padding: 8px 10px;
-        font-size: 0.85rem;
-        gap: 6px;
-    }
-
     .admin-content {
         padding: 12px;
+    }
+
+    .modal-overlay {
+        padding: 0;
+        align-items: flex-end;
     }
 }
 </style>

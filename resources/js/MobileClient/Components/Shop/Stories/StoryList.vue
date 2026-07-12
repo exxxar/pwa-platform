@@ -17,7 +17,7 @@
                     :key="story.id"
                     :story="story"
                     :is-viewed="isViewed(story.id)"
-                    @open-story="openStory(index)"
+                    @open-story="openStory(story, index)"
                 />
             </div>
 
@@ -51,18 +51,13 @@ export default {
         const stories = useStories();
 
         return {
-            // Состояние
             storiesList: stories.stories,
             isLoading: stories.isLoading,
             isHydrated: stories.isHydrated,
-
-            // Геттеры
             sortedStories: stories.sortedStories,
             activeStories: stories.activeStories,
             recentStories: stories.recentStories,
             storiesCount: stories.storiesCount,
-
-            // Методы
             loadStories: stories.loadStories,
             isViewed: stories.isViewed,
             markAsViewed: stories.markAsViewed,
@@ -77,17 +72,12 @@ export default {
     },
 
     computed: {
-        /**
-         * Отображаемые истории
-         * По умолчанию — активные, отсортированные
-         */
         displayedStories() {
             return this.activeStories;
         },
     },
 
     async mounted() {
-        // Загружаем истории при первом входе
         if (!this.isHydrated) {
             try {
                 await this.loadStories();
@@ -99,32 +89,37 @@ export default {
 
     methods: {
         /**
-         * Открытие истории
+         * 🆕 Открытие истории
+         * Принимает И story, И index — для надёжности
          */
-        openStory(index) {
+        openStory(story, index) {
+            console.log('📖 Открытие истории:', { story, index });
+
+            // Если index не передан — находим его сами
+            if (typeof index !== 'number') {
+                index = this.displayedStories.findIndex(s => s.id === story.id);
+            }
+
+            if (index === -1) {
+                console.error('❌ История не найдена в списке');
+                return;
+            }
+
             this.currentStoryIndex = index;
             this.showModal = true;
 
-            // Отмечаем как просмотренную через стор
-            const story = this.displayedStories[index];
+            // Отмечаем как просмотренную
             if (story && !this.isViewed(story.id)) {
                 this.markAsViewed(story.id);
             }
         },
 
-        /**
-         * Обработчик события "история просмотрена" из модалки
-         * (когда пользователь досмотрел историю до конца)
-         */
         onStoryViewed(storyId) {
             if (!this.isViewed(storyId)) {
                 this.markAsViewed(storyId);
             }
         },
 
-        /**
-         * Закрытие модалки
-         */
         closeModal() {
             this.showModal = false;
             this.currentStoryIndex = 0;
@@ -134,26 +129,16 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-// ==========================================
-// ПЕРЕМЕННЫЕ
-// ==========================================
 $bg: var(--bs-body-bg, #ffffff);
 $border: var(--bs-border-color, #e5e7eb);
 $primary: var(--bs-primary, #667eea);
-$text-muted: var(--bs-secondary-color, #6b7280);
 
-// ==========================================
-// КОНТЕЙНЕР
-// ==========================================
 .stories-container {
     padding: 12px 0;
     background: $bg;
     border-bottom: 1px solid $border;
 }
 
-// ==========================================
-// СКРОЛЛ
-// ==========================================
 .stories-scroll {
     display: flex;
     gap: 12px;
@@ -180,9 +165,6 @@ $text-muted: var(--bs-secondary-color, #6b7280);
     }
 }
 
-// ==========================================
-// ЗАГРУЗКА (SKELETON)
-// ==========================================
 .stories-loading {
     display: flex;
     gap: 12px;
@@ -212,7 +194,6 @@ $text-muted: var(--bs-secondary-color, #6b7280);
     background: var(--bs-secondary-bg, #f3f4f6);
 }
 
-// Shimmer анимация
 .shimmer {
     background: linear-gradient(
             90deg,

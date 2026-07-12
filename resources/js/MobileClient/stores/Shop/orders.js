@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import axios from 'axios';
 
 const BASE = '/shop/orders';
+const BASE_REVIEWS = '/shop/reviews';
 
 export const useOrdersStore = defineStore('orders', {
     // ==========================================
@@ -11,6 +12,10 @@ export const useOrdersStore = defineStore('orders', {
         // Данные
         orders: [],
         orders_paginate_object: null,
+
+        reviews: [],
+        reviews_paginate_object: null,
+        isLoadingReviews: false,
 
         // Состояние загрузки по секциям
         isLoading: false,
@@ -33,6 +38,9 @@ export const useOrdersStore = defineStore('orders', {
     // GETTERS
     // ==========================================
     getters: {
+
+        reviewsCount: (state) => state.reviews.length,
+
         /**
          * Все заказы
          */
@@ -176,6 +184,81 @@ export const useOrdersStore = defineStore('orders', {
     // ACTIONS
     // ==========================================
     actions: {
+
+        // ==========================================
+        // ОТЗЫВЫ
+        // ==========================================
+
+        /**
+         * Проверить возможность оставить отзыв
+         */
+        async canReviewOrder(orderId) {
+            try {
+                const response = await axios.post(`${BASE_REVIEWS}/can-review-order`, {
+                    order_id: orderId,
+                });
+                return response.data;
+            } catch (err) {
+                console.error('[Orders Store] Ошибка проверки отзыва:', err);
+                return { can_review: false, reason: 'Ошибка проверки' };
+            }
+        },
+
+        /**
+         * Создать отзыв
+         */
+        async storeReview(payload) {
+            try {
+                const response = await axios.post(`${BASE_REVIEWS}/store-review`, payload);
+                return response.data?.data || response.data;
+            } catch (err) {
+                console.error('[Orders Store] Ошибка создания отзыва:', err);
+                throw err;
+            }
+        },
+
+        /**
+         * Обновить отзыв
+         */
+        async updateReview(reviewId, payload) {
+            try {
+                const response = await axios.put(`${BASE_REVIEWS}/update-review/${reviewId}`, payload);
+                return response.data?.data || response.data;
+            } catch (err) {
+                console.error('[Orders Store] Ошибка обновления отзыва:', err);
+                throw err;
+            }
+        },
+
+        /**
+         * Удалить отзыв
+         */
+        async deleteReview(reviewId) {
+            try {
+                await axios.delete(`${BASE_REVIEWS}/delete-review/${reviewId}`);
+                return true;
+            } catch (err) {
+                console.error('[Orders Store] Ошибка удаления отзыва:', err);
+                throw err;
+            }
+        },
+        async loadReviews(payload = {}) {
+            this.isLoadingReviews = true;
+            try {
+                const resp = await axios.post(`${BASE_REVIEWS}`, payload);
+                this.reviews = resp.data?.data || [];
+                this.reviews_paginate_object = resp.data?.paginate || null;
+                return resp.data;
+            } finally {
+                this.isLoadingReviews = false;
+            }
+        },
+
+
+        async getReviewsByProductId(payload) {
+            return await axios.post(`${BASE_REVIEWS}/by-product-id`, payload);
+        },
+
         // ==========================================
         // ЗАГРУЗКА
         // ==========================================
@@ -183,47 +266,42 @@ export const useOrdersStore = defineStore('orders', {
         /**
          * Загрузка списка заказов (текущего пользователя)
          */
-        async loadOrders(payload = { dataObject: {}, page: 0, size: 20 }) {
+        async loadOrders(payload = {}) {
             this.isLoading = true;
-            this.lastError = null;
-            this.errors = [];
-
             try {
-                const page = payload.page || 0;
-                const size = payload.size || 20;
-                const link = `${BASE}?page=${page}&size=${size}`;
+                const response = await axios.post(`${BASE}`, payload);
+                const data = response.data || response;
 
-                const response = await axios.post(link, payload.dataObject || {});
-                const dataObject = response.data;
-
-                this.orders = dataObject.data || [];
-                const { data, ...paginate } = dataObject;
-                this.orders_paginate_object = paginate;
-
-                this.isHydrated = true;
-                this.lastSyncAt = new Date();
-
-                // Сохраняем в localStorage
-                localStorage.setItem('cashman_orders', JSON.stringify(this.orders));
-                localStorage.setItem('cashman_orders_paginate_object', JSON.stringify(paginate));
-
-                return paginate;
-            } catch (err) {
-                console.error('[Orders Store] Ошибка загрузки заказов:', err);
-                this.lastError = err.response?.data?.message || 'Не удалось загрузить заказы';
-                this.errors = err.response?.data?.errors || [];
-
-                // Fallback
-                const cached = localStorage.getItem('cashman_orders');
-                if (cached && this.orders.length === 0) {
-                    try {
-                        this.orders = JSON.parse(cached);
-                    } catch {
-                        this.orders = [];
-                    }
+                // Laravel пагинация: { data, meta, links }
+                if (data?.meta) {
+                    this.orders = data.data || [];
+                    this.orders_paginate_object = {
+                        total: data.meta.total,
+                        per_page: data.meta.per_page,
+                        current_page: data.meta.current_page,
+                        last_page: data.meta.last_page,
+                        from: data.meta.from,
+                        to: data.meta.to,
+                    };
+                }
+                // Старый формат: { data, paginate }
+                else if (data?.paginate) {
+                    this.orders = data.data || [];
+                    this.orders_paginate_object = data.paginate;
+                }
+                // Просто массив
+                else if (Array.isArray(data)) {
+                    this.orders = data;
+                    this.orders_paginate_object = null;
                 }
 
-                throw err;
+                return {
+                    data: this.orders,
+                    paginate: this.orders_paginate_object,
+                };
+            } catch (error) {
+                console.error('loadOrders error:', error);
+                throw error;
             } finally {
                 this.isLoading = false;
             }

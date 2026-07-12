@@ -15,7 +15,7 @@
                 </div>
             </div>
 
-            <form @submit.prevent="loadUsers(0)" class="search-form">
+            <form @submit.prevent="handleSearch" class="search-form">
                 <div class="input-wrapper">
                     <i class="fa-solid fa-user input-icon"></i>
                     <input
@@ -35,7 +35,7 @@
                         @click="need_admins = !need_admins"
                     >
                         <i class="fa-solid fa-user-shield"></i>
-                        <span>Администраторы</span>
+                        <span>Админы</span>
                     </button>
                     <button
                         type="button"
@@ -62,7 +62,7 @@
                         @click="need_deliveryman = !need_deliveryman"
                     >
                         <i class="fa-solid fa-motorcycle"></i>
-                        <span>Доставщики</span>
+                        <span>Курьеры</span>
                     </button>
                     <button
                         type="button"
@@ -84,8 +84,8 @@
                     </button>
                 </div>
 
-                <button type="submit" class="search-btn" :disabled="loading">
-                    <span v-if="loading" class="btn-spinner"></span>
+                <button type="submit" class="search-btn" :disabled="isLoading">
+                    <span v-if="isLoading" class="btn-spinner"></span>
                     <template v-else>
                         <i class="fa-solid fa-magnifying-glass"></i>
                         <span>Искать</span>
@@ -97,12 +97,12 @@
         <!-- ========================================== -->
         <!-- РЕЗУЛЬТАТЫ ПОИСКА -->
         <!-- ========================================== -->
-        <div v-if="users && !loading" class="results-section">
+        <div v-if="users && !isLoading" class="results-section">
 
             <!-- Счётчик результатов -->
             <div class="results-header">
                 <div class="results-count">
-                    Найдено: <strong>{{ users_paginate_object?.meta?.total || 0 }}</strong> пользователей
+                    Найдено: <strong>{{ users_paginate_object?.total || 0 }}</strong>
                 </div>
             </div>
 
@@ -121,26 +121,23 @@
 
                     <div class="user-info">
                         <div class="user-name">
-                            {{ truncateName(user.name || user.fio_from_telegram || 'Не указано') }}
+                            {{ truncateName(user.name || 'Не указано') }}
                         </div>
                         <div class="user-phone">
                             <i class="fa-solid fa-phone"></i>
-                            {{ user.phone || 'Телефон не указан' }}
+                            {{ user.phone || 'Нет телефона' }}
                         </div>
                     </div>
 
                     <div class="user-badges">
                         <span v-if="user.is_admin" class="badge admin">
                             <i class="fa-solid fa-user-shield"></i>
-                            Админ
                         </span>
                         <span v-if="user.is_vip" class="badge vip">
                             <i class="fa-solid fa-crown"></i>
-                            VIP
                         </span>
                         <span v-if="user.is_deliveryman" class="badge delivery">
                             <i class="fa-solid fa-motorcycle"></i>
-                            Курьер
                         </span>
                     </div>
 
@@ -160,79 +157,43 @@
             </div>
 
             <!-- Пагинация -->
-            <Pagination
-                v-if="users_paginate_object && users_paginate_object.last_page > 1"
-                :simple="true"
-                class="mt-4"
-                @pagination_page="nextUsers"
-                :pagination="users_paginate_object"
-            />
+            <div v-if="users_paginate_object && users_paginate_object.last_page > 1" class="pagination-wrapper">
+                <button
+                    class="pagination-btn"
+                    :disabled="!users_paginate_object.current_page || users_paginate_object.current_page <= 1"
+                    @click="handlePagination(users_paginate_object.current_page - 1)"
+                >
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <span class="pagination-info">
+                    {{ users_paginate_object.current_page }} / {{ users_paginate_object.last_page }}
+                </span>
+                <button
+                    class="pagination-btn"
+                    :disabled="users_paginate_object.current_page >= users_paginate_object.last_page"
+                    @click="handlePagination(users_paginate_object.current_page + 1)"
+                >
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
         </div>
 
         <!-- ========================================== -->
         <!-- ИНДИКАТОР ЗАГРУЗКИ -->
         <!-- ========================================== -->
-        <div v-if="loading" class="loading-state">
+        <div v-if="isLoading" class="loading-state">
             <div class="loading-spinner"></div>
             <p>Загружаем пользователей...</p>
-        </div>
-
-        <!-- ========================================== -->
-        <!-- ДЕЙСТВИЯ -->
-        <!-- ========================================== -->
-        <div class="actions-section">
-            <button class="action-btn" @click="downloadBotUsers" :disabled="isDownloading">
-                <i class="fa-solid fa-file-excel"></i>
-                <span>Скачать список пользователей</span>
-            </button>
-            <button class="action-btn" @click="downloadCashBackHistory" :disabled="isDownloading">
-                <i class="fa-solid fa-file-invoice"></i>
-                <span>Скачать историю начислений</span>
-            </button>
-        </div>
-
-        <!-- ========================================== -->
-        <!-- ЛЕГЕНДА -->
-        <!-- ========================================== -->
-        <div class="legend-card">
-            <div class="legend-item">
-                <div class="legend-icon admin">
-                    <i class="fa-solid fa-user-shield"></i>
-                </div>
-                <span>Администратор системы</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-icon user">
-                    <i class="fa-solid fa-user"></i>
-                </div>
-                <span>Обычный пользователь</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-icon vip">
-                    <i class="fa-solid fa-crown"></i>
-                </div>
-                <span>VIP-клиент</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-icon delivery">
-                    <i class="fa-solid fa-motorcycle"></i>
-                </div>
-                <span>Курьер</span>
-            </div>
         </div>
 
     </div>
 </template>
 
 <script>
-import Pagination from "@/MobileClient/Components/Pagination.vue";
+import { useUsers } from '@/MobileClient/Composables/useUsers.js';
 
 export default {
     name: "UsersSearch",
-
-    components: {
-        Pagination,
-    },
 
     props: {
         selectedBotUser: {
@@ -243,11 +204,13 @@ export default {
 
     emits: ['select', 'cancel'],
 
+    setup() {
+        const usersStore = useUsers();
+        return { ...usersStore };
+    },
+
     data() {
         return {
-            loading: false,
-            isDownloading: false,
-            users: null,
             search: '',
             need_admins: false,
             need_vip: false,
@@ -255,32 +218,20 @@ export default {
             need_with_phone: false,
             need_without_phone: false,
             need_deliveryman: false,
-            users_paginate_object: null,
         };
     },
 
-    computed: {
-        getUsers() {
-            return this.$store.getters.getUsers || [];
-        },
-        getUsersPaginateObject() {
-            return this.$store.getters.getUsersPaginateObject || null;
-        },
-    },
-
     mounted() {
-        this.loadUsers(0);
+        this.handleSearch();
     },
 
     methods: {
         /**
-         * Загрузка списка пользователей
+         * Поиск пользователей
          */
-        async loadUsers(page = 0) {
-            this.loading = true;
-
+        async handleSearch(page = 0) {
             try {
-                await this.$store.dispatch("loadUsers", {
+                await this.loadUsers({
                     dataObject: {
                         search: this.search,
                         need_admins: this.need_admins,
@@ -292,27 +243,21 @@ export default {
                     },
                     page: page,
                 });
-
-                this.users = this.getUsers;
-                this.users_paginate_object = this.getUsersPaginateObject;
-                this.$emit("cancel");
             } catch (error) {
-                console.error('Ошибка загрузки пользователей:', error);
+                console.error('Ошибка поиска:', error);
                 this.$notify?.({
                     title: 'Ошибка',
-                    text: 'Не удалось загрузить список пользователей',
+                    text: 'Не удалось выполнить поиск',
                     type: 'error',
                 });
-            } finally {
-                this.loading = false;
             }
         },
 
         /**
-         * Переход на следующую страницу
+         * Обработка пагинации
          */
-        nextUsers(index) {
-            this.loadUsers(index);
+        handlePagination(page) {
+            this.handleSearch(page);
         },
 
         /**
@@ -322,128 +267,43 @@ export default {
             this.$emit("select", user);
         },
 
-        /**
-         * Обрезка длинного имени
-         */
         truncateName(name) {
             if (!name) return 'Не указано';
             return name.length > 26 ? name.substring(0, 26) + '...' : name;
         },
 
-        /**
-         * Получение иконки для пользователя
-         */
         getUserIcon(user) {
             if (user.is_admin) return 'fa-user-shield';
             if (user.is_vip) return 'fa-crown';
             if (user.is_deliveryman) return 'fa-motorcycle';
             return 'fa-user';
         },
-
-        /**
-         * Скачивание списка пользователей
-         */
-        async downloadBotUsers() {
-            this.isDownloading = true;
-
-            this.$notify?.({
-                title: 'Формирование документа',
-                text: 'Началось формирование списка пользователей...',
-                type: 'info',
-            });
-
-            try {
-                await this.$store.dispatch("downloadBotUsers");
-
-                this.$notify?.({
-                    title: 'Готово!',
-                    text: 'Документ успешно сформирован',
-                    type: 'success',
-                });
-            } catch (error) {
-                console.error('Ошибка скачивания:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось сформировать документ',
-                    type: 'error',
-                });
-            } finally {
-                this.isDownloading = false;
-            }
-        },
-
-        /**
-         * Скачивание истории начислений
-         */
-        async downloadCashBackHistory() {
-            this.isDownloading = true;
-
-            this.$notify?.({
-                title: 'Формирование документа',
-                text: 'Началось формирование истории начислений...',
-                type: 'info',
-            });
-
-            try {
-                await this.$store.dispatch("downloadCashBackHistory");
-
-                this.$notify?.({
-                    title: 'Готово!',
-                    text: 'Документ успешно сформирован',
-                    type: 'success',
-                });
-            } catch (error) {
-                console.error('Ошибка скачивания:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось сформировать документ',
-                    type: 'error',
-                });
-            } finally {
-                this.isDownloading = false;
-            }
-        },
     },
 };
 </script>
 
 <style lang="scss" scoped>
-@use 'sass:color';
-
-// ==========================================
-// ПЕРЕМЕННЫЕ
-// ==========================================
-$primary: #3b82f6;
-$primary-dark: #2563eb;
-$primary-light: #60a5fa;
+$primary: #667eea;
+$primary-dark: #5a67d8;
 $success: #10b981;
 $danger: #ef4444;
-$warning: #f59e0b;
-$purple: #8b5cf6;
 $text: #1f2937;
 $text-muted: #6b7280;
 $border: #e5e7eb;
 $bg: #f9fafb;
 $card-bg: #ffffff;
 
-// ==========================================
-// БАЗА
-// ==========================================
 .users-search {
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
 
-// ==========================================
-// ПОИСКОВАЯ КАРТОЧКА
-// ==========================================
 .search-card {
     background: $card-bg;
     border: 1px solid $border;
     border-radius: 16px;
     padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .search-header {
@@ -457,7 +317,7 @@ $card-bg: #ffffff;
     width: 48px;
     height: 48px;
     border-radius: 12px;
-    background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
+    background: linear-gradient(135deg, $primary, #60a5fa);
     color: white;
     display: flex;
     align-items: center;
@@ -523,9 +383,6 @@ $card-bg: #ffffff;
     }
 }
 
-// ==========================================
-// ФИЛЬТРЫ-ЧИПЫ
-// ==========================================
 .filters-chips {
     display: flex;
     flex-wrap: wrap;
@@ -560,22 +417,14 @@ $card-bg: #ffffff;
         background: $primary;
         border-color: $primary;
         color: white;
-
-        &:hover {
-            background: $primary-dark;
-            color: white;
-        }
     }
 
     &.vip.is-active {
-        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
         border-color: #f59e0b;
     }
 }
 
-// ==========================================
-// КНОПКА ПОИСКА
-// ==========================================
 .search-btn {
     width: 100%;
     display: flex;
@@ -583,7 +432,7 @@ $card-bg: #ffffff;
     justify-content: center;
     gap: 8px;
     padding: 14px;
-    background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
+    background: linear-gradient(135deg, $primary, #60a5fa);
     color: white;
     border: none;
     border-radius: 12px;
@@ -616,23 +465,19 @@ $card-bg: #ffffff;
     to { transform: rotate(360deg); }
 }
 
-// ==========================================
-// РЕЗУЛЬТАТЫ
-// ==========================================
 .results-section {
     background: $card-bg;
     border: 1px solid $border;
     border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    padding: 16px;
 }
 
 .results-header {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .results-count {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: $text-muted;
 
     strong {
@@ -651,7 +496,7 @@ $card-bg: #ffffff;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px;
+    padding: 12px;
     background: $bg;
     border: 1px solid $border;
     border-radius: 12px;
@@ -672,15 +517,15 @@ $card-bg: #ffffff;
 }
 
 .user-avatar {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    background: linear-gradient(135deg, $primary 0%, $primary-light 100%);
+    background: linear-gradient(135deg, $primary, #60a5fa);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 1rem;
     flex-shrink: 0;
 }
 
@@ -691,7 +536,7 @@ $card-bg: #ffffff;
 
 .user-name {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: $text;
     margin-bottom: 2px;
     white-space: nowrap;
@@ -700,14 +545,14 @@ $card-bg: #ffffff;
 }
 
 .user-phone {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: $text-muted;
     display: flex;
     align-items: center;
     gap: 4px;
 
     i {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
     }
 }
 
@@ -718,249 +563,127 @@ $card-bg: #ffffff;
 }
 
 .badge {
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 0.7rem;
-    font-weight: 600;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
-    gap: 4px;
-
-    i {
-        font-size: 0.65rem;
-    }
+    justify-content: center;
+    font-size: 0.65rem;
 
     &.admin {
-        background: rgba($danger, 0.1);
+        background: rgba($danger, 0.15);
         color: $danger;
     }
 
     &.vip {
-        background: linear-gradient(135deg, rgba(#fbbf24, 0.15) 0%, rgba(#f59e0b, 0.15) 100%);
+        background: linear-gradient(135deg, rgba(#fbbf24, 0.2), rgba(#f59e0b, 0.2));
         color: #b45309;
     }
 
     &.delivery {
-        background: rgba($success, 0.1);
+        background: rgba($success, 0.15);
         color: $success;
     }
 }
 
 .user-arrow {
     color: $text-muted;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     flex-shrink: 0;
 }
 
-// ==========================================
-// СОСТОЯНИЯ
-// ==========================================
 .empty-state {
     text-align: center;
-    padding: 40px 20px;
-}
+    padding: 30px 20px;
 
-.empty-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: rgba($primary, 0.1);
-    color: $primary;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.8rem;
-    margin: 0 auto 12px;
-}
+    .empty-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: rgba($primary, 0.1);
+        color: $primary;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin: 0 auto 12px;
+    }
 
-.empty-state h4 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin: 0 0 6px 0;
-    color: $text;
-}
+    h4 {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0 0 6px 0;
+        color: $text;
+    }
 
-.empty-state p {
-    font-size: 0.9rem;
-    color: $text-muted;
-    margin: 0;
+    p {
+        font-size: 0.85rem;
+        color: $text-muted;
+        margin: 0;
+    }
 }
 
 .loading-state {
     text-align: center;
-    padding: 60px 20px;
-    background: $card-bg;
-    border: 1px solid $border;
-    border-radius: 16px;
+    padding: 40px 20px;
+
+    .loading-spinner {
+        width: 36px;
+        height: 36px;
+        border: 3px solid $border;
+        border-top-color: $primary;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 12px;
+    }
+
+    p {
+        font-size: 0.9rem;
+        color: $text-muted;
+        margin: 0;
+    }
 }
 
-.loading-spinner {
-    width: 48px;
-    height: 48px;
-    border: 3px solid $border;
-    border-top-color: $primary;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 16px;
-}
-
-.loading-state p {
-    font-size: 0.95rem;
-    color: $text-muted;
-    margin: 0;
-}
-
-// ==========================================
-// ДЕЙСТВИЯ
-// ==========================================
-.actions-section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.action-btn {
-    width: 100%;
+.pagination-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    padding: 14px;
-    background: $card-bg;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid $border;
+}
+
+.pagination-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: $bg;
     border: 1px solid $border;
-    border-radius: 12px;
     color: $text;
-    font-size: 0.95rem;
-    font-weight: 600;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
     transition: all 0.2s;
 
-    i {
-        color: $success;
-        font-size: 1.1rem;
-    }
-
     &:hover:not(:disabled) {
-        border-color: $success;
-        background: rgba($success, 0.05);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba($success, 0.15);
+        background: $primary;
+        border-color: $primary;
+        color: white;
     }
 
     &:disabled {
-        opacity: 0.6;
+        opacity: 0.4;
         cursor: not-allowed;
     }
 }
 
-// ==========================================
-// ЛЕГЕНДА
-// ==========================================
-.legend-card {
-    background: $card-bg;
-    border: 1px solid $border;
-    border-radius: 16px;
-    padding: 16px;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.pagination-info {
     font-size: 0.85rem;
     color: $text-muted;
-}
-
-.legend-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.9rem;
-    color: white;
-    flex-shrink: 0;
-
-    &.admin {
-        background: $danger;
-    }
-
-    &.user {
-        background: $success;
-    }
-
-    &.vip {
-        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-    }
-
-    &.delivery {
-        background: $primary;
-    }
-}
-
-// ==========================================
-// АДАПТИВНОСТЬ
-// ==========================================
-@media (max-width: 640px) {
-    .search-card,
-    .results-section,
-    .legend-card {
-        padding: 16px;
-    }
-
-    .search-header {
-        gap: 12px;
-    }
-
-    .search-icon {
-        width: 40px;
-        height: 40px;
-        font-size: 1rem;
-    }
-
-    .search-info h3 {
-        font-size: 1rem;
-    }
-
-    .filters-chips {
-        gap: 6px;
-    }
-
-    .filter-chip {
-        padding: 6px 10px;
-        font-size: 0.8rem;
-    }
-
-    .user-card {
-        padding: 12px;
-        gap: 10px;
-    }
-
-    .user-avatar {
-        width: 38px;
-        height: 38px;
-        font-size: 1rem;
-    }
-
-    .user-name {
-        font-size: 0.9rem;
-    }
-
-    .user-phone {
-        font-size: 0.75rem;
-    }
-
-    .badge {
-        padding: 2px 6px;
-        font-size: 0.65rem;
-    }
-
-    .legend-card {
-        grid-template-columns: 1fr;
-    }
+    font-weight: 600;
 }
 </style>

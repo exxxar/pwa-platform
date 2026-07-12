@@ -26,6 +26,10 @@ const AdminInvoice = defineAsyncComponent(() => import('@/MobileClient/Pages/Adm
 const AdminPartners = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Partners.vue'))
 const AdminStories = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/StoryManager.vue'))
 const AdminShopLanding = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/ShopLandingSettings.vue'))
+const AdminStatistic = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Statistic.vue'))
+const AdminPromoCodes = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Promocodes.vue'))
+const AdminOrders = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Orders.vue'))
+const AdminClients = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Clients.vue'))
 
 // ADMIN
 const Settings = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/TenantSettings.vue'))
@@ -271,12 +275,42 @@ const routes = [
         meta: { public: true, hideBottomMenu: true }
     },
     {
+        path: '/referral',
+        name: 'ReferralsPage',
+        component: defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/ReferralsPage.vue')),
+        meta: { public: true }
+    },
+    {
         path: '/admin/tap-links',
         name: 'TapLinkAdmin',
         component: defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/TapLinkAdmin.vue')),
         meta: { auth: true, role: 'admin' } // Доступ только админу/владельцу
     },
 
+    {
+        path: '/admin/clients',
+        name: 'AdminClients',
+        component:AdminClients,
+        meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
+    },
+    {
+        path: '/admin/orders',
+        name: 'AdminOrders',
+        component:AdminOrders,
+        meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
+    },
+    {
+        path: '/admin/promo-codes',
+        name: 'AdminPromoCodes',
+        component:AdminPromoCodes,
+        meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
+    },
+    {
+        path: '/admin/statistic',
+        name: 'AdminStatistic',
+        component:AdminStatistic,
+        meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
+    },
     {
         path: '/admin/tenant',
         name: 'AdminTenant',
@@ -339,7 +373,18 @@ const routes = [
         name: 'AdminShop',
         component: AdminShop,
     },
-
+    {
+        path: '/admin/broadcast',
+        name: 'AdminBroadcastsPage',
+        component: defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/BroadcastsPage.vue')), // Или создать отдельный
+        meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
+    },
+    {
+        path: '/admin/broadcast/create',
+        name: 'AdminBroadcastCreate',
+        component: defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/BroadcastCreate.vue')), // Или создать отдельный
+        meta: { auth: true, /*role: 'admin' */} // Доступ только админу/владельцу
+    },
     // 404 страница
     {
         path: '/:pathMatch(.*)*',

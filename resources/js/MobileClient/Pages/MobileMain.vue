@@ -24,6 +24,7 @@ import RouteLoader from "@/MobileClient/Components/Common/RouteLoader.vue";
 import { useFavorites } from '@/MobileClient/Composables/useFavorites.js';
 import { useBasket } from '@/MobileClient/Composables/useBasket.js';
 import { useChat } from '@/MobileClient/Composables/useChat.js';
+import { useProducts } from '@/MobileClient/Composables/useProducts.js';
 
 export default {
     name: "App",
@@ -42,10 +43,10 @@ export default {
             type: Object,
             default: null
         },
-        theme: {
-            type: String,
-            default: null
-        }
+        initial_data: {
+            type: Object,
+            default: () => ({}),
+        },
     },
     data() {
         return {
@@ -56,8 +57,10 @@ export default {
         const favorites = useFavorites();
         const basket = useBasket();
         const chat = useChat();
+        const products = useProducts();
 
-        return { favorites, basket, chat };
+
+        return { favorites, basket, chat, products };
     },
 
     computed: {
@@ -75,13 +78,10 @@ export default {
     },
 
     created() {
-        console.log("tenant", this.tenant);
 
         // Инициализация глобальных переменных
         window.TenantUser = this.tenant_user || null;
         window.Tenant = this.tenant; // ← С большой буквы
-        window.theme = this.theme || null;
-
         // Проверяем расписание работы
         const schedule = this.tenant?.settings?.schedule || [];
 
@@ -103,6 +103,8 @@ export default {
     },
 
     async mounted() {
+
+        this.initializeStores();
         // Параллельно загружаем корзину и избранное
         try {
             await Promise.allSettled([
@@ -123,6 +125,8 @@ export default {
         } catch (error) {
             console.error('Ошибка инициализации:', error);
         }
+
+
     },
     beforeUnmount() {
         if (this.unreadInterval) {
@@ -130,6 +134,32 @@ export default {
         }
     },
     methods: {
+
+        initializeStores() {
+            const data = this.initial_data || {};
+
+            // 1. Инициализация чатов
+            if (data.chats) {
+                this.chat.setInitialData(data.chats);
+            }
+
+            // 2. Инициализация корзины
+            if (data.cart) {
+                this.basket.setInitialData(data.cart);
+            }
+
+            // 3. Инициализация товаров
+            if (data.recommendations) {
+                this.products.setRecommendations(data.recommendations);
+            }
+
+            // 4. Количество товаров в каталоге
+            if (data.products_count) {
+                this.products.setTotalCount(data.products_count);
+            }
+
+            console.log('✅ Stores initialized from initial_data');
+        },
         /**
          * Проверяет корректность массива расписания
          * @param {Array} schedule - массив из 7 дней

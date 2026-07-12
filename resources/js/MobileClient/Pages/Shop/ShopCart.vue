@@ -11,7 +11,7 @@
         <!-- ========================================== -->
         <!-- КОРЗИНА ПУСТАЯ -->
         <!-- ========================================== -->
-        <div v-else-if="cartTotalCount === 0" class="empty-cart">
+        <div v-else-if="cartTotalCount === 0 && !orderJustPlaced" class="empty-cart">
             <div class="empty-cart-content">
                 <div class="empty-icon">
                     <i class="fa-solid fa-cart-shopping"></i>
@@ -30,7 +30,7 @@
         <!-- ========================================== -->
         <!-- ОФОРМЛЕНИЕ ЗАКАЗА -->
         <!-- ========================================== -->
-        <template v-else>
+        <template v-else-if="!orderJustPlaced">
 
             <!-- STEPPER -->
             <div class="checkout-stepper">
@@ -79,22 +79,6 @@
                         @select-prize="selectPrize"
                         @change-tab="changeTab"
                     >
-                        <template #upper-text>
-                            <div class="cart-header-info">
-                                <div class="cart-header-icon">
-                                    <i class="fa-solid fa-basket-shopping"></i>
-                                </div>
-                                <div>
-                                    <h6 class="cart-header-title">Ваш заказ</h6>
-                                    <p class="cart-header-subtitle">
-                                        {{ cartTotalCount }}
-                                        {{ pluralize(cartTotalCount, 'товар', 'товара', 'товаров') }}
-                                        на сумму {{ formatPrice(cartTotalPrice) }}
-                                    </p>
-                                </div>
-                            </div>
-                        </template>
-
                         <template #recommendation-list>
                             <ProductRecommendationList />
                         </template>
@@ -192,6 +176,89 @@
             </div>
 
         </template>
+
+        <!-- ========================================== -->
+        <!-- 🆕 ВСПЛЫВАЮЩЕЕ ОКНО ПОСЛЕ ЗАКАЗА -->
+        <!-- ========================================== -->
+        <transition name="order-success">
+            <div v-if="orderJustPlaced" class="order-success-overlay" @click.self="dismissSuccessSheet">
+                <div class="order-success-sheet">
+
+                    <!-- Декоративный фон -->
+                    <div class="success-bg">
+                        <div class="success-circle circle-1"></div>
+                        <div class="success-circle circle-2"></div>
+                        <div class="success-circle circle-3"></div>
+                    </div>
+
+                    <!-- Контент -->
+                    <div class="success-content">
+
+                        <!-- Анимированная иконка -->
+                        <div class="success-icon-wrapper">
+                            <div class="success-icon-ring"></div>
+                            <div class="success-icon-ring ring-2"></div>
+                            <div class="success-icon">
+                                <i class="fa-solid fa-check"></i>
+                            </div>
+                            <!-- Конфетти -->
+                            <div class="confetti confetti-1"></div>
+                            <div class="confetti confetti-2"></div>
+                            <div class="confetti confetti-3"></div>
+                            <div class="confetti confetti-4"></div>
+                            <div class="confetti confetti-5"></div>
+                        </div>
+
+                        <!-- Заголовок -->
+                        <h3 class="success-title">Заказ оформлен!</h3>
+                        <p class="success-subtitle">
+                            Ваш заказ <strong>#{{ lastOrderId }}</strong> успешно создан
+                        </p>
+
+                        <!-- Информация о заказе -->
+                        <div class="order-info-card">
+                            <div class="info-row">
+                                <span class="info-label">Номер заказа</span>
+                                <span class="info-value">#{{ lastOrderId }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Сумма</span>
+                                <span class="info-value price">{{ formatPrice(lastOrderTotal) }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Статус</span>
+                                <span class="info-value status">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    Принят
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Кнопки действий -->
+                        <div class="success-actions">
+                            <button class="success-btn primary" @click="goToOrderChat">
+                                <i class="fa-solid fa-comments"></i>
+                                <span>Посмотреть свой заказ</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+
+                            <button class="success-btn secondary" @click="dismissSuccessSheet">
+                                <i class="fa-solid fa-store"></i>
+                                <span>Продолжить покупки</span>
+                            </button>
+                        </div>
+
+                        <!-- Таймер автозакрытия -->
+                        <div class="auto-close-hint">
+                            <i class="fa-solid fa-clock"></i>
+                            <span>Автоматическое закрытие через {{ autoCloseCountdown }} сек</span>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </transition>
+
     </div>
 </template>
 
@@ -227,7 +294,6 @@ export default {
     setup() {
         const basket = useBasket();
 
-        // Загружаем корзину при первом входе
         if (!basket.isHydrated.value) {
             basket.loadProductsInBasket();
         }
@@ -264,6 +330,14 @@ export default {
             currentStep: 0,
             sending: false,
 
+            // 🆕 Состояние после оформления заказа
+            orderJustPlaced: false,
+            lastOrderId: null,
+            lastOrderTotal: 0,
+            autoCloseCountdown: 10,
+            autoCloseTimer: null,
+            countdownTimer: null,
+
             allSteps: [
                 {
                     label: 'Корзина',
@@ -278,7 +352,7 @@ export default {
                     icon: 'fa-solid fa-truck',
                 },
                 {
-                    label: 'Чек',
+                    label: 'Оплата чеком',
                     title: 'Подтверждение оплаты',
                     subtitle: 'Загрузите скриншот перевода',
                     icon: 'fa-solid fa-receipt',
@@ -427,8 +501,13 @@ export default {
             this.deliveryForm.allergy = null;
         },
 
-        cartTotalCount(newCount) {
-            if (newCount === 0 && this.currentStep > 0) {
+        // 🆕 Отслеживаем обнуление корзины после оформления
+        cartTotalCount(newCount, oldCount) {
+            if (newCount === 0 && oldCount > 0 && this.orderJustPlaced) {
+                // Корзина обнулилась после оформления — показываем окно
+                this.showOrderSuccess();
+            } else if (newCount === 0 && this.currentStep > 0 && !this.orderJustPlaced) {
+                // Обычный случай — возврат на шаг 0
                 this.currentStep = 0;
             }
         },
@@ -453,6 +532,8 @@ export default {
         if (this._switchToCartHandler) {
             document.removeEventListener('switch-to-cart', this._switchToCartHandler);
         }
+        // 🆕 Очистка таймеров
+        this.clearAutoCloseTimers();
     },
 
     methods: {
@@ -563,7 +644,12 @@ export default {
             this.sending = true;
 
             try {
-                await this.startCheckoutAction({ deliveryForm: data });
+                const response = await this.startCheckoutAction({ deliveryForm: data });
+
+                // 🆕 Сохраняем данные заказа для всплывающего окна
+                this.lastOrderId = response?.data?.order_id || response?.order_id || Date.now();
+                this.lastOrderTotal = this.totalToPay;
+                this.orderJustPlaced = true;
 
                 this.$notify?.({
                     title: 'Заказ оформлен',
@@ -582,11 +668,85 @@ export default {
             }
         },
 
+        // ==========================================
+        // 🆕 МЕТОДЫ ДЛЯ ВСПЛЫВАЮЩЕГО ОКНА
+        // ==========================================
+
+        /**
+         * Показать окно успешного заказа
+         */
+        showOrderSuccess() {
+            this.orderJustPlaced = true;
+            this.autoCloseCountdown = 10;
+
+            // Запускаем таймер обратного отсчёта
+            this.countdownTimer = setInterval(() => {
+                this.autoCloseCountdown--;
+                if (this.autoCloseCountdown <= 0) {
+                    this.dismissSuccessSheet();
+                }
+            }, 1000);
+
+            // Автозакрытие через 10 секунд
+            this.autoCloseTimer = setTimeout(() => {
+                this.dismissSuccessSheet();
+            }, 10000);
+        },
+
+        /**
+         * Закрыть окно и продолжить покупки
+         */
+        dismissSuccessSheet() {
+            this.orderJustPlaced = false;
+            this.clearAutoCloseTimers();
+
+            // Сбрасываем состояние
+            this.currentStep = 0;
+            this.lastOrderId = null;
+            this.lastOrderTotal = 0;
+        },
+
+        /**
+         * Перейти к чату с заказом
+         */
+        goToOrderChat() {
+            this.clearAutoCloseTimers();
+
+            // Переход на страницу чата с заказом
+            this.$router.push({
+                name: 'OrderChat', // Замените на имя вашего роута
+                params: { orderId: this.lastOrderId }
+            }).catch(err => {
+                console.error('Ошибка навигации:', err);
+                // Fallback на главную
+                this.$router.push({ name: 'Catalog' });
+            });
+
+            // Сбрасываем состояние
+            this.orderJustPlaced = false;
+            this.lastOrderId = null;
+            this.lastOrderTotal = 0;
+        },
+
+        /**
+         * Очистка таймеров
+         */
+        clearAutoCloseTimers() {
+            if (this.autoCloseTimer) {
+                clearTimeout(this.autoCloseTimer);
+                this.autoCloseTimer = null;
+            }
+            if (this.countdownTimer) {
+                clearInterval(this.countdownTimer);
+                this.countdownTimer = null;
+            }
+        },
+
         formatPrice(price) {
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
                 currency: 'RUB',
-                minimumFractionDigits: 0,
+                minimumFractionDigits: 2,
             }).format(price || 0);
         },
 
@@ -611,6 +771,7 @@ export default {
 $primary: #3b82f6;
 $primary-dark: #2563eb;
 $success: #10b981;
+$success-dark: #059669;
 $danger: #ef4444;
 $text: #1f2937;
 $text-muted: #6b7280;
@@ -836,7 +997,6 @@ $card-bg: #ffffff;
     padding: 0px;
 }
 
-// Переходы между шагами
 .step-fade-enter-active,
 .step-fade-leave-active {
     transition: all 0.3s ease;
@@ -852,43 +1012,6 @@ $card-bg: #ffffff;
     transform: translateX(-20px);
 }
 
-// Заголовок корзины
-.cart-header-info {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 16px;
-    background: rgba($primary, 0.05);
-    border-radius: 14px;
-}
-
-.cart-header-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: $primary;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    flex-shrink: 0;
-}
-
-.cart-header-title {
-    margin: 0;
-    font-weight: 700;
-    font-size: 1rem;
-    color: $text;
-}
-
-.cart-header-subtitle {
-    margin: 0;
-    font-size: 0.8rem;
-    color: $text-muted;
-}
-
-// Секции
 .section-card {
     background: $card-bg;
     border: 1px solid $border;
@@ -1008,7 +1131,6 @@ $card-bg: #ffffff;
         transform: none;
     }
 
-    // Т-Банк
     &.tbank-btn {
         background: linear-gradient(135deg, #ffdd2d 0%, #ffcc00 100%);
         color: #1a1a1a;
@@ -1041,26 +1163,458 @@ $card-bg: #ffffff;
 }
 
 // ==========================================
+// 🆕 КОМПАКТНОЕ ОКНО УСПЕШНОГО ЗАКАЗА
+// ==========================================
+.order-success-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.order-success-sheet {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    background: var(--bs-body-bg, #ffffff);
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow:
+        0 20px 60px rgba(102, 126, 234, 0.25),
+        0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+// 🆕 Компактный декоративный фон
+.success-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    overflow: hidden;
+}
+
+.success-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+.success-circle {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    animation: circleFloat 6s ease-in-out infinite;
+}
+
+.circle-1 {
+    width: 80px;
+    height: 80px;
+    top: -30px;
+    right: -20px;
+}
+
+.circle-2 {
+    width: 60px;
+    height: 60px;
+    top: 20px;
+    left: -15px;
+    animation-delay: 2s;
+}
+
+.circle-3 {
+    display: none; // Скрываем для компактности
+}
+
+@keyframes circleFloat {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(10px, -10px) scale(1.1); }
+}
+
+// Контент
+.success-content {
+    position: relative;
+    padding: 24px 20px 20px;
+    text-align: center;
+}
+
+// 🆕 Компактная иконка
+.success-icon-wrapper {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 16px;
+}
+
+.success-icon {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    box-shadow:
+        0 6px 20px rgba(102, 126, 234, 0.5),
+        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    animation: iconBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 2;
+}
+
+@keyframes iconBounce {
+    0% {
+        transform: scale(0) rotate(-180deg);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+    }
+}
+
+.success-icon-ring {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(102, 126, 234, 0.4);
+    animation: ringExpand 2s ease-out infinite;
+}
+
+.success-icon-ring.ring-2 {
+    animation-delay: 1s;
+    border-color: rgba(118, 75, 162, 0.4);
+}
+
+@keyframes ringExpand {
+    0% {
+        transform: scale(0.8);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+// 🆕 Минимальные конфетти
+.confetti {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+    animation: confettiFall 3s ease-in-out infinite;
+}
+
+.confetti-1 {
+    top: 5%;
+    left: 15%;
+    background: #fbbf24;
+    animation-delay: 0s;
+}
+
+.confetti-2 {
+    top: 10%;
+    right: 20%;
+    background: #f093fb;
+    animation-delay: 0.5s;
+}
+
+.confetti-3 {
+    top: 0%;
+    left: 40%;
+    background: #667eea;
+    animation-delay: 1s;
+}
+
+.confetti-4,
+.confetti-5 {
+    display: none; // Скрываем лишние
+}
+
+@keyframes confettiFall {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    50% {
+        transform: translateY(15px) rotate(180deg);
+        opacity: 0.6;
+    }
+}
+
+// 🆕 Компактный заголовок
+.success-title {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin: 50px 0 4px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: titleSlideIn 0.6s ease-out 0.3s backwards;
+}
+
+@keyframes titleSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.success-subtitle {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color, #6b7280);
+    margin: 0 0 16px;
+    animation: subtitleFadeIn 0.6s ease-out 0.4s backwards;
+
+    strong {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 700;
+    }
+}
+
+@keyframes subtitleFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+// 🆕 Компактная карточка информации
+.order-info-card {
+    background: var(--bs-secondary-bg, #f8f9fa);
+    border: 1px solid var(--bs-border-color, #e5e7eb);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    animation: cardSlideIn 0.6s ease-out 0.5s backwards;
+}
+
+@keyframes cardSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
+
+    &:last-child {
+        border-bottom: none;
+    }
+}
+
+.info-label {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color, #6b7280);
+}
+
+.info-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bs-body-color, #1f2937);
+
+    &.price {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-size: 0.95rem;
+        font-weight: 800;
+    }
+
+    &.status {
+        color: #667eea;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.8rem;
+
+        i {
+            font-size: 0.75rem;
+            color: #667eea;
+        }
+    }
+}
+
+// 🆕 Компактные кнопки
+.success-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    animation: actionsSlideIn 0.6s ease-out 0.6s backwards;
+}
+
+@keyframes actionsSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.success-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+
+    &.primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+
+        &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        i:last-child {
+            transition: transform 0.3s ease;
+        }
+
+        &:hover i:last-child {
+            transform: translateX(4px);
+        }
+    }
+
+    &.secondary {
+        background: transparent;
+        color: var(--bs-body-color, #1f2937);
+        border: 1.5px solid var(--bs-border-color, #e5e7eb);
+        padding: 10px 18px;
+
+        &:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.04);
+        }
+    }
+}
+
+// 🆕 Компактная подсказка
+.auto-close-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--bs-secondary-color, #6b7280);
+    animation: hintFadeIn 0.6s ease-out 0.7s backwards;
+
+    i {
+        color: #667eea;
+        font-size: 0.7rem;
+    }
+}
+
+@keyframes hintFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+// Анимации появления/исчезновения
+.order-success-enter-active {
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    .order-success-sheet {
+        animation: sheetPopIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+}
+
+.order-success-leave-active {
+    transition: all 0.3s ease-in;
+}
+
+.order-success-enter-from {
+    opacity: 0;
+
+    .order-success-sheet {
+        transform: scale(0.8);
+    }
+}
+
+.order-success-leave-to {
+    opacity: 0;
+
+    .order-success-sheet {
+        transform: scale(0.9);
+    }
+}
+
+@keyframes sheetPopIn {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+// ==========================================
 // АДАПТИВ
 // ==========================================
-@media (max-width: 576px) {
-    .step-label {
-        font-size: 0.65rem;
+@media (max-width: 400px) {
+    .order-success-overlay {
+        padding: 16px;
     }
 
-    .step-circle {
-        width: 32px;
-        height: 32px;
-        font-size: 0.8rem;
+    .order-success-sheet {
+        max-width: 100%;
     }
 
-    .step-title {
-        font-size: 1.1rem;
+    .success-content {
+        padding: 20px 16px 16px;
     }
 
-    .action-btn {
-        padding: 14px 20px;
-        font-size: 0.95rem;
+    .success-title {
+        font-size: 1.2rem;
+    }
+
+    .success-btn {
+        font-size: 0.85rem;
+        padding: 11px 16px;
     }
 }
 </style>

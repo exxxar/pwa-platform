@@ -1,14 +1,16 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useOrdersStore } from '@/stores/orders.js';
+import { useOrdersStore } from '@/MobileClient/stores/Shop/orders';
 
 /**
- * Composable для работы с заказами
+ * Composable для работы с заказами и отзывами
  */
 export function useOrders() {
     const store = useOrdersStore();
 
-    // Реактивные ссылки на состояние
+    // ==========================================
+    // Реактивные ссылки на состояние (заказы)
+    // ==========================================
     const {
         orders,
         orders_paginate_object,
@@ -20,9 +22,15 @@ export function useOrders() {
         lastError,
         errors,
         lastSyncAt,
+        // Отзывы (нужно добавить в store)
+        reviews = [],
+        reviews_paginate_object = null,
+        isLoadingReviews = false,
     } = storeToRefs(store);
 
+    // ==========================================
     // Реактивные геттеры
+    // ==========================================
     const sortedOrders = computed(() => store.sortedOrders);
     const pendingOrders = computed(() => store.pendingOrders);
     const completedOrders = computed(() => store.completedOrders);
@@ -33,18 +41,16 @@ export function useOrders() {
     const todayRevenue = computed(() => store.todayRevenue);
     const ordersCount = computed(() => store.ordersCount);
     const pendingOrdersCount = computed(() => store.pendingOrdersCount);
-
-    /**
-     * Проверка, загружается ли заказ
-     */
-    const isOrderLoading = (orderId) => {
-        return store.isOrderLoading(orderId);
-    };
+    const reviewsCount = computed(() => store.reviewsCount ?? 0);
 
     // ==========================================
-    // Безопасные методы
+    // Вспомогательные функции
     // ==========================================
+    const isOrderLoading = (orderId) => store.isOrderLoading(orderId);
 
+    // ==========================================
+    // Безопасные методы (заказы)
+    // ==========================================
     const loadOrders = async (payload = {}) => {
         try {
             return await store.loadOrders(payload);
@@ -96,9 +102,9 @@ export function useOrders() {
         }
     };
 
-    const repeatOrder = async (orderId) => {
+    const repeatOrder = async (payload) => {
         try {
-            return await store.repeatOrder({ order_id: orderId });
+            return await store.repeatOrder(payload);
         } catch (error) {
             console.error('Ошибка повтора заказа:', error);
             throw error;
@@ -114,8 +120,40 @@ export function useOrders() {
         }
     };
 
+    // ==========================================
+    // Безопасные методы (отзывы)
+    // ==========================================
+    const loadReviews = async (payload = {}) => {
+        try {
+            return await store.loadReviews(payload);
+        } catch (error) {
+            console.error('Ошибка загрузки отзывов:', error);
+            throw error;
+        }
+    };
+
+    const storeReview = async (payload) => {
+        try {
+            return await store.storeReview(payload);
+        } catch (error) {
+            console.error('Ошибка сохранения отзыва:', error);
+            throw error;
+        }
+    };
+
+    const getReviewsByProductId = async (productId, payload = {}) => {
+        try {
+            return await store.getReviewsByProductId({
+                dataObject: { product_id: productId, ...payload },
+            });
+        } catch (error) {
+            console.error('Ошибка загрузки отзывов по товару:', error);
+            throw error;
+        }
+    };
+
     return {
-        // Состояние
+        // Состояние (заказы)
         orders,
         orders_paginate_object,
         isLoading,
@@ -127,7 +165,12 @@ export function useOrders() {
         errors,
         lastSyncAt,
 
-        // Геттеры
+        // Состояние (отзывы)
+        reviews,
+        reviews_paginate_object,
+        isLoadingReviews,
+
+        // Геттеры (заказы)
         sortedOrders,
         pendingOrders,
         completedOrders,
@@ -142,7 +185,10 @@ export function useOrders() {
         ordersByStatus: store.ordersByStatus,
         isOrderLoading,
 
-        // Методы
+        // Геттеры (отзывы)
+        reviewsCount,
+
+        // Методы (заказы)
         loadOrders,
         loadAllOrders,
         loadOrderById,
@@ -154,6 +200,20 @@ export function useOrders() {
         calculateDeliveryPrice,
         requestDeliveryPrice: store.requestDeliveryPrice,
         exportAllOrders: store.exportAllOrders,
+
+
+
+        // Методы (отзывы)
+        getReviewsByProductId,
+        loadReviews,
+        storeReview,
+        updateReview: store.updateReview,
+        deleteReview: store.deleteReview,
+        canReviewOrder: store.canReviewOrder,
+
+        // Корзина (если есть в store)
+        clearCart: store.clearCart,
+        addProductToCart: store.addProductToCart,
 
         // Сброс
         $reset: store.$reset,

@@ -60,7 +60,7 @@
                 'is-animating': favAnimating,
                 'is-loading': favLoading
             }"
-                        @click.stop="toggleFavoriteItem"
+                        @click.stop="toggleFavorite"
                         :disabled="favLoading"
                     >
                         <i v-if="favLoading" class="fa-solid fa-spinner fa-spin"></i>
@@ -225,6 +225,7 @@ export default {
         return {
             // Корзина (из composable)
             addProduct: basket.addProduct,
+
             removeProduct: basket.removeProduct,
             isProductLoading: basket.isProductLoading,
             getProductAction: basket.getProductAction,
@@ -234,7 +235,7 @@ export default {
             productStore,
 
             // Избранное
-            isInFavorites: favorites.isInFavorites,
+            isInFavorites: favorites.isFavorite,
             toggleFavoriteAction: favorites.toggleFavorite,
         };
     },
@@ -388,7 +389,23 @@ export default {
         showProductDetails() {
             this.$productInfo?.show(this.item);
         },
+        async toggleFavorite() {
+            try {
+                const isAdded = await this.toggleFavoriteAction(this.item.id);
 
+                this.$notify?.({
+                    title: 'Успешно',
+                    text: isAdded ? 'Добавлено в избранное' : 'Убрано из избранного',
+                    type: 'success',
+                });
+            } catch (error) {
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось изменить избранное',
+                    type: 'error',
+                });
+            }
+        },
         // ==========================================
         // ИЗБРАННОЕ
         // ==========================================

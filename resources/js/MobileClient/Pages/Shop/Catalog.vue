@@ -71,92 +71,19 @@
             </div>
         </div>
 
-<!--
-        <FavoritesButton
-            :count="favoritesCount"
-            @click="openFavorites"
-        />
-
-
-        <CoffeeButton
-            @click="showCoffee"
-        />
--->
-
+        <!-- ========================================== -->
+        <!-- ПЛАВАЮЩЕЕ МЕНЮ -->
+        <!-- ========================================== -->
         <FloatingMenu
             :items="menuItems"
             :has-unread="favoritesCount > 0"
             @item-click="handleMenuClick"
         />
 
-
         <!-- ========================================== -->
-        <!-- МОДАЛКА: ИЗБРАННОЕ -->
+        <!-- 🆕 МОДАЛКА: ИЗБРАННОЕ (вынесена в компонент) -->
         <!-- ========================================== -->
-        <div
-            class="modal fade"
-            id="favoritesModal"
-            tabindex="-1"
-            aria-labelledby="favoritesModalLabel"
-            aria-hidden="true"
-        >
-            <div class="modal-dialog modal-dialog-centered modal-lg">
-                <div class="modal-content favorites-modal">
-                    <div class="modal-header">
-                        <div class="modal-icon favorites-icon">
-                            <i class="fa-solid fa-heart"></i>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h5 class="modal-title" id="favoritesModalLabel">Избранное</h5>
-                            <small class="text-muted">
-                                {{ favoritesCount > 0
-                                ? `${favoritesCount} ${pluralize(favoritesCount, 'товар', 'товара', 'товаров')}`
-                                : 'Пока пусто' }}
-                            </small>
-                        </div>
-                        <button
-                            type="button"
-                            class="btn-close"
-                            data-bs-dismiss="modal"
-                            aria-label="Закрыть"
-                        ></button>
-                    </div>
-                    <div class="modal-body">
-
-                        <!-- Загрузка -->
-                        <div v-if="isLoadingFavorites" class="loading-state">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Загрузка...</span>
-                            </div>
-                            <p class="mt-2 text-muted">Загружаем избранное...</p>
-                        </div>
-
-                        <!-- Пустое состояние -->
-                        <div v-else-if="favoritesProducts.length === 0" class="empty-state">
-                            <div class="empty-icon">
-                                <i class="fa-solid fa-heart"></i>
-                            </div>
-                            <h6 class="empty-title">Избранное пусто</h6>
-                            <p class="empty-text">
-                                Добавляйте товары в избранное, чтобы быстро находить их
-                            </p>
-                        </div>
-
-                        <!-- Список товаров -->
-                        <div v-else class="favorites-grid">
-                            <div
-                                v-for="product in favoritesProducts"
-                                :key="product.id"
-                                class="favorite-item"
-                            >
-                                <ProductCard :item="product" />
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-        </div>
+        <FavoritesModal v-model="showFavoritesModal" />
 
     </div>
 </template>
@@ -165,12 +92,10 @@
 import ShopMenu from "@/MobileClient/Components/Shop/Menu/ShopMenu.vue";
 import TableBookingPlanner from "@/MobileClient/Components/Shop/Booking/TableBookingPlanner.vue";
 import CoffeeProgress from "@/MobileClient/Components/Shop/CoffeeProgress.vue";
-import ProductCard from "@/MobileClient/Components/Shop/ProductCard.vue";
 import { useBasketStore } from "@/MobileClient/stores/Shop/basket.js";
-import { useFavoritesStore } from "@/MobileClient/stores/Shop/favorites.js";
-import FavoritesButton from '@/MobileClient/Components/Shop/FavoritesButton.vue';
-import CoffeeButton from '@/MobileClient/Components/Shop/CoffeeButton.vue';
+import { useFavorites } from '@/MobileClient/Composables/useFavorites.js';
 import FloatingMenu from '@/MobileClient/Components/Shop/FloatingMenu.vue';
+import FavoritesModal from '@/MobileClient/Components/Shop/Favorites/FavoritesModal.vue';
 
 export default {
     name: "ShopContainer",
@@ -180,15 +105,12 @@ export default {
         TableBookingPlanner,
         CoffeeProgress,
         FloatingMenu,
-        ProductCard,
-        CoffeeButton,
-        FavoritesButton
+        FavoritesModal,
     },
 
     setup() {
-        // ✅ Правильная инициализация Pinia stores
         const basketStore = useBasketStore();
-        const favoritesStore = useFavoritesStore();
+        const favoritesStore = useFavorites();
 
         return {
             basketStore,
@@ -199,10 +121,8 @@ export default {
     data() {
         return {
             currentMode: 'shop',
-            isLoadingFavorites: false,
-            favoritesProducts: [],
             coffeeModal: null,
-            favoritesModal: null,
+            showFavoritesModal: false, // 🆕 Управление модалкой избранного
         };
     },
 
@@ -213,7 +133,7 @@ export default {
                     key: 'favorites',
                     label: 'Избранное',
                     icon: 'fa-solid fa-heart',
-                    color: '#ef4444', // красный
+                    color: '#ef4444',
                     badge: this.favoritesCount > 0 ? this.favoritesCount : null,
                     action: () => this.openFavorites(),
                 },
@@ -221,12 +141,13 @@ export default {
                     key: 'coffee',
                     label: 'Кофе в подарок',
                     icon: 'fa-solid fa-mug-hot',
-                    color: '#8b5cf6', // фиолетовый
+                    color: '#8b5cf6',
                     badge: null,
                     action: () => this.showCoffee(),
                 },
             ];
         },
+
         tenant() {
             return window.Tenant || null;
         },
@@ -235,32 +156,14 @@ export default {
             return this.tenant?.settings || {};
         },
 
-        // Есть ли функция бронирования
         hasBooking() {
             return (this.settings?.tables_variants || []).length > 0;
         },
 
-        // Кофе включен
-        isCoffeeEnabled() {
-            return this.settings?.coffee?.enabled === true;
-        },
-
-        // Количество товаров в корзине
-        cartTotalCount() {
-            return this.basketStore.cartTotalCount || 0;
-        },
-
-        // Сумма корзины
-        cartTotalPrice() {
-            return this.basketStore.cartTotalPrice || 0;
-        },
-
-        // Количество избранных товаров
         favoritesCount() {
-            return this.favoritesStore.getFavorites?.length || 0;
+            return this.favoritesStore.count || 0;
         },
 
-        // Можно ли покупать (проверка графика работы)
         canBuy() {
             if (typeof window.isCorrectSchedule !== 'function') return true;
             if (!window.isCorrectSchedule(this.settings?.schedule)) return true;
@@ -270,9 +173,8 @@ export default {
 
     mounted() {
         this.loadBasketData();
-        this.initModals();
+        this.initCoffeeModal();
 
-        // Если нельзя покупать — открываем модалку с графиком
         if (!this.canBuy) {
             this.$nextTick(() => {
                 const modalEl = document.querySelector('#schedule-list-display');
@@ -285,26 +187,22 @@ export default {
     },
 
     beforeUnmount() {
-        // Очищаем экземпляры модалок
         if (this.coffeeModal) this.coffeeModal.dispose();
-        if (this.favoritesModal) this.favoritesModal.dispose();
     },
 
     methods: {
-        // Инициализация Bootstrap модалок
-        initModals() {
+        initCoffeeModal() {
             this.$nextTick(() => {
                 if (typeof bootstrap !== 'undefined') {
                     this.coffeeModal = new bootstrap.Modal(document.getElementById('coffeeModal'));
-                    this.favoritesModal = new bootstrap.Modal(document.getElementById('favoritesModal'));
                 }
             });
         },
+
         handleMenuClick(item) {
-            console.log('Clicked:', item.key);
             // Действия уже выполняются через item.action
         },
-        // Загрузка данных корзины
+
         async loadBasketData() {
             try {
                 await this.basketStore.loadProductsInBasket();
@@ -313,66 +211,15 @@ export default {
             }
         },
 
-        // Открытие модалки кофе
         showCoffee() {
             if (this.coffeeModal) {
                 this.coffeeModal.show();
             }
         },
 
-        // Переход в корзину
-        goToCart() {
-            this.$router.push({ name: 'Cart' });
-        },
-
-        // Переход к бронированию
-        goToBooking() {
-            this.$router.push({ name: 'TableBooking' });
-        },
-
-        // Открытие модалки избранного
-        async openFavorites() {
-            if (this.favoritesModal) {
-                this.favoritesModal.show();
-            }
-
-            // Загружаем избранное
-            await this.loadFavoritesProducts();
-        },
-
-        // Загрузка списка избранных товаров
-        async loadFavoritesProducts() {
-            this.isLoadingFavorites = true;
-
-            try {
-                // TODO: Замени на Pinia action
-                // const response = await this.favoritesStore.loadFavorites();
-                // this.favoritesProducts = response.data || [];
-
-                // Имитация запроса (удали после подключения API)
-                await new Promise(resolve => setTimeout(resolve, 800));
-                this.favoritesProducts = this.favoritesStore.getFavorites || [];
-
-            } catch (error) {
-                console.error('Ошибка загрузки избранного:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось загрузить избранное',
-                    type: 'error',
-                });
-            } finally {
-                this.isLoadingFavorites = false;
-            }
-        },
-
-        // Склонение слов
-        pluralize(count, one, two, five) {
-            const n = Math.abs(count) % 100;
-            const n1 = n % 10;
-            if (n > 10 && n < 20) return five;
-            if (n1 > 1 && n1 < 5) return two;
-            if (n1 === 1) return one;
-            return five;
+        // 🆕 Открытие модалки избранного
+        openFavorites() {
+            this.showFavoritesModal = true;
         },
     },
 };
@@ -395,7 +242,6 @@ export default {
     padding: 12px 16px;
     border-bottom: 1px solid var(--bs-border-color);
     backdrop-filter: blur(10px);
-
 }
 
 .switcher-container {
@@ -449,31 +295,26 @@ export default {
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* ==========================================
-   МОДАЛКИ
+   МОДАЛКА КОФЕ (оставляем Bootstrap)
    ========================================== */
-.coffee-modal,
-.favorites-modal {
+.coffee-modal {
     border-radius: 20px;
     border: none;
     overflow: hidden;
 }
 
-.modal-header {
+.coffee-modal .modal-header {
     padding: 20px;
     border-bottom: 1px solid var(--bs-border-color);
     background: rgba(var(--bs-primary-rgb), 0.03);
 }
 
-.modal-icon {
+.coffee-icon {
     width: 48px;
     height: 48px;
     border-radius: 12px;
@@ -483,84 +324,8 @@ export default {
     color: white;
     font-size: 1.3rem;
     flex-shrink: 0;
-}
-
-.coffee-icon {
     background: linear-gradient(135deg, #6f4e37 0%, #a0826d 100%);
     box-shadow: 0 4px 12px rgba(111, 78, 55, 0.3);
-}
-
-.favorites-icon {
-    background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
-    box-shadow: 0 4px 12px rgba(238, 9, 121, 0.3);
-}
-
-.modal-title {
-    font-weight: 700;
-    margin-bottom: 2px;
-    color: var(--bs-body-color);
-}
-
-.modal-body {
-    padding: 20px;
-    max-height: 70vh;
-    overflow-y: auto;
-}
-
-/* Состояния загрузки и пустоты */
-.loading-state,
-.empty-state {
-    text-align: center;
-    padding: 40px 20px;
-}
-
-.empty-icon {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    background: rgba(var(--bs-primary-rgb), 0.1);
-    color: var(--bs-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    margin: 0 auto 16px;
-}
-
-.empty-title {
-    font-weight: 700;
-    font-size: 1.1rem;
-    margin-bottom: 8px;
-    color: var(--bs-body-color);
-}
-
-.empty-text {
-    font-size: 0.9rem;
-    color: var(--bs-secondary-color);
-    margin: 0;
-    line-height: 1.5;
-}
-
-/* Сетка избранного */
-.favorites-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
-}
-
-.favorite-item {
-    animation: fadeInUp 0.3s ease-out;
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 /* ==========================================
@@ -578,11 +343,6 @@ export default {
 
     .switcher-btn i {
         font-size: 1.2rem;
-    }
-
-    .favorites-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
     }
 }
 </style>

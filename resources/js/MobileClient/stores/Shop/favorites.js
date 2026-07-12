@@ -1,207 +1,145 @@
 import { defineStore } from 'pinia';
-import { apiRequest } from '../utils/api.js';
+import axios from 'axios';
+
+const BASE = '/favorites';
 
 export const useFavoritesStore = defineStore('favorites', {
     state: () => ({
-        favorites: [],
+        favoriteIds: [],
+        favoriteProducts: [],
         isLoading: false,
+        isLoadingProducts: false,
         isHydrated: false,
         lastError: null,
     }),
 
     getters: {
-        /**
-         * Проверка, находится ли товар в избранном
-         */
-        inFav: (state) => (id) => {
-            if (id === null || id === undefined) return false;
-
-            const targetId = String(id);
-            return state.favorites.some(item => String(item.id) === targetId);
+        getFavorites: (state) => state.favoriteIds,
+        getFavoriteProducts: (state) => state.favoriteProducts,
+        count: (state) => state.favoriteIds.length,
+        isFavorite: (state) => (productId) => {
+            return state.favoriteIds.includes(productId);
         },
-
-        /**
-         * Все избранные товары
-         */
-        getFavorites: (state) => state.favorites,
-
-        /**
-         * Количество избранных
-         */
-        favoritesCount: (state) => state.favorites.length || 0,
-
-        /**
-         * Список ID избранных товаров
-         */
-        favoritesIds: (state) => state.favorites.map(item => item.id),
     },
 
     actions: {
-        // ==========================================
-        // СИНХРОНИЗАЦИЯ
-        // ==========================================
-
-        /**
-         * Загрузка избранного с сервера (основной источник истины)
-         */
-        async loadFavoritesFromServer() {
+        async loadFavorites() {
             this.isLoading = true;
             this.lastError = null;
 
             try {
-                const response = await apiRequest('/shop/products/fav-list', 'POST');
-                const favorites = response.data?.favorites || response.data || [];
+                console.log('[FavoritesStore] GET', BASE);
+                const response = await axios.get(BASE);
 
-                this.favorites = favorites.data;
+                console.log('[FavoritesStore] Response:', response.data);
+
+                const ids = response.data?.data?.ids || [];
+                this.favoriteIds = Array.isArray(ids) ? ids : [];
                 this.isHydrated = true;
 
-                // Синхронизируем с localStorage
-                localStorage.setItem('mypwa_favorites', JSON.stringify(this.favorites));
+                console.log('[FavoritesStore] Loaded IDs:', this.favoriteIds);
 
-                return this.favorites;
-            } catch (err) {
-                console.error('[Favorites Store] Ошибка загрузки:', err);
-                this.lastError = err.response?.data?.message || 'Ошибка загрузки избранного';
-
-                // Fallback: используем данные из localStorage
-                const cached = localStorage.getItem('mypwa_favorites');
-                if (cached) {
-                    try {
-                        this.favorites = JSON.parse(cached);
-                    } catch {
-                        this.favorites = [];
-                    }
-                }
-
-                throw err;
+                return this.favoriteIds;
+            } catch (error) {
+                console.error('[FavoritesStore] Ошибка загрузки:', error);
+                this.lastError = error.response?.data?.message || 'Ошибка загрузки';
+                throw error;
             } finally {
                 this.isLoading = false;
             }
         },
 
-        /**
-         * Переключение товара в избранном (основной метод)
-         * Отправляет запрос на бэк и обновляет локальное состояние
-         */
-        async toggleFavorite(product) {
-            const productId = product.id || product;
-            const isInFavorites = this.inFav(productId);
+        async loadFavoriteProducts() {
+            if (this.favoriteIds.length === 0) {
+                this.favoriteProducts = [];
+                return [];
+            }
 
-            // Оптимистично обновляем UI
-            const previousFavorites = [...this.favorites];
+            this.isLoadingProducts = true;
 
-            if (isInFavorites) {
-                this.favorites = this.favorites.filter(item => item.id !== productId);
+            try {
+                const response = await axios.get(`${BASE}/products`);
+
+                // 🆕 Гарантируем что это массив
+                const data = response.data?.data;
+
+
+                this.favoriteProducts = Array.isArray(data) ? data : [];
+
+                return this.favoriteProducts;
+            } catch (error) {
+                console.error('[FavoritesStore] Ошибка:', error);
+                this.favoriteProducts = [];
+                throw error;
+            } finally {
+                this.isLoadingProducts = false;
+            }
+        },
+
+        async addFavorite(productId) {
+            if (this.favoriteIds.includes(productId)) {
+                console.log('[FavoritesStore] Уже в избранном:', productId);
+                return false;
+            }
+
+            try {
+                await axios.post(`${BASE}`, { product_id: productId });
+                this.favoriteIds.push(productId);
+                console.log('[FavoritesStore] Добавлено:', productId);
+                return true;
+            } catch (error) {
+                console.error('[FavoritesStore] Ошибка добавления:', error);
+                throw error;
+            }
+        },
+
+        async removeFavorite(productId) {
+            try {
+                await axios.delete(`${BASE}/${productId}`);
+                this.favoriteIds = this.favoriteIds.filter(id => id !== productId);
+                this.favoriteProducts = this.favoriteProducts.filter(p => p.id !== productId);
+                console.log('[FavoritesStore] Удалено:', productId);
+                return true;
+            } catch (error) {
+                console.error('[FavoritesStore] Ошибка удаления:', error);
+                throw error;
+            }
+        },
+
+        async toggleFavorite(productId) {
+            if (this.favoriteIds.includes(productId)) {
+                await this.removeFavorite(productId);
+                return false;
             } else {
-                // Если передали только ID, создаём минимальный объект
-                const productObj = typeof product === 'object'
-                    ? product
-                    : { id: productId };
-                this.favorites.push(productObj);
+                await this.addFavorite(productId);
+                return true;
             }
+        },
 
-            // Сохраняем в localStorage
-            localStorage.setItem('mypwa_favorites', JSON.stringify(this.favorites));
-
+        async clearFavorites() {
             try {
-                // Отправляем запрос на бэкенд
-                const response = await apiRequest(
-                    '/shop/products/toggle-favorite',
-                    'POST',
-                    { id: productId }
-                );
-
-                // Синхронизируем с ответом сервера (на случай, если бэк вернул обновлённый список)
-                if (response.data?.favorites) {
-                    this.favorites = response.data.favorites || [];
-                    localStorage.setItem('mypwa_favorites', JSON.stringify(this.favorites));
-                }
-
-                return {
-                    success: true,
-                    isFavorite: !isInFavorites,
-                    product: response.data?.product || product,
-                };
-            } catch (err) {
-                // Откатываем изменения при ошибке
-                this.favorites = previousFavorites;
-                localStorage.setItem('mypwa_favorites', JSON.stringify(this.favorites));
-
-                console.error('[Favorites Store] Ошибка переключения:', err);
-                throw err;
+                await axios.delete(`${BASE}/clear`);
+                this.favoriteIds = [];
+                this.favoriteProducts = [];
+                return true;
+            } catch (error) {
+                console.error('[FavoritesStore] Ошибка очистки:', error);
+                throw error;
             }
         },
 
-        // ==========================================
-        // ЛОКАЛЬНЫЕ ДЕЙСТВИЯ (legacy, для совместимости)
-        // ==========================================
-
-        setFavoritesItems(favorites) {
-            this.favorites = favorites || [];
-            localStorage.setItem('mypwa_favorites', JSON.stringify(this.favorites));
+        setFavoriteIds(ids) {
+            this.favoriteIds = Array.isArray(ids) ? ids : [];
+            this.isHydrated = true;
         },
 
-        pushProductToFav(product) {
-            const exists = this.favorites.find(item => item.id === product.id);
-            if (!exists) {
-                this.favorites.push(product);
-                localStorage.setItem('mypwa_favorites', JSON.stringify(this.favorites));
-            }
-        },
-
-        removeProductFromFav(id) {
-            this.favorites = this.favorites.filter(item => item.id !== id);
-            localStorage.setItem('mypwa_favorites', JSON.stringify(this.favorites));
-        },
-
-        clearAllFavorites() {
-            this.favorites = [];
-            localStorage.setItem('mypwa_favorites', JSON.stringify(this.favorites));
-        },
-
-        async loadActualPriceInFav() {
-            try {
-                const ids = this.favorites.map(item => item.id);
-                if (ids.length === 0) return;
-
-                const response = await apiRequest(
-                    '/shop/products/load-actual',
-                    'POST',
-                    { ids }
-                );
-                const products = response.data || [];
-
-                const updated = this.favorites
-                    .map(fav => products.find(sub => sub.id === fav.id) || fav)
-                    .filter(Boolean);
-
-                this.setFavoritesItems(updated);
-            } catch (err) {
-                console.error('[Favorites Store] Ошибка обновления цен:', err);
-                throw err;
-            }
-        },
-
-        // Алиасы
-        addToFavorites(product) {
-            this.pushProductToFav(product);
-        },
-        removeFromFavorites(id) {
-            this.removeProductFromFav(id);
-        },
-        clearFavorites() {
-            this.clearAllFavorites();
-        },
-
-        /**
-         * Полный сброс состояния
-         */
         $reset() {
-            this.favorites = [];
+            this.favoriteIds = [];
+            this.favoriteProducts = [];
             this.isLoading = false;
+            this.isLoadingProducts = false;
             this.isHydrated = false;
             this.lastError = null;
-            localStorage.removeItem('mypwa_favorites');
         },
     },
 });

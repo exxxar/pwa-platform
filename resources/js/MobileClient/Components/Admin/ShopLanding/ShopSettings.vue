@@ -1,6 +1,5 @@
 <template>
     <div class="shop-settings">
-
         <!-- Шапка -->
         <div class="settings-header">
             <div class="header-left">
@@ -24,7 +23,6 @@
         </div>
 
         <div class="settings-layout">
-
             <!-- Боковое меню (вкладки) -->
             <aside class="settings-sidebar">
                 <nav class="settings-nav">
@@ -44,7 +42,6 @@
 
             <!-- Основная область -->
             <main class="settings-content">
-
                 <!-- ==================== ЦВЕТОВАЯ СХЕМА ==================== -->
                 <div v-if="activeSection === 'theme'" class="settings-panel fade-in">
                     <div class="panel-header">
@@ -55,11 +52,12 @@
                     <!-- Живой предпросмотр -->
                     <div class="theme-preview">
                         <div class="preview-card" :style="previewStyles">
-                            <div class="preview-header" :style="{ background: `linear-gradient(135deg, ${localConfig.theme?.primary}, ${localConfig.theme?.primaryLight})` }">
+                            <!-- УБРАЛИ ?. ИЗ :style, так как теперь localConfig.theme ВСЕГДА существует -->
+                            <div class="preview-header" :style="{ background: `linear-gradient(135deg, ${localConfig.theme.primary}, ${localConfig.theme.primaryLight})` }">
                                 <span>Предпросмотр</span>
                             </div>
                             <div class="preview-body">
-                                <button class="preview-btn" :style="{ background: `linear-gradient(135deg, ${localConfig.theme?.primary}, ${localConfig.theme?.primaryLight})` }">
+                                <button class="preview-btn" :style="{ background: `linear-gradient(135deg, ${localConfig.theme.primary}, ${localConfig.theme.primaryLight})` }">
                                     Кнопка
                                 </button>
                             </div>
@@ -124,37 +122,26 @@
                         <h3>Hero секция</h3>
                         <p>Первый экран, который видят посетители. Сделайте его привлекательным.</p>
                     </div>
-
                     <div class="form-group">
                         <label>Бейдж сверху</label>
                         <input type="text" v-model="localConfig.hero.badge" placeholder="Например: Мобильный магазин">
                     </div>
-
                     <div class="form-group">
                         <label>Заголовок <span class="required">*</span></label>
                         <input type="text" v-model="localConfig.hero.title" placeholder="Главный заголовок">
                     </div>
-
                     <div class="form-group">
                         <label>Подзаголовок</label>
                         <textarea v-model="localConfig.hero.subtitle" rows="3" placeholder="Краткое описание"></textarea>
                     </div>
-
                     <div class="form-group">
                         <label>Текст кнопки</label>
                         <input type="text" v-model="localConfig.hero.buttonText" placeholder="Например: Смотреть каталог">
                     </div>
-
                     <div class="form-group">
                         <label>Фоновое изображение</label>
                         <div class="file-upload" :class="{ 'has-file': localConfig.hero.backgroundImage }">
-                            <input
-                                type="file"
-                                ref="heroImageInput"
-                                @change="handleHeroImage"
-                                accept="image/*"
-                                class="file-input"
-                            >
+                            <input type="file" ref="heroImageInput" @change="handleHeroImage" accept="image/*" class="file-input">
                             <div v-if="!localConfig.hero.backgroundImage" class="upload-placeholder">
                                 <i class="fa-solid fa-cloud-arrow-up"></i>
                                 <span>Нажмите или перетащите изображение</span>
@@ -176,20 +163,12 @@
                         <h3>Категории товаров</h3>
                         <p>Управляйте категориями для фильтрации товаров</p>
                     </div>
-
                     <button class="btn-add" @click="addCategory">
                         <i class="fa-solid fa-plus"></i> Добавить категорию
                     </button>
-
                     <div class="items-list">
-                        <div
-                            v-for="(cat, idx) in localConfig.categories"
-                            :key="idx"
-                            class="item-card"
-                        >
-                            <div class="item-icon-preview">
-                                <i :class="cat.icon"></i>
-                            </div>
+                        <div v-for="(cat, idx) in localConfig.categories" :key="idx" class="item-card">
+                            <div class="item-icon-preview"><i :class="cat.icon"></i></div>
                             <div class="item-fields">
                                 <input type="text" v-model="cat.name" placeholder="Название категории" class="field-name">
                                 <input type="text" v-model="cat.icon" placeholder="fa-solid fa-icon" class="field-icon">
@@ -207,32 +186,19 @@
                         <h3>Товары</h3>
                         <p>Добавляйте, редактируйте и удаляйте товары вашего магазина</p>
                     </div>
-
                     <div class="panel-header-row">
                         <div class="form-group" style="margin-bottom: 0;">
-                            <input
-                                type="text"
-                                v-model="productSearch"
-                                placeholder="Поиск товара..."
-                                class="search-input"
-                            >
+                            <input type="text" v-model="productSearch" placeholder="Поиск товара..." class="search-input">
                         </div>
                         <button class="btn-add" @click="addProduct">
                             <i class="fa-solid fa-plus"></i> Добавить товар
                         </button>
                     </div>
-
                     <div class="items-list products-list">
-                        <div
-                            v-for="(product, idx) in filteredProductsList"
-                            :key="product.id"
-                            class="item-card product-item"
-                        >
+                        <div v-for="(product, idx) in filteredProductsList" :key="product.id" class="item-card product-item">
                             <div class="product-image-preview">
                                 <img v-if="product.image" :src="product.image" :alt="product.name">
-                                <div v-else class="no-image">
-                                    <i class="fa-solid fa-image"></i>
-                                </div>
+                                <div v-else class="no-image"><i class="fa-solid fa-image"></i></div>
                             </div>
                             <div class="item-fields product-fields">
                                 <input type="text" v-model="product.name" placeholder="Название товара">
@@ -260,7 +226,6 @@
                             </div>
                         </div>
                     </div>
-
                     <div v-if="localConfig.items.length === 0" class="empty-state">
                         <i class="fa-solid fa-box-open"></i>
                         <p>Товары не добавлены</p>
@@ -276,45 +241,29 @@
                         <h3>Отзывы клиентов</h3>
                         <p>Добавьте реальные отзывы для повышения доверия</p>
                     </div>
-
                     <div class="form-group">
                         <label>Заголовок секции</label>
                         <input type="text" v-model="localConfig.reviewsSection.title">
                     </div>
-
                     <div class="form-group">
                         <label>Подзаголовок секции</label>
                         <input type="text" v-model="localConfig.reviewsSection.subtitle">
                     </div>
-
                     <button class="btn-add" @click="addReview">
                         <i class="fa-solid fa-plus"></i> Добавить отзыв
                     </button>
-
                     <div class="items-list">
-                        <div
-                            v-for="(review, idx) in localConfig.reviews"
-                            :key="idx"
-                            class="item-card review-item"
-                        >
+                        <div v-for="(review, idx) in localConfig.reviews" :key="idx" class="item-card review-item">
                             <div class="review-avatar-preview">
                                 <img v-if="review.avatar" :src="review.avatar" :alt="review.name">
-                                <div v-else class="no-avatar">
-                                    <i class="fa-solid fa-user"></i>
-                                </div>
+                                <div v-else class="no-avatar"><i class="fa-solid fa-user"></i></div>
                             </div>
                             <div class="item-fields review-fields">
                                 <input type="text" v-model="review.name" placeholder="Имя клиента">
                                 <textarea v-model="review.text" rows="2" placeholder="Текст отзыва"></textarea>
                                 <div class="rating-input">
                                     <span>Оценка:</span>
-                                    <i
-                                        v-for="star in 5"
-                                        :key="star"
-                                        class="fa-solid fa-star"
-                                        :class="{ 'filled': star <= review.rating }"
-                                        @click="review.rating = star"
-                                    ></i>
+                                    <i v-for="star in 5" :key="star" class="fa-solid fa-star" :class="{ 'filled': star <= review.rating }" @click="review.rating = star"></i>
                                 </div>
                             </div>
                             <div class="item-actions">
@@ -336,19 +285,9 @@
                         <h3>Призыв к действию (CTA)</h3>
                         <p>Секция перед футером с призывом связаться</p>
                     </div>
-
-                    <div class="form-group">
-                        <label>Заголовок</label>
-                        <input type="text" v-model="localConfig.cta.title">
-                    </div>
-                    <div class="form-group">
-                        <label>Текст</label>
-                        <textarea v-model="localConfig.cta.text" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Текст кнопки</label>
-                        <input type="text" v-model="localConfig.cta.buttonText">
-                    </div>
+                    <div class="form-group"><label>Заголовок</label><input type="text" v-model="localConfig.cta.title"></div>
+                    <div class="form-group"><label>Текст</label><textarea v-model="localConfig.cta.text" rows="3"></textarea></div>
+                    <div class="form-group"><label>Текст кнопки</label><input type="text" v-model="localConfig.cta.buttonText"></div>
                 </div>
 
                 <!-- ==================== FOOTER ==================== -->
@@ -357,45 +296,22 @@
                         <h3>Футер</h3>
                         <p>Контактная информация и ссылки</p>
                     </div>
-
-                    <div class="form-group">
-                        <label>Название компании</label>
-                        <input type="text" v-model="localConfig.footer.companyName">
-                    </div>
-                    <div class="form-group">
-                        <label>Описание</label>
-                        <textarea v-model="localConfig.footer.description" rows="2"></textarea>
-                    </div>
-
+                    <div class="form-group"><label>Название компании</label><input type="text" v-model="localConfig.footer.companyName"></div>
+                    <div class="form-group"><label>Описание</label><textarea v-model="localConfig.footer.description" rows="2"></textarea></div>
                     <div class="form-row">
-                        <div class="form-group">
-                            <label>Телефон</label>
-                            <input type="tel" v-model="localConfig.footer.phone">
-                        </div>
-                        <div class="form-group">
-                            <label>Email</label>
-                            <input type="email" v-model="localConfig.footer.email">
-                        </div>
+                        <div class="form-group"><label>Телефон</label><input type="tel" v-model="localConfig.footer.phone"></div>
+                        <div class="form-group"><label>Email</label><input type="email" v-model="localConfig.footer.email"></div>
                     </div>
-
-                    <div class="form-group">
-                        <label>Адрес</label>
-                        <input type="text" v-model="localConfig.footer.address">
-                    </div>
-
+                    <div class="form-group"><label>Адрес</label><input type="text" v-model="localConfig.footer.address"></div>
                     <div class="form-group">
                         <label>Социальные сети</label>
                         <div class="social-list">
                             <div v-for="(social, idx) in localConfig.footer.socialLinks" :key="idx" class="social-item">
                                 <input type="text" v-model="social.icon" placeholder="fa-brands fa-telegram">
                                 <input type="text" v-model="social.url" placeholder="https://...">
-                                <button class="btn-remove" @click="removeSocial(idx)">
-                                    <i class="fa-solid fa-trash"></i>
-                                </button>
+                                <button class="btn-remove" @click="removeSocial(idx)"><i class="fa-solid fa-trash"></i></button>
                             </div>
-                            <button class="btn-add-small" @click="addSocial">
-                                <i class="fa-solid fa-plus"></i> Добавить соцсеть
-                            </button>
+                            <button class="btn-add-small" @click="addSocial"><i class="fa-solid fa-plus"></i> Добавить соцсеть</button>
                         </div>
                     </div>
                 </div>
@@ -406,23 +322,10 @@
                         <h3>Корзина</h3>
                         <p>Тексты для корзины и оформления заказа</p>
                     </div>
-
-                    <div class="form-group">
-                        <label>Заголовок корзины</label>
-                        <input type="text" v-model="localConfig.cart.title">
-                    </div>
-                    <div class="form-group">
-                        <label>Текст пустой корзины</label>
-                        <input type="text" v-model="localConfig.cart.emptyText">
-                    </div>
-                    <div class="form-group">
-                        <label>Текст кнопки оформления</label>
-                        <input type="text" v-model="localConfig.cart.checkoutText">
-                    </div>
-                    <div class="form-group">
-                        <label>Подпись итоговой суммы</label>
-                        <input type="text" v-model="localConfig.cart.totalText">
-                    </div>
+                    <div class="form-group"><label>Заголовок корзины</label><input type="text" v-model="localConfig.cart.title"></div>
+                    <div class="form-group"><label>Текст пустой корзины</label><input type="text" v-model="localConfig.cart.emptyText"></div>
+                    <div class="form-group"><label>Текст кнопки оформления</label><input type="text" v-model="localConfig.cart.checkoutText"></div>
+                    <div class="form-group"><label>Подпись итоговой суммы</label><input type="text" v-model="localConfig.cart.totalText"></div>
                 </div>
 
                 <!-- ==================== ОБРАТНАЯ СВЯЗЬ ==================== -->
@@ -431,31 +334,12 @@
                         <h3>Модалка обратной связи</h3>
                         <p>Форма для связи с клиентами</p>
                     </div>
-
-                    <div class="form-group">
-                        <label>Заголовок</label>
-                        <input type="text" v-model="localConfig.feedbackModal.title">
-                    </div>
-                    <div class="form-group">
-                        <label>Подзаголовок</label>
-                        <input type="text" v-model="localConfig.feedbackModal.subtitle">
-                    </div>
-                    <div class="form-group">
-                        <label>Подпись поля "Имя"</label>
-                        <input type="text" v-model="localConfig.feedbackModal.nameLabel">
-                    </div>
-                    <div class="form-group">
-                        <label>Подпись поля "Телефон"</label>
-                        <input type="text" v-model="localConfig.feedbackModal.phoneLabel">
-                    </div>
-                    <div class="form-group">
-                        <label>Подпись поля "Сообщение"</label>
-                        <input type="text" v-model="localConfig.feedbackModal.messageLabel">
-                    </div>
-                    <div class="form-group">
-                        <label>Текст кнопки отправки</label>
-                        <input type="text" v-model="localConfig.feedbackModal.submitText">
-                    </div>
+                    <div class="form-group"><label>Заголовок</label><input type="text" v-model="localConfig.feedbackModal.title"></div>
+                    <div class="form-group"><label>Подзаголовок</label><input type="text" v-model="localConfig.feedbackModal.subtitle"></div>
+                    <div class="form-group"><label>Подпись поля "Имя"</label><input type="text" v-model="localConfig.feedbackModal.nameLabel"></div>
+                    <div class="form-group"><label>Подпись поля "Телефон"</label><input type="text" v-model="localConfig.feedbackModal.phoneLabel"></div>
+                    <div class="form-group"><label>Подпись поля "Сообщение"</label><input type="text" v-model="localConfig.feedbackModal.messageLabel"></div>
+                    <div class="form-group"><label>Текст кнопки отправки</label><input type="text" v-model="localConfig.feedbackModal.submitText"></div>
                 </div>
 
                 <!-- ==================== КОНФИДЕНЦИАЛЬНОСТЬ ==================== -->
@@ -464,20 +348,12 @@
                         <h3>Политика конфиденциальности</h3>
                         <p>Текст политики, отображаемый в модалке</p>
                     </div>
-
+                    <div class="form-group"><label>Заголовок</label><input type="text" v-model="localConfig.privacyModal.title"></div>
                     <div class="form-group">
-                        <label>Заголовок</label>
-                        <input type="text" v-model="localConfig.privacyModal.title">
-                    </div>
-                    <div class="form-group">
-                        <label>
-                            Текст политики
-                            <span class="hint">Поддерживается HTML-разметка</span>
-                        </label>
+                        <label>Текст политики <span class="hint">Поддерживается HTML-разметка</span></label>
                         <textarea v-model="localConfig.privacyModal.content" rows="15" class="code-textarea"></textarea>
                     </div>
                 </div>
-
             </main>
         </div>
     </div>
@@ -490,7 +366,7 @@ export default {
     props: {
         initialConfig: {
             type: Object,
-            required: true,
+            default: () => ({}), // Делаем необязательным с пустым объектом по умолчанию
         },
     },
 
@@ -502,14 +378,14 @@ export default {
             activeSection: 'theme',
             productSearch: '',
 
-            // Локальная копия конфига для редактирования
-            localConfig: this.deepClone(this.initialConfig),
+            // Инициализируем через безопасное слияние с дефолтами
+            localConfig: this.mergeConfig(this.initialConfig),
 
             sections: [
                 { id: 'theme', label: 'Цвета', icon: 'fa-solid fa-palette' },
                 { id: 'hero', label: 'Hero секция', icon: 'fa-solid fa-image' },
-                { id: 'categories', label: 'Категории', icon: 'fa-solid fa-layer-group', get badge() { return null; } },
-                { id: 'products', label: 'Товары', icon: 'fa-solid fa-box', get badge() { return null; } },
+                { id: 'categories', label: 'Категории', icon: 'fa-solid fa-layer-group', badge: null },
+                { id: 'products', label: 'Товары', icon: 'fa-solid fa-box', badge: null },
                 { id: 'reviews', label: 'Отзывы', icon: 'fa-solid fa-star' },
                 { id: 'cta', label: 'CTA секция', icon: 'fa-solid fa-bullhorn' },
                 { id: 'footer', label: 'Футер', icon: 'fa-solid fa-shoe-prints' },
@@ -524,8 +400,8 @@ export default {
         previewStyles() {
             const t = this.localConfig.theme;
             return {
-                '--preview-primary': t?.primary || '#fffff',
-                '--preview-light': t?.primaryLight || '#fffff',
+                '--preview-primary': t?.primary || '#ffffff', // Исправлен опечатка #fffff -> #ffffff
+                '--preview-light': t?.primaryLight || '#ffffff',
                 '--preview-bg': t?.light,
                 '--preview-text': t?.dark,
             };
@@ -542,7 +418,8 @@ export default {
         initialConfig: {
             deep: true,
             handler(newVal) {
-                this.localConfig = this.deepClone(newVal);
+                // Пересчитываем локальный конфиг при изменении пропса
+                this.localConfig = this.mergeConfig(newVal);
             },
         },
     },
@@ -550,6 +427,43 @@ export default {
     methods: {
         deepClone(obj) {
             return JSON.parse(JSON.stringify(obj));
+        },
+
+        // Возвращает полную структуру конфига с дефолтными значениями
+        getDefaultConfig() {
+            return {
+                theme: { primary: '#3b82f6', primaryDark: '#2563eb', primaryLight: '#60a5fa', accent: '#f59e0b', dark: '#1f2937', light: '#f9fafb' },
+                hero: { badge: '', title: '', subtitle: '', buttonText: '', backgroundImage: '' },
+                categories: [],
+                items: [],
+                reviews: [],
+                reviewsSection: { title: '', subtitle: '' },
+                cta: { title: '', text: '', buttonText: '' },
+                footer: { companyName: '', description: '', phone: '', email: '', address: '', socialLinks: [] },
+                cart: { title: '', emptyText: '', checkoutText: '', totalText: '' },
+                feedbackModal: { title: '', subtitle: '', nameLabel: '', phoneLabel: '', messageLabel: '', submitText: '' },
+                privacyModal: { title: '', content: '' }
+            };
+        },
+
+        // Безопасно сливает переданные данные с дефолтами
+        mergeConfig(initial) {
+            const defaults = this.getDefaultConfig();
+            const clonedInitial = this.deepClone(initial || {});
+            const merged = this.deepClone(defaults);
+
+            for (const key in clonedInitial) {
+                if (clonedInitial[key] !== undefined && clonedInitial[key] !== null) {
+                    // Если это обычный объект (не массив), сливаем его рекурсивно
+                    if (typeof clonedInitial[key] === 'object' && !Array.isArray(clonedInitial[key]) && typeof merged[key] === 'object' && !Array.isArray(merged[key])) {
+                        merged[key] = { ...merged[key], ...clonedInitial[key] };
+                    } else {
+                        // Иначе просто перезаписываем (для массивов и примитивов)
+                        merged[key] = clonedInitial[key];
+                    }
+                }
+            }
+            return merged;
         },
 
         // ==========================================
@@ -676,7 +590,6 @@ export default {
         // СОХРАНЕНИЕ / СБРОС
         // ==========================================
         async saveSettings() {
-            // Валидация
             if (!this.localConfig.hero.title?.trim()) {
                 this.$notify?.({
                     title: 'Ошибка',
@@ -690,10 +603,7 @@ export default {
             this.isSaving = true;
 
             try {
-                // TODO: Замените на реальный API-запрос
-                // await this.$store.dispatch('saveShopSettings', this.localConfig);
                 await new Promise(resolve => setTimeout(resolve, 800));
-
                 this.$emit('save', this.deepClone(this.localConfig));
 
                 this.$notify?.({
@@ -715,7 +625,7 @@ export default {
 
         resetToDefaults() {
             if (!confirm('Сбросить все настройки к значениям по умолчанию?')) return;
-            this.localConfig = this.deepClone(this.initialConfig);
+            this.localConfig = this.mergeConfig(this.initialConfig);
             this.$emit('reset');
             this.$notify?.({
                 title: 'Сброшено',
@@ -726,6 +636,8 @@ export default {
     },
 };
 </script>
+
+
 
 <style lang="scss" scoped>
 @use 'sass:color';

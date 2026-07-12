@@ -41,6 +41,44 @@ class BasketService
     }
 
     /**
+     * 🆕 Краткая информация о корзине
+     */
+    public function getCartSummary(int $tenantId, ?int $userId): array
+    {
+        if (!$userId) {
+            return [
+                'items_count' => 0,
+                'total_price' => 0,
+                'items' => [],
+            ];
+        }
+
+        $cartItems = Basket::where('tenant_id', $tenantId)
+            ->where('tenant_user_id', $userId)
+            ->whereNull('ordered_at')
+            ->with(['product:id,name,price,current_price,images'])
+            ->get();
+
+        return [
+            'items_count' => $cartItems->sum('count'),
+            'total_price' => $cartItems->sum(function ($item) {
+                $price = $item->product->current_price ?? $item->product->price ?? 0;
+                return $price * $item->count;
+            }),
+            'items' => $cartItems->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'count' => $item->count,
+                    'price' => $item->product->current_price ?? $item->product->price ?? 0,
+                    'name' => $item->product->name,
+                    'image' => $item->product->images[0] ?? null,
+                ];
+            }),
+        ];
+    }
+
+    /**
      * Оформление заказа
      * @throws ValidationException
      */

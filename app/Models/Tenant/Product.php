@@ -74,4 +74,36 @@ class Product extends Model
         );
     }
 
+    /**
+     * Отзывы о товаре
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    /**
+     * Только одобренные отзывы
+     */
+    public function approvedReviews(): HasMany
+    {
+        return $this->hasMany(Review::class)->approved();
+    }
+
+    /**
+     * Средний рейтинг товара
+     */
+    public function getAverageRatingAttribute(): float
+    {
+        return round($this->reviews()->approved()->avg('rating') ?? 0, 1);
+    }
+
+    /**
+     * Количество отзывов
+     */
+    public function getReviewsCountAttribute(): int
+    {
+        return $this->reviews()->approved()->count();
+    }
+
 }

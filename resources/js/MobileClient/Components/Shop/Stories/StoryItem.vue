@@ -6,7 +6,6 @@
             @click="handleClick"
             type="button"
         >
-            <!-- Градиентная рамка -->
             <div class="story-ring">
                 <div class="story-avatar">
                     <img
@@ -14,15 +13,11 @@
                         :alt="story.title"
                         class="story-image"
                     >
-
-                    <!-- Индикатор просмотра -->
                     <div v-if="isViewed" class="viewed-indicator">
                         <i class="fa-solid fa-check"></i>
                     </div>
                 </div>
             </div>
-
-            <!-- Название истории -->
             <div class="story-title">{{ story.title || 'История' }}</div>
         </button>
     </div>
@@ -47,7 +42,7 @@ export default {
 
     methods: {
         handleClick() {
-            // Эмитим событие с данными истории
+            console.log('👆 Click on story:', this.story.title);
             this.$emit('open-story', this.story);
         },
     },

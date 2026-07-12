@@ -504,8 +504,8 @@ export default {
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
                 currency: 'RUB',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
             }).format(price || 0);
         },
 

@@ -15,6 +15,8 @@ export const useChatStore = defineStore('chat', {
 
 
         // Состояние загрузки
+        totalUnread: 0,
+        totalCount: 0,
         isLoading: false,
         isHydrated: false,
         isSending: false,
@@ -139,6 +141,14 @@ export const useChatStore = defineStore('chat', {
         // ==========================================
         // ЗАГРУЗКА ДИАЛОГОВ
         // ==========================================
+        setInitialData(data) {
+            if (!data) return;
+
+            this.dialogs = data.items || [];
+            this.totalUnread = data.total_unread || 0;
+            this.totalCount = data.total_count || 0;
+            this.isHydrated = true;
+        },
 
         /**
          * 🆕 Получение количества непрочитанных сообщений
@@ -186,6 +196,10 @@ export const useChatStore = defineStore('chat', {
                 const data = response.data?.data || response.data || [];
 
                 this.dialogs = Array.isArray(data) ? data : [];
+
+                this.totalUnread = data.total_unread || 0;
+                this.totalCount = data.total_count || 0;
+
                 this.isHydrated = true;
                 this.lastSyncAt = new Date();
 

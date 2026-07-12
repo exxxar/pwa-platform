@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantUser;
 use App\Notifications\NewOrderNotification;
+use App\Services\BasketService;
+use App\Services\ChatService;
+use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -15,6 +18,28 @@ use Inertia\Inertia;
 
 class TenantAuthController extends Controller
 {
+
+    public function serviceWorker()
+    {
+
+        $path = public_path('sw.js');
+
+        if (!file_exists($path)) {
+            abort(404);
+        }
+
+        $content = file_get_contents($path);
+
+        // Заменяем метку на реальную версию из .env
+        $content = str_replace('___MY_PROJECT_VERSION___', env('APP_VERSION', '1.0.0'), $content);
+
+        return response($content, 200, [
+            'Content-Type' => 'application/javascript',
+            'Service-Worker-Allowed' => '/pwa/',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        ]);
+
+    }
 
     public function loginPage()
     {
@@ -113,8 +138,16 @@ class TenantAuthController extends Controller
 
     }
 
-    public function handler($tenant)
+
+    public function handler(
+        $tenant,
+        ChatService $chatService,
+        BasketService $basketService,
+        ProductService $productService
+    )
     {
+
+
         if (empty($tenant) || !preg_match('/^[a-zA-Z0-9_-]+$/', $tenant)) {
             return redirect()->route('public.landing');
         }
@@ -128,11 +161,66 @@ class TenantAuthController extends Controller
         Session::put("tenant", $tenantModel);
         $tenantUser = Auth::guard('tenant')->user();
 
+        // 🆕 Предзагрузка данных для мгновенного отображения
+        $initialData = $this->loadInitialData(
+            $tenantModel,
+            $tenantUser,
+            $chatService,
+            $basketService,
+            $productService
+        );
+
         Inertia::setRootView("mobile");
         return Inertia::render('MobileMain', [
             'tenant' => $tenantModel,
             'tenant_user' => $tenantUser,
+            'initial_data' => $initialData, // 🆕
         ]);
+    }
+
+    /**
+     * 🆕 Загрузка начальных данных для приложения
+     */
+    private function loadInitialData(
+        Tenant         $tenant,
+                       $tenantUser,
+        ChatService    $chatService,
+        BasketService  $basketService,
+        ProductService $productService
+    ): array
+    {
+        $data = [
+            'chats' => null,
+            'cart' => null,
+            'products_count' => 0,
+            'recommendations' => null,
+        ];
+
+        try {
+            // 1. Чаты (только метаданные)
+            if ($tenantUser) {
+                $data['chats'] = $chatService->getDialogsSummary($tenantUser->id);
+            }
+
+            // 2. Корзина
+            $data['cart'] = $basketService->getCartSummary($tenant->id, $tenantUser?->id);
+
+            // 3. Количество товаров в каталоге
+            $data['products_count'] = $productService->getActiveProductsCount($tenant->id);
+
+            // 4. Рекомендации (первые 5-10 товаров)
+            $data['recommendations'] = $productService->getRecommendedProducts(
+                $tenant->id,
+                $tenantUser?->id,
+                8
+            );
+
+        } catch (\Throwable $e) {
+            // Логируем ошибку, но не прерываем загрузку
+            \Log::warning('[InitialData] Ошибка загрузки: ' . $e->getMessage());
+        }
+
+        return $data;
     }
 
     public function manifest($tenantSlug)
@@ -181,7 +269,8 @@ class TenantAuthController extends Controller
 
             $tenantStoragePath = "tenants/{$tenant->id}/screenshots/{$filename}";
             if (Storage::disk('public')->exists($tenantStoragePath)) {
-                return "{$tenantScreenshotBase}/{$filename}";        }
+                return "{$tenantScreenshotBase}/{$filename}";
+            }
 
             return "{$defaultScreenshotBase}/{$filename}";
         };

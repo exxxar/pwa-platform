@@ -12,6 +12,7 @@ export const useBasketStore = defineStore('basket', {
         basket_items: [],
         basket_items_paginate_object: null,
 
+        itemsCount: 0,
         // Состояние загрузки
         isLoading: false,
         isHydrated: false,
@@ -83,6 +84,7 @@ export const useBasketStore = defineStore('basket', {
          * Общая сумма корзины (с учётом весовых товаров и подборок)
          */
         cartTotalPrice: (state) => {
+            console.log("cartTotalPrice", state.basket_items)
             if (!state.basket_items?.length) return 0;
 
             return state.basket_items.reduce((sum, item) => {
@@ -90,7 +92,7 @@ export const useBasketStore = defineStore('basket', {
                 if (item.product) {
                     const currentPrice = item.params?.discount_price
                         ? item.params.discount_price
-                        : (item.product.current_price || 0);
+                        : (item.product.price || 0);
 
                     const count = item.product?.is_weight_product ? 1 : item.count;
                     const price = item.product?.is_weight_product
@@ -104,7 +106,7 @@ export const useBasketStore = defineStore('basket', {
                 if (item.collection) {
                     const selected = item.params?.ids || [];
                     const collectionPrice = item.collection.products.reduce((acc, sub) => {
-                        return acc + (selected.includes(sub.id) ? (sub.current_price || 0) : 0);
+                        return acc + (selected.includes(sub.id) ? (sub.price || 0) : 0);
                     }, 0);
 
                     const discountedPrice = collectionPrice * (1 - (item.collection.discount || 0) / 100);
@@ -149,7 +151,14 @@ export const useBasketStore = defineStore('basket', {
         // ==========================================
         // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
         // ==========================================
+        setInitialData(data) {
+            if (!data) return;
 
+            this.items = data.items || [];
+            this.itemsCount = data.items_count || 0;
+            this.totalPrice = data.total_price || 0;
+            this.isHydrated = true;
+        },
         /**
          * Обновление корзины из ответа сервера
          */

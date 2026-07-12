@@ -2,84 +2,44 @@ import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useFavoritesStore } from '@/MobileClient/stores/Shop/favorites.js';
 
-/**
- * Composable для работы с избранным
- */
 export function useFavorites() {
     const store = useFavoritesStore();
 
-    // Реактивные ссылки на состояние
     const {
-        favorites,
+        favoriteIds,
+
         isLoading,
+        isLoadingProducts,
         isHydrated,
         lastError,
     } = storeToRefs(store);
 
-    // Реактивные геттеры
-    const favoritesCount = computed(() => store.favoritesCount);
-    const favoritesIds = computed(() => store.favoritesIds);
-
-    /**
-     * Проверка, находится ли товар в избранном (реактивно)
-     */
-    const isInFavorites = (productId) => {
-        return store.inFav(productId);
-    };
-
-    /**
-     * Безопасное переключение избранного с обработкой ошибок
-     */
-    const toggleFavorite = async (product) => {
-        try {
-            const result = await store.toggleFavorite(product);
-
-            // Уведомление можно вызвать здесь или в компоненте
-            return result;
-        } catch (error) {
-            console.error('Ошибка переключения избранного:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Загрузка избранного с сервера
-     */
-    const loadFavorites = async () => {
-        try {
-            await store.loadFavoritesFromServer();
-        } catch (error) {
-            console.error('Ошибка загрузки избранного:', error);
-        }
-    };
-
-    /**
-     * Обновление актуальных цен
-     */
-    const refreshPrices = async () => {
-        try {
-            await store.loadActualPriceInFav();
-        } catch (error) {
-            console.error('Ошибка обновления цен:', error);
-        }
-    };
+    const count = computed(() => store.count);
+    const isFavorite = computed(() => store.isFavorite);
+    const favoriteProducts = computed(() => store.getFavoriteProducts);
 
     return {
-        // Состояние
-        favorites,
+        // State
+        favoriteIds,
+        favoriteProducts,
         isLoading,
+        isLoadingProducts,
         isHydrated,
         lastError,
 
-        // Геттеры
-        favoritesCount,
-        favoritesIds,
-        isInFavorites,
+        // Getters
+        count,
+        isFavorite,
 
-        // Методы
-        toggleFavorite,
-        loadFavorites,
-        refreshPrices,
+        // Actions
+        loadFavorites: store.loadFavorites,
+        loadFavoriteProducts: store.loadFavoriteProducts,
+        addFavorite: store.addFavorite,
+        removeFavorite: store.removeFavorite,
+        toggleFavorite: store.toggleFavorite,
         clearFavorites: store.clearFavorites,
+        setFavoriteIds: store.setFavoriteIds,
+
+        $reset: store.$reset,
     };
 }
