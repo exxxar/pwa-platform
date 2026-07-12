@@ -807,7 +807,7 @@ export default {
         },
 
         goToFriends() {
-            this.$router.push({ name: 'Friends' });
+            this.$router.push({ name: 'ReferralsPage' });
         },
 
         goToCashback() {
