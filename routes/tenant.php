@@ -447,11 +447,11 @@ if (config('app.debug') ?? false) {
 }
 
 
-Route::domain('{tenant}.mypwa.ru')->group($routesManager);
-Route::domain('{tenant}.pwa-platform.test')->group($routesManager);
+Route::domain('{tenant}.mypwa.ru')->group($routes);
+Route::domain('{tenant}.pwa-platform.test')->group($routes);
 
-Route::domain('job.mypwa.ru')->group($routes);
-Route::domain('job.pwa-platform.test')->group($routes);
+Route::domain('job.mypwa.ru')->group($routesManager);
+Route::domain('job.pwa-platform.test')->group($routesManager);
 
 
 Route::get('/auth/vk/redirect', [TenantSocialAuthController::class, 'redirect']);
