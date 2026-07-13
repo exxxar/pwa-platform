@@ -81,7 +81,7 @@ class PartnersController extends Controller
     {
         $request->validate([
             'id' => "required",
-            'bot_partner_id' => "required",
+            'tenant_partner_id' => "required",
             'title' => "",
             'description' => "",
             'image' => "",
