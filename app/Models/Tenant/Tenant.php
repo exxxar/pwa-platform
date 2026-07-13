@@ -106,10 +106,25 @@ class Tenant extends Model
     protected function settings(): Attribute
     {
         return Attribute::make(
-            get: fn() => array_replace_recursive(
-                self::defaultSettings(),
-                $this->meta ?? []
-            )
+            get: function () {
+                // 1. Получаем значение meta
+                $currentMeta = $this->meta;
+
+                // 2. Если по какой-то причине это строка (старые данные или двойной json_encode) - декодируем
+                if (is_string($currentMeta)) {
+                    $currentMeta = json_decode($currentMeta, true) ?? [];
+                }
+                // 3. Если это null или не массив - делаем пустым массивом
+                elseif (!is_array($currentMeta)) {
+                    $currentMeta = [];
+                }
+
+                // 4. Безопасно объединяем с настройками по умолчанию
+                return array_replace_recursive(
+                    self::defaultSettings(),
+                    $currentMeta
+                );
+            }
         );
     }
 

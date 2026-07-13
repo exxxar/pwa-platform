@@ -117,7 +117,7 @@ class DatabaseSeeder extends Seeder
                 'order_channel' => 'web',
                 'balance' => 1000,
                 'tax_per_day' => 5,
-                'meta' => json_encode($baseMeta),
+                'meta' => $baseMeta,
                 'is_active' => true,
                 'welcome_message' => 'Добро пожаловать!',
                 'maintenance_message' => 'Ведутся технические работы',
