@@ -148,6 +148,20 @@ export const useBasketStore = defineStore('basket', {
     // ACTIONS
     // ==========================================
     actions: {
+
+        /**
+         * 🆕 Расчет стоимости доставки по координатам
+         */
+        async requestDeliveryPriceNew(payload) {
+            try {
+                // ⚠️ ВНИМАНИЕ: Замените URL на ваш реальный endpoint на бэкенде!
+                const response = await axios.post('/basket/get-delivery-price-new', payload);
+                return response.data;
+            } catch (error) {
+                console.error('[BasketStore] Ошибка расчета доставки:', error);
+                throw error;
+            }
+        },
         // ==========================================
         // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
         // ==========================================

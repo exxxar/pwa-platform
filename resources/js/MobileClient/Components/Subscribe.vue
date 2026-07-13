@@ -213,12 +213,12 @@ async function handleToggle() {
 /* Grid для кнопок */
 .notification-buttons {
     display: grid;
-    grid-template-columns: 3fr 2fr;
+    grid-template-columns: 4fr 1fr;
     gap: 0;
     border-radius: 12px;
-    border: 2px #ffffff solid;
-    overflow: hidden;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px #ffffff solid;
+
+
 }
 
 /* Основная кнопка */
@@ -230,7 +230,8 @@ async function handleToggle() {
     padding: 18px 20px;
     background-color: transparent;
     color: #ffffff;
-    border-right:2px white solid;
+    border-radius: 12px 0px 0px 12px;
+    border:none;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -271,10 +272,12 @@ async function handleToggle() {
     justify-content: center;
     background-color: transparent;
     color: #ffffff;
-    border-left: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 0px 12px 12px 0px;
     font-size: 20px;
     cursor: pointer;
     transition: all 0.2s ease;
+    border: none;
+    border-left: 1px #ffffff solid;
 }
 
 .btn-notif-icon:hover {

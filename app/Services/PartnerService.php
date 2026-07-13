@@ -420,6 +420,9 @@ class PartnerService
         $meta = $tenant->meta ?? [];
         $partnersConfig = $meta["partners"] ?? [];
 
+        if (is_string($meta))
+            $meta = (array)json_decode($meta);
+
         // 🆕 Обновляем только переданные поля
         foreach (array_keys($allowedFields) as $field) {
             if (array_key_exists($field, $data)) {
@@ -433,8 +436,12 @@ class PartnerService
         }
 
         $meta["partners"] = $partnersConfig;
+
+
         $tenant->meta = $meta;
         $tenant->save();
+
+
 
         // 🆕 При отключении программы — деактивируем партнёров
         if (!($partnersConfig['is_active'] ?? false)) {

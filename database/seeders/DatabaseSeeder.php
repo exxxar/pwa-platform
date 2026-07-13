@@ -2,8 +2,6 @@
 
 namespace Database\Seeders;
 
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use App\Facades\PartnerService;
 use App\Models\Tenant\Tenant;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -11,12 +9,9 @@ use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // 1. Выносим общую структуру meta в переменную, чтобы не дублировать её
+        // 1. Базовая конфигурация meta (оставляем как есть, она отличная)
         $baseMeta = [
             'sbp' => [
                 'sber' => [],
@@ -41,15 +36,8 @@ class DatabaseSeeder extends Seeder
                 ['slug' => 'booking', 'title' => 'Бронирование столика', 'image_url' => 'booking.png', 'is_visible' => true, 'has_icon' => true],
             ],
             'coffee' => [],
-            'kanban' => [
-                'is_active' => false,
-                'board_uuid' => null,
-                'token' => null,
-            ],
-            'manager' => [
-                'link' => 'https://t.me/EgorShipilov',
-                'title' => 'Написать',
-            ],
+            'kanban' => ['is_active' => false, 'board_uuid' => null, 'token' => null],
+            'manager' => ['link' => 'https://t.me/EgorShipilov', 'title' => 'Написать'],
             'interval' => 1,
             'map_tiler' => 'l7t0HU7CqsgOKgS9rtvU',
             'min_price' => 800,
@@ -64,40 +52,14 @@ class DatabaseSeeder extends Seeder
             'free_shipping_starts_from' => 0,
             'subscriptions' => [
                 'text' => 'Подпишись на каналы ниже и получи доступ к проекту',
-                'channels' => [
-                    [
-                        'id' => -1001947900076,
-                        'link' => '@gastro_pub_yoj',
-                        'title' => 'Канал Ежа',
-                    ]
-                ],
+                'channels' => [['id' => -1001947900076, 'link' => '@gastro_pub_yoj', 'title' => 'Канал Ежа']],
                 'is_active' => true,
             ],
             'tables_variants' => [
-                [
-                    'id' => 11,
-                    'edit' => true,
-                    'image' => '11.png',
-                    'seats' => 4,
-                    'number' => 1,
-                    'description' => 'Прямоугольный стол с диваном на 4 мест',
-                ],
-                [
-                    'id' => 11,
-                    'edit' => true,
-                    'image' => '11.png',
-                    'seats' => 4,
-                    'number' => 2,
-                    'description' => 'Прямоугольный стол с диваном на 4 мест',
-                ],
+                ['id' => 11, 'edit' => true, 'image' => '11.png', 'seats' => 4, 'number' => 1, 'description' => 'Прямоугольный стол с диваном на 4 мест'],
+                ['id' => 11, 'edit' => true, 'image' => '11.png', 'seats' => 4, 'number' => 2, 'description' => 'Прямоугольный стол с диваном на 4 мест'],
             ],
-            'init_certificate' => [
-                'type' => 'cashback',
-                'title' => 'Подарочный сертификат',
-                'amount' => 500,
-                'is_active' => true,
-                'description' => '500 рублей на CashBack',
-            ],
+            'init_certificate' => ['type' => 'cashback', 'title' => 'Подарочный сертификат', 'amount' => 500, 'is_active' => true, 'description' => '500 рублей на CashBack'],
             'need_promo_code' => true,
             'need_table_list' => true,
             'need_person_counter' => true,
@@ -114,38 +76,44 @@ class DatabaseSeeder extends Seeder
             'min_price_for_cashback' => 2000,
         ];
 
-        // 2. Массив всех ваших проектов (slug берется из ссылок, name — название)
+        // 2. Массив тенантов с разделением по ролям
         $tenants = [
-            ['slug' => 'test', 'name' => 'Test Tenant'],
-            ['slug' => 'fastoran', 'name' => 'Fastoran'],
-            ['slug' => 'cheburekmi', 'name' => 'Чебурек ми'],
-            ['slug' => 'donmak-pl', 'name' => 'Дон мак площадь'],
-            ['slug' => 'chillsushi', 'name' => 'Чилл суши'],
-            ['slug' => 'big-shashlyk', 'name' => 'Большой шашлык'],
-            ['slug' => 'bigjohn', 'name' => 'Большой Джон'],
-            ['slug' => 'shaurmen', 'name' => 'Шаурмен'],
-            ['slug' => 'avkd-sushi', 'name' => 'AVKD суши'],
-            ['slug' => 'polnaya-chasha', 'name' => 'Полная чаша'],
-            ['slug' => 'donmak-kr', 'name' => 'Дон мак крытый'],
-            ['slug' => 'vuper-burgers', 'name' => 'Вупер бургерс'],
-            ['slug' => 'labirint', 'name' => 'Лабиринт'],
-            ['slug' => 'shaurma-john', 'name' => 'Шаурма от Джона'],
-            ['slug' => 'chacha-puri', 'name' => 'Чача пури'],
-            ['slug' => 'schastie-est', 'name' => 'Счастье есть'],
+            // --- Системные / Тестовые ---
+            ['slug' => 'test', 'name' => 'Test Tenant', 'app_type' => 'shop'],
+            ['slug' => 'job', 'name' => 'Manager Job', 'app_type' => 'service'], // Сервис для менеджеров по продажам
+
+            // --- Главный хаб (агрегатор) ---
+            ['slug' => 'fastoran', 'name' => 'Fastoran', 'app_type' => 'shop'],
+
+            // --- Заведения-партнёры (будут привязаны к fastoran) ---
+            ['slug' => 'cheburekmi', 'name' => 'Чебурек ми', 'app_type' => 'partner'],
+            ['slug' => 'donmak-pl', 'name' => 'Дон мак площадь', 'app_type' => 'partner'],
+            ['slug' => 'chillsushi', 'name' => 'Чилл суши', 'app_type' => 'partner'],
+            ['slug' => 'big-shashlyk', 'name' => 'Большой шашлык', 'app_type' => 'partner'],
+            ['slug' => 'bigjohn', 'name' => 'Большой Джон', 'app_type' => 'partner'],
+            ['slug' => 'shaurmen', 'name' => 'Шаурмен', 'app_type' => 'partner'],
+            ['slug' => 'avkd-sushi', 'name' => 'AVKD суши', 'app_type' => 'partner'],
+            ['slug' => 'polnaya-chasha', 'name' => 'Полная чаша', 'app_type' => 'partner'],
+            ['slug' => 'donmak-kr', 'name' => 'Дон мак крытый', 'app_type' => 'partner'],
+            ['slug' => 'vuper-burgers', 'name' => 'Вупер бургерс', 'app_type' => 'partner'],
+            ['slug' => 'labirint', 'name' => 'Лабиринт', 'app_type' => 'partner'],
+            ['slug' => 'shaurma-john', 'name' => 'Шаурма от Джона', 'app_type' => 'partner'],
+            ['slug' => 'chacha-puri', 'name' => 'Чача пури', 'app_type' => 'partner'],
+            ['slug' => 'schastie-est', 'name' => 'Счастье есть', 'app_type' => 'partner'],
         ];
 
         // 3. Формируем данные для вставки
         $insertData = [];
         foreach ($tenants as $tenant) {
             $insertData[] = [
-                'uuid' => (string)Str::uuid(),
+                'uuid' => (string) Str::uuid(),
                 'slug' => $tenant['slug'],
                 'name' => $tenant['name'],
                 'description' => 'Тенант ' . $tenant['name'],
                 'image' => null,
                 'icon' => null,
                 'theme_color' => '#3490dc',
-                'app_type' => 'shop',
+                'app_type' => $tenant['app_type'], // 🆕 Используем роль
                 'order_channel' => 'web',
                 'balance' => 1000,
                 'tax_per_day' => 5,
@@ -154,7 +122,7 @@ class DatabaseSeeder extends Seeder
                 'welcome_message' => 'Добро пожаловать!',
                 'maintenance_message' => 'Ведутся технические работы',
                 'blocked_message' => 'Аккаунт заблокирован',
-                'long_description' => 'Это длинное описание тестового тенанта',
+                'long_description' => 'Описание тенанта ' . $tenant['name'],
                 'short_description' => 'Короткое описание',
                 'cashback_fire_percent' => 10,
                 'cashback_fire_period' => 7,
@@ -167,12 +135,13 @@ class DatabaseSeeder extends Seeder
             ];
         }
 
-        // 4. Вставляем все тенанты одним запросом
-        DB::table('tenants')->insert($insertData);
+        // 4. Вставляем все тенанты (игнорируем дубликаты по slug, если уже есть)
+        foreach ($insertData as $data) {
+            Tenant::updateOrCreate(['slug' => $data['slug']], $data);
+        }
 
         // Вызов остальных сидеров
-        $this->call(TestDataSeeder::class);
-        $this->call(StoriesSeeder::class);
+        $this->command->info("✅ Тенанты созданы/обновлены.");
         $this->call(PartnerSeeder::class);
     }
 }

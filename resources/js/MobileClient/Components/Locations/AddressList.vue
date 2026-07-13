@@ -50,7 +50,9 @@
                     <i class="fa-solid fa-map-location-dot"></i>
                 </div>
                 <p class="empty-text">Нет сохранённых адресов</p>
-                <button class="empty-btn" @click="openForm">
+                <button
+                    type="button"
+                    class="empty-btn" @click="openForm">
                     <i class="fa-solid fa-plus me-2"></i>
                     Добавить первый адрес
                 </button>

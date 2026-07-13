@@ -138,6 +138,9 @@ export const useChatStore = defineStore('chat', {
     // ACTIONS
     // ==========================================
     actions: {
+        setTotalUnreadCount(val){
+          this.totalUnread = val
+        },
         // ==========================================
         // ЗАГРУЗКА ДИАЛОГОВ
         // ==========================================
@@ -158,13 +161,17 @@ export const useChatStore = defineStore('chat', {
                 const response = await axios.get(`${BASE}/unread-count`);
                 const data = response.data;
 
+                let sumUnreadCount = 0
                 // Обновляем unread_count у каждого диалога
                 if (data.by_dialog) {
                     this.dialogs.forEach(dialog => {
                         dialog.unread_count = data.by_dialog[String(dialog.id)] || 0;
+                        sumUnreadCount += dialog.unread_count;
                     });
                 }
 
+                this.totalUnread = sumUnreadCount;
+                this.totalCount = data.total || 0;
                 return data.total || 0;
             } catch (error) {
                 console.error('[Chat Store] Ошибка получения непрочитанных:', error);

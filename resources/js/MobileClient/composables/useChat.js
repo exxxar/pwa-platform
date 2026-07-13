@@ -10,6 +10,7 @@ export function useChat() {
 
     // Реактивные ссылки на состояние
     const {
+
         dialogs,
         messages,
         currentDialog,
@@ -231,6 +232,7 @@ export function useChat() {
         markDialogAsRead,
         fetchUnreadCount,
         fetchDialogUnreadCount,
+        setTotalUnreadCount: store.setTotalUnreadCount,
 
         // 🆕 Архивирование
         archiveDialog,

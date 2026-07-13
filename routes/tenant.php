@@ -262,6 +262,7 @@ $routes = function () {
             Route::post('/', "loadProductsInBasket");
             Route::post('/checkout', "checkout")
                 ->middleware(['track.order']);
+
             Route::post("/get-delivery-price-new", [ProductController::class, "getDeliveryPriceNew"]);
             Route::post('/checkout-link', "checkoutLink");
             Route::post("/use-wheel-of-fortune-prize", "useWheelOfFortunePrize");

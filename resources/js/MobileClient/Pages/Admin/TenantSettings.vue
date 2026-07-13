@@ -31,7 +31,7 @@
                         'is-active': activeTab === index,
                         'is-dirty': isSectionDirty(tab.section)
                     }"
-                    @click="activeTab = index"
+                    @click="changeActiveTab(index)"
                 >
                     <i :class="tab.icon"></i>
                     <span>{{ tab.title }}</span>
@@ -1212,7 +1212,7 @@ export default {
     data() {
         return {
             activeTab: 0,
-            activePwaSubTab:'general',
+            activePwaSubTab: 'general',
             tabs: [
                 {key: 'basic', title: 'Основное', icon: 'fa-solid fa-building', section: 'company'},
                 {key: 'pwa', title: 'PWA приложение', icon: 'fa-solid fa-mobile-screen', section: 'pwa'},
@@ -1221,9 +1221,9 @@ export default {
                 {key: 'interactive', title: 'Интерактив', icon: 'fa-solid fa-gamepad', section: 'interactive'},
                 {key: 'tables', title: 'Столики', icon: 'fa-solid fa-utensils', section: 'tables'},
                 {key: 'menu', title: 'Пункты меню', icon: 'fa-solid fa-bars', section: 'menu'},
-                {key: 'calculators', title: 'Калькуляторы', icon: 'fa-solid fa-hive', section: 'calculators'},
+                {key: 'calculators', title: 'Калькуляторы', icon: 'fa-solid fa-calculator', section: 'calculators'},
                 {key: 'games', title: 'Бонус-игры', icon: 'fa-solid fa-dice', section: 'games'},
-                {key: 'crm', title: 'CRM', icon: 'fa-solid fa-kanban', section: 'crm'},
+                {key: 'crm', title: 'CRM', icon: 'fa-brands fa-connectdevelop', section: 'crm'},
             ],
             pwaSubTabs: [
                 {key: 'general', title: 'Основное', icon: 'fa-solid fa-info-circle'},
@@ -1380,6 +1380,14 @@ export default {
     },
 
     methods: {
+        changeActiveTab(index) {
+            this.activeTab = index
+
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        },
         async initForms() {
             const tenant = window.Tenant;
             if (!tenant) return;

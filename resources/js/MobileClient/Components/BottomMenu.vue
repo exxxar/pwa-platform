@@ -38,8 +38,8 @@
 </template>
 
 <script>
-import { useBasket } from '@/MobileClient/Composables/useBasket.js';
-import { useChat } from '@/MobileClient/Composables/useChat.js';
+import {useBasket} from '@/MobileClient/Composables/useBasket.js';
+import {useChat} from '@/MobileClient/Composables/useChat.js';
 
 export default {
     name: "BottomMenu",
@@ -48,12 +48,15 @@ export default {
         const basket = useBasket();
         const chat = useChat();
 
+
         return {
+            chat,
             totalUnread: chat.totalUnread,
             cartTotalCount: basket.cartTotalCount,
             isEmpty: basket.isEmpty,
         };
     },
+
 
     data() {
         return {
@@ -94,7 +97,7 @@ export default {
     methods: {
         goTo(name) {
             if (!name || this.$route.name === name) return;
-            this.$router.push({ name });
+            this.$router.push({name});
         },
     },
 };
@@ -130,9 +133,8 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
     background-color: $bg;
     color: $text;
     border-radius: 16px;
-    box-shadow:
-        0 -2px 20px rgba(0, 0, 0, 0.08),
-        0 0 0 1px $border;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.08),
+    0 0 0 1px $border;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
@@ -268,8 +270,7 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
 // ТЁМНАЯ ТЕМА
 // ==========================================
 :root[data-bs-theme="dark"] .bottom-nav .container-fluid {
-    box-shadow:
-        0 -2px 20px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 </style>
