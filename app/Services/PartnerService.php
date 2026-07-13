@@ -226,7 +226,7 @@ class PartnerService
             throw new HttpException(403, "Данные боты уже являются партнерами!");
 
         if ($file) {
-            $slug = $tenant->company->slug;
+            $slug = $botPartner->slug;
             $ext = $file->getClientOriginalExtension();
             $imageName = Str::uuid() . "." . $ext;
             $file->storeAs("/public/companies/$slug/$imageName");
