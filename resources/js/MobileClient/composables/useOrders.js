@@ -80,6 +80,15 @@ export function useOrders() {
         }
     };
 
+    const loadRandomOrders = async () => {
+        try {
+            return await store.loadRandomOrders();
+        } catch (error) {
+            console.error('Ошибка загрузки случайных заказов:', error);
+            throw error;
+        }
+    };
+
     const changeStatus = async (orderId, status) => {
         try {
             return await store.changeOrderStatus({
@@ -201,7 +210,10 @@ export function useOrders() {
         requestDeliveryPrice: store.requestDeliveryPrice,
         exportAllOrders: store.exportAllOrders,
 
-
+        loadRandomOrders,
+        getRandomRecentOrders: store.getRandomRecentOrders,
+        randomRecentOrders: storeToRefs(store).randomRecentOrders,
+        isLoadingRandom: storeToRefs(store).isLoadingRandom,
 
         // Методы (отзывы)
         getReviewsByProductId,

@@ -1,141 +1,110 @@
 import { defineStore } from 'pinia';
+import axios from 'axios';
 
 export const useShopLandingStore = defineStore('shop-landing', {
     state: () => ({
-        activeCategoryId: 'all',
-
-        categories: [
-            { id: 'all', name: 'Все товары', icon: 'fa-solid fa-grid-2' },
-            { id: 'food', name: 'Еда', icon: 'fa-solid fa-burger' },
-            { id: 'drinks', name: 'Напитки', icon: 'fa-solid fa-mug-hot' },
-            { id: 'desserts', name: 'Десерты', icon: 'fa-solid fa-cake-candles' },
-            { id: 'other', name: 'Другое', icon: 'fa-solid fa-box-open' },
-        ],
-
-        products: [
-            {
-                id: 1,
-                categoryId: 'food',
-                name: 'Пицца Маргарита',
-                price: 590,
-                oldPrice: 690,
-                image: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&q=80',
-                badge: 'Хит'
-            },
-            {
-                id: 2,
-                categoryId: 'drinks',
-                name: 'Капучино',
-                price: 250,
-                oldPrice: null,
-                image: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=500&q=80',
-                badge: null
-            },
-            {
-                id: 3,
-                categoryId: 'desserts',
-                name: 'Чизкейк Нью-Йорк',
-                price: 350,
-                oldPrice: null,
-                image: 'https://images.unsplash.com/photo-1524351199678-941a58a3df50?w=500&q=80',
-                badge: 'Новинка'
-            },
-            {
-                id: 4,
-                categoryId: 'food',
-                name: 'Бургер Классик',
-                price: 450,
-                oldPrice: 520,
-                image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&q=80',
-                badge: null
-            },
-            {
-                id: 5,
-                categoryId: 'drinks',
-                name: 'Латте с сиропом',
-                price: 280,
-                oldPrice: null,
-                image: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=500&q=80',
-                badge: null
-            },
-            {
-                id: 6,
-                categoryId: 'desserts',
-                name: 'Тирамису',
-                price: 380,
-                oldPrice: 450,
-                image: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=500&q=80',
-                badge: 'Скидка'
-            },
-            {
-                id: 7,
-                categoryId: 'other',
-                name: 'Фирменный мерч (Футболка)',
-                price: 1200,
-                oldPrice: null,
-                image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80',
-                badge: 'New'
-            }
-        ]
+        categories: [], // Иерархия: { id, name, products: [], products_count, ... }
+        isLoading: false,
+        error: null,
+        partnerId: null,
+        activeCategoryId: 'all', // Оставляем для совместимости
     }),
 
     getters: {
-        // Получить активную категорию
-        activeCategory: (state) => state.categories.find(c => c.id === state.activeCategoryId),
+        // Плоский список всех товаров (добавляем имя категории для удобства)
+        allProducts: (state) => state.categories.flatMap(cat =>
+            (cat.products || []).map(p => ({
+                ...p,
+                categoryName: cat.name,
+                categoryId: cat.id
+            }))
+        ),
 
-        // Получить товары для активной категории (или все, если 'all')
-        filteredProducts: (state) => {
-            if (state.activeCategoryId === 'all') {
-                return state.products;
-            }
-            return state.products.filter(p => p.categoryId === state.activeCategoryId);
+        // Есть ли еще товары для загрузки в категории
+        hasMoreProducts: (state) => (categoryId) => {
+            const cat = state.categories.find(c => c.id === categoryId);
+            if (!cat) return false;
+            const currentLength = (cat.products || []).length;
+            const totalCount = cat.products_count || currentLength;
+            return currentLength < totalCount;
         },
 
-        // Массив категорий, в которые ВЛОЖЕНЫ продукты (как вы просили)
-        categoriesWithProducts: (state) => {
-            return state.categories.map(category => {
-                const categoryProducts = category.id === 'all'
-                    ? state.products
-                    : state.products.filter(p => p.categoryId === category.id);
-
-                return {
-                    ...category,
-                    products: categoryProducts
-                };
-            });
-        },
-
-        // Найти конкретный товар по ID
-        getProductById: (state) => (id) => state.products.find(p => p.id === id),
+        // Автоматический подбор иконки, если бэкенд её не отдает
+        getCategoryIcon: () => (category) => {
+            const name = category.name?.toLowerCase() || '';
+            if (name.includes('еда') || name.includes('пицца') || name.includes('бургер') || name.includes('ролл')) return 'fa-solid fa-burger';
+            if (name.includes('напитк') || name.includes('кофе') || name.includes('чай') || name.includes('сок')) return 'fa-solid fa-mug-hot';
+            if (name.includes('десерт') || name.includes('торт') || name.includes('морожен')) return 'fa-solid fa-cake-candles';
+            if (category.id === -1) return 'fa-solid fa-box-open';
+            return category.icon || 'fa-solid fa-utensils';
+        }
     },
 
     actions: {
-        setActiveCategory(categoryId) {
-            this.activeCategoryId = categoryId;
-        },
+        async fetchShopData(payloadPartnerId = null) {
+            this.isLoading = true;
+            this.error = null;
+            try {
+                const partnerId = payloadPartnerId || this.partnerId;
 
-        // Имитация загрузки данных с сервера
-        async fetchShopData() {
-            // Здесь будет ваш API запрос: const response = await api.get('/shop/data');
-            // this.categories = response.data.categories;
-            // this.products = response.data.products;
-            console.log('Данные магазина загружены');
-        },
+                // ⚠️ ПРОВЕРЬ ЭТОТ URL! Он должен точно совпадать с твоими routes/api.php
+                const response = await axios.post('/shop/products/by-category', {
+                    partner_id: partnerId
+                });
 
-        // Действия для админки (пример)
-        addProduct(product) {
-            this.products.push({ ...product, id: Date.now() });
-        },
+                // Универсальное получение данных (на случай, если Laravel возвращает { data: { data: [...] } } или просто { data: [...] })
+                const rawData = response.data?.data || response.data || [];
 
-        updateProduct(updatedProduct) {
-            const index = this.products.findIndex(p => p.id === updatedProduct.id);
-            if (index !== -1) {
-                this.products[index] = updatedProduct;
+                console.log('📦 Сырые данные от бэкенда (категории):', rawData);
+
+                this.categories = rawData.map(cat => ({
+                    ...cat,
+                    products: cat.products || [], // Гарантируем, что это массив
+                    products_count: cat.products_count || (cat.products ? cat.products.length : 0), // Страховка
+                    isLoadingMore: false,
+                    icon: this.getCategoryIcon(cat)
+                }));
+
+                this.partnerId = partnerId;
+                console.log('✅ Категории успешно загружены в стор:', this.categories);
+
+            } catch (err) {
+                console.error('❌ Ошибка загрузки данных магазина:', err);
+                this.error = 'Не удалось загрузить меню. Проверьте консоль.';
+            } finally {
+                this.isLoading = false;
             }
         },
 
-        deleteProduct(productId) {
-            this.products = this.products.filter(p => p.id !== productId);
+        async loadMoreProducts(categoryId, offset, payloadPartnerId = null) {
+            const category = this.categories.find(c => c.id === categoryId);
+            if (!category || category.isLoadingMore) return;
+
+            category.isLoadingMore = true;
+            try {
+                const partnerId = payloadPartnerId || this.partnerId;
+
+                // ⚠️ ПРОВЕРЬ ЭТОТ URL для пагинации!
+                const response = await axios.post('/shop/products/load-more-by-category', {
+                    category_id: categoryId,
+                    offset: offset,
+                    partner_id: partnerId
+                });
+
+                const newProducts = response.data || []; // Или response.data.data, зависит от твоего контроллера
+
+                if (newProducts.length > 0) {
+                    category.products = [...(category.products || []), ...newProducts];
+                }
+            } catch (err) {
+                console.error(`❌ Ошибка подгрузки для категории ${categoryId}:`, err);
+            } finally {
+                category.isLoadingMore = false;
+            }
+        },
+
+        setActiveCategory(id) {
+            this.activeCategoryId = id;
         }
     }
 });

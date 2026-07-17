@@ -6,8 +6,10 @@ use App\Http\Resources\BasketCollection;
 use App\Http\Resources\BasketResource;
 use App\Http\Resources\TableCollection;
 use App\Http\Resources\TableResource;
+use App\Http\Resources\TenantUserResource;
 use App\Models\Tenant\Basket;
 use App\Models\Tenant\Table;
+use App\Models\Tenant\TenantUser;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -237,7 +239,7 @@ class TableService
                     $product = (object)$basket->product;
                     $clientBasket->summary_count += $basket->count;
 
-                    $price = ($product->current_price ?? 0) * $basket->count;
+                    $price = ($product->price ?? 0) * $basket->count;
                     $clientBasket->summary_price += $price;
                     $allSummaryPrice += $price;
                     $allSummaryCount += $basket->count;
@@ -251,7 +253,7 @@ class TableService
             "summary_price" => $allSummaryPrice,
             "summary_count" => $allSummaryCount,
             "table" => new TableResource($table),
-            "clients" => BotUserResource::collection($table->clients ?? null),
+            "clients" => TenantUserResource::collection($table->clients ?? null),
             "basket" => $clientBaskets
         ];
     }

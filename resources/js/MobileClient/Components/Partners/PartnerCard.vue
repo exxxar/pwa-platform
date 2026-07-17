@@ -48,6 +48,9 @@
                 </div>
             </div>
 
+            <p v-if="partner.title" class="card-title">
+                {{ partner.title }}
+            </p>
             <p v-if="partner.description" class="card-description">
                 {{ partner.description }}
             </p>

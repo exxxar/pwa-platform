@@ -386,7 +386,7 @@ class IIKOService
                 if (is_null($product->iiko_article ?? null))
                     continue;
 
-                $price = ($product->current_price ?? 0) * $item->count;
+                $price = ($product->price ?? 0) * $item->count;
 
                 $order['order']['items'][] = [
                     "productId"    => $product->external_id ?? null,  // ID товара в iiko

@@ -377,11 +377,7 @@ export default {
 </script>
 
 <style scoped>
-<style lang="scss" scoped>
-                   .partners-page {
-                       min-height: 100vh;
-                       background: var(--bs-body-bg);
-                   }
+
 
 /* ==========================================
    🆕 HERO С АНИМАЦИЕЙ

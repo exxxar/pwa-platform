@@ -64,9 +64,9 @@ class Tenant extends Model
         return $this->hasMany(Integration::class);
     }
 
-    public function partners(): BelongsTo
+    public function partners(): hasMany
     {
-        return $this->belongsTo(Partner::class);
+        return $this->hasMany(Partner::class);
     }
 
     public function integrationsByType(IntegrationTypeEnum $type)

@@ -25,6 +25,7 @@ use App\Http\Controllers\Tenant\TenantSocialAuthController;
 use App\Http\Controllers\Tenant\TenantTapLinkController;
 use App\Http\Controllers\Tenant\WebhookReceiverController;
 use App\Http\Controllers\TenantDialogController;
+use App\Http\Controllers\TenantSettingsController;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantUser;
 use App\Notifications\NewOrderNotification;
@@ -59,7 +60,6 @@ $routesManager = function () {
 };
 
 $routes = function () {
-
 
     Route::any('/webhook', [WebhookReceiverController::class, 'handle'])
         ->name('webhook.workspace');
@@ -120,6 +120,12 @@ $routes = function () {
 
     Route::get('/taplink', [TenantTapLinkController::class, 'index']);
 
+    Route::prefix('profile')->middleware(['auth:tenant'])->group(function () {
+        Route::get('/', [ProfileController::class, 'index']);
+        Route::put('/', [ProfileController::class, 'update']);          // Обновление текстовых данных
+        Route::post('/avatar', [ProfileController::class, 'updateAvatar']); // Загрузка фото
+    });
+
     Route::prefix('favorites')->middleware(['auth:tenant'])->group(function () {
         Route::get('/', [FavoriteController::class, 'index']);
         Route::get('/products', [FavoriteController::class, 'products']);
@@ -156,6 +162,23 @@ $routes = function () {
         });
 
         Route::prefix("tenant-settings")->group(function () {
+
+            // ==========================================
+            // 🆕 ОСНОВНЫЕ НАСТРОЙКИ
+            // ==========================================
+            // Основные настройки
+            Route::put('/basic', [TenantSettingsController::class, 'updateBasic']);
+            Route::put('/shop', [TenantSettingsController::class, 'updateShop']);
+            Route::put('/main-menu', [TenantSettingsController::class, 'updateMainMenu']);
+            Route::put('/cashback', [TenantSettingsController::class, 'updateCashback']);
+            Route::put('/interactive', [TenantSettingsController::class, 'updateInteractive']);
+            Route::put('/tables', [TenantSettingsController::class, 'updateTables']);
+            Route::put('/menu', [TenantSettingsController::class, 'updateMenu']);
+            Route::put('/calculators', [TenantSettingsController::class, 'updateCalculators']);
+            Route::put('/games', [TenantSettingsController::class, 'updateGames']);
+            Route::put('/crm', [TenantSettingsController::class, 'updateCrm']);
+            Route::post('/main-menu/upload-icon', [TenantSettingsController::class, 'uploadMainMenuIcon']);
+            Route::post('/main-menu/reset-icon', [TenantSettingsController::class, 'resetMainMenuIcon']);
             // 🆕 PWA
             Route::get('/pwa', [TenantPwaController::class, 'getPwaSettings']);
             Route::post('/pwa', [TenantPwaController::class, 'savePwaSettings']);
@@ -317,6 +340,7 @@ $routes = function () {
             Route::prefix("orders")
                 ->group(function () {
                     Route::post("/", [OrderController::class, "getOrders"]);
+                    Route::post('/rr', [OrderController::class, 'getRandomRecentOrders']);
                     Route::post("/send-sbp-invoice", [OrderController::class, "sendSBPInvoice"]);
                     Route::post("/all", [OrderController::class, "getAllOrders"]);
                     Route::post("/repeat-order", [OrderController::class, "repeatOrder"]);
@@ -411,6 +435,7 @@ $routes = function () {
         ->group(function () {
             Route::post("/", "index");
             Route::post("/store", "store");
+
             Route::post("/toggle-favorite", "togglePartnersInFavorites");
             Route::post("/update-settings", "updateSettings");
             Route::post("/update-active-status", "updateActiveStatus");
@@ -467,8 +492,9 @@ Route::get('/me', [TenantAuthController::class, 'me']);
 
 
 Route::middleware(['tenant.access'])->group(function () {
-    Route::get('/profile', [ProfileController::class, 'index']);
-    Route::get('/orders', [OrderController::class, 'index']);
+
+
+
 });
 
 

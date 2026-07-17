@@ -32,6 +32,9 @@ export const useOrdersStore = defineStore('orders', {
 
         // Время последней синхронизации
         lastSyncAt: null,
+
+        randomRecentOrders: [],
+        isLoadingRandom: false,
     }),
 
     // ==========================================
@@ -41,6 +44,7 @@ export const useOrdersStore = defineStore('orders', {
 
         reviewsCount: (state) => state.reviews.length,
 
+        getRandomRecentOrders: (state) =>state.randomRecentOrders || [],
         /**
          * Все заказы
          */
@@ -204,6 +208,20 @@ export const useOrdersStore = defineStore('orders', {
             }
         },
 
+        async loadRandomOrders() {
+            this.isLoadingRandom = true;
+            try {
+                const response = await axios.post(`${BASE}/rr`);
+                this.randomRecentOrders = response.data.data || [];
+                console.log("rr", this.randomRecentOrders)
+                return this.randomRecentOrders;
+            } catch (error) {
+                console.error('[Orders] Ошибка загрузки random orders:', error);
+                throw error;
+            } finally {
+                this.isLoadingRandom = false;
+            }
+        },
         /**
          * Создать отзыв
          */

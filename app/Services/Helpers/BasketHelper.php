@@ -535,7 +535,8 @@ trait BasketHelper
      * - Чёткое разделение: клиент / партнёры / CRM
      * @throws ValidationException
      */
-    private function foodShopCheckout(): string
+    // 🆕 1. Меняем тип возвращаемого значения со string на array
+    private function foodShopCheckout(): array
     {
         /*
         {
@@ -557,8 +558,7 @@ trait BasketHelper
         $kanbanBoardUuid = $kanbanConfig['board_uuid'] ?? null;
         $kanbanBaseUrl = $kanbanConfig['base_url'] ?? config('kanban.base_url');
         $kanbanToken = $kanbanConfig['token'] ?? config('kanban.token');
-        $kanbanThread = $kanbanConfig['order_thread'] ?? 0; // В какую колонку создавать заказы
-
+        $kanbanThread = $kanbanConfig['order_thread'] ?? 0;
 
         if ($kanbanEnabled && $kanbanBoardUuid && $kanbanToken) {
             try {
@@ -571,7 +571,7 @@ trait BasketHelper
                     ->setLoggingEnabled(true);
             } catch (\Throwable $e) {
                 Log::error('[KanbanCRM] Ошибка настройки SDK: ' . $e->getMessage());
-                $kanbanEnabled = false; // Отключаем при ошибке
+                $kanbanEnabled = false;
             }
         } else {
             $kanbanEnabled = false;
@@ -589,7 +589,7 @@ trait BasketHelper
         $useCashback = ($this->data["use_cashback"] ?? "false") === "true";
 
         // ==========================================
-        // 1. ОБРАБОТКА КОРЗИНЫ (без изменений)
+        // 1. ОБРАБОТКА КОРЗИНЫ
         // ==========================================
         $basket = Basket::query()
             ->where("tenant_id", $this->tenant->id)
@@ -612,12 +612,13 @@ trait BasketHelper
             $comment = $item->comment ?? null;
             $product = $item->product ?? null;
             $collection = $item->collection ?? null;
-            $partner = $item->partner ?? $this->tenant;
+            $productTenantId = $item->product->tenant_id;
 
-            if ($isPartnersActive && !$isPartnersDisplaySelf && $partner->id == $this->tenant->id) {
+            if ($isPartnersActive && !$isPartnersDisplaySelf && $productTenantId == $this->tenant->id) {
                 continue;
             }
 
+            $partner = Tenant::query()->where("id", $productTenantId)->firstOrFail();
             $deliveryDetails = (array) $deliveryDetails;
 
             if (empty($partnerProductBox[$partner->uuid])) {
@@ -647,7 +648,7 @@ trait BasketHelper
             if (!is_null($product)) {
                 $isWeightProduct = $product->is_weight_product ?? false;
                 $count = $item->count;
-                $currentPrice = $item->params["discount_price"] ?? $product->current_price ?? 0;
+                $currentPrice = $item->params["discount_price"] ?? $product->price ?? 0;
 
                 $price = (($currentPrice) * (1 + $extraCharge / 100)) * $count;
                 $unitOfMeasure = "ед.";
@@ -698,12 +699,12 @@ trait BasketHelper
                     $tmpOrderProductInfo[] = (object) [
                         "name" => "Коллекция `" . ($collection->name) . "`: " . $product->name,
                         "count" => 1,
-                        "price" => $product->current_price ?? 0,
+                        "price" => $product->price ?? 0,
                         'external_source' => $product->external_source ?? null,
                         'external_id' => $product->external_id ?? null,
                     ];
 
-                    $price += ($product->current_price ?? 0) * (1 + $extraCharge / 100);
+                    $price += ($product->price ?? 0) * (1 + $extraCharge / 100);
 
                     if (!in_array($product->id, $ids)) {
                         $ids[] = $product->id;
@@ -875,11 +876,9 @@ trait BasketHelper
                 $customerName = $this->data["name"] ?? 'Нет имени';
                 $customerPhone = $this->data["phone"] ?? null;
 
-                // === ПОИСК СУЩЕСТВУЮЩЕГО КЛИЕНТА ПО ТЕЛЕФОНУ ===
                 $existingTaskId = $this->findKanbanClientByPhone($kanbanBoardUuid, $customerPhone);
 
                 if ($existingTaskId) {
-                    // === КЛИЕНТ НАЙДЕН — ОТПРАВЛЯЕМ СООБЩЕНИЕ В СУЩЕСТВУЮЩУЮ ЗАДАЧУ ===
                     $result = \Exxxar\Kanban\Facades\Kanban::query()
                         ->task($existingTaskId)
                         ->message($crmMessage)
@@ -901,14 +900,7 @@ trait BasketHelper
 
                     $kanbanTaskId = $result['task_id'];
                     $kanbanMessageId = $result['message_id'];
-
-                    Log::info('[KanbanCRM] Сообщение отправлено существующему клиенту', [
-                        'task_id' => $kanbanTaskId,
-                        'message_id' => $kanbanMessageId,
-                        'order_id' => $order->id,
-                    ]);
                 } else {
-                    // === КЛИЕНТ НЕ НАЙДЕН — СОЗДАЁМ НОВОГО КЛИЕНТА + ПЕРВОЕ СООБЩЕНИЕ ===
                     $result = \Exxxar\Kanban\Facades\Kanban::client()
                         ->board($kanbanBoardUuid)
                         ->thread($kanbanThread)
@@ -951,16 +943,8 @@ trait BasketHelper
 
                     $kanbanTaskId = $result['task_id'];
                     $kanbanMessageId = $result['message_id'];
-
-                    Log::info('[KanbanCRM] Создан новый клиент с заказом', [
-                        'task_id' => $kanbanTaskId,
-                        'message_id' => $kanbanMessageId,
-                        'order_id' => $order->id,
-                        'customer_name' => $customerName,
-                    ]);
                 }
 
-                // Сохраняем связь заказа с Kanban задачей
                 $order->update([
                     'meta' => array_merge($order->meta ?? [], [
                         'kanban_task_id' => $kanbanTaskId,
@@ -970,20 +954,11 @@ trait BasketHelper
                 ]);
 
             } catch (\Exxxar\Kanban\Exceptions\ValidationException $e) {
-                Log::error('[KanbanCRM] Ошибка валидации: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'order_id' => $order->id,
-                ]);
+                Log::error('[KanbanCRM] Ошибка валидации: ' . $e->getMessage(), ['errors' => $e->errors(), 'order_id' => $order->id]);
             } catch (\Exxxar\Kanban\Exceptions\KanbanException $e) {
-                Log::error('[KanbanCRM] Ошибка API: ' . $e->getMessage(), [
-                    'code' => $e->getCode(),
-                    'order_id' => $order->id,
-                ]);
+                Log::error('[KanbanCRM] Ошибка API: ' . $e->getMessage(), ['code' => $e->getCode(), 'order_id' => $order->id]);
             } catch (\Throwable $e) {
-                Log::error('[KanbanCRM] Неизвестная ошибка: ' . $e->getMessage(), [
-                    'order_id' => $order->id,
-                    'trace' => $e->getTraceAsString(),
-                ]);
+                Log::error('[KanbanCRM] Неизвестная ошибка: ' . $e->getMessage(), ['order_id' => $order->id, 'trace' => $e->getTraceAsString()]);
             }
         }
 
@@ -992,6 +967,9 @@ trait BasketHelper
         // ==========================================
         $order->delivery_price = $deliveryPrice;
         $order->save();
+
+        // 🆕 Переменная для хранения данных об оплате (например, ссылки)
+        $paymentData = null;
 
         switch ($paymentType) {
             case 0:
@@ -1003,8 +981,10 @@ trait BasketHelper
                 $needBill = true;
                 break;
             case 4:
-                return PaymentService::call()
-                    ->sbpForShop($order, $crmMessage);
+                // 🆕 Сохраняем результат вместо немедленного return,
+                // чтобы выполнилась очистка промокодов и финальные логи ниже
+                $paymentData = PaymentService::call()->sbpForShop($order, $crmMessage);
+                break;
         }
 
         // Генерация PDF-чека
@@ -1033,7 +1013,6 @@ trait BasketHelper
                 }
             }
 
-            // 🆕 ОТПРАВКА ЧЕКА В KANBAN CRM
             if ($invoicePath && $kanbanEnabled && $kanbanTaskId) {
                 try {
                     \Exxxar\Kanban\Facades\Kanban::query()
@@ -1087,7 +1066,16 @@ trait BasketHelper
         $this->tenantUser->meta = $config;
         $this->tenantUser->save();
 
-        return $crmMessage;
+        // 🆕 12. ФОРМИРОВАНИЕ И ВОЗВРАТ МАССИВА С ДАННЫМИ ЗАКАЗА
+        return [
+            'success' => true,
+            'order_id' => $order->id,
+            'summary_price' => $this->safeFloat($summaryPrice - $cashback),
+            'payment_type' => $paymentType,
+            'status' => $order->status,
+            'payment_data' => $paymentData, // Здесь будет ссылка на оплату для case 4
+            'message' => 'Заказ успешно оформлен',
+        ];
     }
 
     /**

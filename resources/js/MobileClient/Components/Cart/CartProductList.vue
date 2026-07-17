@@ -85,7 +85,7 @@
                             <template #partner>
                                 <div class="partner-info">
                                     <i class="fa-solid fa-store"></i>
-                                    <span>{{ item.partner?.name || tenant?.name || 'Магазин' }}</span>
+                                    <span>{{ item.product.tenant_name || tenant?.name || 'Магазин' }}</span>
                                 </div>
                             </template>
                         </ProductCardSimple>

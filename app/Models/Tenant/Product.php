@@ -43,9 +43,9 @@ class Product extends Model
         'is_weight_product' => 'boolean',
     ];
 
-    protected $with = ["categories"];
+    protected $with = ["categories", "tenant"];
 
-    protected $appends = ["rating"];
+    protected $appends = ["rating","tenant_name"];
 
     public function tenant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
@@ -59,6 +59,13 @@ class Product extends Model
             'product_categories',
             'product_id',
             'category_id'
+        );
+    }
+
+    protected function tenantName(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->tenant?->name ?? 'Неизвестное заведение'
         );
     }
 

@@ -43,8 +43,14 @@
                 </button>
             </div>
 
-            <!-- Список заказов -->
-            <div class="orders-list" v-if="recentOrders.length > 0">
+            <!-- 1. СОСТОЯНИЕ ЗАГРУЗКИ -->
+            <div v-if="isLoading" class="periscope-loading">
+                <div class="loading-spinner"></div>
+                <p>Загружаем последние заказы...</p>
+            </div>
+
+            <!-- 2. СПИСОК ЗАКАЗОВ -->
+            <div v-else-if="recentOrders.length > 0" class="orders-list">
                 <div
                     v-for="order in recentOrders"
                     :key="order.id"
@@ -88,7 +94,7 @@
                 </div>
             </div>
 
-            <!-- Пустое состояние -->
+            <!-- 3. ПУСТОЕ СОСТОЯНИЕ -->
             <div v-else class="empty-state">
                 <i class="fa-solid fa-binoculars"></i>
                 <p>Пока нет заказов</p>
@@ -96,20 +102,46 @@
             </div>
 
         </div>
-
     </div>
 </template>
 
 <script>
+import { useOrdersStore } from '@/MobileClient/stores/Shop/orders';
+import { storeToRefs } from 'pinia';
+
 export default {
     name: "OrderPeriscope",
+
+    setup() {
+        const store = useOrdersStore();
+
+        // 🆕 Получаем РЕАКТИВНЫЕ ссылки на состояние (это ключевой момент!)
+        const { randomRecentOrders, isLoadingRandom } = storeToRefs(store);
+
+        return {
+            store,
+            randomRecentOrders,
+            isLoadingRandom,
+            loadRandomOrders: store.loadRandomOrders,
+            repeatOrder: store.repeatOrder,
+        };
+    },
 
     data() {
         return {
             isExpanded: false,
-            recentOrders: [],
-            isLoading: false,
         };
+    },
+
+    computed: {
+        recentOrders() {
+            // Во Vue 3 ref, возвращённые из setup(), автоматически разворачиваются в this
+            console.log("🔍 Текущие заказы в компоненте:", this.randomRecentOrders);
+            return this.randomRecentOrders || [];
+        },
+        isLoading() {
+            return this.isLoadingRandom;
+        }
     },
 
     mounted() {
@@ -117,97 +149,33 @@ export default {
     },
 
     methods: {
-        /**
-         * Загрузка последних заказов
-         */
         async loadRecentOrders() {
-            this.isLoading = true;
-
             try {
-                // TODO: Замените на реальный API-запрос
-                // const response = await this.$store.dispatch('loadRecentOrders');
-                // this.recentOrders = response.data;
-
-                // Имитация данных
-                await new Promise(resolve => setTimeout(resolve, 500));
-                this.recentOrders = [
-                    {
-                        id: 1234,
-                        created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15 минут назад
-                        total: 2450,
-                        items: [
-                            { product: { title: 'Пицца Маргарита' }, quantity: 2 },
-                            { product: { title: 'Кока-кола' }, quantity: 2 },
-                            { product: { title: 'Чесночный соус' }, quantity: 1 },
-                        ],
-                    },
-                    {
-                        id: 1233,
-                        created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(), // 45 минут назад
-                        total: 1890,
-                        items: [
-                            { product: { title: 'Бургер Классик' }, quantity: 1 },
-                            { product: { title: 'Картофель фри' }, quantity: 1 },
-                            { product: { title: 'Молочный коктейль' }, quantity: 2 },
-                        ],
-                    },
-                    {
-                        id: 1232,
-                        created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 часа назад
-                        total: 3200,
-                        items: [
-                            { product: { title: 'Суши-сет Филадельфия' }, quantity: 1 },
-                            { product: { title: 'Ролл Калифорния' }, quantity: 2 },
-                            { product: { title: 'Имбирь' }, quantity: 3 },
-                            { product: { title: 'Васаби' }, quantity: 2 },
-                        ],
-                    },
-                ];
+                console.log("🔄 Начинаем загрузку заказов...");
+                await this.loadRandomOrders();
+                console.log("✅ Загрузка завершена. Массив заказов:", this.randomRecentOrders);
             } catch (error) {
-                console.error('Ошибка загрузки заказов:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось загрузить заказы',
-                    type: 'error',
-                });
-            } finally {
-                this.isLoading = false;
+                console.error('❌ Ошибка загрузки заказов:', error);
             }
         },
 
-        /**
-         * Раскрытие перископа
-         */
         expandPeriscope() {
             this.isExpanded = true;
         },
 
-        /**
-         * Сворачивание перископа
-         */
         collapsePeriscope() {
             this.isExpanded = false;
         },
 
-        /**
-         * Заказать такой же заказ
-         */
         async orderSame(order) {
             try {
-                // TODO: Замените на реальный API-запрос
-                // await this.$store.dispatch('addOrderToCart', { orderId: order.id });
-
-                // Имитация добавления в корзину
-                await new Promise(resolve => setTimeout(resolve, 300));
-
+                await this.repeatOrder({ order_id: order.id });
                 this.$notify?.({
                     title: 'Добавлено в корзину',
                     text: `Товары из заказа #${order.id} добавлены`,
                     type: 'success',
                 });
-
-                // Переход в корзину
-                this.$router.push({ name: 'TableCartV2' });
+                this.$router.push({ name: 'Cart' }).catch(() => {});
             } catch (error) {
                 console.error('Ошибка добавления заказа:', error);
                 this.$notify?.({
@@ -218,9 +186,6 @@ export default {
             }
         },
 
-        /**
-         * Форматирование времени
-         */
         formatTime(dateString) {
             const date = new Date(dateString);
             const now = new Date();
@@ -240,16 +205,14 @@ export default {
             });
         },
 
-        /**
-         * Форматирование цены
-         */
         formatPrice(price) {
-            return new Intl.NumberFormat('ru-RU').format(price || 0) + ' ₽';
+            return new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: 'RUB',
+                minimumFractionDigits: 0,
+            }).format(price || 0);
         },
 
-        /**
-         * Склонение слов
-         */
         pluralize(count, one, two, five) {
             const n = Math.abs(count) % 100;
             const n1 = n % 10;
@@ -261,7 +224,6 @@ export default {
     },
 };
 </script>
-
 <style lang="scss" scoped>
 @use 'sass:color';
 

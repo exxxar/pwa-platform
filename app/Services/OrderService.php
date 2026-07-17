@@ -304,7 +304,7 @@ class OrderService
 
         $search         = $data["search"]         ?? null;
         $orderBy        = $data["order_by"]       ?? "id";
-        $direction      = $data["direction"]      ?? "asc";
+        $direction      = $data["direction"]      ?? "desc";
         $tenantUserId   = $data["tenant_user_id"] ?? null;
 
         $orders = Order::query()

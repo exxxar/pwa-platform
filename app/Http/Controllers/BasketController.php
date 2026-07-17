@@ -88,8 +88,8 @@ class BasketController extends Controller
                                     break;
 
                                 $params = [];
-                                $params["discount_price"] = $product->current_price - ($product->current_price * ($itemPrizeEffectedValue / 100));
-                                $params["discount_amount"] = $product->current_price * ($itemPrizeEffectedValue / 100);
+                                $params["discount_price"] = $product->price - ($product->price * ($itemPrizeEffectedValue / 100));
+                                $params["discount_amount"] = $product->price * ($itemPrizeEffectedValue / 100);
 
                                 Basket::query()->create([
                                     "bot_id" => $bot->id,
@@ -113,8 +113,8 @@ class BasketController extends Controller
 
                             foreach ($basket as $b) {
                                 $params = $b->params ?? [];
-                                $params["discount_price"] = $b->product->current_price - ($b->product->current_price * ($itemPrizeEffectedValue / 100));
-                                $params["discount_amount"] = $b->product->current_price * ($itemPrizeEffectedValue / 100);
+                                $params["discount_price"] = $b->product->price - ($b->product->price * ($itemPrizeEffectedValue / 100));
+                                $params["discount_amount"] = $b->product->price * ($itemPrizeEffectedValue / 100);
 
                                 $b->params = $params;
                                 $b->save();
@@ -266,11 +266,12 @@ class BasketController extends Controller
     /**
      * @throws ValidationException
      */
-    public function checkout(Request $request): ?string
+    public function checkout(Request $request)
     {
-        return BasketService::call()
-            ->checkout($request->all(),
-                $request->hasFile('photo') ? $request->file('photo') : null
-            );
+        return response()
+            ->json(BasketService::call()
+                ->checkout($request->all(),
+                    $request->hasFile('photo') ? $request->file('photo') : null
+                ));
     }
 }

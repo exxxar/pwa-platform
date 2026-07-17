@@ -230,7 +230,7 @@ class PartnerService
             $ext = $file->getClientOriginalExtension();
             $imageName = Str::uuid() . "." . $ext;
             $file->storeAs("/public/companies/$slug/$imageName");
-            $data['image'] = $imageName;
+            $data['image'] = "/storage/companies/$slug/$imageName";
         }
 
         $partner->update(

@@ -2,16 +2,88 @@
     <div class="cart-page">
 
         <!-- ========================================== -->
-        <!-- ЗАГРУЗКА -->
+        <!-- 1. ЗАГРУЗКА (Показываем, если НЕ гидратировано ИЛИ идёт загрузка) -->
         <!-- ========================================== -->
-        <div v-if="isLoading && !isHydrated" class="cart-loading">
+        <div v-if="!isHydrated || isLoading" class="cart-loading">
             <SkeletonLoader type="list" :count="5" />
         </div>
 
         <!-- ========================================== -->
-        <!-- КОРЗИНА ПУСТАЯ -->
+        <!-- 2. УСПЕШНЫЙ ЗАКАЗ (Приоритет выше, чем у пустой корзины) -->
         <!-- ========================================== -->
-        <div v-else-if="cartTotalCount === 0 && !orderJustPlaced" class="empty-cart">
+        <transition v-else-if="orderJustPlaced" name="order-success">
+            <div class="order-success-overlay" @click.self="dismissSuccessSheet">
+                <div class="order-success-sheet">
+                    <!-- Декоративный фон -->
+                    <div class="success-bg">
+                        <div class="success-circle circle-1"></div>
+                        <div class="success-circle circle-2"></div>
+                        <div class="success-circle circle-3"></div>
+                    </div>
+
+                    <!-- Контент -->
+                    <div class="success-content">
+                        <div class="success-icon-wrapper">
+                            <div class="success-icon-ring"></div>
+                            <div class="success-icon-ring ring-2"></div>
+                            <div class="success-icon">
+                                <i class="fa-solid fa-check"></i>
+                            </div>
+                            <div class="confetti confetti-1"></div>
+                            <div class="confetti confetti-2"></div>
+                            <div class="confetti confetti-3"></div>
+                            <div class="confetti confetti-4"></div>
+                            <div class="confetti confetti-5"></div>
+                        </div>
+
+                        <h3 class="success-title">Заказ оформлен!</h3>
+                        <p class="success-subtitle">
+                            Ваш заказ <strong>#{{ lastOrderId }}</strong> успешно создан
+                        </p>
+
+                        <div class="order-info-card">
+                            <div class="info-row">
+                                <span class="info-label">Номер заказа</span>
+                                <span class="info-value">#{{ lastOrderId }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Сумма</span>
+                                <span class="info-value price">{{ formatPrice(lastOrderTotal) }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Статус</span>
+                                <span class="info-value status">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    Принят
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="success-actions">
+                            <button class="success-btn primary" @click="goToOrderChat">
+                                <i class="fa-solid fa-comments"></i>
+                                <span>Посмотреть свой заказ</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                            <button class="success-btn secondary" @click="dismissSuccessSheet">
+                                <i class="fa-solid fa-store"></i>
+                                <span>Продолжить покупки</span>
+                            </button>
+                        </div>
+
+                        <div class="auto-close-hint">
+                            <i class="fa-solid fa-clock"></i>
+                            <span>Автоматическое закрытие через {{ autoCloseCountdown }} сек</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- ========================================== -->
+        <!-- 3. ПУСТАЯ КОРЗИНА (Безопасная проверка на 0) -->
+        <!-- ========================================== -->
+        <div v-else-if="(cartTotalCount || 0) === 0" class="empty-cart">
             <div class="empty-cart-content">
                 <div class="empty-icon">
                     <i class="fa-solid fa-cart-shopping"></i>
@@ -28,10 +100,9 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- ОФОРМЛЕНИЕ ЗАКАЗА -->
+        <!-- 4. ОФОРМЛЕНИЕ ЗАКАЗА (Все остальные случаи) -->
         <!-- ========================================== -->
-        <template v-else-if="!orderJustPlaced">
-
+        <template v-else>
             <!-- STEPPER -->
             <div class="checkout-stepper">
                 <div class="stepper-container">
@@ -69,9 +140,7 @@
                 <p class="step-subtitle">{{ currentStepConfig.subtitle }}</p>
             </div>
 
-            <!-- ========================================== -->
             <!-- ШАГ 1: КОРЗИНА -->
-            <!-- ========================================== -->
             <transition name="step-fade" mode="out-in">
                 <div v-if="currentStep === 0" key="cart" class="step-content">
                     <CartProductList
@@ -85,9 +154,7 @@
                     </CartProductList>
                 </div>
 
-                <!-- ========================================== -->
                 <!-- ШАГ 2: ОФОРМЛЕНИЕ -->
-                <!-- ========================================== -->
                 <div v-else-if="currentStep === 1" key="checkout" class="step-content">
                     <CheckoutProductForm
                         v-if="settings.shop_display_type === 0"
@@ -103,9 +170,7 @@
                     />
                 </div>
 
-                <!-- ========================================== -->
                 <!-- ШАГ 3: СКРИНШОТ ОПЛАТЫ -->
-                <!-- ========================================== -->
                 <div v-else-if="currentStep === 2" key="receipt" class="step-content">
                     <ScreenPaymentForm
                         v-model="deliveryForm"
@@ -113,9 +178,7 @@
                     />
                 </div>
 
-                <!-- ========================================== -->
                 <!-- ШАГ 4: СПОСОБ ОПЛАТЫ -->
-                <!-- ========================================== -->
                 <div v-else-if="currentStep === 3" key="payment" class="step-content">
                     <div class="payment-section">
                         <div class="section-card">
@@ -142,19 +205,14 @@
                 </div>
             </transition>
 
-            <!-- ========================================== -->
             <!-- STICKY FOOTER -->
-            <!-- ========================================== -->
             <div class="checkout-footer">
                 <div class="footer-content">
-
-                    <!-- Сводка -->
                     <div class="footer-summary">
                         <span class="summary-label">К оплате:</span>
                         <span class="summary-value">{{ formatPrice(totalToPay) }}</span>
                     </div>
 
-                    <!-- Кнопка действия -->
                     <button
                         class="action-btn"
                         :class="actionButtonClass"
@@ -171,97 +229,12 @@
                             <span v-else>{{ actionButtonText }}</span>
                         </template>
                     </button>
-
                 </div>
             </div>
-
         </template>
-
-        <!-- ========================================== -->
-        <!-- 🆕 ВСПЛЫВАЮЩЕЕ ОКНО ПОСЛЕ ЗАКАЗА -->
-        <!-- ========================================== -->
-        <transition name="order-success">
-            <div v-if="orderJustPlaced" class="order-success-overlay" @click.self="dismissSuccessSheet">
-                <div class="order-success-sheet">
-
-                    <!-- Декоративный фон -->
-                    <div class="success-bg">
-                        <div class="success-circle circle-1"></div>
-                        <div class="success-circle circle-2"></div>
-                        <div class="success-circle circle-3"></div>
-                    </div>
-
-                    <!-- Контент -->
-                    <div class="success-content">
-
-                        <!-- Анимированная иконка -->
-                        <div class="success-icon-wrapper">
-                            <div class="success-icon-ring"></div>
-                            <div class="success-icon-ring ring-2"></div>
-                            <div class="success-icon">
-                                <i class="fa-solid fa-check"></i>
-                            </div>
-                            <!-- Конфетти -->
-                            <div class="confetti confetti-1"></div>
-                            <div class="confetti confetti-2"></div>
-                            <div class="confetti confetti-3"></div>
-                            <div class="confetti confetti-4"></div>
-                            <div class="confetti confetti-5"></div>
-                        </div>
-
-                        <!-- Заголовок -->
-                        <h3 class="success-title">Заказ оформлен!</h3>
-                        <p class="success-subtitle">
-                            Ваш заказ <strong>#{{ lastOrderId }}</strong> успешно создан
-                        </p>
-
-                        <!-- Информация о заказе -->
-                        <div class="order-info-card">
-                            <div class="info-row">
-                                <span class="info-label">Номер заказа</span>
-                                <span class="info-value">#{{ lastOrderId }}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Сумма</span>
-                                <span class="info-value price">{{ formatPrice(lastOrderTotal) }}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Статус</span>
-                                <span class="info-value status">
-                                    <i class="fa-solid fa-circle-check"></i>
-                                    Принят
-                                </span>
-                            </div>
-                        </div>
-
-                        <!-- Кнопки действий -->
-                        <div class="success-actions">
-                            <button class="success-btn primary" @click="goToOrderChat">
-                                <i class="fa-solid fa-comments"></i>
-                                <span>Посмотреть свой заказ</span>
-                                <i class="fa-solid fa-arrow-right"></i>
-                            </button>
-
-                            <button class="success-btn secondary" @click="dismissSuccessSheet">
-                                <i class="fa-solid fa-store"></i>
-                                <span>Продолжить покупки</span>
-                            </button>
-                        </div>
-
-                        <!-- Таймер автозакрытия -->
-                        <div class="auto-close-hint">
-                            <i class="fa-solid fa-clock"></i>
-                            <span>Автоматическое закрытие через {{ autoCloseCountdown }} сек</span>
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-        </transition>
 
     </div>
 </template>
-
 <script>
 import CartProductList from "@/MobileClient/Components/Cart/CartProductList.vue";
 import CheckoutProductForm from "@/MobileClient/Components/Cart/CheckoutProductForm.vue";
@@ -501,8 +474,10 @@ export default {
             this.deliveryForm.allergy = null;
         },
 
-        // 🆕 Отслеживаем обнуление корзины после оформления
         cartTotalCount(newCount, oldCount) {
+            // Игнорируем изменения, пока данные не загружены полностью
+            if (!this.isHydrated) return;
+
             if (newCount === 0 && oldCount > 0 && this.orderJustPlaced) {
                 // Корзина обнулилась после оформления — показываем окно
                 this.showOrderSuccess();
@@ -648,7 +623,7 @@ export default {
 
                 // 🆕 Сохраняем данные заказа для всплывающего окна
                 this.lastOrderId = response?.data?.order_id || response?.order_id || Date.now();
-                this.lastOrderTotal = this.totalToPay;
+                this.lastOrderTotal = response?.data?.summary_price || response?.summary_price || 0 ;
                 this.orderJustPlaced = true;
 
                 this.$notify?.({
@@ -704,6 +679,8 @@ export default {
             this.currentStep = 0;
             this.lastOrderId = null;
             this.lastOrderTotal = 0;
+
+            this.goToCatalog()
         },
 
         /**
@@ -714,7 +691,7 @@ export default {
 
             // Переход на страницу чата с заказом
             this.$router.push({
-                name: 'OrderChat', // Замените на имя вашего роута
+                name: 'Chat', // Замените на имя вашего роута
                 params: { orderId: this.lastOrderId }
             }).catch(err => {
                 console.error('Ошибка навигации:', err);

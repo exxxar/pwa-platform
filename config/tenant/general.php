@@ -3,6 +3,7 @@
 return [
     'is_disabled' => false,
     'is_edit_mode' => false,
+    'default_theme_scheme' => false,
     'disabled_text' => "Магазин временно не работает",
     'main_menu_btn' => 'К магазинам',
     'shop_display_type' => 0,

@@ -48,14 +48,15 @@ class FavoriteController extends Controller
         // Получаем ID из настроек пользователя
         $favorites = $user->settings["settings"]['favorites'] ?? [];
 
+
         if (empty($favorites)) {
             return response()->json(['data' => []]);
         }
 
         // 🆕 Загружаем товары с отношениями
-        $products = Product::where('tenant_id', $user->tenant_id)
+        $products = Product::query()
             ->whereIn('id', $favorites)
-            ->where('is_active', true)
+            //->where('is_active', true)
             ->with([
                 'categories',
             ])
@@ -109,7 +110,7 @@ class FavoriteController extends Controller
 
         // Проверяем, что товар принадлежит тенанту
         $product = Product::where('id', $request->product_id)
-            ->where('tenant_id', $user->tenant_id)
+           // ->where('tenant_id', $user->tenant_id)
             ->first();
 
         if (!$product) {
@@ -120,8 +121,8 @@ class FavoriteController extends Controller
         }
 
         // Обновляем избранное
-        $settings = $user->settings["settings"];
-        $favorites = $settings['favorites'] ?? [];
+        $settings = $user->settings;
+        $favorites = $settings["settings"]['favorites'] ?? [];
 
         if (!in_array($request->product_id, $favorites)) {
             $favorites[] = $request->product_id;

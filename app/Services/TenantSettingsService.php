@@ -27,7 +27,7 @@ class TenantSettingsService
 
             // Пункты меню
             'menu_items' => config('tenant.menu', []),
-
+            'main_menu_items' => config('tenant.main_menu', []),
             // Калькуляторы
             'food_calculators' => config('tenant.calculators', []),
 

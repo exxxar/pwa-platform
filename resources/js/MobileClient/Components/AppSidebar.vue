@@ -23,8 +23,9 @@
                 <!-- Профиль пользователя -->
                 <div class="user-profile">
                     <div
-                        @click="goTo('Auth')"
+                        @click="goTo('Profile')"
                         class="user-avatar">
+
                         <img v-if="self?.avatar" :src="self.avatar" alt="">
                         <i v-else class="fa-solid fa-user"></i>
 
@@ -33,6 +34,7 @@
                     </div>
 
                     <div class="user-info">
+
                         <h6 class="user-name">{{ self?.name || 'Гость' }}</h6>
                         <p class="user-phone">{{ self?.phone || 'Телефон не указан' }}</p>
                     </div>
@@ -237,6 +239,7 @@ export default {
             return this.basket.cartTotalCount || 0
         },
         self() {
+
             return window.TenantUser || null;
         },
 
@@ -266,72 +269,105 @@ export default {
         },
 
         sidebarItems() {
-            return [
-                {
-                    route: 'Menu',
-                    title: 'Главная',
-                    icon: 'fa-solid fa-house',
-                },
-                {
+            const menuItems = this.settings?.menu_items || {};
+
+            // 🆕 Маппинг: ключ из menu_items → конфигурация по умолчанию
+            // route, badge — фиксированные, title/icon — берутся из настроек (с фоллбэком)
+            const menuConfig = {
+                catalog: {
                     route: 'Catalog',
-                    title: 'Каталог товаров',
-                    icon: 'fa-solid fa-store',
+                    defaultTitle: 'Каталог товаров',
+                    defaultIcon: 'fa-solid fa-store',
                 },
-                {
-                    route: 'Chat',
-                    title: 'Сообщения',
-                    icon: 'fa-solid fa-comments',
-                    badge: () => this.totalUnread ,
-                },
-                {
+                grocery_order: {
                     route: 'GroceryOrder',
-                    title: 'Заказать продукты',
-                    icon: 'fa-solid fa-leaf',
+                    defaultTitle: 'Заказать продукты',
+                    defaultIcon: 'fa-solid fa-leaf',
                 },
-                {
+                food_calculator: {
                     route: 'FoodCalculators',
-                    title: 'Собери сам',
-                    icon: 'fa-brands fa-hive',
+                    defaultTitle: 'Собери сам',
+                    defaultIcon: 'fa-brands fa-hive',
                 },
-                {
+                cart: {
                     route: 'Cart',
-                    title: 'Корзина',
-                    icon: 'fa-solid fa-cart-shopping',
+                    defaultTitle: 'Корзина',
+                    defaultIcon: 'fa-solid fa-cart-shopping',
                     badge: () => this.cartTotalCount,
                 },
-
-                {
+                orders: {
                     route: 'Orders',
-                    title: 'Мои заказы',
-                    icon: 'fa-solid fa-bag-shopping',
+                    defaultTitle: 'Мои заказы',
+                    defaultIcon: 'fa-solid fa-bag-shopping',
                 },
-                {
+                cashback: {
                     route: 'Cashback',
-                    title: 'Мои бонусы',
-                    icon: 'fa-solid fa-coins',
+                    defaultTitle: 'Мои бонусы',
+                    defaultIcon: 'fa-solid fa-coins',
                 },
-                {
+                games: {
                     route: 'GamesCatalog',
-                    title: 'Бонус-игры',
-                    icon: 'fa-solid fa-dice',
+                    defaultTitle: 'Бонус-игры',
+                    defaultIcon: 'fa-solid fa-dice',
                 },
-                {
+                cashback_shop: {
                     route: 'CashbackShop',
-                    title: 'Магазин бонусов',
-                    icon: 'fa-solid fa-shirt',
+                    defaultTitle: 'Магазин бонусов',
+                    defaultIcon: 'fa-solid fa-shirt',
                 },
-                {
+                profile: {
                     route: 'Profile',
-                    title: 'Профиль',
-                    icon: 'fa-solid fa-user',
+                    defaultTitle: 'Профиль',
+                    defaultIcon: 'fa-solid fa-user',
                 },
-
-                {
+                chat: {
+                    route: 'Chat',
+                    defaultTitle: 'Сообщения',
+                    defaultIcon: 'fa-solid fa-comments',
+                    badge: () => this.totalUnread,
+                },
+                feedback: {
                     route: 'FeedBack',
-                    title: 'Обратная связь',
-                    icon: 'fa-solid fa-comment-dots',
+                    defaultTitle: 'Обратная связь',
+                    defaultIcon: 'fa-solid fa-comment-dots',
                 },
-            ];
+            };
+
+            // 🆕 1. Фиксированный первый пункт — "Главная" (всегда виден)
+            const homeItem = {
+                route: 'Menu',
+                title: 'Главная',
+                icon: 'fa-solid fa-house',
+            };
+
+            // 🆕 2. Динамические пункты из настроек
+            const dynamicItems = Object.entries(menuConfig)
+                // Фильтруем только те, что есть в настройках и включены
+                .filter(([key]) => {
+                    const item = menuItems[key];
+                    return item && item.is_visible !== false;
+                })
+                // Преобразуем в итоговый формат
+                .map(([key, config]) => {
+                    const item = menuItems[key] || {};
+                    return {
+                        route: config.route,
+                        title: item.title || config.defaultTitle,
+                        icon: item.icon || config.defaultIcon,
+                        badge: config.badge, // badge-функция, если есть
+                    };
+                })
+                // 🆕 3. Сортируем по order из настроек (если order не задан — в конец)
+                .sort((a, b) => {
+                    const keyA = Object.keys(menuConfig).find(k => menuConfig[k].route === a.route);
+                    const keyB = Object.keys(menuConfig).find(k => menuConfig[k].route === b.route);
+                    const orderA = menuItems[keyA]?.order ?? 999;
+                    const orderB = menuItems[keyB]?.order ?? 999;
+                    return orderA - orderB;
+                });
+
+            // 🆕 4. Собираем итоговый массив: Главная + отсортированные пункты
+            return [homeItem, ...dynamicItems];
         },
 
 

@@ -1,319 +1,414 @@
 <template>
-    <transition name="slide">
-        <div class="cart-overlay" @click.self="$emit('close')">
-            <div class="cart-drawer">
+    <Teleport to="body">
+        <!-- Оверлей показывается только если isOpen === true -->
+        <div class="cart-overlay" v-if="isOpen" @click.self="$emit('close')">
+            <div class="cart-sidebar" :class="{ 'is-open': isOpen }">
+
+                <!-- Шапка корзины -->
                 <div class="cart-header">
-                    <h3>{{ config.title }}</h3>
+                    <h3>{{ config?.title || 'Ваш заказ' }}</h3>
                     <button class="close-btn" @click="$emit('close')">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
 
-                <div class="cart-body">
-                    <div v-if="items.length === 0" class="cart-empty">
-                        <i class="fa-solid fa-cart-shopping"></i>
-                        <p>{{ config.emptyText }}</p>
-                    </div>
+                <!-- 🆕 ОТЛАДОЧНЫЙ БЛОК (можно удалить потом, если всё заработает) -->
+                <!-- <pre style="position: absolute; top: 60px; right: 10px; background: rgba(0,0,0,0.8); color: #0f0; padding: 10px; font-size: 10px; z-index: 100;">{{ cartItemsList }}</pre> -->
 
-                    <template v-else>
-                        <!-- Список товаров -->
-                        <div class="cart-items">
-                            <div v-for="item in items" :key="item.id" class="cart-item">
-                                <img :src="item.image" :alt="item.name" class="item-image">
-                                <div class="item-info">
-                                    <div class="item-name">{{ item.name }}</div>
-                                    <div class="item-price">{{ item.price }} ₽ × {{ item.quantity }}</div>
-                                </div>
-                                <div class="item-controls">
-                                    <button class="qty-btn" @click="$emit('update-qty', item.id, -1)">−</button>
-                                    <span>{{ item.quantity }}</span>
-                                    <button class="qty-btn" @click="$emit('update-qty', item.id, 1)">+</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Форма оформления заказа -->
-                        <div class="checkout-form">
-                            <h4>Данные для заказа</h4>
-                            <div class="form-group">
-                                <label>Ваше имя</label>
-                                <input type="text" v-model="formData.name" placeholder="Иван" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Телефон</label>
-                                <input type="tel" v-model="formData.phone" placeholder="+7 (999) 000-00-00" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Способ получения</label>
-                                <select v-model="formData.type">
-                                    <option value="delivery">Доставка</option>
-                                    <option value="pickup">Самовывоз</option>
-                                </select>
-                            </div>
-                            <div class="form-group" v-if="formData.type === 'delivery'">
-                                <label>Адрес доставки</label>
-                                <input type="text" v-model="formData.address" placeholder="Улица, дом, квартира">
-                            </div>
-                            <div class="form-group">
-                                <label>Комментарий к заказу</label>
-                                <textarea v-model="formData.comment" rows="2" placeholder="Например: без лука, код домофона 123"></textarea>
-                            </div>
-                        </div>
-                    </template>
+                <!-- Пустая корзина -->
+                <!-- 🆕 Используем надежную проверку длины массива вместо basket.isEmpty -->
+                <div v-if="isCartEmpty" class="cart-empty">
+                    <i class="fa-solid fa-basket-shopping"></i>
+                    <p>{{ config?.emptyText || 'Корзина пуста' }}</p>
+                    <button class="btn-primary" @click="$emit('close')">Перейти к меню</button>
                 </div>
 
-                <div v-if="items.length > 0" class="cart-footer">
-                    <div class="cart-total">
-                        <span>{{ config.totalText }}</span>
-                        <span class="total-value">{{ totalPrice }} ₽</span>
+                <!-- Список товаров -->
+                <!-- 🆕 Итерируемся по безопасному computed свойству cartItemsList -->
+                <div v-else class="cart-items-list">
+
+                    <div v-for="item in cartItemsList" :key="item.id || item.product_id" class="cart-item">
+                        <img v-lazy="item.product?.images[0] || 'https://via.placeholder.com/80'"
+                             :alt="item.product.name" class="item-image">
+
+                        <div class="item-details">
+                            <h4 class="item-name">{{ item.product.name }}</h4>
+                            <div class="item-price">{{ formatPrice(item.product.price) }} ₽</div>
+
+                            <div class="item-controls">
+                                <button
+                                    class="qty-btn"
+                                    :disabled="basket.isProductLoading(item.product_id || item.product.id)"
+                                    @click="basket.decrementQuantity(item.product_id || item.product.id)"
+                                >
+                                    <i v-if="basket.isProductLoading(item.product_id || item.product.id)"
+                                       class="fa-solid fa-spinner fa-spin"></i>
+                                    <i v-else class="fa-solid fa-minus"></i>
+                                </button>
+
+                                <span class="qty-value">{{ item.count || item.quantity || 0 }}</span>
+
+                                <button
+                                    class="qty-btn"
+                                    :disabled="basket.isProductLoading(item.product_id || item.product.id)"
+                                    @click="basket.incrementQuantity(item.product_id || item.product.id)"
+                                >
+                                    <i v-if="basket.isProductLoading(item.product_id || item.product.id)"
+                                       class="fa-solid fa-spinner fa-spin"></i>
+                                    <i v-else class="fa-solid fa-plus"></i>
+                                </button>
+
+                                <button
+                                    class="remove-btn"
+                                    @click="basket.removeProductCompletely(item.product_id || item.product.id)"
+                                    title="Удалить"
+                                >
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <button class="checkout-btn" @click="submitOrder" :disabled="!isFormValid">
-                        {{ config.checkoutText }}
+                </div>
+
+                <!-- Итого и кнопка оформления -->
+                <div v-if="!isCartEmpty" class="cart-footer">
+
+
+                    <div class="cart-total">
+                        <span>{{ config?.totalText || 'Итого:' }}</span>
+                        <span class="total-price">{{ formatPrice(cartTotalPrice) }} ₽</span>
+                    </div>
+                    <button
+                        class="btn-checkout"
+                        :disabled="isLoading"
+                        @click="handleCheckout"
+                    >
+                        <span v-if="isLoading"
+                              class="spinner-border spinner-border-sm me-2"></span>
+                        {{ config?.checkoutText || 'Оформить заказ' }}
                     </button>
                 </div>
+
             </div>
         </div>
-    </transition>
+    </Teleport>
 </template>
+
 <script>
+import {useBasket} from '@/MobileClient/composables/useBasket';
+
 export default {
     name: "ShopCart",
     props: {
-        items: { type: Array, default: () => [] },
-        config: { type: Object, default: () => ({}) }
+        isOpen: {type: Boolean, default: false},
+        config: {type: Object, default: () => ({})}
     },
-    emits: ['close', 'update-qty', 'checkout'],
-    data() {
+    emits: ['close', 'checkout'],
+
+    setup() {
         return {
-            formData: {
-                name: '',
-                phone: '',
-                type: 'delivery',
-                address: '',
-                comment: ''
-            }
+            basket: useBasket()
         };
     },
-    computed: {
-        totalPrice() {
-            return this.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-        },
-        isFormValid() {
-            return this.formData.name.trim() && this.formData.phone.trim() &&
-                (this.formData.type === 'pickup' || this.formData.address.trim());
+
+    watch: {
+        isOpen(newVal) {
+            if (newVal) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
         }
     },
+
+    computed: {
+        isLoading() {
+            return this.basket.isLoading.value || this.basket.isSending.value
+        },
+        // 🆕 КРИТИЧЕСКИ ВАЖНО: Гарантированно возвращаем обычный массив,
+        // распутывая Ref, если Vue вдруг не сделал это автоматически в v-for
+        cartItemsList() {
+            const items = this.basket.basket_items;
+
+            // Если это уже массив, возвращаем его
+            if (Array.isArray(items)) {
+                return items;
+            }
+
+            // Если это Ref-объект (из storeToRefs), достаем .value
+            if (items && typeof items === 'object' && 'value' in items) {
+                return items.value || [];
+            }
+
+            // Фоллбэк на пустой массив
+            return [];
+        },
+        cartTotalPrice() {
+            return this.basket.cartTotalPrice.value || 0
+        },
+        // 🆕 Надежная проверка на пустоту
+        isCartEmpty() {
+            return this.cartItemsList.length === 0;
+        }
+    },
+
+    mounted() {
+        // Загружаем корзину, если вдруг она не загрузилась в ShopLanding
+        if (this.isCartEmpty && !this.basket.isLoading) {
+            this.basket.loadProductsInBasket();
+        }
+    },
+
     methods: {
-        submitOrder() {
-            if (!this.isFormValid) return;
+        formatPrice(value) {
+            if (!value && value !== 0) return '0';
+            return Number(value).toLocaleString('ru-RU');
+        },
 
-            // Отдаем данные заказа наверх вместе с товарами
-            this.$emit('checkout', {
-                items: this.items,
-                total: this.totalPrice,
-                customer: { ...this.formData }
-            });
-
-            // Сброс формы
-            this.formData = { name: '', phone: '', type: 'delivery', address: '', comment: '' };
+        async handleCheckout() {
+            try {
+                this.$emit('checkout', {
+                    total: this.basket.cartTotalPrice,
+                    items: this.cartItemsList // Отправляем гарантированно чистый массив
+                });
+            } catch (error) {
+                console.error('Ошибка оформления:', error);
+            }
         }
     }
 };
 </script>
 
-
 <style lang="scss" scoped>
+/* Твои стили остаются без изменений */
 .cart-overlay {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 9999;
+    z-index: 99999;
+    backdrop-filter: blur(4px);
     display: flex;
     justify-content: flex-end;
 }
 
-.cart-drawer {
+.cart-sidebar {
     width: 100%;
     max-width: 450px;
+    height: 100vh;
     background: white;
     display: flex;
     flex-direction: column;
-    animation: slideIn 0.3s ease;
-}
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.15);
 
-@keyframes slideIn {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
+    &.is-open {
+        transform: translateX(0);
+    }
 }
 
 .cart-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1.5rem;
+    padding: 24px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
 
     h3 {
-        font-size: 1.5rem;
-        font-weight: 700;
         margin: 0;
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--dark, #222);
     }
-}
 
-.close-btn {
-    background: transparent;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--gray);
-    transition: color 0.3s ease;
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--gray, #888);
+        transition: color 0.2s;
 
-    &:hover {
-        color: var(--dark);
+        &:hover {
+            color: var(--dark, #222);
+        }
     }
-}
-
-.cart-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 1.5rem;
 }
 
 .cart-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    padding: 3rem 1rem;
-    color: var(--gray);
+    padding: 40px;
+    color: var(--gray, #888);
 
     i {
         font-size: 4rem;
-        margin-bottom: 1rem;
+        margin-bottom: 16px;
         opacity: 0.3;
+    }
+
+    p {
+        margin-bottom: 24px;
+        font-size: 1.1rem;
+    }
+
+    .btn-primary {
+        background: var(--primary, #ff7a00);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+
+        &:hover {
+            background: var(--primary-dark, #e56f00);
+        }
     }
 }
 
-.cart-items {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+.cart-items-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
 }
 
 .cart-item {
     display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: var(--light);
-    border-radius: 12px;
-}
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 
-.item-image {
-    width: 60px;
-    height: 60px;
-    border-radius: 8px;
-    object-fit: cover;
-}
+    .item-image {
+        width: 80px;
+        height: 80px;
+        border-radius: 12px;
+        object-fit: cover;
+        flex-shrink: 0;
+    }
 
-.item-info {
-    flex: 1;
-}
+    .item-details {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
 
-.item-name {
-    font-weight: 600;
-    margin-bottom: 0.3rem;
-}
+    .item-name {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0 0 4px 0;
+        color: var(--dark, #222);
+    }
 
-.item-price {
-    font-size: 0.9rem;
-    color: var(--gray);
-}
+    .item-price {
+        font-size: 0.95rem;
+        color: var(--primary, #ff7a00);
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
 
-.remove-btn {
-    background: transparent;
-    border: none;
-    color: var(--gray);
-    cursor: pointer;
-    transition: color 0.3s ease;
+    .item-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: auto;
 
-    &:hover {
-        color: #ef4444;
+        .qty-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+
+            &:hover:not(:disabled) {
+                background: var(--light, #f8f9fa);
+                border-color: var(--primary, #ff7a00);
+                color: var(--primary, #ff7a00);
+            }
+
+            &:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+        }
+
+        .qty-value {
+            font-weight: 700;
+            min-width: 24px;
+            text-align: center;
+            color: var(--dark, #222);
+        }
+
+        .remove-btn {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--gray, #888);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: color 0.2s;
+
+            &:hover {
+                color: #ef4444;
+            }
+        }
     }
 }
 
 .cart-footer {
-    padding: 1.5rem;
+    padding: 24px;
     border-top: 1px solid rgba(0, 0, 0, 0.06);
-}
+    background: var(--light, #f8f9fa);
+    flex-shrink: 0;
 
-.cart-total {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-}
+    .cart-total {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: 16px;
+        color: var(--dark, #222);
 
-.total-value {
-    font-size: 1.5rem;
-    font-weight: 900;
-    color: var(--primary);
-}
+        .total-price {
+            font-size: 1.5rem;
+            color: var(--primary, #ff7a00);
+        }
+    }
 
-.checkout-btn {
-    width: 100%;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-    color: white;
-    border: none;
-    padding: 1rem;
-    border-radius: 12px;
-    font-weight: 700;
-    font-size: 1.1rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
+    .btn-checkout {
+        width: 100%;
+        padding: 16px;
+        background: var(--primary, #ff7a00);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.2s;
 
-    &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px rgba(255, 122, 0, 0.25);
+        &:hover:not(:disabled) {
+            background: var(--primary-dark, #e56f00);
+            transform: translateY(-2px);
+        }
+
+        &:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
     }
 }
-
-.slide-enter-active, .slide-leave-active {
-    transition: opacity 0.3s ease;
-}
-
-.slide-enter-from, .slide-leave-to {
-    opacity: 0;
-}
-
-/* Добавляем стили для формы */
-.checkout-form {
-    margin-top: 24px;
-    padding-top: 24px;
-    border-top: 1px dashed rgba(0,0,0,0.1);
-
-    h4 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
-}
-
-.form-group { margin-bottom: 14px; }
-.form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: var(--dark); }
-.form-group input, .form-group select, .form-group textarea {
-    width: 100%; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.1);
-    border-radius: 10px; font-size: 0.95rem; background: var(--light);
-    &:focus { outline: none; border-color: var(--primary); }
-}
-
-.item-controls { display: flex; align-items: center; gap: 8px; background: var(--light); border-radius: 8px; padding: 2px; }
-.qty-btn { width: 28px; height: 28px; border: none; background: transparent; font-weight: 700; cursor: pointer; border-radius: 6px; }
-.qty-btn:hover { background: white; }
-
-.checkout-btn {
-    width: 100%; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-    color: white; border: none; padding: 1rem; border-radius: 12px; font-weight: 700; font-size: 1.1rem;
-    cursor: pointer; transition: all 0.3s ease;
-    &:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255, 122, 0, 0.25); }
-    &:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-}
-
-.slide-enter-active, .slide-leave-active { transition: opacity 0.3s ease; }
-.slide-enter-from, .slide-leave-to { opacity: 0; }
 </style>

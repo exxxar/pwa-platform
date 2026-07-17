@@ -65,84 +65,7 @@
         <AppSidebar id="sidebar-menu"
                     @close="toggleSidebar"/>
 
-        <!-- MODAL: Информация о магазине -->
-        <div
-            class="modal fade"
-            id="bot-info-modal"
-            tabindex="-1"
-            aria-labelledby="botInfoModalLabel"
-            aria-hidden="true"
-        >
-            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-body" style="max-height: 400px;">
-                        <p
-                            v-if="settings"
-                            class="mb-0 fw-bold d-flex flex-column align-items-center"
-                            style="font-size: 12px;"
-                        >
-                            <span v-if="settings.address" class="text-primary">
-                                <i class="fa-solid fa-location-dot me-1"></i>
-                                {{ settings.address }}
-                            </span>
-                            <span v-else class="text-primary">
-                                {{ tenant?.name || 'Магазин' }}
-                            </span>
-
-                            <span
-                                v-if="settings.phones?.length > 0"
-                                class="small d-flex justify-content-end"
-                            >
-                                <a :href="'tel:' + settings.phones[0]" class="text-secondary fw-bold">
-                                    {{ settings.phones[0] }}
-                                </a>
-                            </span>
-                        </p>
-                        <p v-else class="mb-0 text-primary" style="font-size: 12px;">
-                            {{ tenant?.name || 'Бот' }}
-                        </p>
-
-                        <!-- Не работаем -->
-                        <div v-if="!isWork" class="my-3 alert alert-primary" role="alert">
-                            В данный момент мы <span class="fw-bold">не работаем</span>.
-                            Вы можете ознакомиться с нашим
-                            <button
-                                class="btn btn-link p-0 text-primary fw-bold text-decoration-underline"
-                                data-bs-toggle="modal"
-                                data-bs-target="#schedule-list-display"
-                            >
-                                графиком работы
-                            </button>
-                            .
-                        </div>
-
-                        <!-- Бронь столика -->
-                        <button
-                            v-if="settings?.can_use_booking"
-                            class="btn btn-info w-100 p-3 mb-2"
-                            @click="goToBookingTable"
-                        >
-                            Забронировать столик
-                        </button>
-
-                        <!-- Описание -->
-                        <p class="text-center mb-3">
-                            <span>{{ tenant?.description }}</span>
-                            <br>
-                            <button
-                                v-if="isAdmin"
-                                class="btn btn-link p-0 text-primary"
-                                style="font-size: 12px;"
-                                data-bs-toggle="modal"
-                                data-bs-target="#edit-shop-footer-description-modal"
-                            >
-                                <i class="fa-solid fa-pen-to-square"></i> Редактировать
-                            </button>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <ShopInfoModal/>
 
         <!-- MODAL: График работы -->
         <div
@@ -252,6 +175,9 @@ import pushNotifications from '@/MobileClient/mixins/pushNotifications';
 import {useFavorites} from "@/MobileClient/composables/useFavorites";
 import {useBasket} from "@/MobileClient/composables/useBasket";
 import {useChat} from "@/MobileClient/composables/useChat";
+import { getThemeScheme } from '@/MobileClient/constants/themeSchemes.js';
+import ShopInfoModal from "@/MobileClient/Components/Shop/ShopInfoModal.vue";
+
 export default {
     name: "AppLayout",
     mixins: [pushNotifications],
@@ -262,7 +188,7 @@ export default {
         Preloader,
         BottomMenu,
         ShareLink,
-
+        ShopInfoModal,
         Footer,
         AppSidebar,
         HamburgerMenu,
@@ -387,6 +313,24 @@ export default {
     },
 
     methods: {
+        applyCurrentTheme() {
+            const tenantSlug = this.tenantSlug
+
+            const savedColor = localStorage.getItem(`theme_color_${tenantSlug}`);
+            const savedScheme = localStorage.getItem(`theme_scheme_${tenantSlug}`);
+
+            console.log("schecma", this.settings)
+            // 🆕 1. Определяем ID схемы: приоритет у выбора пользователя, затем дефолт админа, затем 'default'
+            const schemeId = savedScheme || (this.settings?.default_theme_scheme) || 'default';
+
+            // Применяем схему
+            this.applySchemeById(schemeId);
+
+            // 2. Если пользователь явно менял акцентный цвет, применяем его поверх схемы
+            if (savedColor) {
+                this.applyColor(savedColor);
+            }
+        },
         installPWA() {
             if (typeof window.installPWA === 'function') {
                 window.installPWA()
@@ -414,21 +358,7 @@ export default {
             }
         },
 
-        // Применение текущей темы (цвет + схема + режим день/ночь)
-        applyCurrentTheme() {
-            const savedColor = localStorage.getItem(`theme_color_${this.tenantSlug}`);
-            const savedScheme = localStorage.getItem(`theme_scheme_${this.tenantSlug}`);
 
-            // Применяем цвет, если сохранён
-            if (savedColor) {
-                this.applyColor(savedColor);
-            }
-
-            // Применяем схему, если сохранена
-            if (savedScheme) {
-                this.applySchemeById(savedScheme);
-            }
-        },
 
         // Применение акцентного цвета
         applyColor(hex) {
@@ -444,12 +374,16 @@ export default {
             root.style.setProperty('--bs-primary-light', `${hex}20`);
         },
 
-        // Применение цветовой схемы по ID
+        // Замените applySchemeById в AppLayout.vue на этот универсальный метод:
         applySchemeById(schemeId) {
-            // Здесь должна быть логика из ThemeSchemePicker
-            // Если у тебя есть доступ к схемам, можно импортировать их
-            // Или просто переприменить через событие
-            window.dispatchEvent(new CustomEvent('apply-theme-scheme', {detail: schemeId}));
+            const scheme = getThemeScheme(schemeId);
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            const colors = isDark ? scheme.dark : scheme.light;
+
+            const root = document.documentElement;
+            Object.entries(colors).forEach(([key, value]) => {
+                root.style.setProperty(`--bs-${key}`, value);
+            });
         },
 
         // Отслеживание изменений темы

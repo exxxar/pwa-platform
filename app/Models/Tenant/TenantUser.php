@@ -19,6 +19,7 @@ class TenantUser extends Authenticatable
         'uuid',
         'tenant_id',
         'name',
+        'avatar',
         'email',
         'phone',
         'sex',

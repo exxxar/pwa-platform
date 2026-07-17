@@ -231,7 +231,7 @@ class PaymentService
             $price = 0;
 
             if ($product) {
-                $price = $product->current_price ?? 0;
+                $price = $product->price ?? 0;
                 $description .= "$product->title x$count = $price,\n";
                 $tmpOrderProductInfo[] = (object)[
                     "title" => $product->title,
@@ -621,7 +621,7 @@ class PaymentService
             $price = 0;
 
             if (!is_null($product)) {
-                $price = ($product->current_price ?? 0) * $count;
+                $price = ($product->price ?? 0) * $count;
 
 
                 $prices[] = [
@@ -657,7 +657,7 @@ class PaymentService
                         continue;
 
                     $collectionTitles .= "-" . $basketProduct->title . "\n";
-                    $price += $product->current_price ?? 0;
+                    $price += $product->price ?? 0;
                 }
 
                 $price = $price * $basketItem->count;
@@ -811,7 +811,7 @@ class PaymentService
                 return $item->id === $product->id;
             }))[0]->count ?? 0;
 
-            $tmpPrice = ($product->current_price ?? 0) * $tmpCount;
+            $tmpPrice = ($product->price ?? 0) * $tmpCount;
 
 
             $prices[] = [

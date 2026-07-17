@@ -19,7 +19,7 @@
                         <h2 class="greeting-name">{{ self?.name || 'Гость' }}</h2>
                     </div>
                     <div
-                        @click="goTo('Auth')"
+                        @click="goTo('Profile')"
                         class="hero-avatar">
                         <img v-if="self?.avatar" :src="self.avatar" alt="">
                         <i v-else class="fa-solid fa-user"></i>
@@ -58,9 +58,10 @@
             <StoryList :stories="storiesStore.stories"/>
         </div>
 
+
         <StoreStatusBanner
             :is-work="isWork"
-            :schedule="tenant?.settings?.schedule"
+            :schedule="tenant?.settings?.company?.schedule"
         />
 
         <div class="container px-2">
@@ -110,7 +111,7 @@
                 @touchend="onTouchEnd"
             >
                 <div
-                    v-for="item in visibleMenuItems"
+                    v-for="item in menuItems"
                     :key="item.key"
                 >
                     <MainMenuItem
@@ -284,39 +285,7 @@ export default {
             },
             touchStartX: 0,
             touchEndX: 0,
-            menuItems: [
-                {key: 'shop', route: 'Catalog', text: 'Магазин', img: 'shop.png'},
-                {key: 'basket', route: 'Cart', text: 'Корзина', img: 'basket.png'},
-                {key: 'profile', route: 'Profile', text: 'Профиль', img: 'profile.png'},
-                {key: 'booking', route: 'TableBooking', text: 'Бронь столика', img: 'tables.png', condition: 'can_use_booking'},
-                {key: 'history', route: 'Orders', text: 'История', img: 'history.png'},
-                {key: 'chat', route: 'Chat', text: 'Чат', img: 'chat.png'},
-                {key: 'events', route: 'WheelClassic', text: 'Розыгрыши', img: 'events.png'},
-                {key: 'about', route: 'Contacts', text: 'Контакты', img: 'contacts.png'},
-                {key: 'referral', route: 'ReferralsPage', text: 'Реферальная программа', img: 'contacts.png'},
-            ],
-            adminMenuItems: [
-                {key: 'send_invoice', route: 'AdminInvoice', text: 'Счет на оплату', img: 'clients.png'},
-                {key: 'products_manage', route: 'AdminShop', text: 'Управление товарами', img: 'products.png'},
-                {key: 'shop_settings', modal: 'AdminTenant', text: 'Настройка магазина', img: 'settings.png'},
-                {key: 'partners', route: 'AdminPartners', text: 'Работа с партнерами', img: 'partners.png'},
-                {key: 'stories_manage', route: 'AdminStories', text: 'Управление историями', img: 'stories.png'},
-                {key: 'tables_manage', route: 'TablesManager', text: 'Управление столиками', img: 'tables.png', condition: 'need_table_list'},
-                {key: 'clients', route: 'AdminClients', text: 'Управление клиентами', img: 'clients.png'},
-                {key: 'utm', route: 'LinkManagerV2', text: 'UTM-метки', img: 'utm.png'},
-                {key: 'mailing', route: 'AdminBroadcastsPage', text: 'Управление рассылками', img: 'mail.png'},
-                {key: 'admin_orders', route: 'AdminOrders', text: 'Управление заказами', img: 'orders.png'},
-                {key: 'promo', route: 'AdminPromoCodes', text: 'Управление промокодами', img: 'promo.png'},
-                {key: 'statistic', route: 'AdminStatistic', text: 'Статистика', img: 'statistic.png'},
-                {key: 'tap_link', route: 'TapLinkAdmin', text: 'Тап-линк', img: 'statistic.png'},
-                {key: 'kanban_crm', route: 'AdminKanban', text: 'CRM', img: 'statistic.png'},
-                {key: 'landing', route: 'AdminShopLanding', text: 'Лендинг', img: 'statistic.png'},
-            ],
-            entertainment: [
-                {key: 'wheel_of_fortune_btn', img: 'fortune.png', default: 'Колесо фортуны', route: 'WheelClassic'},
-                {key: 'coffee_bonus_btn', img: 'coffee.png', default: 'Больше кофе', route: 'Coffee'},
-                {key: 'social_quest_btn', img: 'social-quest.png', default: 'Квесты', route: 'Quests'},
-            ],
+
         };
     },
 
@@ -339,7 +308,7 @@ export default {
         disabledText() {
             return this.script_data?.disabled_text || 'Сервис временно недоступен';
         },
-        preparedMenuItems() {
+      /*  preparedMenuItems() {
             const icons = this.settings?.icons || [];
             const map = Object.fromEntries(icons.map(i => [i.slug, i]));
             return this.menuItems.map(item => {
@@ -352,13 +321,13 @@ export default {
                     ...fromSettings,
                 };
             });
-        },
-        visibleMenuItems() {
-            return this.preparedMenuItems.filter(item => {
+        },*/
+      /*  visibleMenuItems() {
+            return this.menu.filter(item => {
                 if (item.is_visible === false) return false;
                 return this.checkCondition(item);
             });
-        },
+        },*/
         visibleAdminItems() {
             return this.adminMenuItems.filter(item => this.checkCondition(item));
         },
@@ -366,6 +335,92 @@ export default {
             if (!this.settings?.schedule) return true;
             if (!window.isCorrectSchedule?.(this.settings.schedule)) return false;
             return this.settings?.is_work ?? true;
+        },
+        menuItems() {
+            // Поддерживаем оба ключа для максимальной совместимости
+            const mainMenuSettings = this.settings?.main_menu_items || {};
+
+            console.log("mainMenuSettings",mainMenuSettings)
+            // Базовая конфигурация (резервная)
+            const baseConfig = {
+                shop: { route: 'Catalog', defaultTitle: 'Магазин', defaultImg: '/images/shop/shop.png', order: 1 },
+                basket: { route: 'Cart', defaultTitle: 'Корзина', defaultImg: '/images/shop/basket.png', order: 2 },
+                profile: { route: 'Profile', defaultTitle: 'Профиль', defaultImg: '/images/shop/profile.png', order: 3 },
+                booking: { route: 'TableBooking', defaultTitle: 'Бронь столика', defaultImg: '/images/shop/tables.png', order: 4, condition: 'can_use_booking' },
+                history: { route: 'Orders', defaultTitle: 'История', defaultImg: '/images/shop/history.png', order: 5 },
+                chat: { route: 'Chat', defaultTitle: 'Чат', defaultImg: '/images/shop/chat.png', order: 6 },
+                events: { route: 'WheelClassic', defaultTitle: 'Розыгрыши', defaultImg: '/images/shop/events.png', order: 7 },
+                about: { route: 'Contacts', defaultTitle: 'Контакты', defaultImg: '/images/shop/contacts.png', order: 8 },
+                referral: { route: 'ReferralsPage', defaultTitle: 'Реферальная программа', defaultImg: '/images/shop/referral.png', order: 9 },
+            };
+
+            return Object.entries(baseConfig)
+                .filter(([key, config]) => {
+                    // 1. Проверка условия (например, can_use_booking)
+                    if (config.condition && !this.settings?.[config.condition]) return false;
+
+                    // 2. Проверка видимости из настроек
+                    const setting = mainMenuSettings[key];
+                    return setting ? setting.is_visible !== false : true;
+                })
+                .map(([key, config]) => {
+                    const setting = mainMenuSettings[key] || {};
+                    console.log("test",key,setting   )
+                    const data = {
+                        key: key,
+                        route: config.route,
+                        text: setting.title || config.defaultTitle,
+                        img: setting.img || config.defaultImg,
+                        order: setting.order ?? config.order,
+                    };
+                    console.log(data)
+                    return data
+                })
+                .sort((a, b) => a.order - b.order);
+        },
+
+        // 🆕 Админское меню (без проверки is_visible — админ видит всё)
+        adminMenuItems() {
+            const baseItems = [
+                { key: 'shop_settings', route: 'AdminTenant', text: 'Настройка магазина', img: '/images/shop/settings.png' },
+                { key: 'send_invoice', route: 'AdminInvoice', text: 'Счет на оплату', img: '/images/shop/clients.png' },
+                { key: 'products_manage', route: 'AdminShop', text: 'Управление товарами', img: '/images/shop/products.png' },
+                { key: 'partners', route: 'AdminPartners', text: 'Работа с партнерами', img: '/images/shop/partners.png' },
+                { key: 'stories_manage', route: 'AdminStories', text: 'Управление историями', img: '/images/shop/stories.png' },
+                { key: 'tables_manage', route: 'TablesManager', text: 'Управление столиками', img: '/images/shop/tables.png', condition: 'need_table_list' },
+                { key: 'clients', route: 'AdminClients', text: 'Управление клиентами', img: '/images/shop/clients.png' },
+                { key: 'utm', route: 'LinkManagerV2', text: 'UTM-метки', img: '/images/shop/utm.png' },
+                { key: 'mailing', route: 'AdminBroadcastsPage', text: 'Управление рассылками', img: '/images/shop/mail.png' },
+                { key: 'admin_orders', route: 'AdminOrders', text: 'Управление заказами', img: '/images/shop/orders.png' },
+                { key: 'promo', route: 'AdminPromoCodes', text: 'Управление промокодами', img: '/images/shop/promo.png' },
+                { key: 'statistic', route: 'AdminStatistic', text: 'Статистика', img: '/images/shop/statistic.png' },
+                { key: 'tap_link', route: 'TapLinkAdmin', text: 'Тап-линк', img: '/images/shop/statistic.png' },
+                { key: 'kanban_crm', route: 'AdminKanban', text: 'CRM', img: '/images/shop/statistic.png' },
+                { key: 'landing', route: 'AdminShopLanding', text: 'Лендинг', img: '/images/shop/statistic.png' },
+            ];
+
+            return this.applyMenuSettings(baseItems, {
+                checkVisibility: false,  // 🆕 Админ видит все пункты
+                checkCondition: true,    // Но condition всё равно проверяется
+                useSettingsTitle: false, // Названия не меняются
+                useSettingsImage: false, // Иконки не меняются
+            });
+        },
+
+        // 🆕 Развлекательные кнопки
+        entertainment() {
+            const baseItems = [
+                { key: 'wheel_of_fortune_btn', img: 'fortune.png', text: 'Колесо фортуны', route: 'WheelClassic' },
+                { key: 'coffee_bonus_btn', img: 'coffee.png', text: 'Больше кофе', route: 'Coffee' },
+                { key: 'social_quest_btn', img: 'social-quest.png', text: 'Квесты', route: 'Quests' },
+            ];
+
+            return this.applyMenuSettings(baseItems, {
+                checkVisibility: true,
+                checkCondition: true,
+                useSettingsTitle: true,
+                useSettingsImage: true,
+            });
         },
     },
 
@@ -375,6 +430,59 @@ export default {
     },
 
     methods: {
+        applyMenuSettings(items, options = {}) {
+            const {
+                checkVisibility = true,    // Учитывать is_visible из настроек
+                checkCondition = true,     // Учитывать condition (например, can_use_booking)
+                useSettingsTitle = true,   // Использовать title из настроек
+                useSettingsImage = true,   // Использовать image_url из настроек
+            } = options;
+
+            const settingsIcons = this.settings?.icons || [];
+
+            // Создаём Map для быстрого поиска: slug → icon config
+            const iconsMap = new Map(
+                settingsIcons.map(icon => [icon.slug, icon])
+            );
+
+            return items
+                // 1. Фильтрация по condition (если задан)
+                .filter(item => {
+                    if (!checkCondition || !item.condition) return true;
+                    return !!this.settings?.[item.condition];
+                })
+                // 2. Фильтрация по is_visible из настроек
+                .filter(item => {
+                    if (!checkVisibility) return true;
+                    const iconConfig = iconsMap.get(item.key);
+                    // Если в настройках нет — показываем по умолчанию
+                    if (!iconConfig) return true;
+                    return iconConfig.is_visible !== false;
+                })
+                // 3. Модификация на основе настроек
+                .map(item => {
+                    const iconConfig = iconsMap.get(item.key);
+
+                    if (!iconConfig) {
+                        // Если в настройках нет — возвращаем как есть
+                        return { ...item };
+                    }
+
+                    const result = { ...item };
+
+                    // Переопределяем название
+                    if (useSettingsTitle && iconConfig.title) {
+                        result.text = iconConfig.title;
+                    }
+
+                    // Переопределяем иконку/изображение
+                    if (useSettingsImage && iconConfig.image_url) {
+                        result.img = iconConfig.image_url;
+                    }
+
+                    return result;
+                });
+        },
         async loadStories() {
             try {
                 await this.storiesStore.loadStories();

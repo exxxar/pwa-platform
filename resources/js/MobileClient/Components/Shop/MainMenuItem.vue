@@ -1,4 +1,6 @@
 <template>
+
+
     <button type="button"
             v-if="item?.is_visible || true"
             @click="goTo(route)"
@@ -6,8 +8,7 @@
             :disabled="disabled||false"
             class="btn shadow-sm border-0 btn-outline-primary w-100  mb-2 card p-0">
         <div class="card-body p-0 d-flex justify-content-center align-items-center flex-column w-100">
-            <img v-lazy="'/images/shop/'+(item?.image_url||defaultImage)" class="img-fluid menu-item-img w-100" alt="">
-
+            <img v-lazy="item?.img" class="img-fluid menu-item-img w-100" alt="">
 
             <slot name="counter"/>
 

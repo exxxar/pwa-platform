@@ -27,5 +27,6 @@ return [
         'coffee',
         'cashback',
         'misc',
+        'main_menu'
     ],
 ];

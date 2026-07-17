@@ -80,6 +80,8 @@ export const useBasketStore = defineStore('basket', {
             }, 0);
         },
 
+
+
         /**
          * Общая сумма корзины (с учётом весовых товаров и подборок)
          */

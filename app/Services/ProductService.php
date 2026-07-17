@@ -118,7 +118,7 @@ class ProductService
                     'id' => $product->id,
                     'name' => $product->name,
                     'price' => $product->price,
-                    'current_price' => $product->current_price,
+                    'current_price' => $product->price,
                     'old_price' => $product->old_price,
                     'images' => $product->images,
                     'rating' => $product->rating,
@@ -132,6 +132,7 @@ class ProductService
     {
 
         $tenant = app('tenant');
+
 
         $tenantId = $data["partner_id"] ?? $tenant->id;
 

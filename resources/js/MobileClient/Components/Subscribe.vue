@@ -207,7 +207,7 @@ async function handleToggle() {
 
 <style scoped>
 .notification-widget {
-    max-width: 500px;
+   width:100%;
 }
 
 /* Grid для кнопок */

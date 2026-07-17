@@ -56,13 +56,13 @@ class BasketService
         $cartItems = Basket::where('tenant_id', $tenantId)
             ->where('tenant_user_id', $userId)
             ->whereNull('ordered_at')
-            ->with(['product:id,name,price,current_price,images'])
+            ->with(['product:id,name,price,price,images'])
             ->get();
 
         return [
             'items_count' => $cartItems->sum('count'),
             'total_price' => $cartItems->sum(function ($item) {
-                $price = $item->product->current_price ?? $item->product->price ?? 0;
+                $price = $item->product->price ?? 0;
                 return $price * $item->count;
             }),
             'items' => $cartItems->map(function ($item) {
@@ -70,7 +70,7 @@ class BasketService
                     'id' => $item->id,
                     'product_id' => $item->product_id,
                     'count' => $item->count,
-                    'price' => $item->product->current_price ?? $item->product->price ?? 0,
+                    'price' => $item->product->price ??  0,
                     'name' => $item->product->name,
                     'image' => $item->product->images[0] ?? null,
                 ];
@@ -82,7 +82,7 @@ class BasketService
      * Оформление заказа
      * @throws ValidationException
      */
-    public function checkout(array $data, mixed $uploadedImage = null): ?string
+    public function checkout(array $data, mixed $uploadedImage = null): array
     {
         $this->tenant = app('tenant');
         $this->tenantUser = Auth::guard('tenant')->user();
@@ -431,8 +431,9 @@ class BasketService
             throw new ValidationException($validator);
         }
 
-        $config = $tenant->config ?? [];
+        $config = $tenant->settings ?? [];
         $hasPartners = $config["partners"]["is_active"] ?? false;
+
 
         $botIds = $hasPartners
             ? [$tenant->id, ...$tenant->partners()->get()->pluck("tenant_partner_id")]

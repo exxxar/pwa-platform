@@ -541,6 +541,28 @@
 
                     <div class="form-section">
                         <h3 class="section-title">
+                            <i class="fa-solid fa-palette"></i>
+                            Внешний вид
+                        </h3>
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label>Тема по умолчанию</label>
+                                <select v-model="shopForm.default_theme_scheme">
+                                    <option
+                                        v-for="scheme in availableSchemes"
+                                        :key="scheme.id"
+                                        :value="scheme.id"
+                                    >
+                                        {{ scheme.name }}
+                                    </option>
+                                </select>
+                                <span class="field-hint">Эта тема будет применяться новым пользователям, пока они не выберут свою.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title">
                             <i class="fa-solid fa-store"></i>
                             Основные параметры
                         </h3>
@@ -1194,13 +1216,104 @@
                 </form>
             </div>
 
+            <!-- ========== 🆕 7: ГЛАВНОЕ МЕНЮ ========== -->
+            <div v-if="activeTab === 10" class="tab-panel">
+                <form @submit.prevent="saveMainMenu" class="settings-form">
+                    <div class="form-section">
+                        <h3 class="section-title">
+                            <i class="fa-solid fa-compass"></i>
+                            Настройка главного меню
+                        </h3>
+                        <div class="alert-info">
+                            <i class="fa-solid fa-circle-info"></i>
+                            Здесь вы можете изменить названия и иконки пунктов нижнего меню приложения.
+                        </div>
+
+                        <div class="main-menu-grid">
+                            <div
+                                v-for="(item, key) in mainMenuForm"
+                                :key="key"
+                                class="main-menu-card"
+                                :class="{ 'is-disabled': !item.is_visible }"
+                            >
+                                <div class="card-header">
+                                    <div class="preview-icon">
+                                        <!-- Показываем картинку, если она есть, иначе заглушку -->
+                                        <img :src="`/images/shop/${defaultMenuIcons[key]}`" :alt="item.title" @error="$event.target.style.display='none'">
+
+                                    </div>
+                                    <div class="card-title">{{ item.title }} </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" v-model="item.is_visible" @change="markDirty('main_menu_items')">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+
+                                <div v-if="item.is_visible" class="card-fields">
+                                    <div class="form-field">
+                                        <label>Название пункта</label>
+                                        <input type="text" v-model="item.title" @input="markDirty('main_menu')" maxlength="20">
+                                    </div>
+
+                                    <div class="form-field">
+                                        <label>Иконка пункта</label>
+                                        <div class="icon-upload-wrapper">
+                                            <div class="icon-preview-small">
+                                                <!-- Умный src: показывает превью, если оно есть, иначе формирует путь -->
+                                                <img
+                                                    v-if="mainMenuPreviews[key] || item.img"
+                                                    :src="mainMenuPreviews[key] || (item.img.startsWith('/') ? item.img : `/images/menu/${item.img}`)"
+                                                    :alt="item.title"
+                                                >
+                                                <i v-else class="fa-solid fa-image"></i>
+                                            </div>
+
+                                            <div class="icon-actions">
+                                                <label class="upload-btn small">
+                                                    <input
+                                                        type="file"
+                                                        accept="image/png, image/jpeg, image/svg+xml"
+                                                        @change="handleMainMenuIconUpload($event, key)"
+                                                    >
+                                                    <i class="fa-solid fa-upload"></i>
+                                                    <span>{{ (mainMenuForm[key].img && mainMenuForm[key].img !== defaultMenuIcons[key]) ? 'Заменить' : 'Загрузить' }}</span>
+                                                </label>
+
+                                                <!-- 🆕 Кнопка сброса (показывается только если иконка отличается от дефолтной) -->
+                                                <button
+                                                    v-if="mainMenuForm[key].img && mainMenuForm[key].img !== defaultMenuIcons[key]"
+                                                    type="button"
+                                                    class="reset-btn small"
+                                                    @click="resetMainMenuIcon(key)"
+                                                    title="Удалить кастомную иконку и вернуть стандартную"
+                                                >
+                                                    <i class="fa-solid fa-rotate-left"></i>
+                                                    <span>Сбросить</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <span class="field-hint">Рекомендуемый размер: 64×64 px (PNG, JPG или SVG)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="save-button" :disabled="isSectionSaving('main_menu_items')">
+                        <i v-if="isSectionSaving('main_menu_items')" class="fa-solid fa-spinner fa-spin"></i>
+                        <i v-else class="fa-solid fa-check"></i>
+                        <span>{{ isSectionSaving('main_menu_items') ? 'Сохранение...' : 'Сохранить' }}</span>
+                    </button>
+                </form>
+            </div>
+
         </div>
     </div>
 </template>
 
 <script>
 import {useTenantSettings} from '@/MobileClient/Composables/useTenantSettings.js';
-
+import { themeSchemes } from '@/MobileClient/constants/themeSchemes.js';
 export default {
     name: 'TenantSettingsPage',
 
@@ -1213,6 +1326,20 @@ export default {
         return {
             activeTab: 0,
             activePwaSubTab: 'general',
+            mainMenuPreviews: {},
+
+            defaultMenuIcons: {
+                shop: 'shop.png',
+                basket: 'basket.png',
+                profile: 'profile.png',
+                booking: 'tables.png',
+                history: 'history.png',
+                chat: 'chat.png',
+                events: 'events.png',
+                about: 'contacts.png',
+                referral: 'referral.png',
+            },
+
             tabs: [
                 {key: 'basic', title: 'Основное', icon: 'fa-solid fa-building', section: 'company'},
                 {key: 'pwa', title: 'PWA приложение', icon: 'fa-solid fa-mobile-screen', section: 'pwa'},
@@ -1220,10 +1347,11 @@ export default {
                 {key: 'cashback', title: 'Баллы', icon: 'fa-solid fa-coins', section: 'cashback'},
                 {key: 'interactive', title: 'Интерактив', icon: 'fa-solid fa-gamepad', section: 'interactive'},
                 {key: 'tables', title: 'Столики', icon: 'fa-solid fa-utensils', section: 'tables'},
-                {key: 'menu', title: 'Пункты меню', icon: 'fa-solid fa-bars', section: 'menu'},
+                {key: 'menu', title: 'Пункты бокового меню', icon: 'fa-solid fa-bars', section: 'sidebar-menu'},
                 {key: 'calculators', title: 'Калькуляторы', icon: 'fa-solid fa-calculator', section: 'calculators'},
                 {key: 'games', title: 'Бонус-игры', icon: 'fa-solid fa-dice', section: 'games'},
                 {key: 'crm', title: 'CRM', icon: 'fa-brands fa-connectdevelop', section: 'crm'},
+                {key: 'main_menu', title: 'Пункты главного меню', icon: 'fa-solid fa-bars', section: 'main-menu'},
             ],
             pwaSubTabs: [
                 {key: 'general', title: 'Основное', icon: 'fa-solid fa-info-circle'},
@@ -1296,7 +1424,7 @@ export default {
                     {day: 'Воскресенье', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'},
                 ],
             },
-
+            mainMenuForm: {},
             shopForm: {
                 is_edit_mode: false,
                 is_disabled: false,
@@ -1330,6 +1458,7 @@ export default {
                 need_person_counter: true,
                 need_health_restrictions: true,
                 manager: {link: null, title: 'Написать'},
+                default_theme_scheme: 'default', // 🆕 Новая настройка
             },
 
             cashbackForm: {
@@ -1367,8 +1496,11 @@ export default {
                 board_uuid: null,
                 token: null,
             },
+
+            availableSchemes: themeSchemes,
         };
     },
+
 
     async mounted() {
         try {
@@ -1388,73 +1520,102 @@ export default {
                 behavior: 'smooth'
             });
         },
+
+        /**
+         * 🆕 Сброс иконки главного меню через бэкенд
+         */
+        async resetMainMenuIcon(key) {
+            try {
+                const response = await axios.post(`/admin/tenant-settings/main-menu/reset-icon`, {
+                    menu_key: key
+                });
+
+                if (response.data.success) {
+                    // 1. Обновляем форму дефолтным именем файла
+                    this.mainMenuForm[key].img = response.data.default_name;
+
+                    // 2. Обновляем превью полным путем, который вернул бэк
+                    this.mainMenuPreviews[key] = response.data.img;
+
+                    // 3. Помечаем секцию как измененную
+                    this.markDirty('main_menu_items');
+
+                    this.$notify?.({
+                        title: 'Сброшено',
+                        text: response.data.message,
+                        type: 'success'
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка сброса иконки:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось сбросить иконку',
+                    type: 'error'
+                });
+            }
+        },
         async initForms() {
             const tenant = window.Tenant;
             if (!tenant) return;
 
-            const settings = tenant.settings
-            if (!settings) return;
+            const settings = tenant.settings || {};
 
-            // 🆕 Инициализация PWA формы
-            // 🆕 Загружаем PWA настройки с URL
+            // 🆕 Заполняем "Company" данные из полей Tenant и meta.company
+            this.companyForm.title = tenant.name || null;
+            this.companyForm.description = tenant.description || null;
+
+            const companyMeta = settings.company || {};
+            this.companyForm.address = companyMeta.address || null;
+            this.companyForm.phones = companyMeta.phones || ['+7'];
+            this.companyForm.email = companyMeta.email || null;
+            this.companyForm.links = companyMeta.links || { vk: null, inst: null, map_link: null, site: null };
+
+            if (companyMeta.schedule?.length >= 7) {
+                this.companyForm.schedule = companyMeta.schedule;
+            }
+
+            // 🆕 Заполняем остальные формы из settings
+            this.shopForm = { ...this.shopForm, ...(settings.shop || {}) };
+
+            this.cashbackForm.max_cashback_use_percent = settings.max_cashback_use_percent || 15;
+            this.cashbackForm.level_1 = settings.level_1 || 0;
+            this.cashbackForm.level_2 = settings.level_2 || 0;
+            this.cashbackForm.level_3 = settings.level_3 || 0;
+
+            this.certificateForm = { ...this.certificateForm, ...(settings.init_certificate || {}) };
+            this.coffeeForm = { ...this.coffeeForm, ...(settings.coffee || {}) };
+            this.tablesForm = { ...this.tablesForm, ...(settings.tables || {}) };
+
+            this.menuForm = JSON.parse(JSON.stringify(settings.menu_items || {}));
+            this.calculatorsForm = JSON.parse(JSON.stringify(settings.food_calculators || {}));
+            this.gamesForm = JSON.parse(JSON.stringify(settings.bonus_games || {}));
+            this.crmForm = { ...this.crmForm, ...(settings.crm || {}) };
+
+            console.log("Settings", settings)
+
+            const mainMenuData = settings.main_menu_items || {};
+            this.mainMenuForm = JSON.parse(JSON.stringify(mainMenuData));
+
+            // 🆕 Инициализируем превью для уже загруженных картинок
+            this.mainMenuPreviews = {};
+            Object.keys(this.mainMenuForm).forEach(key => {
+                if (this.mainMenuForm[key].img) {
+                    this.mainMenuPreviews[key] = this.mainMenuForm[key].img;
+                }
+            });
+
+            // PWA загружается отдельно через axios, как у вас уже написано
             try {
                 const response = await axios.get('/admin/tenant-settings/pwa');
-                const pwaData = response.data.settings;
-
-                console.log(pwaData)
-                console.log(settings)
-                this.pwaForm = {
-                    name: pwaData.name || null,
-                    short_name: pwaData.short_name || null,
-                    description: pwaData.description || null,
-                    theme_color: pwaData.theme_color || '#ff8a00',
-                    background_color: pwaData.background_color || '#ffffff',
-                    orientation: pwaData.orientation || 'portrait',
-                    display: pwaData.display || 'standalone',
-                    lang: pwaData.lang || 'ru',
-                    categories: pwaData.categories || ['shopping', 'food', 'business'],
-                    icons: pwaData.icons || {},
-                    screenshots: pwaData.screenshots || {},
-                    shortcuts: pwaData.shortcuts || {},
-                };
-
-                // Устанавливаем превью из URL
+                const pwaData = response.data.settings || {};
+                this.pwaForm = { ...this.pwaForm, ...pwaData };
                 this.iconPreviews = pwaData.icons_urls || {};
                 this.screenshotPreviews = pwaData.screenshots_urls || {};
                 this.shortcutIconPreviews = pwaData.shortcuts_icons_urls || {};
-
             } catch (error) {
                 console.error('Ошибка загрузки PWA настроек:', error);
             }
-
-            const company = tenant.company || {};
-            this.companyForm.id = company.id;
-            this.companyForm.title = company.title;
-            this.companyForm.description = company.description;
-            this.companyForm.email = company.email;
-            this.companyForm.address = company.address;
-            this.companyForm.phones = company.phones || ['+7'];
-            this.companyForm.links = company.links || this.companyForm.links;
-            if (company.schedule?.length >= 7) this.companyForm.schedule = company.schedule;
-
-            const s = settings || {};
-
-            this.shopForm = {...this.shopForm, ...s};
-            this.shopForm.sbp = {...this.shopForm.sbp, ...s.sbp};
-            this.shopForm.manager = {...this.shopForm.manager, ...s.manager};
-
-            this.cashbackForm.max_cashback_use_percent = s.max_cashback_use_percent || 15;
-            this.cashbackForm.level_1 = s.level_1 || 0;
-            this.cashbackForm.level_2 = s.level_2 || 0;
-            this.cashbackForm.level_3 = s.level_3 || 0;
-
-            this.certificateForm = {...this.certificateForm, ...(s.init_certificate || {})};
-            this.coffeeForm = {...this.coffeeForm, ...(s.coffee || {})};
-            this.tablesForm = {...this.tablesForm, ...(s.tables || {})};
-            this.menuForm = JSON.parse(JSON.stringify(s.menu_items || {}));
-            this.calculatorsForm = JSON.parse(JSON.stringify(s.food_calculators || {}));
-            this.gamesForm = JSON.parse(JSON.stringify(s.bonus_games || {}));
-            this.crmForm = {...this.crmForm, ...(s.crm || {})};
         },
 
         formatDate(date) {
@@ -1471,6 +1632,38 @@ export default {
             }
         },
 
+        async handleMainMenuIconUpload(event, key) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.size > 2 * 1024 * 1024) {
+                this.$notify?.({title: 'Ошибка', text: 'Файл слишком большой (макс. 2MB)', type: 'error'});
+                return;
+            }
+
+            // 1. Локальное превью
+            this.mainMenuPreviews[key] = URL.createObjectURL(file);
+            this.markDirty('main_menu_items');
+
+            // 2. Отправка на сервер
+            const formData = new FormData();
+            formData.append('icon', file);
+            formData.append('menu_key', key);
+
+            try {
+                const response = await axios.post(`/admin/tenant-settings/main-menu/upload-icon`, formData, {
+                    headers: {'Content-Type': 'multipart/form-data'}
+                });
+
+                // 3. 🆕 ВАЖНО: Сохраняем именно то, что вернул бэкенд (обычно это '/storage/...')
+                this.mainMenuForm[key].img = response.data.filename;
+
+                this.$notify?.({title: 'Успешно', text: 'Иконка обновлена', type: 'success'});
+            } catch (error) {
+                console.error('Ошибка загрузки иконки меню:', error);
+                this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить иконку', type: 'error'});
+            }
+        },
         normalizeBoardUuid() {
             if (!this.crmForm.board_uuid) return;
             let link = this.crmForm.board_uuid;
@@ -1625,112 +1818,125 @@ export default {
             }
         },
 
-        /**
-         * Сохранение PWA настроек
-         */
-        async savePwa() {
+        // Удалите метод objectToFormData, он больше не нужен для настроек
+
+        async saveMainMenu() {
             try {
-                await this.savePwaSettings(this.pwaForm);
-                this.$notify?.({title: 'Успешно', text: 'PWA настройки сохранены', type: 'success'});
+                // 🆕 Добавим лог, чтобы видеть, что мы отправляем
+                console.log("Отправляем данные главного меню:", JSON.parse(JSON.stringify(this.mainMenuForm)));
+
+                await this.saveMainMenuSettings(this.mainMenuForm);
+                this.$notify?.({ title: 'Успешно', text: 'Главное меню обновлено', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                // 🆕 Выводим реальную ошибку от сервера в консоль и в уведомление
+                console.error("Ошибка сохранения главного меню:", e);
+                const errorMsg = e.response?.data?.message || 'Не удалось сохранить';
+                this.$notify?.({ title: 'Ошибка', text: errorMsg, type: 'error' });
             }
         },
-
-        // ==========================================
-        // СОХРАНЕНИЕ
-        // ==========================================
-
         async saveCompany() {
-            const data = this.objectToFormData(this.companyForm);
             try {
-                await this.saveCompanyInfo(data);
-                this.$notify?.({title: 'Успешно', text: 'Компания обновлена', type: 'success'});
+                // Отправляем name/description на верхний уровень, остальное в meta.company
+                const payload = {
+                    name: this.companyForm.title,
+                    description: this.companyForm.description,
+                    meta: {
+                        company: {
+                            address: this.companyForm.address,
+                            phones: this.companyForm.phones,
+                            email: this.companyForm.email,
+                            links: this.companyForm.links,
+                            schedule: this.companyForm.schedule,
+                        }
+                    }
+                };
+                await this.saveBasicInfo(payload);
+                this.$notify?.({ title: 'Успешно', text: 'Основная информация обновлена', type: 'success' });
+
+                // Обновляем window.Tenant для реактивности, если нужно
+                if(window.Tenant) {
+                    window.Tenant.name = this.companyForm.title;
+                    window.Tenant.description = this.companyForm.description;
+                }
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
 
         async saveShop() {
-            const data = this.objectToFormData(this.shopForm);
             try {
-                await this.saveCompanyInfo(data);
-                this.$notify?.({title: 'Успешно', text: 'Магазин обновлён', type: 'success'});
+                await this.saveShopSettings(this.shopForm);
+                this.$notify?.({ title: 'Успешно', text: 'Магазин обновлён', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
 
         async saveCashback() {
-            const data = this.objectToFormData({
-                ...this.cashbackForm,
-                init_certificate: this.certificateForm,
-            });
             try {
-                await this.saveCashbackSettings(data);
-                this.$notify?.({title: 'Успешно', text: 'Баллы обновлены', type: 'success'});
+                await this.saveCashbackSettings({
+                    ...this.cashbackForm,
+                    init_certificate: this.certificateForm,
+                });
+                this.$notify?.({ title: 'Успешно', text: 'Баллы обновлены', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
 
         async saveInteractive() {
-            const data = this.objectToFormData({coffee: this.coffeeForm});
             try {
-                await this.saveCompanyInfo(data);
-                this.$notify?.({title: 'Успешно', text: 'Интерактив обновлён', type: 'success'});
+                await this.saveInteractiveSettings({ coffee: this.coffeeForm });
+                this.$notify?.({ title: 'Успешно', text: 'Интерактив обновлён', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
 
         async saveTables() {
-            const data = this.objectToFormData({tables: this.tablesForm});
             try {
-                await this.saveCompanyInfo(data);
-                this.$notify?.({title: 'Успешно', text: 'Столики обновлены', type: 'success'});
+                await this.saveTablesSettings({ tables: this.tablesForm });
+                this.$notify?.({ title: 'Успешно', text: 'Столики обновлены', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
 
         async saveMenu() {
             try {
                 await this.saveMenuSettings(this.menuForm);
-                this.$notify?.({title: 'Успешно', text: 'Меню обновлено', type: 'success'});
+                this.$notify?.({ title: 'Успешно', text: 'Меню обновлено', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
 
         async saveCalculators() {
             try {
-                await this.saveFoodCalculatorsSettings(this.calculatorsForm);
-                this.$notify?.({title: 'Успешно', text: 'Калькуляторы обновлены', type: 'success'});
+                await this.saveCalculatorsSettings(this.calculatorsForm);
+                this.$notify?.({ title: 'Успешно', text: 'Калькуляторы обновлены', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
 
         async saveGames() {
             try {
-                await this.saveBonusGamesSettings(this.gamesForm);
-                this.$notify?.({title: 'Успешно', text: 'Игры обновлены', type: 'success'});
+                await this.saveGamesSettings(this.gamesForm);
+                this.$notify?.({ title: 'Успешно', text: 'Игры обновлены', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
 
         async saveCrm() {
-            const data = this.objectToFormData({crm: this.crmForm});
             try {
-                await this.saveCompanyInfo(data);
-                this.$notify?.({title: 'Успешно', text: 'CRM обновлена', type: 'success'});
+                await this.saveCrmSettings(this.crmForm);
+                this.$notify?.({ title: 'Успешно', text: 'CRM обновлена', type: 'success' });
             } catch (e) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             }
         },
-
         objectToFormData(obj) {
             const data = new FormData();
             Object.keys(obj).forEach(key => {
@@ -2821,6 +3027,161 @@ $warning: #f59e0b;
 
     .preview-browser {
         max-width: 100%;
+    }
+}
+
+.main-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.main-menu-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 16px;
+    transition: all 0.2s;
+
+    &.is-disabled {
+        opacity: 0.6;
+        background: var(--bs-secondary-bg);
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .preview-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: var(--bs-secondary-bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--bs-primary);
+        font-size: 1.2rem;
+        flex-shrink: 0;
+        overflow: hidden;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    }
+
+    .card-title {
+        flex: 1;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+
+    .card-fields {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--bs-border-color);
+    }
+}
+
+// ==========================================
+// 🆕 ЗАГРУЗКА ИКОНОК ГЛАВНОГО МЕНЮ
+// ==========================================
+.icon-upload-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.icon-preview-small {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-primary);
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    overflow: hidden;
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; // contain лучше для иконок меню, чтобы не обрезались
+        padding: 4px;
+    }
+}
+
+// ==========================================
+// 🆕 ДЕЙСТВИЯ С ИКОНКОЙ (Загрузка + Сброс)
+// ==========================================
+.icon-upload-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.icon-preview-small {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-primary);
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    overflow: hidden;
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; // contain лучше для иконок, чтобы не обрезались
+        padding: 4px;
+    }
+}
+
+.icon-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.reset-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #ffffff;
+    border: 1px dashed #ef4444; // Красная пунктирная рамка для действия "сброс"
+    border-radius: 6px;
+    color: #ef4444;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        background: rgba(239, 68, 68, 0.05);
+        border-style: solid;
+    }
+
+    &.small {
+        padding: 6px 10px;
+        font-size: 0.8rem;
     }
 }
 </style>

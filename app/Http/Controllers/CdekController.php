@@ -46,8 +46,6 @@ class CdekController extends Controller
 
         return response()->json([
             "tariff" => BusinessLogic::cdek()
-                ->setBot($request->bot ?? null)
-                ->setBotUser($request->botUser ?? null)
                 ->calcBasketTariff(
                     $request->all()
                 )

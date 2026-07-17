@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\Tenant\TenantUser;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,19 +28,78 @@ class ProfileController extends Controller
     }
 
     /**
-     * Update the user's profile information.
+     * Обновление текстовых данных профиля
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(Request $request)
     {
-        $request->user()->fill($request->validated());
+        /** @var TenantUser $user */
+        $user = Auth::guard('tenant')->user();
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        if (!$user) {
+            return response()->json(['message' => 'Не авторизован'], 401);
         }
 
-        $request->user()->save();
+        $validated = $request->validate([
+            'name' => 'nullable|string|max:255',
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('tenant_users')->ignore($user->id),
+            ],
+            'birthday' => 'nullable|date|before:today',
+            'city' => 'nullable|string|max:255',
+        ]);
 
-        return Redirect::route('profile.edit');
+        // Обновляем только переданные поля
+        $user->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Профиль успешно обновлён',
+            'data' => $user->fresh(), // Возвращаем обновлённого пользователя
+        ]);
+    }
+
+    /**
+     * Загрузка/обновление аватара
+     */
+    public function updateAvatar(Request $request)
+    {
+        /** @var TenantUser $user */
+        $user = Auth::guard('tenant')->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Не авторизован'], 401);
+        }
+
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048', // Макс 2 МБ
+        ]);
+
+        $file = $request->file('avatar');
+
+        // 🆕 Удаляем старый аватар, если он есть и хранится локально
+        if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
+            Storage::disk('public')->delete($user->avatar);
+        }
+        // Если у вас поле называется 'photo', замените 'avatar' на 'photo' ниже
+
+        // Сохраняем новый файл
+        $path = "/storage/".$file->store('avatars/tenants', 'public');
+
+        // Обновляем запись в БД
+        $user->update([
+            'avatar' => $path, // Или 'photo' => $path, в зависимости от названия колонки
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Фото профиля обновлено',
+            'data' => [
+                'avatar_url' => $path,
+            ],
+        ]);
     }
 
     /**

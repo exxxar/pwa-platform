@@ -104,6 +104,7 @@
                             class="order-card"
                             @click="select(order)"
                         >
+
                             <!-- Шапка заказа -->
                             <div class="order-header">
                                 <div class="order-number">
@@ -122,7 +123,7 @@
                             </div>
 
                             <!-- Товары -->
-                            <div class="order-products">
+                            <div class="order-products" v-if="getOrderProducts(order).length>0">
                                 <div
                                     v-for="(product, i) in getOrderProducts(order).slice(0, 3)"
                                     :key="product.id || product.external_id || i"
@@ -142,7 +143,7 @@
                                     {{ pluralize(getOrderProducts(order).length - 3, 'товар', 'товара', 'товаров') }}
                                 </div>
                             </div>
-
+                            <p class="alert alert-light" v-else>Детали заказа отсутствуют</p>
                             <!-- Итого -->
                             <div v-if="getOrderTotal(order)" class="order-total">
                                 <span>Итого:</span>
@@ -157,7 +158,7 @@
                             />
 
                             <!-- Действия -->
-                            <div class="order-actions">
+                            <div class="order-actions" v-if="getOrderProducts(order).length>0">
                                 <button
                                     type="button"
                                     class="repeat-btn"

@@ -15,8 +15,8 @@
                     <button class="nav-btn cart-btn" @click="$emit('open-cart')">
                         <i class="fa-solid fa-cart-shopping"></i>
                         <span class="btn-text">Корзина</span>
-                        <span v-if="cartStore.totalItems > 0" class="cart-badge">
-                            {{ cartStore.totalItems }}
+                        <span v-if="cartTotalCount > 0" class="cart-badge">
+                            {{ cartTotalCount }}
                         </span>
                     </button>
                 </div>
@@ -26,7 +26,7 @@
 </template>
 
 <script>
-import {useLandingCartStore} from "@/MobileClient/stores/ShopLanding/cart";
+import {useBasket} from '@/MobileClient/composables/useBasket';
 
 export default {
     name: "ShopNavbar",
@@ -36,14 +36,25 @@ export default {
     },
 
     emits: ['open-cart', 'open-feedback'],
-
+    setup() {
+        return {
+            basket: useBasket()
+        };
+    },
     data() {
         return {
             isScrolled: false,
-            cartStore: useLandingCartStore(),
+
         };
     },
-
+    computed:{
+        cartTotalCount() {
+            return this.basket.cartTotalCount.value || 0
+        },
+        cartTotalPrice() {
+            return this.basket.cartTotalPrice.value  || 0
+        },
+    },
     mounted() {
         window.addEventListener('scroll', this.handleScroll);
     },

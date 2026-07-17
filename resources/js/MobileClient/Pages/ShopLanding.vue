@@ -4,7 +4,7 @@
         <!-- Навигация -->
         <ShopNavbar
             :config="config"
-            :cart-count="cartItems.length"
+            :cart-count="basket.cartTotalCount"
             @open-cart="showCart = true"
             @open-feedback="showFeedbackModal = true"
         />
@@ -12,25 +12,32 @@
         <!-- Hero -->
         <ShopHero
             :config="config.hero"
-            @scroll-to-categories="scrollToCategories"
+            @scroll-to-categories="scrollToPartners"
         />
 
-        <ShopCategories />
-        <ShopProducts
-            :products="shopStore.filteredProducts"
-            @open-modal="openProductModal" />
+        <!-- Секция партнеров -->
+        <ShopPartners @select-partner="handlePartnerSelect" />
+
+        <div id="shop-products-section">
+
+            <!-- Показываем скелетон, пока данные грузятся -->
+            <ShopProductsSkeleton v-if="shopStore.isLoading" />
+
+            <!-- Показываем реальные компоненты, когда данные готовы -->
+            <template v-else>
+                <ShopCategories />
+                <ShopProducts @open-modal="openProductModal" />
+            </template>
+
+        </div>
 
         <ShopPromotions />
         <ShopDelivery />
-        <!-- НОВЫЙ БЛОК: PWA Приложение -->
         <ShopPwaBanner />
-
         <ShopLoyalty :user-points="2450" />
         <ShopWheel />
         <ShopReviews :reviews="config.reviews" :config="config.reviewsSection" />
         <ShopFaq @open-feedback="showFeedbackModal = true" />
-
-        <!-- НОВЫЙ БЛОК: Бронирование -->
         <ShopReservation :address="config.footer.address" :phone="config.footer.phone" />
 
         <!-- CTA -->
@@ -50,14 +57,21 @@
         <!-- Footer -->
         <ShopFooter :config="config.footer" @open-privacy="showPrivacyModal = true" />
 
-        <!-- Обновленная корзина -->
+        <!-- 🆕 Обновленная корзина (исправлены пропсы) -->
         <ShopCart
             v-if="showCart"
-            :items="cartStore.items"
+            :is-open="showCart"
             :config="config.cart"
             @close="showCart = false"
-            @update-qty="cartStore.updateQuantity"
-            @checkout="handleCheckout"
+            @checkout="openCheckoutForm"
+        />
+
+        <!-- 🆕 НОВАЯ МОДАЛКА ОФОРМЛЕНИЯ ЗАКАЗА -->
+        <ShopCheckoutForm
+            v-if="showCheckoutForm"
+            :is-open="showCheckoutForm"
+            @close="showCheckoutForm = false"
+            @success="handleOrderSuccess"
         />
 
         <!-- Модалка товара -->
@@ -97,18 +111,19 @@ import ShopCart from '@/MobileClient/Components/ShopLanding/ShopCart.vue';
 import ShopFeedbackModal from '@/MobileClient/Components/ShopLanding/ShopFeedbackModal.vue';
 import ShopPrivacyModal from '@/MobileClient/Components/ShopLanding/ShopPrivacyModal.vue';
 import ShopProductModal from '@/MobileClient/Components/ShopLanding/ShopProductModal.vue';
-
-import ShopPwaBanner from '@/MobileClient/Components/ShopLanding/ShopPwaBanner.vue';       // <-- Добавлено
-import ShopReservation from '@/MobileClient/Components/ShopLanding/ShopReservation.vue';   // <-- Добавлено
-
+import ShopPwaBanner from '@/MobileClient/Components/ShopLanding/ShopPwaBanner.vue';
+import ShopReservation from '@/MobileClient/Components/ShopLanding/ShopReservation.vue';
 import ShopPromotions from '@/MobileClient/Components/ShopLanding/ShopPromotions.vue';
 import ShopDelivery from '@/MobileClient/Components/ShopLanding/ShopDelivery.vue';
 import ShopLoyalty from '@/MobileClient/Components/ShopLanding/ShopLoyalty.vue';
 import ShopFaq from '@/MobileClient/Components/ShopLanding/ShopFaq.vue';
 import ShopWheel from '@/MobileClient/Components/ShopLanding/ShopWheel.vue';
+import ShopPartners from '@/MobileClient/Components/ShopLanding/ShopPartners.vue';
+import ShopProductsSkeleton from '@/MobileClient/Components/ShopLanding/ShopProductsSkeleton.vue'; // 🆕 Добавлено
+import ShopCheckoutForm from '@/MobileClient/Components/ShopLanding/ShopCheckoutForm.vue'; // 🆕 Добавлено
 
-import {useLandingCartStore} from "@/MobileClient/stores/ShopLanding/cart";
-import {useShopLandingStore} from "@/MobileClient/stores/ShopLanding/shop";
+import { useShopLandingStore } from "@/MobileClient/stores/ShopLanding/shop";
+import { useBasket } from '@/MobileClient/composables/useBasket';
 
 export default {
     name: "ShopLanding",
@@ -116,6 +131,9 @@ export default {
     components: {
         ShopNavbar,
         ShopHero,
+        ShopCheckoutForm,
+        ShopPartners,
+        ShopProductsSkeleton,
         ShopCategories,
         ShopProducts,
         ShopReviews,
@@ -133,24 +151,26 @@ export default {
         ShopWheel,
     },
 
+    setup() {
+        return {
+            basket: useBasket(),
+            shopStore: useShopLandingStore()
+        };
+    },
+
     data() {
         return {
-
             selectedProduct: null,
-            activeCategory: 'all',
             showCart: false,
             showProductModal: false,
             showFeedbackModal: false,
             showPrivacyModal: false,
-            cartItems: [],
+
+            showCheckoutForm: false,
 
 
-            cartStore: useLandingCartStore(),
-            shopStore: useShopLandingStore(),
-
-            // Конфигурация магазина (загружается из API или props)
+            // Конфигурация магазина (тексты, цвета)
             config: {
-                // Цветовая схема
                 theme: {
                     primary: '#ff7a00',
                     primaryDark: '#e56f00',
@@ -160,61 +180,26 @@ export default {
                     light: '#fffdf8',
                     gray: '#6c757d',
                 },
-
-                // Hero секция
                 hero: {
                     badge: 'Мобильный магазин',
                     title: 'Свежие продукты с доставкой',
-                    subtitle: 'Заказывайте любимые товары прямо со смартфона. Быстро, удобно, с бонусами.',
+                    subtitle: 'Выберите заведение и закажите любимые товары',
                     backgroundImage: '/images/hero-bg.jpg',
-                    buttonText: 'Смотреть каталог',
+                    buttonText: 'Выбрать заведение',
                 },
-
-                // Категории
-                categories: [
-                    { id: 'all', name: 'Все товары', icon: 'fa-solid fa-grid' },
-                    { id: 'food', name: 'Еда', icon: 'fa-solid fa-burger' },
-                    { id: 'drinks', name: 'Напитки', icon: 'fa-solid fa-mug-hot' },
-                    { id: 'desserts', name: 'Десерты', icon: 'fa-solid fa-cake-candles' },
-                    { id: 'other', name: 'Другое', icon: 'fa-solid fa-box' },
-                ],
-
-                // Товары
-                products: {
-                    title: 'Популярные товары',
-                    subtitle: 'Выберите то, что вам по вкусу',
-                    addToCartText: 'В корзину',
-                },
-
-                items: [
-                    { id: 1, name: 'Пицца Маргарита', price: 590, oldPrice: 690, category: 'food', image: '/images/pizza.jpg', badge: 'Хит' },
-                    { id: 2, name: 'Капучино', price: 250, category: 'drinks', image: '/images/cappuccino.jpg' },
-                    { id: 3, name: 'Чизкейк', price: 350, category: 'desserts', image: '/images/cheesecake.jpg', badge: 'Новинка' },
-                    { id: 4, name: 'Бургер Классик', price: 450, category: 'food', image: '/images/burger.jpg' },
-                    { id: 5, name: 'Латте', price: 280, category: 'drinks', image: '/images/latte.jpg' },
-                    { id: 6, name: 'Тирамису', price: 380, oldPrice: 450, category: 'desserts', image: '/images/tiramisu.jpg' },
-                ],
-
-                // Отзывы
                 reviewsSection: {
                     title: 'Что говорят клиенты',
                     subtitle: 'Реальные отзывы наших покупателей',
                 },
-
                 reviews: [
-                    { id: 1, name: 'Анна К.', text: 'Отличный сервис! Заказываю каждую неделю, всё всегда свежее и вкусное.', rating: 5, avatar: '/images/avatar1.jpg' },
-                    { id: 2, name: 'Дмитрий П.', text: 'Удобно заказывать через телефон. Доставка быстрая, курьеры вежливые.', rating: 5, avatar: '/images/avatar2.jpg' },
-                    { id: 3, name: 'Мария С.', text: 'Бонусы копятся, уже несколько раз получала десерты в подарок. Рекомендую!', rating: 4, avatar: '/images/avatar3.jpg' },
+                    { id: 1, name: 'Анна К.', text: 'Отличный сервис! Заказываю каждую неделю.', rating: 5, avatar: '/images/avatar1.jpg' },
+                    { id: 2, name: 'Дмитрий П.', text: 'Удобно заказывать через телефон.', rating: 5, avatar: '/images/avatar2.jpg' },
                 ],
-
-                // CTA
                 cta: {
                     title: 'Остались вопросы?',
                     text: 'Свяжитесь с нами — поможем с выбором и расскажем о актуальных акциях',
                     buttonText: 'Написать нам',
                 },
-
-                // Footer
                 footer: {
                     companyName: 'Ваш Магазин',
                     description: 'Доставка свежих продуктов и готовой еды',
@@ -224,19 +209,14 @@ export default {
                     socialLinks: [
                         { icon: 'fa-brands fa-telegram', url: '#' },
                         { icon: 'fa-brands fa-vk', url: '#' },
-                        { icon: 'fa-brands fa-whatsapp', url: '#' },
                     ],
                 },
-
-                // Корзина
                 cart: {
                     title: 'Ваш заказ',
                     emptyText: 'Корзина пуста',
                     checkoutText: 'Оформить заказ',
                     totalText: 'Итого:',
                 },
-
-                // Модалка обратной связи
                 feedbackModal: {
                     title: 'Связаться с нами',
                     subtitle: 'Оставьте контакт — перезвоним в течение 15 минут',
@@ -245,14 +225,21 @@ export default {
                     messageLabel: 'Сообщение',
                     submitText: 'Отправить',
                 },
-
-                // Модалка конфиденциальности
                 privacyModal: {
                     title: 'Политика конфиденциальности',
                     content: 'Здесь будет текст политики конфиденциальности...',
                 },
             },
         };
+    },
+
+    async mounted() {
+        // 1. Загружаем данные магазина
+        const initialPartnerId = typeof window !== 'undefined' ? window.Tenant?.id : null;
+        await this.shopStore.fetchShopData(initialPartnerId);
+
+        // 2. Загружаем корзину с бэкенда
+        await this.basket.loadProductsInBasket();
     },
 
     computed: {
@@ -267,17 +254,54 @@ export default {
                 '--light': t.light,
                 '--gray': t.gray,
             };
-        },
-
-        filteredProducts() {
-            if (this.activeCategory === 'all') return this.config.items;
-            return this.config.items.filter(item => item.category === this.activeCategory);
-        },
+        }
     },
 
     methods: {
-        scrollToCategories() {
-            this.$refs.categoriesSection?.$el.scrollIntoView({ behavior: 'smooth' });
+        openCheckoutForm() {
+            this.showCart = false;
+            this.showCheckoutForm = true;
+        },
+        async handleCheckout(orderData) {
+            try {
+                await this.basket.startCheckout(orderData);
+
+                this.$notify?.({
+                    title: 'Заказ успешно оформлен!',
+                    text: `Сумма: ${orderData.total} ₽. Мы свяжемся с вами.`,
+                    type: 'success',
+                });
+
+                this.showCart = false;
+            } catch (error) {
+                console.error('Ошибка при оформлении:', error);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось оформить заказ', type: 'error' });
+            }
+        },
+
+        handlePartnerSelect(partner) {
+            this.shopStore.partnerId = partner.id;
+            this.shopStore.fetchShopData(partner.id);
+
+            this.$nextTick(() => {
+                const productsSection = document.getElementById('shop-products-section');
+                if (productsSection) {
+                    productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+
+            this.$notify?.({
+                title: 'Заведение выбрано',
+                text: `Меню обновлено для: ${partner.name}`,
+                type: 'success',
+            });
+        },
+
+        scrollToPartners() {
+            const partnersSection = document.getElementById('partners-section');
+            if (partnersSection) {
+                partnersSection.scrollIntoView({ behavior: 'smooth' });
+            }
         },
 
         openProductModal(product) {
@@ -285,69 +309,16 @@ export default {
             this.showProductModal = true;
         },
 
-        selectCategory(categoryId) {
-            this.activeCategory = categoryId;
-        },
-
-        addToCart(product) {
-            const existing = this.cartItems.find(item => item.id === product.id);
-            if (existing) {
-                existing.quantity++;
-            } else {
-                this.cartItems.push({ ...product, quantity: 1 });
-            }
-
-            this.$notify?.({
-                title: 'Добавлено',
-                text: `${product.name} добавлен в корзину`,
-                type: 'success',
-            });
-        },
-
-        removeFromCart(productId) {
-            this.cartItems = this.cartItems.filter(item => item.id !== productId);
-        },
-
-        checkout() {
-            this.$notify?.({
-                title: 'Заказ оформлен',
-                text: 'Мы свяжемся с вами для подтверждения',
-                type: 'success',
-            });
-            this.cartItems = [];
-            this.showCart = false;
-        },
-
         submitFeedback(data) {
             console.log('Feedback:', data);
-            this.$notify?.({
-                title: 'Отправлено',
-                text: 'Мы свяжемся с вами в ближайшее время',
-                type: 'success',
-            });
+            this.$notify?.({ title: 'Отправлено', text: 'Мы свяжемся с вами в ближайшее время', type: 'success' });
             this.showFeedbackModal = false;
-        },
-        handleCheckout(orderData) {
-            console.log('Отправка заказа на сервер:', orderData);
-
-            // Здесь будет ваш API запрос:
-            // await this.$axios.post('/api/orders', orderData);
-
-            this.$notify?.({
-                title: 'Заказ успешно оформлен!',
-                text: `Сумма: ${orderData.total} ₽. Мы свяжемся с вами по номеру ${orderData.customer.phone}`,
-                type: 'success',
-            });
-
-            this.cartStore.clearCart();
-            this.showCart = false;
-        },
-    },
+        }
+    }
 };
 </script>
 
 <style lang="scss">
-// Глобальные переменные (будут переопределены через themeStyles)
 .shop-landing {
     --primary: #ff7a00;
     --primary-dark: #e56f00;
@@ -360,10 +331,13 @@ export default {
     font-family: 'Inter', sans-serif;
     color: var(--dark);
     background: var(--light);
-    overflow-x: hidden;
+
+    /* Фикс для горизонтального скролла категорий */
+    overflow-x: clip;
+    position: relative;
+    isolation: isolate;
 }
 
-// Общие стили
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -391,7 +365,6 @@ export default {
     }
 }
 
-// CTA секция
 .cta-section {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
     padding: 80px 0;

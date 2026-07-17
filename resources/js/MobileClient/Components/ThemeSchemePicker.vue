@@ -1,6 +1,5 @@
 <template>
     <div class="theme-scheme-picker">
-
         <!-- Заголовок -->
         <div class="d-flex align-items-center gap-2 mb-3">
             <div class="scheme-icon">
@@ -22,7 +21,6 @@
                 @click="applyScheme(scheme)"
                 type="button"
             >
-                <!-- Превью цветов темы -->
                 <div class="scheme-preview" :style="getPreviewStyle(scheme)">
                     <div class="preview-header"></div>
                     <div class="preview-body">
@@ -31,151 +29,25 @@
                         <div class="preview-button"></div>
                     </div>
                 </div>
-
-                <!-- Название -->
                 <div class="scheme-name">{{ scheme.name }}</div>
-
-                <!-- Галочка активной темы -->
                 <div v-if="currentSchemeId === scheme.id" class="scheme-check">
                     <i class="fa-solid fa-check"></i>
                 </div>
             </button>
         </div>
-
     </div>
 </template>
 
 <script>
+import { themeSchemes, getThemeScheme } from '@/MobileClient/constants/themeSchemes.js';
+
 export default {
     name: "ThemeSchemePicker",
 
     data() {
         return {
+            schemes: themeSchemes, // 🆕 Используем импорт
             currentSchemeId: 'default',
-
-            // Полные цветовые схемы
-            schemes: [
-                {
-                    id: 'default',
-                    name: 'Стандарт',
-                    light: {
-                        primary: '#ff8a00',
-                        'primary-rgb': '255, 138, 0',
-                        'body-bg': '#fffdf8',
-                        'body-color': '#2c2c2c',
-                        'secondary-bg': '#f8f9fa',
-                        'border-color': '#dee2e6',
-                    },
-                    dark: {
-                        primary: '#ff9500',
-                        'primary-rgb': '255, 149, 0',
-                        'body-bg': '#1a1a1a',
-                        'body-color': '#e9ecef',
-                        'secondary-bg': '#2d2d2d',
-                        'border-color': '#495057',
-                    }
-                },
-                {
-                    id: 'ocean',
-                    name: 'Океан',
-                    light: {
-                        primary: '#0d6efd',
-                        'primary-rgb': '13, 110, 253',
-                        'body-bg': '#f0f7ff',
-                        'body-color': '#1a2b4a',
-                        'secondary-bg': '#e7f1ff',
-                        'border-color': '#b6d4fe',
-                    },
-                    dark: {
-                        primary: '#3d8bfd',
-                        'primary-rgb': '61, 139, 253',
-                        'body-bg': '#0a1929',
-                        'body-color': '#e0e7ef',
-                        'secondary-bg': '#132f4c',
-                        'border-color': '#1e4976',
-                    }
-                },
-                {
-                    id: 'forest',
-                    name: 'Лес',
-                    light: {
-                        primary: '#198754',
-                        'primary-rgb': '25, 135, 84',
-                        'body-bg': '#f0f9f4',
-                        'body-color': '#1a3a2a',
-                        'secondary-bg': '#d1e7dd',
-                        'border-color': '#a3cfbb',
-                    },
-                    dark: {
-                        primary: '#20c997',
-                        'primary-rgb': '32, 201, 151',
-                        'body-bg': '#0f1f17',
-                        'body-color': '#d4e8dc',
-                        'secondary-bg': '#1a3a2a',
-                        'border-color': '#2d5a3f',
-                    }
-                },
-                {
-                    id: 'sunset',
-                    name: 'Закат',
-                    light: {
-                        primary: '#dc3545',
-                        'primary-rgb': '220, 53, 69',
-                        'body-bg': '#fff5f5',
-                        'body-color': '#4a1a1a',
-                        'secondary-bg': '#f8d7da',
-                        'border-color': '#f1aeb5',
-                    },
-                    dark: {
-                        primary: '#e35d6a',
-                        'primary-rgb': '227, 93, 106',
-                        'body-bg': '#1f0f0f',
-                        'body-color': '#f0d4d7',
-                        'secondary-bg': '#3a1a1a',
-                        'border-color': '#5a2d2d',
-                    }
-                },
-                {
-                    id: 'royal',
-                    name: 'Королевский',
-                    light: {
-                        primary: '#6f42c1',
-                        'primary-rgb': '111, 66, 193',
-                        'body-bg': '#faf5ff',
-                        'body-color': '#2d1a4a',
-                        'secondary-bg': '#e2d9f3',
-                        'border-color': '#c5b3e6',
-                    },
-                    dark: {
-                        primary: '#8b5cf6',
-                        'primary-rgb': '139, 92, 246',
-                        'body-bg': '#1a0f2e',
-                        'body-color': '#e0d4f0',
-                        'secondary-bg': '#2d1a4a',
-                        'border-color': '#4a2d6e',
-                    }
-                },
-                {
-                    id: 'mono',
-                    name: 'Монохром',
-                    light: {
-                        primary: '#212529',
-                        'primary-rgb': '33, 37, 41',
-                        'body-bg': '#ffffff',
-                        'body-color': '#212529',
-                        'secondary-bg': '#f8f9fa',
-                        'border-color': '#dee2e6',
-                    },
-                    dark: {
-                        primary: '#f8f9fa',
-                        'primary-rgb': '248, 249, 250',
-                        'body-bg': '#000000',
-                        'body-color': '#f8f9fa',
-                        'secondary-bg': '#1a1a1a',
-                        'border-color': '#333333',
-                    }
-                },
-            ],
         };
     },
 
@@ -184,43 +56,35 @@ export default {
     },
 
     methods: {
-        // Загрузка сохранённой темы
         loadSavedScheme() {
             const tenantSlug = window.Tenant?.slug || 'any';
             const saved = localStorage.getItem(`theme_scheme_${tenantSlug}`);
-            if (saved) {
-                const scheme = this.schemes.find(s => s.id === saved);
-                if (scheme) {
-                    this.applyScheme(scheme, false);
-                }
+
+            // 🆕 Если нет сохраненной, берем дефолтную из настроек тенанта
+            const targetId = saved || (window.Tenant?.settings?.default_theme_scheme) || 'default';
+
+            const scheme = getThemeScheme(targetId);
+            if (scheme) {
+                this.applyScheme(scheme, false);
             }
         },
 
-        // Применение темы
         applyScheme(scheme, save = true) {
             this.currentSchemeId = scheme.id;
-
-            // Определяем текущую тему (светлая/тёмная)
             const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
             const colors = isDark ? scheme.dark : scheme.light;
 
-            // Применяем все CSS-переменные
             const root = document.documentElement;
             Object.entries(colors).forEach(([key, value]) => {
                 root.style.setProperty(`--bs-${key}`, value);
             });
 
-            // Сохраняем выбор
             if (save) {
                 const tenantSlug = window.Tenant?.slug || 'any';
                 localStorage.setItem(`theme_scheme_${tenantSlug}`, scheme.id);
             }
-
-            // Пересоздаём превью (чтобы активная тема обновилась)
-            this.$forceUpdate();
         },
 
-        // Стиль для превью карточки
         getPreviewStyle(scheme) {
             const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
             const colors = isDark ? scheme.dark : scheme.light;
@@ -235,7 +99,6 @@ export default {
     },
 };
 </script>
-
 <style scoped>
 .scheme-icon {
     width: 40px;

@@ -16,12 +16,20 @@ class TenantResolver
             $tenantName = env("TEST_PWA_NAME") ?? 'test';
             $request->route()->setParameter('tenant', $tenantName);
             $tenant = Tenant::where('slug', $tenantName)->first();
+
         } else
+        {
+
             $tenant = $this->resolveTenant($request);
+        }
+
 
         if (!$tenant) {
+
             abort(404, 'Tenant not found');
         }
+
+
 
         // Сохраняем tenant в контейнер
         app()->instance('tenant', $tenant);

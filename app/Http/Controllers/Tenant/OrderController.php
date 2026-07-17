@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 
+use App\Models\Tenant\Order;
 use App\Services\OrderService;
 use App\Services\ReviewService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class OrderController extends Controller
 {
@@ -19,6 +21,56 @@ class OrderController extends Controller
                 $request->all(),
                 $request->get("size") ?? config('app.results_per_page')
             );
+    }
+
+    public function getRandomRecentOrders()
+    {
+        $tenant = app('tenant');
+
+        // 1. Берем 10 последних заказов в активных статусах
+        // ⚠️ ВАЖНО: Замените [1, 2, 3] на реальные значения ваших статусов из OrderStatusEnum
+        // (например, [OrderStatusEnum::NewOrder->value, OrderStatusEnum::Completed->value])
+        // Мы не показываем отмененные заказы (status = cancelled), чтобы не отпугивать клиентов.
+        $recentOrders = Order::where('tenant_id', $tenant->id)
+           // ->whereIn('status', [2])
+            ->latest()
+            ->limit(10)
+            ->get()
+            ->shuffle() // Перемешиваем эти 10 заказов в памяти (это мгновенно)
+            ->take(5);  // Берем 5 случайных
+
+        // 2. Форматируем данные для фронтенда, доставая их из JSON-поля product_details
+        $formattedOrders = $recentOrders->map(function ($order) {
+            $extractedItems = [];
+
+            // Парсим массив product_details
+            if (!empty($order->product_details) && is_array($order->product_details)) {
+                foreach ($order->product_details as $detailGroup) {
+                    if (isset($detailGroup['products']) && is_array($detailGroup['products'])) {
+                        foreach ($detailGroup['products'] as $productData) {
+                            $extractedItems[] = [
+                                'product' => [
+                                    'title' => $productData['name'] ?? 'Товар',
+                                ],
+                                'quantity' => $productData['count'] ?? 1,
+                            ];
+                        }
+                    }
+                }
+            }
+
+            return [
+                'id' => $order->id,
+                'created_at' => $order->created_at->toISOString(),
+                'total' => (float) $order->summary_price,
+                'items' => $extractedItems,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $formattedOrders->values()->toArray(),
+        ]);
     }
 
     public function getAllOrders(Request $request)

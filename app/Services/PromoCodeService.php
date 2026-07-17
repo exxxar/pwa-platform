@@ -74,7 +74,7 @@ class PromoCodeService
             ->get();
 
         $basketPrice = $basket->sum(function ($basket) {
-            return $basket->count * ($basket->product->current_price ?? 0);
+            return $basket->count * ($basket->product->price ?? 0);
         });
 
         $activatePrice = $codes->max('activate_price');
@@ -144,10 +144,10 @@ class PromoCodeService
                     $params = $item->params ?? [];
 
                     $params["discount_price"] = $inPercent ?
-                        $item->product->current_price - ($item->product->current_price * ($val / 100)) :
-                        $item->product->current_price - $val;
+                        $item->product->price - ($item->product->price * ($val / 100)) :
+                        $item->product->price - $val;
 
-                    $params["discount_amount"] = $inPercent ? ($item->product->current_price * ($val / 100)) : $val;
+                    $params["discount_amount"] = $inPercent ? ($item->product->price * ($val / 100)) : $val;
 
                     $summaryDiscount += $params["discount_amount"] * $item->count;
 
