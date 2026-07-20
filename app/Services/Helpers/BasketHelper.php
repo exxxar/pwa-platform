@@ -538,18 +538,6 @@ trait BasketHelper
     // 🆕 1. Меняем тип возвращаемого значения со string на array
     private function foodShopCheckout(): array
     {
-        /*
-        {
-            "kanban": {
-            "enabled": true,
-            "base_url": "https://crm.mypwa.ru/api/v1",
-            "token": "kb_SyXvkcnhRu7hD0nZAOwga6blD1TFSUEyXNdW9UyQ",
-            "board_uuid": "928e6e06-b9b0-4cca-a45c-0926ba7539f6",
-            "order_thread": 0,
-            "auto_create_client": true,
-            "sync_on_checkout": true
-          }
-        }*/
         // ==========================================
         // 0. 🆕 НАСТРОЙКА KANBAN CRM SDK
         // ==========================================
@@ -578,13 +566,13 @@ trait BasketHelper
         }
 
         $needPickup = ($this->data["need_pickup"] ?? "false") === "true";
-        $deliveryPrice = $this->data["delivery_price"] ?? 0;
-        $distance = $this->data["distance"] ?? 0;
-        $lat = $this->data["lat"] ?? 0;
-        $lng = $this->data["lng"] ?? 0;
+        $deliveryPrice = $this->safeFloat($this->data["delivery_price"] ?? 0);
+        $distance = $this->safeFloat($this->data["distance"] ?? 0);
+        $lat = $this->safeFloat($this->data["lat"] ?? 0);
+        $lng = $this->safeFloat($this->data["lng"] ?? 0);
 
         $locationId = $this->safeInt($this->data["location_id"] ?? null);
-        $paymentType = $this->data["payment_type"] ?? 4;
+        $paymentType = $this->safeInt($this->data["payment_type"] ?? 4);
         $deliveryDetails = json_decode($this->data["delivery_details"] ?? '[]', true) ?: [];
         $useCashback = ($this->data["use_cashback"] ?? "false") === "true";
 
@@ -612,13 +600,15 @@ trait BasketHelper
             $comment = $item->comment ?? null;
             $product = $item->product ?? null;
             $collection = $item->collection ?? null;
-            $productTenantId = $item->product->tenant_id;
+            $productTenantId = $item->product ? $item->product->tenant_id : $this->tenant->id;
 
             if ($isPartnersActive && !$isPartnersDisplaySelf && $productTenantId == $this->tenant->id) {
                 continue;
             }
 
-            $partner = Tenant::query()->where("id", $productTenantId)->firstOrFail();
+            $partner = Tenant::query()->where("id", $productTenantId)->first();
+            if (!$partner) $partner = $this->tenant; // Fallback
+
             $deliveryDetails = (array) $deliveryDetails;
 
             if (empty($partnerProductBox[$partner->uuid])) {
@@ -671,10 +661,10 @@ trait BasketHelper
 
                 $partnerProductBox[$partner->uuid]["message"] .= $tmpMessage;
 
-                $tmpOrderProductInfo[] = (object) [
+                $tmpOrderProductInfo[] = [
                     "name" => $product->name,
                     "count" => $item->count,
-                    "price" => $price,
+                    "price" => $this->safeFloat($price),
                     'external_source' => $product->external_source ?? null,
                     'external_id' => $product->external_id ?? null,
                 ];
@@ -696,10 +686,10 @@ trait BasketHelper
 
                     $collectionTitles .= "-" . $product->name . "\n";
 
-                    $tmpOrderProductInfo[] = (object) [
+                    $tmpOrderProductInfo[] = [
                         "name" => "Коллекция `" . ($collection->name) . "`: " . $product->name,
                         "count" => 1,
-                        "price" => $product->price ?? 0,
+                        "price" => $this->safeFloat($product->price ?? 0),
                         'external_source' => $product->external_source ?? null,
                         'external_id' => $product->external_id ?? null,
                     ];
@@ -750,17 +740,17 @@ trait BasketHelper
             'delivery_service_info' => null,
             'deliveryman_info' => null,
             'product_details' => [
-                (object) [
-                    "from" => $this->tenant->title ?? $this->tenant->bot_domain ?? $this->tenant->id,
+                [
+                    "from" => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин',
                     "products" => $tmpOrderProductInfo,
                 ],
             ],
             'product_count' => (int) $summaryCount,
             'summary_price' => $this->safeFloat($summaryPrice - $cashback),
-            'delivery_price' => $this->safeFloat($deliveryPrice),
-            'delivery_range' => $this->safeFloat($distance),
-            'deliveryman_latitude' => $this->safeFloat($lat),
-            'deliveryman_longitude' => $this->safeFloat($lng),
+            'delivery_price' => $deliveryPrice,
+            'delivery_range' => $distance,
+            'deliveryman_latitude' => $lat,
+            'deliveryman_longitude' => $lng,
             'delivery_note' => $deliveryNote,
             'receiver_name' => $this->data["name"] ?? 'Нет имени',
             'receiver_phone' => $this->data["phone"] ?? 'Нет телефона',
@@ -866,7 +856,7 @@ trait BasketHelper
         }
 
         // ==========================================
-        // 8. 🆕 ОТПРАВКА В KANBAN CRM
+        // 8. 🆕 ОТПРАВКА В KANBAN CRM (Структурированные данные для CardOrder.vue)
         // ==========================================
         $kanbanTaskId = null;
         $kanbanMessageId = null;
@@ -876,31 +866,58 @@ trait BasketHelper
                 $customerName = $this->data["name"] ?? 'Нет имени';
                 $customerPhone = $this->data["phone"] ?? null;
 
+                // 🎯 ФОРМИРУЕМ СТРУКТУРУ ДЛЯ КАРТОЧКИ ЗАКАЗА (как ждет CardOrder.vue)
+                $kanbanProductDetails = [
+                    [
+                        'from' => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин',
+                        'products' => $tmpOrderProductInfo,
+                    ]
+                ];
+
+                $kanbanCustomData = [
+                    'tenant_id' => $this->tenant->id,
+                    'tenant_name' => $this->tenant->name ?? $this->tenant->title,
+                    'tenant_user_id' => $this->tenantUser->id,
+                    'last_order_id' => $order->id,
+                    'last_order_date' => now()->toIso8601String(),
+                    // 🎯 Ключевые поля для рендеринга в CardOrder.vue:
+                    'product_details' => $kanbanProductDetails,
+                    'product_count' => $summaryCount,
+                    'delivery_price' => $deliveryPrice,
+                    'delivery_note' => $deliveryNote,
+                    'payment_type' => $paymentType,
+                    'summary_price' => $this->safeFloat($summaryPrice - $cashback),
+                    'summary_count' => $summaryCount,
+                ];
+
                 $existingTaskId = $this->findKanbanClientByPhone($kanbanBoardUuid, $customerPhone);
 
                 if ($existingTaskId) {
+                    // === КЛИЕНТ НАЙДЕН ===
+
+                    // 1. Обновляем кастомные данные задачи последней информацией о заказе
+                    \Exxxar\Kanban\Facades\Kanban::clients()->updateCustomData($existingTaskId, $kanbanCustomData);
+
+                    // 2. Отправляем сообщение
                     $result = \Exxxar\Kanban\Facades\Kanban::query()
                         ->task($existingTaskId)
                         ->message($crmMessage)
                         ->senderType('system')
                         ->senderLabel('FoodShop Checkout')
-                        ->payload([
+                        ->payload(array_merge($kanbanCustomData, [
                             'source' => 'foodshop',
                             'order_id' => $order->id,
-                            'tenant_id' => $this->tenant->id,
-                            'tenant_user_id' => $this->tenantUser->id,
                             'customer_name' => $customerName,
                             'customer_phone' => $customerPhone,
-                            'summary_price' => $summaryPrice - $cashback,
-                            'summary_count' => $summaryCount,
-                            'payment_type' => $paymentType,
                             'type' => 'new_order',
-                        ])
+                        ]))
                         ->send();
 
                     $kanbanTaskId = $result['task_id'];
                     $kanbanMessageId = $result['message_id'];
+
                 } else {
+                    // === КЛИЕНТ НЕ НАЙДЕН — СОЗДАЁМ НОВОГО ===
                     $result = \Exxxar\Kanban\Facades\Kanban::client()
                         ->board($kanbanBoardUuid)
                         ->thread($kanbanThread)
@@ -913,32 +930,21 @@ trait BasketHelper
                             'contact_person' => $customerName,
                             'phone' => $customerPhone,
                             'source' => 'FoodShop',
-                            'cost' => $summaryPrice - $cashback,
+                            'cost' => $this->safeFloat($summaryPrice - $cashback),
                             'placement_type' => $needPickup ? 'Самовывоз' : 'Доставка',
-                            'custom_data' => [
-                                'tenant_id' => $this->tenant->id,
-                                'tenant_name' => $this->tenant->name ?? $this->tenant->title,
-                                'tenant_user_id' => $this->tenantUser->id,
-                                'last_order_id' => $order->id,
-                                'last_order_date' => now()->toIso8601String(),
-                                'total_orders' => 1,
-                            ],
+                            'address' => $deliveryNote, // 🎯 Добавили адрес для отображения в карточке
+                            'custom_data' => $kanbanCustomData,
                         ])
                         ->message($crmMessage)
                         ->senderType('system')
                         ->senderLabel('FoodShop Checkout')
-                        ->payload([
+                        ->payload(array_merge($kanbanCustomData, [
                             'source' => 'foodshop',
                             'order_id' => $order->id,
-                            'tenant_id' => $this->tenant->id,
-                            'tenant_user_id' => $this->tenantUser->id,
                             'customer_name' => $customerName,
                             'customer_phone' => $customerPhone,
-                            'summary_price' => $summaryPrice - $cashback,
-                            'summary_count' => $summaryCount,
-                            'payment_type' => $paymentType,
                             'type' => 'new_client_and_order',
-                        ])
+                        ]))
                         ->send();
 
                     $kanbanTaskId = $result['task_id'];
@@ -968,7 +974,6 @@ trait BasketHelper
         $order->delivery_price = $deliveryPrice;
         $order->save();
 
-        // 🆕 Переменная для хранения данных об оплате (например, ссылки)
         $paymentData = null;
 
         switch ($paymentType) {
@@ -981,8 +986,6 @@ trait BasketHelper
                 $needBill = true;
                 break;
             case 4:
-                // 🆕 Сохраняем результат вместо немедленного return,
-                // чтобы выполнилась очистка промокодов и финальные логи ниже
                 $paymentData = PaymentService::call()->sbpForShop($order, $crmMessage);
                 break;
         }
@@ -1073,7 +1076,7 @@ trait BasketHelper
             'summary_price' => $this->safeFloat($summaryPrice - $cashback),
             'payment_type' => $paymentType,
             'status' => $order->status,
-            'payment_data' => $paymentData, // Здесь будет ссылка на оплату для case 4
+            'payment_data' => $paymentData,
             'message' => 'Заказ успешно оформлен',
         ];
     }
