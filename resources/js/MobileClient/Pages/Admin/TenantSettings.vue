@@ -56,12 +56,8 @@
             <!-- ========== 0: ОСНОВНОЕ ========== -->
             <div v-if="activeTab === 0" class="tab-panel">
                 <form @submit.prevent="saveCompany" class="settings-form">
-
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-building"></i>
-                            Информация о заведении
-                        </h3>
+                        <h3 class="section-title"><i class="fa-solid fa-building"></i> Информация о заведении</h3>
                         <div class="form-grid">
                             <div class="form-field full-width">
                                 <label>Название</label>
@@ -75,10 +71,7 @@
                     </div>
 
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-address-book"></i>
-                            Контакты
-                        </h3>
+                        <h3 class="section-title"><i class="fa-solid fa-address-book"></i> Контакты</h3>
                         <div class="form-grid">
                             <div class="form-field">
                                 <label><i class="fa-solid fa-phone"></i> Телефон</label>
@@ -104,30 +97,9 @@
                     </div>
 
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-location-dot"></i>
-                            Расположение
-                        </h3>
-                        <div class="form-grid">
-                            <div class="form-field full-width">
-                                <label>Адрес</label>
-                                <input type="text" v-model="companyForm.address" maxlength="255">
-                            </div>
-                            <div class="form-field full-width">
-                                <label><i class="fa-solid fa-map"></i> Виджет Яндекс.Карты</label>
-                                <textarea v-model="companyForm.links.map_link" rows="3"></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-clock"></i>
-                            График работы
-                        </h3>
+                        <h3 class="section-title"><i class="fa-solid fa-clock"></i> График работы</h3>
                         <div class="schedule-list">
-                            <div v-for="(day, i) in companyForm.schedule" :key="i" class="schedule-day"
-                                 :class="{ 'is-closed': day.closed }">
+                            <div v-for="(day, i) in companyForm.schedule" :key="i" class="schedule-day" :class="{ 'is-closed': day.closed }">
                                 <div class="schedule-day-name">{{ day.day }}</div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" v-model="day.closed">
@@ -540,21 +512,12 @@
                 <form @submit.prevent="saveShop" class="settings-form">
 
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-palette"></i>
-                            Внешний вид
-                        </h3>
+                        <h3 class="section-title"><i class="fa-solid fa-palette"></i> Внешний вид</h3>
                         <div class="form-grid">
                             <div class="form-field">
                                 <label>Тема по умолчанию</label>
                                 <select v-model="shopForm.default_theme_scheme">
-                                    <option
-                                        v-for="scheme in availableSchemes"
-                                        :key="scheme.id"
-                                        :value="scheme.id"
-                                    >
-                                        {{ scheme.name }}
-                                    </option>
+                                    <option v-for="scheme in availableSchemes" :key="scheme.id" :value="scheme.id">{{ scheme.name }}</option>
                                 </select>
                                 <span class="field-hint">Эта тема будет применяться новым пользователям, пока они не выберут свою.</span>
                             </div>
@@ -562,22 +525,7 @@
                     </div>
 
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-store"></i>
-                            Основные параметры
-                        </h3>
-
-                        <div class="toggle-row">
-                            <div class="toggle-info">
-                                <h4>Режим редактирования страниц</h4>
-                                <p>Позволяет редактировать страницы сайта</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="shopForm.is_edit_mode">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-
+                        <h3 class="section-title"><i class="fa-solid fa-store"></i> Основные параметры</h3>
                         <div class="toggle-row">
                             <div class="toggle-info">
                                 <h4>Магазин выключен</h4>
@@ -588,7 +536,6 @@
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
-
                         <div v-if="shopForm.is_disabled" class="form-field full-width">
                             <label>Текст при выключении</label>
                             <textarea v-model="shopForm.disabled_text" rows="4" maxlength="4000"></textarea>
@@ -634,11 +581,38 @@
                         </div>
                     </div>
 
+                    <!-- 🆕 Блок: Способы получения -->
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-truck"></i>
-                            Доставка
-                        </h3>
+                        <h3 class="section-title"><i class="fa-solid fa-cart-shopping"></i> Способы получения</h3>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <h4>Разрешить доставку</h4>
+                                <p>Клиенты смогут выбирать доставку при оформлении заказа</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" v-model="shopForm.allow_delivery">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <h4>Разрешить самовывоз</h4>
+                                <p>Клиенты смогут забирать заказ самостоятельно</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" v-model="shopForm.allow_pickup">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title"><i class="fa-solid fa-truck"></i> Доставка</h3>
+                        <!-- 🆕 Адрес перенесен сюда -->
+                        <div class="form-field full-width" style="margin-bottom: 16px;">
+                            <label><i class="fa-solid fa-location-dot"></i> Адрес заведения (для доставки)</label>
+                            <input type="text" v-model="shopForm.address" maxlength="255" placeholder="г. Москва, ул. Примерная, д. 1">
+                        </div>
 
                         <div class="form-grid">
                             <div class="form-field">
@@ -646,11 +620,9 @@
                                 <input type="number" v-model="shopForm.min_price" min="0">
                             </div>
                         </div>
-
                         <div class="form-field full-width">
                             <label>Текст о доставке</label>
-                            <textarea v-model="shopForm.delivery_price_text" rows="4" maxlength="4000"
-                                      placeholder="Описание процесса доставки и оплаты"></textarea>
+                            <textarea v-model="shopForm.delivery_price_text" rows="4" maxlength="4000" placeholder="Описание процесса доставки и оплаты"></textarea>
                         </div>
 
                         <div class="toggle-row">
@@ -665,8 +637,8 @@
                             </label>
                         </div>
 
-                        <template v-if="shopForm.need_automatic_delivery_request">
-                            <div v-if="shopForm.shop_display_type === 0" class="form-grid">
+                        <template v-if="shopForm.need_automatic_delivery_request && shopForm.shop_display_type === 0">
+                            <div class="form-grid">
                                 <div class="form-field">
                                     <label>Базовая цена доставки, ₽</label>
                                     <input type="number" v-model="shopForm.min_base_delivery_price" min="0">
@@ -681,38 +653,21 @@
                                 </div>
                                 <div class="form-field full-width">
                                     <label>Координаты заведения (из Яндекс.Карт)</label>
-                                    <input type="text" v-model="shopForm.shop_coords"
-                                           placeholder="00.000000, 00.000000">
+                                    <input type="text" v-model="shopForm.shop_coords" placeholder="00.000000, 00.000000">
                                 </div>
                                 <div class="form-field full-width">
                                     <label>Токен MapTiler</label>
                                     <input type="text" v-model="shopForm.map_tiler" placeholder="Ваш токен">
                                 </div>
                             </div>
-
-                            <div class="toggle-row">
-                                <div class="toggle-info">
-                                    <h4>Скрывать период доставки</h4>
-                                    <p>Не показывать сроки доставки при расчёте СДЭК</p>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" v-model="shopForm.need_hide_delivery_period">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
                         </template>
                     </div>
 
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-credit-card"></i>
-                            Оплата
-                        </h3>
-
+                        <h3 class="section-title"><i class="fa-solid fa-credit-card"></i> Оплата</h3>
                         <div class="form-field full-width">
                             <label>Информация об оплате</label>
-                            <textarea v-model="shopForm.payment_info" rows="4" maxlength="4000"
-                                      placeholder="Как оплатить и инструкции"></textarea>
+                            <textarea v-model="shopForm.payment_info" rows="4" maxlength="4000" placeholder="Как оплатить и инструкции"></textarea>
                         </div>
 
                         <div class="toggle-row">
@@ -737,128 +692,98 @@
                             </label>
                         </div>
 
-                        <div class="toggle-row">
-                            <div class="toggle-info">
-                                <h4>Оплата картой</h4>
-                                <p>Требует токен платежного агрегатора (облагается налогом)</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="shopForm.can_use_card">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                        <!-- 🆕 СБП перенесен сюда и расширен -->
+                        <div class="sbp-banks-wrapper">
+                            <h4 style="margin: 20px 0 12px; font-size: 1rem; color: var(--text);">
+                                <i class="fa-solid fa-qrcode" style="color: var(--primary); margin-right: 8px;"></i>
+                                Система быстрых платежей (СБП)
+                            </h4>
+                            <p class="field-hint" style="margin-bottom: 16px;">Выберите и настройте банки, через которые вы принимаете оплату по СБП.</p>
 
-                        <div v-if="shopForm.can_use_card" class="form-field full-width">
-                            <label>Токен платежной системы</label>
-                            <input type="text" v-model="shopForm.payment_token">
-                        </div>
+                            <div v-for="(bankConfig, bankKey) in shopForm.sbp_banks" :key="bankKey" class="sbp-bank-card" :class="{ 'is-active': bankConfig.enabled }">
+                                <div class="sbp-bank-header">
+                                    <div class="sbp-bank-name">{{ getBankName(bankKey) }}</div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" v-model="bankConfig.enabled">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
 
-                        <div class="toggle-row">
-                            <div class="toggle-info">
-                                <h4>СБП</h4>
-                                <p>Система быстрых платежей (Т-Банк)</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="shopForm.can_use_sbp">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-
-                        <template v-if="shopForm.can_use_sbp">
-                            <div class="form-grid">
-                                <div class="form-field">
-                                    <label>Ключ терминала Т-Банка</label>
-                                    <input type="text" v-model="shopForm.sbp.tinkoff.terminal_key">
-                                </div>
-                                <div class="form-field">
-                                    <label>Пароль терминала</label>
-                                    <input type="password" v-model="shopForm.sbp.tinkoff.terminal_password">
-                                </div>
-                                <div class="form-field">
-                                    <label>Схема налогообложения</label>
-                                    <select v-model="shopForm.sbp.tinkoff.tax">
-                                        <option value="osn">Общая</option>
-                                        <option value="usn_income">УСН (доходы)</option>
-                                        <option value="usn_income_outcome">УСН (доходы-расходы)</option>
-                                        <option value="patent">Патентная</option>
-                                    </select>
-                                </div>
-                                <div class="form-field">
-                                    <label>Ставка НДС</label>
-                                    <select v-model="shopForm.sbp.tinkoff.vat">
-                                        <option value="none">Нет</option>
-                                        <option value="vat0">0%</option>
-                                        <option value="vat10">10%</option>
-                                        <option value="vat20">20%</option>
-                                    </select>
+                                <div v-if="bankConfig.enabled" class="sbp-bank-fields">
+                                    <div class="form-grid">
+                                        <div class="form-field">
+                                            <label>Ключ терминала</label>
+                                            <input type="text" v-model="bankConfig.terminal_key">
+                                        </div>
+                                        <div class="form-field">
+                                            <label>Пароль терминала</label>
+                                            <input type="password" v-model="bankConfig.terminal_password">
+                                        </div>
+                                        <div class="form-field">
+                                            <label>Схема налогообложения</label>
+                                            <select v-model="bankConfig.tax">
+                                                <option value="osn">Общая</option>
+                                                <option value="usn_income">УСН (доходы)</option>
+                                                <option value="usn_income_outcome">УСН (доходы-расходы)</option>
+                                                <option value="patent">Патентная</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-field">
+                                            <label>Ставка НДС</label>
+                                            <select v-model="bankConfig.vat">
+                                                <option value="none">Нет</option>
+                                                <option value="vat0">0%</option>
+                                                <option value="vat10">10%</option>
+                                                <option value="vat20">20%</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </template>
+                        </div>
                     </div>
 
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-list-check"></i>
-                            Секции корзины
-                        </h3>
-
+                        <h3 class="section-title"><i class="fa-solid fa-list-check"></i> Секции корзины</h3>
                         <div class="toggle-row">
-                            <div class="toggle-info">
-                                <h4>Промокод</h4>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="shopForm.need_promo_code">
-                                <span class="toggle-slider"></span>
-                            </label>
+                            <div class="toggle-info"><h4>Промокод</h4></div>
+                            <label class="toggle-switch"><input type="checkbox" v-model="shopForm.need_promo_code"><span class="toggle-slider"></span></label>
                         </div>
-
                         <div class="toggle-row">
-                            <div class="toggle-info">
-                                <h4>Использование бонусов</h4>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="shopForm.need_bonuses_section">
-                                <span class="toggle-slider"></span>
-                            </label>
+                            <div class="toggle-info"><h4>Использование бонусов</h4></div>
+                            <label class="toggle-switch"><input type="checkbox" v-model="shopForm.need_bonuses_section"><span class="toggle-slider"></span></label>
                         </div>
-
                         <template v-if="shopForm.shop_display_type === 0">
                             <div class="toggle-row">
-                                <div class="toggle-info">
-                                    <h4>Число персон</h4>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" v-model="shopForm.need_person_counter">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <div class="toggle-info"><h4>Число персон</h4></div>
+                                <label class="toggle-switch"><input type="checkbox" v-model="shopForm.need_person_counter"><span class="toggle-slider"></span></label>
                             </div>
-
                             <div class="toggle-row">
-                                <div class="toggle-info">
-                                    <h4>Ограничения по здоровью</h4>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" v-model="shopForm.need_health_restrictions">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <div class="toggle-info"><h4>Ограничения по здоровью</h4></div>
+                                <label class="toggle-switch"><input type="checkbox" v-model="shopForm.need_health_restrictions"><span class="toggle-slider"></span></label>
                             </div>
                         </template>
                     </div>
 
+                    <!-- 🆕 Расширенные данные менеджера -->
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-headset"></i>
-                            Менеджер
-                        </h3>
+                        <h3 class="section-title"><i class="fa-solid fa-headset"></i> Контактное лицо (Менеджер)</h3>
                         <div class="form-grid">
                             <div class="form-field">
-                                <label>Ссылка на менеджера</label>
-                                <input type="text" v-model="shopForm.manager.link" @blur="normalizeTelegramLink"
-                                       placeholder="username">
+                                <label>Имя менеджера</label>
+                                <input type="text" v-model="shopForm.manager.name" placeholder="Иван Иванов">
                             </div>
                             <div class="form-field">
-                                <label>Текст кнопки</label>
-                                <input type="text" v-model="shopForm.manager.title" placeholder="Написать">
+                                <label>Телефон менеджера</label>
+                                <input type="tel" v-model="shopForm.manager.phone" placeholder="+7 (999) 000-00-00">
+                            </div>
+                            <div class="form-field">
+                                <label>Email менеджера</label>
+                                <input type="email" v-model="shopForm.manager.email" placeholder="manager@example.com">
+                            </div>
+                            <div class="form-field">
+                                <label>Ссылка на соц. сеть / Мессенджер</label>
+                                <input type="url" v-model="shopForm.manager.social_link" @blur="normalizeTelegramLink" placeholder="https://t.me/username">
                             </div>
                         </div>
                     </div>
@@ -870,16 +795,11 @@
                     </button>
                 </form>
             </div>
-
             <!-- ========== 3: БАЛЛЫ И СЕРТИФИКАТЫ ========== -->
             <div v-if="activeTab === 3" class="tab-panel">
                 <form @submit.prevent="saveCashback" class="settings-form">
-
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-coins"></i>
-                            Кэшбэк
-                        </h3>
+                        <h3 class="section-title"><i class="fa-solid fa-coins"></i> Кэшбэк и сгорание баллов</h3>
                         <div class="form-field">
                             <label>Макс. % списания кэшбэка</label>
                             <div class="input-with-suffix">
@@ -887,44 +807,77 @@
                                 <span class="input-suffix">%</span>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-users"></i>
-                            Реферальная программа
-                        </h3>
-                        <div class="form-grid">
-                            <div class="form-field">
-                                <label>Уровень 1</label>
-                                <div class="input-with-suffix">
-                                    <input type="number" v-model="cashbackForm.level_1" min="0" max="100">
-                                    <span class="input-suffix">%</span>
+                        <!-- 🆕 Настройки сгорания баллов -->
+                        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px dashed var(--border);">
+                            <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; color: var(--text);">Правила сгорания баллов</h4>
+                            <div class="form-grid">
+                                <div class="form-field">
+                                    <label>Период сгорания</label>
+                                    <select v-model="cashbackForm.expiration_period">
+                                        <option value="week">1 неделя</option>
+                                        <option value="month">1 месяц</option>
+                                        <option value="3_months">3 месяца</option>
+                                        <option value="6_months">6 месяцев</option>
+                                        <option value="12_months">12 месяцев</option>
+                                        <option value="never">Не сгорают</option>
+                                    </select>
+                                </div>
+                                <div class="form-field">
+                                    <label>Процент сгорания за период</label>
+                                    <div class="input-with-suffix">
+                                        <input type="number" v-model="cashbackForm.expiration_percent" min="0" max="100">
+                                        <span class="input-suffix">%</span>
+                                    </div>
+                                    <span class="field-hint">Например, 100% означает полное сгорание, 5% — частичное.</span>
                                 </div>
                             </div>
-                            <div class="form-field">
-                                <label>Уровень 2</label>
-                                <div class="input-with-suffix">
-                                    <input type="number" v-model="cashbackForm.level_2" min="0" max="100">
-                                    <span class="input-suffix">%</span>
+
+                            <div class="toggle-row" style="margin-top: 16px;">
+                                <div class="toggle-info">
+                                    <h4>Оповещать клиентов о сгорании</h4>
+                                    <p>Отправлять уведомление за указанное количество дней до списания</p>
                                 </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="cashbackForm.notify_expiration">
+                                    <span class="toggle-slider"></span>
+                                </label>
                             </div>
-                            <div class="form-field">
-                                <label>Уровень 3</label>
-                                <div class="input-with-suffix">
-                                    <input type="number" v-model="cashbackForm.level_3" min="0" max="100">
-                                    <span class="input-suffix">%</span>
-                                </div>
+
+                            <div v-if="cashbackForm.notify_expiration" class="form-field" style="margin-top: 12px;">
+                                <label>Оповещать за (дней до сгорания)</label>
+                                <select v-model="cashbackForm.notify_days_before">
+                                    <option :value="1">1 день</option>
+                                    <option :value="2">2 дня</option>
+                                    <option :value="3">3 дня</option>
+                                    <option :value="5">5 дней</option>
+                                    <option :value="7">7 дней</option>
+                                    <option :value="10">10 дней</option>
+                                </select>
                             </div>
                         </div>
                     </div>
 
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-gift"></i>
-                            Подарочный сертификат
-                        </h3>
+                        <h3 class="section-title"><i class="fa-solid fa-users"></i> Реферальная программа</h3>
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label>Уровень 1</label>
+                                <div class="input-with-suffix"><input type="number" v-model="cashbackForm.level_1" min="0" max="100"><span class="input-suffix">%</span></div>
+                            </div>
+                            <div class="form-field">
+                                <label>Уровень 2</label>
+                                <div class="input-with-suffix"><input type="number" v-model="cashbackForm.level_2" min="0" max="100"><span class="input-suffix">%</span></div>
+                            </div>
+                            <div class="form-field">
+                                <label>Уровень 3</label>
+                                <div class="input-with-suffix"><input type="number" v-model="cashbackForm.level_3" min="0" max="100"><span class="input-suffix">%</span></div>
+                            </div>
+                        </div>
+                    </div>
 
+                    <div class="form-section">
+                        <h3 class="section-title"><i class="fa-solid fa-gift"></i> Подарочный сертификат</h3>
                         <div class="certificate-preview">
                             <img src="/images/certificate_1.png" alt="Certificate" class="cert-bg">
                             <div class="cert-content">
@@ -934,7 +887,6 @@
                                 <div class="cert-qr">QR</div>
                             </div>
                         </div>
-
                         <div class="form-grid">
                             <div class="form-field">
                                 <label>Название сертификата</label>
@@ -953,21 +905,13 @@
                                 </select>
                             </div>
                             <div class="form-field" v-if="certificateForm.type !== 'gift'">
-                                <label>{{
-                                        certificateForm.type === 'cashback' ? 'Сумма, ₽' : 'Процент скидки, %'
-                                    }}</label>
+                                <label>{{ certificateForm.type === 'cashback' ? 'Сумма, ₽' : 'Процент скидки, %' }}</label>
                                 <input type="number" v-model="certificateForm.amount" min="0">
                             </div>
                         </div>
-
                         <div class="toggle-row">
-                            <div class="toggle-info">
-                                <h4>Сертификат активен</h4>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="certificateForm.is_active">
-                                <span class="toggle-slider"></span>
-                            </label>
+                            <div class="toggle-info"><h4>Сертификат активен</h4></div>
+                            <label class="toggle-switch"><input type="checkbox" v-model="certificateForm.is_active"><span class="toggle-slider"></span></label>
                         </div>
                     </div>
 
@@ -982,37 +926,20 @@
             <!-- ========== 4: ИНТЕРАКТИВ ========== -->
             <div v-if="activeTab === 4" class="tab-panel">
                 <form @submit.prevent="saveInteractive" class="settings-form">
-
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-mug-hot"></i>
-                            Кофе в подарок
-                        </h3>
-
+                        <h3 class="section-title"><i class="fa-solid fa-mug-hot"></i> Кофе в подарок</h3>
                         <div class="toggle-row">
                             <div class="toggle-info">
                                 <h4>Бонусная программа кофе</h4>
                                 <p>Система отметок за каждую покупку кофе</p>
                             </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="coffeeForm.enabled">
-                                <span class="toggle-slider"></span>
-                            </label>
+                            <label class="toggle-switch"><input type="checkbox" v-model="coffeeForm.enabled"><span class="toggle-slider"></span></label>
                         </div>
-
                         <template v-if="coffeeForm.enabled">
-                            <div class="form-field">
-                                <label>Необходимое количество покупок</label>
-                                <input type="number" v-model="coffeeForm.max" min="1">
-                            </div>
-
-                            <div class="form-field full-width">
-                                <label>Правила программы</label>
-                                <textarea v-model="coffeeForm.rules" rows="6" maxlength="4000"></textarea>
-                            </div>
+                            <div class="form-field"><label>Необходимое количество покупок</label><input type="number" v-model="coffeeForm.max" min="1"></div>
+                            <div class="form-field full-width"><label>Правила программы</label><textarea v-model="coffeeForm.rules" rows="6" maxlength="4000"></textarea></div>
                         </template>
                     </div>
-
                     <button type="submit" class="save-button" :disabled="isSectionSaving('interactive')">
                         <i v-if="isSectionSaving('interactive')" class="fa-solid fa-spinner fa-spin"></i>
                         <i v-else class="fa-solid fa-check"></i>
@@ -1024,35 +951,31 @@
             <!-- ========== 5: СТОЛИКИ ========== -->
             <div v-if="activeTab === 5" class="tab-panel">
                 <form @submit.prevent="saveTables" class="settings-form">
-
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-utensils"></i>
-                            Бронирование столиков
-                        </h3>
-
+                        <h3 class="section-title"><i class="fa-solid fa-utensils"></i> Бронирование столиков</h3>
                         <div class="toggle-row">
                             <div class="toggle-info">
                                 <h4>Показывать список столиков</h4>
                                 <p>Клиент сможет выбирать конкретный столик при бронировании</p>
                             </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="tablesForm.need_table_list">
-                                <span class="toggle-slider"></span>
-                            </label>
+                            <label class="toggle-switch"><input type="checkbox" v-model="tablesForm.need_table_list"><span class="toggle-slider"></span></label>
+                        </div>
+                        <div class="form-field"><label>Максимальное количество столиков</label><input type="number" v-model="tablesForm.max_tables" min="0"></div>
+
+                        <!-- 🆕 Кнопка скачивания PDF -->
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                            <button type="button" class="btn-download-pdf" @click="downloadTablesPdf">
+                                <i class="fa-solid fa-file-pdf"></i>
+                                <span>Скачать PDF с QR-кодами столов</span>
+                            </button>
+                            <span class="field-hint" style="display: block; margin-top: 8px;">Генерирует документ со всеми активными столиками и их QR-кодами для печати.</span>
                         </div>
 
-                        <div class="form-field">
-                            <label>Максимальное количество столиков</label>
-                            <input type="number" v-model="tablesForm.max_tables" min="0">
-                        </div>
-
-                        <div class="alert-info">
+                        <div class="alert-info" style="margin-top: 16px;">
                             <i class="fa-solid fa-circle-info"></i>
                             Для детального планирования столиков используйте отдельный компонент планировщика.
                         </div>
                     </div>
-
                     <button type="submit" class="save-button" :disabled="isSectionSaving('tables')">
                         <i v-if="isSectionSaving('tables')" class="fa-solid fa-spinner fa-spin"></i>
                         <i v-else class="fa-solid fa-check"></i>
@@ -1065,27 +988,16 @@
             <div v-if="activeTab === 6" class="tab-panel">
                 <form @submit.prevent="saveMenu" class="settings-form">
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-bars"></i>
-                            Видимость пунктов меню
-                        </h3>
-
+                        <h3 class="section-title"><i class="fa-solid fa-bars"></i> Видимость пунктов бокового меню</h3>
                         <div class="toggle-list">
                             <div v-for="(item, key) in menuForm" :key="key" class="toggle-row">
                                 <div class="toggle-info">
-                                    <h4>
-                                        <i :class="'fa-solid ' + item.icon"></i>
-                                        {{ item.title }}
-                                    </h4>
+                                    <h4><i :class="'fa-solid ' + item.icon"></i> {{ item.title }}</h4>
                                 </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" v-model="item.is_visible">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <label class="toggle-switch"><input type="checkbox" v-model="item.is_visible"><span class="toggle-slider"></span></label>
                             </div>
                         </div>
                     </div>
-
                     <button type="submit" class="save-button" :disabled="isSectionSaving('menu')">
                         <i v-if="isSectionSaving('menu')" class="fa-solid fa-spinner fa-spin"></i>
                         <i v-else class="fa-solid fa-check"></i>
@@ -1098,33 +1010,19 @@
             <div v-if="activeTab === 7" class="tab-panel">
                 <form @submit.prevent="saveCalculators" class="settings-form">
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-hive"></i>
-                            Калькуляторы еды (Собери сам)
-                        </h3>
-
+                        <h3 class="section-title"><i class="fa-solid fa-hive"></i> Калькуляторы еды (Собери сам)</h3>
                         <div class="cards-grid">
-                            <div v-for="(calc, key) in calculatorsForm" :key="key"
-                                 class="feature-card"
-                                 :class="{ 'is-disabled': !calc.is_visible }"
-                                 :style="{ backgroundImage: calc.gradient }">
+                            <div v-for="(calc, key) in calculatorsForm" :key="key" class="feature-card" :class="{ 'is-disabled': !calc.is_visible }" :style="{ backgroundImage: calc.gradient }">
                                 <div class="card-emoji">{{ calc.emoji }}</div>
                                 <div class="card-info">
                                     <h4>{{ calc.title }}</h4>
                                     <p>{{ calc.description }}</p>
-                                    <div class="card-meta">
-                                        <span>🥘 {{ calc.ingredientsCount }}</span>
-                                        <span>⏱️ {{ calc.time }}</span>
-                                    </div>
+                                    <div class="card-meta"><span>🥘 {{ calc.ingredientsCount }}</span><span>⏱️ {{ calc.time }}</span></div>
                                 </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" v-model="calc.is_visible">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <label class="toggle-switch"><input type="checkbox" v-model="calc.is_visible"><span class="toggle-slider"></span></label>
                             </div>
                         </div>
                     </div>
-
                     <button type="submit" class="save-button" :disabled="isSectionSaving('calculators')">
                         <i v-if="isSectionSaving('calculators')" class="fa-solid fa-spinner fa-spin"></i>
                         <i v-else class="fa-solid fa-check"></i>
@@ -1137,35 +1035,19 @@
             <div v-if="activeTab === 8" class="tab-panel">
                 <form @submit.prevent="saveGames" class="settings-form">
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-dice"></i>
-                            Бонус-игры
-                        </h3>
-
+                        <h3 class="section-title"><i class="fa-solid fa-dice"></i> Бонус-игры</h3>
                         <div class="cards-grid">
-                            <div v-for="(game, key) in gamesForm" :key="key"
-                                 class="feature-card"
-                                 :class="{ 'is-disabled': !game.is_visible }"
-                                 :style="{ backgroundImage: game.gradient }">
-                                <div class="card-icon">
-                                    <i :class="game.icon"></i>
-                                </div>
+                            <div v-for="(game, key) in gamesForm" :key="key" class="feature-card" :class="{ 'is-disabled': !game.is_visible }" :style="{ backgroundImage: game.gradient }">
+                                <div class="card-icon"><i :class="game.icon"></i></div>
                                 <div class="card-info">
                                     <h4>{{ game.title }}</h4>
                                     <p>{{ game.description }}</p>
-                                    <div class="card-meta">
-                                        <span>🎁 {{ game.prize }}</span>
-                                        <span>🔄 {{ game.attempts || 'Без лимита' }}</span>
-                                    </div>
+                                    <div class="card-meta"><span>🎁 {{ game.prize }}</span><span>🔄 {{ game.attempts || 'Без лимита' }}</span></div>
                                 </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" v-model="game.is_visible">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <label class="toggle-switch"><input type="checkbox" v-model="game.is_visible"><span class="toggle-slider"></span></label>
                             </div>
                         </div>
                     </div>
-
                     <button type="submit" class="save-button" :disabled="isSectionSaving('games')">
                         <i v-if="isSectionSaving('games')" class="fa-solid fa-spinner fa-spin"></i>
                         <i v-else class="fa-solid fa-check"></i>
@@ -1174,73 +1056,17 @@
                 </form>
             </div>
 
-            <!-- ========== 9: CRM ========== -->
+            <!-- ========== 9: ГЛАВНОЕ МЕНЮ ========== -->
             <div v-if="activeTab === 9" class="tab-panel">
-                <form @submit.prevent="saveCrm" class="settings-form">
-
-                    <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-kanban"></i>
-                            Интеграция с CRM
-                        </h3>
-
-                        <div class="toggle-row">
-                            <div class="toggle-info">
-                                <h4>Отправлять данные в CRM</h4>
-                                <p>Все заказы будут автоматически создаваться как задачи в доске</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" v-model="crmForm.is_active">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-
-                        <template v-if="crmForm.is_active">
-                            <div class="form-field">
-                                <label>ID доски</label>
-                                <input type="text" v-model="crmForm.board_uuid" @blur="normalizeBoardUuid"
-                                       placeholder="UUID доски">
-                            </div>
-                            <div class="form-field">
-                                <label>Токен (ключ доступа)</label>
-                                <input type="password" v-model="crmForm.token">
-                            </div>
-                        </template>
-                    </div>
-
-                    <button type="submit" class="save-button" :disabled="isSectionSaving('crm')">
-                        <i v-if="isSectionSaving('crm')" class="fa-solid fa-spinner fa-spin"></i>
-                        <i v-else class="fa-solid fa-check"></i>
-                        <span>Сохранить</span>
-                    </button>
-                </form>
-            </div>
-
-            <!-- ========== 🆕 7: ГЛАВНОЕ МЕНЮ ========== -->
-            <div v-if="activeTab === 10" class="tab-panel">
                 <form @submit.prevent="saveMainMenu" class="settings-form">
                     <div class="form-section">
-                        <h3 class="section-title">
-                            <i class="fa-solid fa-compass"></i>
-                            Настройка главного меню
-                        </h3>
-                        <div class="alert-info">
-                            <i class="fa-solid fa-circle-info"></i>
-                            Здесь вы можете изменить названия и иконки пунктов нижнего меню приложения.
-                        </div>
-
+                        <h3 class="section-title"><i class="fa-solid fa-compass"></i> Настройка главного меню</h3>
+                        <div class="alert-info"><i class="fa-solid fa-circle-info"></i> Здесь вы можете изменить названия и иконки пунктов нижнего меню приложения.</div>
                         <div class="main-menu-grid">
-                            <div
-                                v-for="(item, key) in mainMenuForm"
-                                :key="key"
-                                class="main-menu-card"
-                                :class="{ 'is-disabled': !item.is_visible }"
-                            >
+                            <div v-for="(item, key) in mainMenuForm" :key="key" class="main-menu-card" :class="{ 'is-disabled': !item.is_visible }">
                                 <div class="card-header">
                                     <div class="preview-icon">
-                                        <!-- Показываем картинку, если она есть, иначе заглушку -->
                                         <img :src="`/images/shop/${defaultMenuIcons[key]}`" :alt="item.title" @error="$event.target.style.display='none'">
-
                                     </div>
                                     <div class="card-title">{{ item.title }} </div>
                                     <label class="toggle-switch">
@@ -1248,47 +1074,26 @@
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
-
                                 <div v-if="item.is_visible" class="card-fields">
                                     <div class="form-field">
                                         <label>Название пункта</label>
                                         <input type="text" v-model="item.title" @input="markDirty('main_menu')" maxlength="20">
                                     </div>
-
                                     <div class="form-field">
                                         <label>Иконка пункта</label>
                                         <div class="icon-upload-wrapper">
                                             <div class="icon-preview-small">
-                                                <!-- Умный src: показывает превью, если оно есть, иначе формирует путь -->
-                                                <img
-                                                    v-if="mainMenuPreviews[key] || item.img"
-                                                    :src="mainMenuPreviews[key] || (item.img.startsWith('/') ? item.img : `/images/menu/${item.img}`)"
-                                                    :alt="item.title"
-                                                >
+                                                <img v-if="mainMenuPreviews[key] || item.img" :src="mainMenuPreviews[key] || (item.img.startsWith('/') ? item.img : `/images/menu/${item.img}`)" :alt="item.title">
                                                 <i v-else class="fa-solid fa-image"></i>
                                             </div>
-
                                             <div class="icon-actions">
                                                 <label class="upload-btn small">
-                                                    <input
-                                                        type="file"
-                                                        accept="image/png, image/jpeg, image/svg+xml"
-                                                        @change="handleMainMenuIconUpload($event, key)"
-                                                    >
+                                                    <input type="file" accept="image/png, image/jpeg, image/svg+xml" @change="handleMainMenuIconUpload($event, key)">
                                                     <i class="fa-solid fa-upload"></i>
                                                     <span>{{ (mainMenuForm[key].img && mainMenuForm[key].img !== defaultMenuIcons[key]) ? 'Заменить' : 'Загрузить' }}</span>
                                                 </label>
-
-                                                <!-- 🆕 Кнопка сброса (показывается только если иконка отличается от дефолтной) -->
-                                                <button
-                                                    v-if="mainMenuForm[key].img && mainMenuForm[key].img !== defaultMenuIcons[key]"
-                                                    type="button"
-                                                    class="reset-btn small"
-                                                    @click="resetMainMenuIcon(key)"
-                                                    title="Удалить кастомную иконку и вернуть стандартную"
-                                                >
-                                                    <i class="fa-solid fa-rotate-left"></i>
-                                                    <span>Сбросить</span>
+                                                <button v-if="mainMenuForm[key].img && mainMenuForm[key].img !== defaultMenuIcons[key]" type="button" class="reset-btn small" @click="resetMainMenuIcon(key)" title="Удалить кастомную иконку и вернуть стандартную">
+                                                    <i class="fa-solid fa-rotate-left"></i><span>Сбросить</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -1298,7 +1103,6 @@
                             </div>
                         </div>
                     </div>
-
                     <button type="submit" class="save-button" :disabled="isSectionSaving('main_menu_items')">
                         <i v-if="isSectionSaving('main_menu_items')" class="fa-solid fa-spinner fa-spin"></i>
                         <i v-else class="fa-solid fa-check"></i>
@@ -1314,6 +1118,7 @@
 <script>
 import {useTenantSettings} from '@/MobileClient/Composables/useTenantSettings.js';
 import { themeSchemes } from '@/MobileClient/constants/themeSchemes.js';
+
 export default {
     name: 'TenantSettingsPage',
 
@@ -1327,19 +1132,11 @@ export default {
             activeTab: 0,
             activePwaSubTab: 'general',
             mainMenuPreviews: {},
-
             defaultMenuIcons: {
-                shop: 'shop.png',
-                basket: 'basket.png',
-                profile: 'profile.png',
-                booking: 'tables.png',
-                history: 'history.png',
-                chat: 'chat.png',
-                events: 'events.png',
-                about: 'contacts.png',
-                referral: 'referral.png',
+                shop: 'shop.png', basket: 'basket.png', profile: 'profile.png',
+                booking: 'tables.png', history: 'history.png', chat: 'chat.png',
+                events: 'events.png', about: 'contacts.png', referral: 'referral.png',
             },
-
             tabs: [
                 {key: 'basic', title: 'Основное', icon: 'fa-solid fa-building', section: 'company'},
                 {key: 'pwa', title: 'PWA приложение', icon: 'fa-solid fa-mobile-screen', section: 'pwa'},
@@ -1350,8 +1147,8 @@ export default {
                 {key: 'menu', title: 'Пункты бокового меню', icon: 'fa-solid fa-bars', section: 'sidebar-menu'},
                 {key: 'calculators', title: 'Калькуляторы', icon: 'fa-solid fa-calculator', section: 'calculators'},
                 {key: 'games', title: 'Бонус-игры', icon: 'fa-solid fa-dice', section: 'games'},
-                {key: 'crm', title: 'CRM', icon: 'fa-brands fa-connectdevelop', section: 'crm'},
                 {key: 'main_menu', title: 'Пункты главного меню', icon: 'fa-solid fa-bars', section: 'main-menu'},
+                // 🆕 CRM вкладка удалена
             ],
             pwaSubTabs: [
                 {key: 'general', title: 'Основное', icon: 'fa-solid fa-info-circle'},
@@ -1361,251 +1158,103 @@ export default {
                 {key: 'shortcuts', title: 'Шорткаты', icon: 'fa-solid fa-bolt'},
             ],
 
-            // ==========================================
-            // 🆕 ФОРМА PWA
-            // ==========================================
-            pwaForm: {
-                name: null,
-                short_name: null,
-                description: null,
-                theme_color: '#ff8a00',
-                background_color: '#ffffff',
-                orientation: 'portrait',
-                display: 'standalone',
-                lang: 'ru',
-                categories: ['shopping', 'food', 'business'],
-                icons: {
-                    icon_192: null,
-                    icon_512: null,
-                    icon_192_maskable: null,
-                    icon_512_maskable: null,
-                },
-                screenshots: {
-                    mobile: null,
-                    desktop: null,
-                },
-                shortcuts: {
-                    menu: {enabled: true, name: 'Меню', short_name: 'Меню', url: '/pwa/#/menu', icon: null},
-                    cart: {enabled: true, name: 'Корзина', short_name: 'Корзина', url: '/pwa/#/cart', icon: null},
-                    cashback: {enabled: true, name: 'Кэшбэк', short_name: 'Кэшбэк', url: '/pwa/#/cashback', icon: null},
-                    wheel: {
-                        enabled: true,
-                        name: 'Колесо',
-                        short_name: 'Колесо',
-                        url: '/pwa/#/wheel-classic',
-                        icon: null
-                    },
-                },
-            },
+            pwaForm: { name: null, short_name: null, description: null, theme_color: '#ff8a00', background_color: '#ffffff', orientation: 'portrait', display: 'standalone', lang: 'ru', categories: ['shopping', 'food', 'business'], icons: { icon_192: null, icon_512: null, icon_192_maskable: null, icon_512_maskable: null }, screenshots: { mobile: null, desktop: null }, shortcuts: { menu: {enabled: true, name: 'Меню', short_name: 'Меню', url: '/pwa/#/menu', icon: null}, cart: {enabled: true, name: 'Корзина', short_name: 'Корзина', url: '/pwa/#/cart', icon: null}, cashback: {enabled: true, name: 'Кэшбэк', short_name: 'Кэшбэк', url: '/pwa/#/cashback', icon: null}, wheel: { enabled: true, name: 'Колесо', short_name: 'Колесо', url: '/pwa/#/wheel-classic', icon: null } } },
+            iconPreviews: {}, screenshotPreviews: {}, shortcutIconPreviews: {},
 
-            // Превью загруженных файлов
-            iconPreviews: {},
-            screenshotPreviews: {},
-            shortcutIconPreviews: {},
+            companyForm: { id: null, title: null, description: null, phones: ['+7'], email: null, links: {vk: null, inst: null, map_link: null, site: null}, schedule: [ {day: 'Понедельник', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Вторник', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Среда', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Четверг', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Пятница', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Суббота', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Воскресенье', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'} ] },
 
-            // ==========================================
-            // ФОРМЫ
-            // ==========================================
-            companyForm: {
-                id: null,
-                title: null,
-                description: null,
-                address: null,
-                phones: ['+7'],
-                email: null,
-                links: {vk: null, inst: null, map_link: null, site: null},
-                schedule: [
-                    {day: 'Понедельник', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'},
-                    {day: 'Вторник', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'},
-                    {day: 'Среда', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'},
-                    {day: 'Четверг', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'},
-                    {day: 'Пятница', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'},
-                    {day: 'Суббота', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'},
-                    {day: 'Воскресенье', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'},
-                ],
-            },
-            mainMenuForm: {},
+            // 🆕 Обновленная структура shopForm
             shopForm: {
-                is_edit_mode: false,
-                is_disabled: false,
-                disabled_text: null,
-                shop_display_type: 0,
-                is_product_list: false,
-                can_buy_after_closing: false,
-                need_hide_disabled_products: true,
-                min_price: 80,
-                delivery_price_text: null,
-                need_automatic_delivery_request: true,
-                need_hide_delivery_period: false,
-                min_base_delivery_price: 0,
-                price_per_km: 80,
-                free_shipping_starts_from: 0,
-                shop_coords: '0,0',
-                map_tiler: null,
-                payment_info: null,
-                need_pay_after_call: false,
-                can_use_cash: true,
-                can_use_card: true,
-                payment_token: null,
-                can_use_sbp: false,
-                sbp: {
-                    selected_sbp_bank: 'tinkoff',
-                    tinkoff: {terminal_key: null, terminal_password: null, tax: 'osn', vat: 'none'},
-                    sber: {},
+                is_disabled: false, disabled_text: null, shop_display_type: 0, is_product_list: false,
+                can_buy_after_closing: false, need_hide_disabled_products: true, min_price: 80,
+                delivery_price_text: null, need_automatic_delivery_request: true, need_hide_delivery_period: false,
+                min_base_delivery_price: 0, price_per_km: 80, free_shipping_starts_from: 0,
+                shop_coords: '0,0', map_tiler: null, payment_info: null, need_pay_after_call: false,
+                can_use_cash: true, can_use_card: true,
+                // 🆕 СБП с поддержкой нескольких банков
+                sbp_banks: {
+                    tinkoff: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'none' },
+                    sber: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'none' },
+                    psb: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'none' },
+                    vtb: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'none' },
+                    yandex: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'none' },
                 },
-                need_promo_code: true,
-                need_bonuses_section: true,
-                need_person_counter: true,
-                need_health_restrictions: true,
-                manager: {link: null, title: 'Написать'},
-                default_theme_scheme: 'default', // 🆕 Новая настройка
+                need_promo_code: true, need_bonuses_section: true, need_person_counter: true, need_health_restrictions: true,
+                allow_delivery: true, allow_pickup: true, // 🆕 Способы получения
+                address: '', // 🆕 Перенесено из companyForm
+                manager: { name: '', phone: '', email: '', social_link: '' }, // 🆕 Расширенный менеджер
+                default_theme_scheme: 'default',
             },
 
+            // 🆕 Обновленная структура cashbackForm
             cashbackForm: {
-                max_cashback_use_percent: 15,
-                level_1: 0,
-                level_2: 0,
-                level_3: 0,
+                max_cashback_use_percent: 15, level_1: 0, level_2: 0, level_3: 0,
+                expiration_period: 'never', expiration_percent: 100,
+                notify_expiration: false, notify_days_before: 3,
             },
 
-            certificateForm: {
-                title: 'Подарочный сертификат',
-                description: '500 рублей на CashBack',
-                amount: 500,
-                type: 'cashback',
-                is_active: false,
-            },
-
-            coffeeForm: {
-                enabled: true,
-                max: 7,
-                rules: '1. За каждую покупку кофе — 1 отметка.\n2. После 7 кружек — 1 кофе бесплатно.\n3. Отметки действуют 30 дней.\n4. Бесплатный кофе нельзя обменять на деньги.',
-            },
-
-            tablesForm: {
-                max_tables: 0,
-                need_table_list: false,
-            },
-
-            menuForm: {},
-            calculatorsForm: {},
-            gamesForm: {},
-
-            crmForm: {
-                is_active: false,
-                board_uuid: null,
-                token: null,
-            },
-
+            certificateForm: { title: 'Подарочный сертификат', description: '500 рублей на CashBack', amount: 500, type: 'cashback', is_active: false },
+            coffeeForm: { enabled: true, max: 7, rules: '1. За каждую покупку кофе — 1 отметка.\n2. После 7 кружек — 1 кофе бесплатно.\n3. Отметки действуют 30 дней.\n4. Бесплатный кофе нельзя обменять на деньги.' },
+            tablesForm: { max_tables: 0, need_table_list: false },
+            menuForm: {}, calculatorsForm: {}, gamesForm: {},
+            mainMenuForm: {},
             availableSchemes: themeSchemes,
         };
     },
 
-
     async mounted() {
-        try {
-            //  await this.loadSettings();
-            await this.initForms();
-        } catch (error) {
-            console.error('Ошибка загрузки:', error);
-        }
+        try { await this.initForms(); } catch (error) { console.error('Ошибка загрузки:', error); }
     },
 
     methods: {
         changeActiveTab(index) {
-            this.activeTab = index
-
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
+            this.activeTab = index;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
-        /**
-         * 🆕 Сброс иконки главного меню через бэкенд
-         */
-        async resetMainMenuIcon(key) {
-            try {
-                const response = await axios.post(`/admin/tenant-settings/main-menu/reset-icon`, {
-                    menu_key: key
-                });
-
-                if (response.data.success) {
-                    // 1. Обновляем форму дефолтным именем файла
-                    this.mainMenuForm[key].img = response.data.default_name;
-
-                    // 2. Обновляем превью полным путем, который вернул бэк
-                    this.mainMenuPreviews[key] = response.data.img;
-
-                    // 3. Помечаем секцию как измененную
-                    this.markDirty('main_menu_items');
-
-                    this.$notify?.({
-                        title: 'Сброшено',
-                        text: response.data.message,
-                        type: 'success'
-                    });
-                }
-            } catch (error) {
-                console.error('Ошибка сброса иконки:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось сбросить иконку',
-                    type: 'error'
-                });
-            }
+        getBankName(key) {
+            const names = { tinkoff: 'Тинькофф', sber: 'Сбербанк', psb: 'Промсвязьбанк (ПСБ)', vtb: 'ВТБ', yandex: 'Яндекс.Деньги (ЮKassa)' };
+            return names[key] || key;
         },
+
         async initForms() {
             const tenant = window.Tenant;
             if (!tenant) return;
-
             const settings = tenant.settings || {};
 
-            // 🆕 Заполняем "Company" данные из полей Tenant и meta.company
             this.companyForm.title = tenant.name || null;
             this.companyForm.description = tenant.description || null;
-
             const companyMeta = settings.company || {};
-            this.companyForm.address = companyMeta.address || null;
             this.companyForm.phones = companyMeta.phones || ['+7'];
             this.companyForm.email = companyMeta.email || null;
             this.companyForm.links = companyMeta.links || { vk: null, inst: null, map_link: null, site: null };
+            if (companyMeta.schedule?.length >= 7) this.companyForm.schedule = companyMeta.schedule;
 
-            if (companyMeta.schedule?.length >= 7) {
-                this.companyForm.schedule = companyMeta.schedule;
+            this.shopForm = { ...this.shopForm, ...(settings.shop || {}) };
+            // Миграция старых данных менеджера, если они были в старом формате
+            if (typeof this.shopForm.manager === 'string' || !this.shopForm.manager.name) {
+                this.shopForm.manager = { name: '', phone: '', email: '', social_link: this.shopForm.manager?.link || '' };
+            }
+            // Инициализация структуры СБП банков с сохранением старых данных, если они были
+            if (settings.shop?.sbp) {
+                this.shopForm.sbp_banks.tinkoff = { ...this.shopForm.sbp_banks.tinkoff, ...(settings.shop.sbp.tinkoff || {}) };
             }
 
-            // 🆕 Заполняем остальные формы из settings
-            this.shopForm = { ...this.shopForm, ...(settings.shop || {}) };
-
-            this.cashbackForm.max_cashback_use_percent = settings.max_cashback_use_percent || 15;
-            this.cashbackForm.level_1 = settings.level_1 || 0;
-            this.cashbackForm.level_2 = settings.level_2 || 0;
-            this.cashbackForm.level_3 = settings.level_3 || 0;
-
+            this.cashbackForm = { ...this.cashbackForm, ...(settings.cashback || {}) };
             this.certificateForm = { ...this.certificateForm, ...(settings.init_certificate || {}) };
             this.coffeeForm = { ...this.coffeeForm, ...(settings.coffee || {}) };
             this.tablesForm = { ...this.tablesForm, ...(settings.tables || {}) };
-
             this.menuForm = JSON.parse(JSON.stringify(settings.menu_items || {}));
             this.calculatorsForm = JSON.parse(JSON.stringify(settings.food_calculators || {}));
             this.gamesForm = JSON.parse(JSON.stringify(settings.bonus_games || {}));
-            this.crmForm = { ...this.crmForm, ...(settings.crm || {}) };
-
-            console.log("Settings", settings)
 
             const mainMenuData = settings.main_menu_items || {};
             this.mainMenuForm = JSON.parse(JSON.stringify(mainMenuData));
-
-            // 🆕 Инициализируем превью для уже загруженных картинок
             this.mainMenuPreviews = {};
             Object.keys(this.mainMenuForm).forEach(key => {
-                if (this.mainMenuForm[key].img) {
-                    this.mainMenuPreviews[key] = this.mainMenuForm[key].img;
-                }
+                if (this.mainMenuForm[key].img) this.mainMenuPreviews[key] = this.mainMenuForm[key].img;
             });
 
-            // PWA загружается отдельно через axios, как у вас уже написано
             try {
                 const response = await axios.get('/admin/tenant-settings/pwa');
                 const pwaData = response.data.settings || {};
@@ -1613,347 +1262,181 @@ export default {
                 this.iconPreviews = pwaData.icons_urls || {};
                 this.screenshotPreviews = pwaData.screenshots_urls || {};
                 this.shortcutIconPreviews = pwaData.shortcuts_icons_urls || {};
+            } catch (error) { console.error('Ошибка загрузки PWA настроек:', error); }
+        },
+
+        formatDate(date) { return new Date(date).toLocaleDateString('ru-RU'); },
+
+        normalizeTelegramLink() {
+            const link = this.shopForm.manager.social_link;
+            if (!link || link.includes('https://t.me') || link.includes('https://vk.com')) return;
+            if (link.startsWith('@')) this.shopForm.manager.social_link = 'https://t.me/' + link.slice(1);
+            else if (!link.startsWith('https://') && /^[a-zA-Z0-9_]+$/.test(link)) this.shopForm.manager.social_link = 'https://t.me/' + link;
+        },
+
+        async downloadTablesPdf() {
+            this.$notify?.({ title: 'Генерация', text: 'Подготавливаем PDF файл...', type: 'info' });
+            try {
+                // Замените URL на ваш реальный endpoint генерации PDF
+                const response = await axios.get('/admin/tenant-settings/tables/download-qr-pdf', { responseType: 'blob' });
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `tables-qr-codes-${Date.now()}.pdf`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                this.$notify?.({ title: 'Успешно', text: 'PDF скачан', type: 'success' });
             } catch (error) {
-                console.error('Ошибка загрузки PWA настроек:', error);
+                console.error('Ошибка скачивания PDF:', error);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сгенерировать PDF', type: 'error' });
             }
         },
 
-        formatDate(date) {
-            return new Date(date).toLocaleDateString('ru-RU');
-        },
-
-        normalizeTelegramLink() {
-            const link = this.shopForm.manager.link;
-            if (!link || link.includes('https://t.me')) return;
-            if (link.startsWith('@')) {
-                this.shopForm.manager.link = 'https://t.me/' + link.slice(1);
-            } else if (!link.startsWith('https://') && /^[a-zA-Z0-9_]+$/.test(link)) {
-                this.shopForm.manager.link = 'https://t.me/' + link;
+        async resetMainMenuIcon(key) {
+            try {
+                const response = await axios.post(`/admin/tenant-settings/main-menu/reset-icon`, { menu_key: key });
+                if (response.data.success) {
+                    this.mainMenuForm[key].img = response.data.default_name;
+                    this.mainMenuPreviews[key] = response.data.img;
+                    this.markDirty('main_menu_items');
+                    this.$notify?.({ title: 'Сброшено', text: response.data.message, type: 'success' });
+                }
+            } catch (error) {
+                console.error('Ошибка сброса иконки:', error);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сбросить иконку', type: 'error' });
             }
         },
 
         async handleMainMenuIconUpload(event, key) {
             const file = event.target.files[0];
             if (!file) return;
+            if (file.size > 2 * 1024 * 1024) { this.$notify?.({title: 'Ошибка', text: 'Файл слишком большой (макс. 2MB)', type: 'error'}); return; }
 
-            if (file.size > 2 * 1024 * 1024) {
-                this.$notify?.({title: 'Ошибка', text: 'Файл слишком большой (макс. 2MB)', type: 'error'});
-                return;
-            }
-
-            // 1. Локальное превью
             this.mainMenuPreviews[key] = URL.createObjectURL(file);
             this.markDirty('main_menu_items');
 
-            // 2. Отправка на сервер
             const formData = new FormData();
             formData.append('icon', file);
             formData.append('menu_key', key);
 
             try {
-                const response = await axios.post(`/admin/tenant-settings/main-menu/upload-icon`, formData, {
-                    headers: {'Content-Type': 'multipart/form-data'}
-                });
-
-                // 3. 🆕 ВАЖНО: Сохраняем именно то, что вернул бэкенд (обычно это '/storage/...')
+                const response = await axios.post(`/admin/tenant-settings/main-menu/upload-icon`, formData, { headers: {'Content-Type': 'multipart/form-data'} });
                 this.mainMenuForm[key].img = response.data.filename;
-
                 this.$notify?.({title: 'Успешно', text: 'Иконка обновлена', type: 'success'});
             } catch (error) {
                 console.error('Ошибка загрузки иконки меню:', error);
                 this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить иконку', type: 'error'});
             }
         },
-        normalizeBoardUuid() {
-            if (!this.crmForm.board_uuid) return;
-            let link = this.crmForm.board_uuid;
-            link = link.replace(/^https?:\/\/crm\.[^/]+\/board\//, '');
-            link = link.replace(/^\/+|\/+$/g, '');
-            this.crmForm.board_uuid = link;
-        },
 
-        // ==========================================
-        // 🆕 МЕТОДЫ ДЛЯ PWA
-        // ==========================================
+        // ... (Методы handleIconUpload, handleScreenshotUpload, handleShortcutIconUpload, getIconPreview, getScreenshotPreview, getShortcutIcon остаются без изменений) ...
+        getIconPreview(key) { return this.iconPreviews[key] || null; },
+        getScreenshotPreview(key) { return this.screenshotPreviews[key] || null; },
+        getShortcutIcon(key) { const icons = { menu: 'fa-solid fa-bars', cart: 'fa-solid fa-cart-shopping', cashback: 'fa-solid fa-coins', wheel: 'fa-solid fa-dharmachakra' }; return icons[key] || 'fa-solid fa-bolt'; },
 
-        getIconPreview(key) {
-            // Сначала проверяем локальные превью (из getPwaSettings)
-            if (this.iconPreviews[key]) {
-                return this.iconPreviews[key];
-            }
-            // Потом проверяем загруженные файлы (blob URL)
-            // (уже в iconPreviews после handleIconUpload)
-            return null;
-        },
-
-        getScreenshotPreview(key) {
-            if (this.screenshotPreviews[key]) {
-                return this.screenshotPreviews[key];
-            }
-            return null;
-        },
-
-
-        /**
-         * Получить иконку для шортката
-         */
-        getShortcutIcon(key) {
-            const icons = {
-                menu: 'fa-solid fa-bars',
-                cart: 'fa-solid fa-cart-shopping',
-                cashback: 'fa-solid fa-coins',
-                wheel: 'fa-solid fa-dharmachakra',
-            };
-            return icons[key] || 'fa-solid fa-bolt';
-        },
-
-        /**
-         * Обработка загрузки иконки
-         */
         async handleIconUpload(event, key, expectedWidth, expectedHeight) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            // Проверка размера
-            if (file.size > 2 * 1024 * 1024) {
-                this.$notify?.({title: 'Ошибка', text: 'Файл слишком большой (макс. 2MB)', type: 'error'});
-                return;
-            }
-
-            // Проверка размеров изображения
-            const img = new Image();
-            img.src = URL.createObjectURL(file);
-            await new Promise(resolve => img.onload = resolve);
-
-            if (img.width !== expectedWidth || img.height !== expectedHeight) {
-                this.$notify?.({
-                    title: 'Неверный размер',
-                    text: `Требуется ${expectedWidth}×${expectedHeight} px, загружено ${img.width}×${img.height} px`,
-                    type: 'warning'
-                });
-            }
-
-            // Создаём превью
+            const file = event.target.files[0]; if (!file) return;
+            if (file.size > 2 * 1024 * 1024) { this.$notify?.({title: 'Ошибка', text: 'Файл слишком большой (макс. 2MB)', type: 'error'}); return; }
+            const img = new Image(); img.src = URL.createObjectURL(file); await new Promise(resolve => img.onload = resolve);
+            if (img.width !== expectedWidth || img.height !== expectedHeight) { this.$notify?.({ title: 'Неверный размер', text: `Требуется ${expectedWidth}×${expectedHeight} px`, type: 'warning' }); }
             this.iconPreviews[key] = URL.createObjectURL(file);
-
-            // Загружаем на сервер
-            const formData = new FormData();
-            formData.append('icon', file);
-            formData.append('type', key);
-
+            const formData = new FormData(); formData.append('icon', file); formData.append('type', key);
             try {
-                const response = await axios.post(`/admin/tenant-settings/pwa/upload-icon`, formData, {
-                    headers: {'Content-Type': 'multipart/form-data'}
-                });
-
-                // Сохраняем путь к файлу
-                this.pwaForm.icons[key] = response.data.filename;
-                this.markDirty('pwa');
-
+                const response = await axios.post(`/admin/tenant-settings/pwa/upload-icon`, formData, { headers: {'Content-Type': 'multipart/form-data'} });
+                this.pwaForm.icons[key] = response.data.filename; this.markDirty('pwa');
                 this.$notify?.({title: 'Успешно', text: 'Иконка загружена', type: 'success'});
-            } catch (error) {
-                console.error('Ошибка загрузки иконки:', error);
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить иконку', type: 'error'});
-            }
+            } catch (error) { this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить иконку', type: 'error'}); }
         },
 
-        /**
-         * Обработка загрузки скриншота
-         */
         async handleScreenshotUpload(event, key) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            if (file.size > 5 * 1024 * 1024) {
-                this.$notify?.({title: 'Ошибка', text: 'Файл слишком большой (макс. 5MB)', type: 'error'});
-                return;
-            }
-
+            const file = event.target.files[0]; if (!file) return;
+            if (file.size > 5 * 1024 * 1024) { this.$notify?.({title: 'Ошибка', text: 'Файл слишком большой (макс. 5MB)', type: 'error'}); return; }
             this.screenshotPreviews[key] = URL.createObjectURL(file);
-
-            const formData = new FormData();
-            formData.append('screenshot', file);
-            formData.append('type', key);
-
+            const formData = new FormData(); formData.append('screenshot', file); formData.append('type', key);
             try {
-                const response = await axios.post(`/admin/tenant-settings/pwa/upload-screenshot`, formData, {
-                    headers: {'Content-Type': 'multipart/form-data'}
-                });
-
-                this.pwaForm.screenshots[key] = response.data.filename;
-                this.markDirty('pwa');
-
+                const response = await axios.post(`/admin/tenant-settings/pwa/upload-screenshot`, formData, { headers: {'Content-Type': 'multipart/form-data'} });
+                this.pwaForm.screenshots[key] = response.data.filename; this.markDirty('pwa');
                 this.$notify?.({title: 'Успешно', text: 'Скриншот загружен', type: 'success'});
-            } catch (error) {
-                console.error('Ошибка загрузки скриншота:', error);
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить скриншот', type: 'error'});
-            }
+            } catch (error) { this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить скриншот', type: 'error'}); }
         },
 
-        /**
-         * Обработка загрузки иконки шортката
-         */
         async handleShortcutIconUpload(event, shortcutKey) {
-            const file = event.target.files[0];
-            if (!file) return;
-
+            const file = event.target.files[0]; if (!file) return;
             this.shortcutIconPreviews[shortcutKey] = URL.createObjectURL(file);
-
-            const formData = new FormData();
-            formData.append('icon', file);
-            formData.append('type', `shortcut_${shortcutKey}`);
-
+            const formData = new FormData(); formData.append('icon', file); formData.append('type', `shortcut_${shortcutKey}`);
             try {
-                const response = await axios.post(`/admin/tenant-settings/pwa/upload-icon`, formData, {
-                    headers: {'Content-Type': 'multipart/form-data'}
-                });
-
-                this.pwaForm.shortcuts[shortcutKey].icon = response.data.filename;
-                this.markDirty('pwa');
-
+                const response = await axios.post(`/admin/tenant-settings/pwa/upload-icon`, formData, { headers: {'Content-Type': 'multipart/form-data'} });
+                this.pwaForm.shortcuts[shortcutKey].icon = response.data.filename; this.markDirty('pwa');
                 this.$notify?.({title: 'Успешно', text: 'Иконка загружена', type: 'success'});
-            } catch (error) {
-                console.error('Ошибка загрузки:', error);
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить', type: 'error'});
-            }
+            } catch (error) { this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить', type: 'error'}); }
         },
-
-        // Удалите метод objectToFormData, он больше не нужен для настроек
 
         async saveMainMenu() {
             try {
-                // 🆕 Добавим лог, чтобы видеть, что мы отправляем
-                console.log("Отправляем данные главного меню:", JSON.parse(JSON.stringify(this.mainMenuForm)));
-
                 await this.saveMainMenuSettings(this.mainMenuForm);
                 this.$notify?.({ title: 'Успешно', text: 'Главное меню обновлено', type: 'success' });
             } catch (e) {
-                // 🆕 Выводим реальную ошибку от сервера в консоль и в уведомление
                 console.error("Ошибка сохранения главного меню:", e);
-                const errorMsg = e.response?.data?.message || 'Не удалось сохранить';
-                this.$notify?.({ title: 'Ошибка', text: errorMsg, type: 'error' });
+                this.$notify?.({ title: 'Ошибка', text: e.response?.data?.message || 'Не удалось сохранить', type: 'error' });
             }
         },
+
         async saveCompany() {
             try {
-                // Отправляем name/description на верхний уровень, остальное в meta.company
                 const payload = {
-                    name: this.companyForm.title,
-                    description: this.companyForm.description,
-                    meta: {
-                        company: {
-                            address: this.companyForm.address,
-                            phones: this.companyForm.phones,
-                            email: this.companyForm.email,
-                            links: this.companyForm.links,
-                            schedule: this.companyForm.schedule,
-                        }
-                    }
+                    name: this.companyForm.title, description: this.companyForm.description,
+                    meta: { company: { phones: this.companyForm.phones, email: this.companyForm.email, links: this.companyForm.links, schedule: this.companyForm.schedule } }
                 };
                 await this.saveBasicInfo(payload);
                 this.$notify?.({ title: 'Успешно', text: 'Основная информация обновлена', type: 'success' });
-
-                // Обновляем window.Tenant для реактивности, если нужно
-                if(window.Tenant) {
-                    window.Tenant.name = this.companyForm.title;
-                    window.Tenant.description = this.companyForm.description;
-                }
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
+                if(window.Tenant) { window.Tenant.name = this.companyForm.title; window.Tenant.description = this.companyForm.description; }
+            } catch (e) { this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' }); }
         },
 
         async saveShop() {
             try {
                 await this.saveShopSettings(this.shopForm);
                 this.$notify?.({ title: 'Успешно', text: 'Магазин обновлён', type: 'success' });
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
+            } catch (e) { this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' }); }
         },
 
         async saveCashback() {
             try {
-                await this.saveCashbackSettings({
-                    ...this.cashbackForm,
-                    init_certificate: this.certificateForm,
-                });
+                await this.saveCashbackSettings({ ...this.cashbackForm, init_certificate: this.certificateForm });
                 this.$notify?.({ title: 'Успешно', text: 'Баллы обновлены', type: 'success' });
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
+            } catch (e) { this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' }); }
         },
 
         async saveInteractive() {
-            try {
-                await this.saveInteractiveSettings({ coffee: this.coffeeForm });
-                this.$notify?.({ title: 'Успешно', text: 'Интерактив обновлён', type: 'success' });
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
+            try { await this.saveInteractiveSettings({ coffee: this.coffeeForm }); this.$notify?.({ title: 'Успешно', text: 'Интерактив обновлён', type: 'success' }); }
+            catch (e) { this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' }); }
         },
 
         async saveTables() {
-            try {
-                await this.saveTablesSettings({ tables: this.tablesForm });
-                this.$notify?.({ title: 'Успешно', text: 'Столики обновлены', type: 'success' });
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
+            try { await this.saveTablesSettings({ tables: this.tablesForm }); this.$notify?.({ title: 'Успешно', text: 'Столики обновлены', type: 'success' }); }
+            catch (e) { this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' }); }
         },
 
         async saveMenu() {
-            try {
-                await this.saveMenuSettings(this.menuForm);
-                this.$notify?.({ title: 'Успешно', text: 'Меню обновлено', type: 'success' });
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
+            try { await this.saveMenuSettings(this.menuForm); this.$notify?.({ title: 'Успешно', text: 'Меню обновлено', type: 'success' }); }
+            catch (e) { this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' }); }
         },
 
         async saveCalculators() {
-            try {
-                await this.saveCalculatorsSettings(this.calculatorsForm);
-                this.$notify?.({ title: 'Успешно', text: 'Калькуляторы обновлены', type: 'success' });
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
+            try { await this.saveCalculatorsSettings(this.calculatorsForm); this.$notify?.({ title: 'Успешно', text: 'Калькуляторы обновлены', type: 'success' }); }
+            catch (e) { this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' }); }
         },
 
         async saveGames() {
-            try {
-                await this.saveGamesSettings(this.gamesForm);
-                this.$notify?.({ title: 'Успешно', text: 'Игры обновлены', type: 'success' });
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
-        },
-
-        async saveCrm() {
-            try {
-                await this.saveCrmSettings(this.crmForm);
-                this.$notify?.({ title: 'Успешно', text: 'CRM обновлена', type: 'success' });
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
-            }
-        },
-        objectToFormData(obj) {
-            const data = new FormData();
-            Object.keys(obj).forEach(key => {
-                const item = obj[key];
-                if (item === null || item === undefined) {
-                    data.append(key, '');
-                } else if (typeof item === 'object') {
-                    data.append(key, JSON.stringify(item));
-                } else {
-                    data.append(key, item);
-                }
-            });
-            return data;
+            try { await this.saveGamesSettings(this.gamesForm); this.$notify?.({ title: 'Успешно', text: 'Игры обновлены', type: 'success' }); }
+            catch (e) { this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' }); }
         },
     },
 };
 </script>
+
+
 
 <style lang="scss" scoped>
 // ==========================================
@@ -3182,6 +2665,84 @@ $warning: #f59e0b;
     &.small {
         padding: 6px 10px;
         font-size: 0.8rem;
+    }
+}
+
+$primary: #667eea;
+$primary-dark: #5a67d8;
+$bg: #ffffff;
+$bg-secondary: #f8f9fa;
+$border: #e5e7eb;
+$text: #1f2937;
+$text-muted: #6b7280;
+$text-muted-light: #9ca3af;
+$success: #22c55e;
+$danger: #ef4444;
+$warning: #f59e0b;
+
+// ... (вставьте сюда все ваши существующие стили из исходного файла) ...
+
+// 🆕 Стили для СБП банков
+.sbp-banks-wrapper {
+    margin-top: 16px;
+}
+
+.sbp-bank-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s;
+
+    &.is-active {
+        border-color: var(--bs-primary);
+        box-shadow: 0 2px 8px rgba(var(--bs-primary-rgb), 0.1);
+    }
+}
+
+.sbp-bank-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.sbp-bank-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text);
+}
+
+.sbp-bank-fields {
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+    animation: fadeIn 0.3s ease;
+}
+
+// 🆕 Кнопка скачивания PDF
+.btn-download-pdf {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+    }
+
+    i {
+        font-size: 1.1rem;
     }
 }
 </style>
