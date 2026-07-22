@@ -847,12 +847,12 @@ $card-bg: #ffffff;
 }
 
 // ==========================================
-// STEPPER
+// 🆕 STEPPER (С адаптацией под глобальную тему)
 // ==========================================
 .checkout-stepper {
-    background: $card-bg;
+    background: var(--bs-body-bg, $card-bg);
     padding: 20px 16px;
-    border-bottom: 1px solid $border;
+    border-bottom: 1px solid var(--bs-border-color, $border);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -880,9 +880,9 @@ $card-bg: #ffffff;
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: $bg;
-    border: 2px solid $border;
-    color: $text-muted;
+    background: var(--bs-body-bg, $bg);
+    border: 2px solid var(--bs-border-color, $border);
+    color: var(--bs-secondary-color, $text-muted);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -892,35 +892,38 @@ $card-bg: #ffffff;
     z-index: 2;
 }
 
+// Активный шаг: берем главный цвет темы
 .step-item.active .step-circle {
-    background: $primary;
-    border-color: $primary;
-    color: white;
-    box-shadow: 0 4px 12px rgba($primary, 0.4);
+    background: var(--bs-primary, $primary);
+    border-color: var(--bs-primary, $primary);
+    color: #ffffff;
+    // Используем RGB-вариант переменной для тени, чтобы она тоже меняла цвет
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb, 59, 130, 246), 0.4);
     transform: scale(1.1);
 }
 
+// Пройденный шаг: берем цвет успеха темы
 .step-item.completed .step-circle {
-    background: $success;
-    border-color: $success;
-    color: white;
+    background: var(--bs-success, $success);
+    border-color: var(--bs-success, $success);
+    color: #ffffff;
 }
 
 .step-label {
     margin-top: 8px;
     font-size: 0.7rem;
     font-weight: 600;
-    color: $text-muted;
+    color: var(--bs-secondary-color, $text-muted);
     text-align: center;
     transition: color 0.3s ease;
 }
 
 .step-item.active .step-label {
-    color: $primary;
+    color: var(--bs-primary, $primary);
 }
 
 .step-item.completed .step-label {
-    color: $success;
+    color: var(--bs-success, $success);
 }
 
 .step-connector {
@@ -929,12 +932,35 @@ $card-bg: #ffffff;
     left: calc(50% + 20px);
     right: calc(-50% + 20px);
     height: 2px;
-    background: $border;
+    background: var(--bs-border-color, $border);
     transition: background 0.3s ease;
     z-index: 1;
 
     &.filled {
-        background: $success;
+        background: var(--bs-success, $success);
+    }
+}
+
+// ==========================================
+// ЗАГОЛОВОК ШАГА (тоже адаптируем иконку)
+// ==========================================
+.step-header {
+    padding: 20px 16px 12px;
+    text-align: center;
+}
+
+.step-title {
+    font-weight: 700;
+    font-size: 1.2rem;
+    margin: 0 0 4px 0;
+    color: var(--bs-body-color, $text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    i {
+        color: var(--bs-primary, $primary); // 🆕 Иконка тоже меняет цвет
     }
 }
 

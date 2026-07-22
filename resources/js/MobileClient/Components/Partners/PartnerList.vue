@@ -245,7 +245,7 @@ export default {
             isLoading: false,
             searchQuery: '',
             filter: 'all',
-            viewMode: 'list', // 🆕 'list' | 'grid'
+            viewMode: 'grid', // 🆕 'list' | 'grid'
         };
     },
 
