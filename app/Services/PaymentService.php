@@ -89,7 +89,7 @@ class PaymentService
      */
     private function getPaymentGateway(string $bankKey, array $config): object
     {
-        $namespace = 'App\\Http\\BusinessLogic\\Methods\\Classes\\Banking\\';
+        $namespace = 'App\\Http\\Services\\Banking\\';
 
         $className = match ($bankKey) {
             'yandex' => $namespace . 'YookassaService',
