@@ -80,7 +80,7 @@ $routes = function () {
 
        // return view("landing");
         return redirect()->to('/shop', 301, [], false);
-    });
+    })->name("home");
 
     Route::get('/shop/{any?}', [TenantAuthController::class, 'handlerShopLanding'])
         ->where('any', '.*');
