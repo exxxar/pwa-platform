@@ -1,13 +1,7 @@
 <template>
     <div class="home-page pb-5">
 
-        <!-- Disabled alert -->
-        <div v-if="isDisabled" class="alert alert-danger mb-3 mx-2 sticky-top">
-            <div class="d-flex align-items-center">
-                <i class="fa-solid fa-triangle-exclamation me-2"></i>
-                <p class="mb-0">{{ disabledText }}</p>
-            </div>
-        </div>
+
 
         <!-- ===== HERO СЕКЦИЯ ===== -->
         <div class="hero-section">
@@ -58,13 +52,39 @@
             <StoryList :stories="storiesStore.stories"/>
         </div>
 
-
         <StoreStatusBanner
             :is-work="isWork"
             :schedule="tenant?.settings?.company?.schedule"
         />
 
         <div class="container px-2">
+
+
+            <!-- 🆕 Красивая плашка "Магазин выключен" (только для админа) -->
+            <button
+                v-if="isDisabled && isAdmin"
+                class="disabled-alert-btn mb-3 mx-2 sticky-top"
+                @click="showDisabledModal"
+                type="button"
+            >
+                <div class="alert-content">
+                    <div class="alert-left">
+                        <div class="alert-icon-wrapper">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <div class="alert-text-group">
+                            <div class="alert-title">Магазин выключен</div>
+                            <div class="alert-subtitle">Нажмите, чтобы перейти в настройки и включить</div>
+                        </div>
+                    </div>
+                    <div class="alert-arrow">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </div>
+                </div>
+
+                <!-- Декоративный блик при наведении -->
+                <div class="alert-shine"></div>
+            </button>
 
             <!-- ===== НАСТРОЙКИ ТЕМЫ (Компактный блок) ===== -->
             <div class="theme-settings-card mb-4">
@@ -135,8 +155,6 @@
                 </div>
             </div>
 
-
-
             <!-- ===== КОЛЕСО ФОРТУНЫ (Wow-карточка) ===== -->
             <div class="fortune-card mt-4" @click="goTo('WheelClassic')">
                 <div class="fortune-background"></div>
@@ -203,28 +221,102 @@
             <OrderPeriscope></OrderPeriscope>
 
             <!-- ===== АДМИНКА (только для админов) ===== -->
-            <template v-if="!isAdmin">
+            <template v-if="isAdmin">
+                <div class="d-flex align-items-center justify-content-between mb-3 mt-4">
+                    <AppDivider
+                        icon="fa-solid fa-screwdriver-wrench"
+                        text="Панель администратора"
+                        class="flex-grow-1 m-0"
+                    />
 
-                <AppDivider
-                    :icon="'fa-solid fa-screwdriver-wrench'"
-                    :text="'Панель администратора'"></AppDivider>
-
-
-                <div class="services-grid admin-grid">
-                    <div
-                        v-for="item in visibleAdminItems"
-                        :key="item.key"
-                    >
-                        <MainMenuItem
-                            :route="item.route"
-                            :default-image="item.img"
-                            :default-text="item.text"
-                            :item="item"
-                        />
+                    <!-- 🆕 Переключатель вида: Список / Сетка -->
+                    <div class="admin-view-toggle ms-2">
+                        <button
+                            class="toggle-btn"
+                            :class="{ active: adminViewMode === 'list' }"
+                            @click="setAdminViewMode('list')"
+                            title="Список"
+                        >
+                            <i class="fa-solid fa-list"></i>
+                        </button>
+                        <button
+                            class="toggle-btn"
+                            :class="{ active: adminViewMode === 'grid' }"
+                            @click="setAdminViewMode('grid')"
+                            title="Сетка"
+                        >
+                            <i class="fa-solid fa-border-all"></i>
+                        </button>
                     </div>
+                </div>
+
+
+                <!-- ВАРИАНТ 1: СПИСОК -->
+                <div v-if="adminViewMode === 'list'" class="admin-menu-list">
+                    <button
+                        v-for="item in simpleAdminItems"
+                        :key="item.key"
+                        class="admin-menu-item"
+                        @click="goTo(item.route)"
+                    >
+                        <div class="admin-item-icon">
+                            <i :class="item.icon"></i>
+                        </div>
+                        <div class="admin-item-text">
+                            <span class="admin-item-title">{{ item.text }}</span>
+                            <span class="admin-item-desc">{{ item.desc }}</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right admin-item-arrow"></i>
+                    </button>
+                </div>
+
+                <!-- ВАРИАНТ 2: СЕТКА (КАРТОЧКИ) -->
+                <div v-else class="admin-menu-grid">
+                    <button
+                        v-for="item in simpleAdminItems"
+                        :key="item.key"
+                        class="admin-grid-item"
+                        @click="goTo(item.route)"
+                    >
+                        <div class="admin-grid-icon">
+                            <i :class="item.icon"></i>
+                        </div>
+                        <div class="admin-grid-title">{{ item.text }}</div>
+                        <div class="admin-grid-desc">{{ item.desc }}</div>
+                    </button>
                 </div>
             </template>
 
+        </div>
+
+        <!-- 🆕 МОДАЛКА: Магазин выключен -->
+        <div class="modal fade" id="disabledShopModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content edit-modal">
+                    <div class="modal-header bg-danger text-white border-0 pb-0">
+                        <div class="modal-icon bg-white text-danger">
+                            <i class="fa-solid fa-power-off"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="modal-title mb-0">Магазин выключен</h5>
+                            <small class="text-white-50">Пользователи видят страницу обслуживания</small>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center py-4">
+                        <p class="mb-0 text-muted">
+                            В данный момент магазин находится в режиме технических работ.
+                            Обычные пользователи не имеют доступа к витрине.
+                        </p>
+                    </div>
+                    <div class="modal-footer justify-content-center border-0 pb-4">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Позже</button>
+                        <button type="button" class="btn btn-primary px-4" @click="goToSettings">
+                            <i class="fa-solid fa-gear me-2"></i> Перейти в настройки и включить
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -244,6 +336,8 @@ import StoreStatusBanner from '@/MobileClient/Components/StoreStatusBanner.vue';
 import AppDivider from "@/MobileClient/Components/AppDivider.vue";
 
 import OrderPeriscope from "@/MobileClient/Components/Shop/OrderPeriscope.vue";
+import { usePermissions } from '@/MobileClient/Composables/usePermissions.js';
+
 export default {
     name: "HomePage",
 
@@ -264,16 +358,24 @@ export default {
     setup() {
         const storiesStore = useStoriesStore();
         const basketStore = useBasketStore();
+        const { isAdmin,hasPermission } = usePermissions();
+
 
         return {
             storiesStore,
             basketStore,
+            isAdmin,
+            hasPermission
+
         };
     },
 
     data() {
         return {
             showThemeSettings: false,
+            adminViewMode: localStorage.getItem('adminViewMode') || 'list',
+            disabledModal: null,
+
             carouselConfig: {
                 itemsToShow: 1.5,
                 wrapAround: true,
@@ -285,7 +387,6 @@ export default {
             },
             touchStartX: 0,
             touchEndX: 0,
-
         };
     },
 
@@ -299,37 +400,13 @@ export default {
         settings() {
             return this.tenant?.settings || null;
         },
-        isAdmin() {
-            return this.self?.role === 'admin' || this.self?.is_admin === true;
-        },
+
         isDisabled() {
-            return this.script_data?.is_disabled === true;
+            return this.settings?.is_disabled === true || this.script_data?.is_disabled === true;
         },
+
         disabledText() {
-            return this.script_data?.disabled_text || 'Сервис временно недоступен';
-        },
-      /*  preparedMenuItems() {
-            const icons = this.settings?.icons || [];
-            const map = Object.fromEntries(icons.map(i => [i.slug, i]));
-            return this.menuItems.map(item => {
-                const fromSettings = map[item.key] || {};
-                return {
-                    ...item,
-                    text: fromSettings.title || item.text,
-                    img: fromSettings.image || item.img,
-                    is_visible: fromSettings.is_visible ?? true,
-                    ...fromSettings,
-                };
-            });
-        },*/
-      /*  visibleMenuItems() {
-            return this.menu.filter(item => {
-                if (item.is_visible === false) return false;
-                return this.checkCondition(item);
-            });
-        },*/
-        visibleAdminItems() {
-            return this.adminMenuItems.filter(item => this.checkCondition(item));
+            return this.settings?.disabled_text || this.script_data?.disabled_text || 'Сервис временно недоступен';
         },
         isWork() {
             if (!this.settings?.schedule) return true;
@@ -337,11 +414,8 @@ export default {
             return this.settings?.is_work ?? true;
         },
         menuItems() {
-            // Поддерживаем оба ключа для максимальной совместимости
             const mainMenuSettings = this.settings?.main_menu_items || {};
 
-            console.log("mainMenuSettings",mainMenuSettings)
-            // Базовая конфигурация (резервная)
             const baseConfig = {
                 shop: { route: 'Catalog', defaultTitle: 'Магазин', defaultImg: '/images/shop/shop.png', order: 1 },
                 basket: { route: 'Cart', defaultTitle: 'Корзина', defaultImg: '/images/shop/basket.png', order: 2 },
@@ -356,54 +430,76 @@ export default {
 
             return Object.entries(baseConfig)
                 .filter(([key, config]) => {
-                    // 1. Проверка условия (например, can_use_booking)
                     if (config.condition && !this.settings?.[config.condition]) return false;
-
-                    // 2. Проверка видимости из настроек
                     const setting = mainMenuSettings[key];
                     return setting ? setting.is_visible !== false : true;
                 })
                 .map(([key, config]) => {
                     const setting = mainMenuSettings[key] || {};
-                    console.log("test",key,setting   )
-                    const data = {
+                    return {
                         key: key,
                         route: config.route,
                         text: setting.title || config.defaultTitle,
                         img: setting.img || config.defaultImg,
                         order: setting.order ?? config.order,
                     };
-                    console.log(data)
-                    return data
                 })
                 .sort((a, b) => a.order - b.order);
         },
 
-        // 🆕 Админское меню (без проверки is_visible — админ видит всё)
-        adminMenuItems() {
-            const baseItems = [
-                { key: 'shop_settings', route: 'AdminTenant', text: 'Настройка магазина', img: '/images/shop/settings.png' },
-                { key: 'send_invoice', route: 'AdminInvoice', text: 'Счет на оплату', img: '/images/shop/clients.png' },
-                { key: 'products_manage', route: 'AdminShop', text: 'Управление товарами', img: '/images/shop/products.png' },
-                { key: 'partners', route: 'AdminPartners', text: 'Работа с партнерами', img: '/images/shop/partners.png' },
-                { key: 'stories_manage', route: 'AdminStories', text: 'Управление историями', img: '/images/shop/stories.png' },
-                { key: 'tables_manage', route: 'TablesManager', text: 'Управление столиками', img: '/images/shop/tables.png', condition: 'need_table_list' },
-                { key: 'clients', route: 'AdminClients', text: 'Управление клиентами', img: '/images/shop/clients.png' },
-                { key: 'utm', route: 'LinkManagerV2', text: 'UTM-метки', img: '/images/shop/utm.png' },
-                { key: 'mailing', route: 'AdminBroadcastsPage', text: 'Управление рассылками', img: '/images/shop/mail.png' },
-                { key: 'admin_orders', route: 'AdminOrders', text: 'Управление заказами', img: '/images/shop/orders.png' },
-                { key: 'promo', route: 'AdminPromoCodes', text: 'Управление промокодами', img: '/images/shop/promo.png' },
-                { key: 'statistic', route: 'AdminStatistic', text: 'Статистика', img: '/images/shop/statistic.png' },
-                { key: 'tap_link', route: 'TapLinkAdmin', text: 'Тап-линк', img: '/images/shop/statistic.png' },
-                { key: 'kanban_crm', route: 'AdminKanban', text: 'CRM', img: '/images/shop/statistic.png' },
-                { key: 'landing', route: 'AdminShopLanding', text: 'Лендинг', img: '/images/shop/statistic.png' },
+        // 🆕 Полное, но визуально простое админское меню
+        simpleAdminItems() {
+            const items = [
+                { key: 'products', route: 'AdminShop', text: 'Товары', desc: 'Управление каталогом', icon: 'fa-solid fa-box-open', permission: 'manage_products' },
+                { key: 'orders', route: 'AdminOrders', text: 'Заказы', desc: 'Просмотр и обработка', icon: 'fa-solid fa-receipt', permission: 'manage_orders' },
+                { key: 'clients', route: 'AdminClients', text: 'Пользователи', desc: 'База посетителей', icon: 'fa-solid fa-users', permission: 'manage_users' },
+                { key: 'roles', route: 'AdminRoles', text: 'Роли и доступы', desc: 'Управление разрешениями', icon: 'fa-solid fa-user-shield', permission: 'manage_settings' },
+                { key: 'partners', route: 'AdminPartners', text: 'Партнеры', desc: 'Сотрудничество и интеграции', icon: 'fa-solid fa-handshake', permission: 'manage_partners' },
+
+                {
+                    key: 'transactions',
+                    route: 'AdminTransactions',
+                    text: 'Транзакции',
+                    desc: 'История платежей и статусы',
+                    icon: 'fa-solid fa-money-bill-transfer',
+                    permission: 'view_statistics' // Или 'manage_orders', если хотите ограничить доступ
+                },
+
+                {
+                    key: 'achievements',
+                    route: 'AdminAchievements',
+                    text: 'Достижения',
+                    desc: 'Ачивки и система наград',
+                    icon: 'fa-solid fa-trophy',
+                    permission: 'manage_achievements' // Если такого права нет, можно временно использовать 'manage_settings' или 'manage_promos'
+                },
+
+                { key: 'mailing', route: 'AdminBroadcastsPage', text: 'Рассылки', desc: 'Уведомления и акции', icon: 'fa-solid fa-envelope', permission: 'manage_broadcasts' },
+                { key: 'stories', route: 'AdminStories', text: 'Истории', desc: 'Управление сторис', icon: 'fa-solid fa-circle-play', permission: 'manage_stories' },
+                { key: 'tables', route: 'TablesManager', text: 'Столики', desc: 'Бронирование и схема', icon: 'fa-solid fa-chair', permission: 'manage_tables', condition: 'need_table_list' },
+                { key: 'promo', route: 'AdminPromoCodes', text: 'Промокоды', desc: 'Скидки и бонусы', icon: 'fa-solid fa-tags', permission: 'manage_promos' },
+                { key: 'crm', route: 'AdminKanban', text: 'CRM', desc: 'Воронка и сделки', icon: 'fa-solid fa-address-book', permission: 'manage_crm' },
+                { key: 'statistic', route: 'AdminStatistic', text: 'Статистика', desc: 'Аналитика и отчеты', icon: 'fa-solid fa-chart-line', permission: 'view_statistics' },
+                { key: 'landing', route: 'AdminShopLanding', text: 'Лендинг', desc: 'Настройка посадочной страницы', icon: 'fa-solid fa-laptop-code', permission: 'manage_landing' },
+                { key: 'tap_link', route: 'TapLinkAdmin', text: 'Tap-link', desc: 'Мобильная визитка', icon: 'fa-solid fa-mobile-screen', permission: 'manage_taplink' },
+                { key: 'utm', route: 'LinkManagerV2', text: 'UTM-метки', desc: 'Трекинг источников', icon: 'fa-solid fa-link', permission: 'manage_utm' },
+                { key: 'invoice', route: 'AdminInvoice', text: 'Счета', desc: 'Выставление счетов', icon: 'fa-solid fa-file-invoice-dollar', permission: 'manage_invoices' },
+                { key: 'settings', route: 'AdminTenant', text: 'Настройки', desc: 'Конфигурация магазина', icon: 'fa-solid fa-gear', permission: 'manage_settings' },
             ];
 
-            return this.applyMenuSettings(baseItems, {
-                checkVisibility: false,  // 🆕 Админ видит все пункты
-                checkCondition: true,    // Но condition всё равно проверяется
-                useSettingsTitle: false, // Названия не меняются
-                useSettingsImage: false, // Иконки не меняются
+            // Фильтрация: должно выполняться И условие системы (condition), И право пользователя (permission)
+            return items.filter(item => {
+                // 1. Проверка системного флага (например, включены ли столики в настройках)
+                if (item.condition && !this.settings?.[item.condition]) {
+                    return false;
+                }
+
+                // 2. Проверка прав доступа текущего пользователя
+                if (!this.hasPermission(item.permission)) {
+                    return false;
+                }
+
+                return true;
             });
         },
 
@@ -427,58 +523,73 @@ export default {
     mounted() {
         this.loadStories();
         this.loadScriptData();
+        this.initDisabledModal();
     },
 
+    beforeUnmount() {
+        // 🆕 Очистка экземпляра модалки при уничтожении компонента
+        if (this.disabledModal) {
+            this.disabledModal.dispose();
+        }
+    },
     methods: {
+        setAdminViewMode(mode) {
+            this.adminViewMode = mode;
+            localStorage.setItem('adminViewMode', mode);
+        },
+        initDisabledModal() {
+            this.$nextTick(() => {
+                if (typeof bootstrap !== 'undefined') {
+                    const modalEl = document.getElementById('disabledShopModal');
+                    if (modalEl) {
+                        this.disabledModal = new bootstrap.Modal(modalEl);
+                    }
+                }
+            });
+        },
+
+        showDisabledModal() {
+            if (this.disabledModal) {
+                this.disabledModal.show();
+            }
+        },
+
+        goToSettings() {
+            if (this.disabledModal) {
+                this.disabledModal.hide();
+            }
+            // Перенаправление на страницу настроек тенанта
+            this.goTo('AdminTenant');
+        },
         applyMenuSettings(items, options = {}) {
             const {
-                checkVisibility = true,    // Учитывать is_visible из настроек
-                checkCondition = true,     // Учитывать condition (например, can_use_booking)
-                useSettingsTitle = true,   // Использовать title из настроек
-                useSettingsImage = true,   // Использовать image_url из настроек
+                checkVisibility = true,
+                checkCondition = true,
+                useSettingsTitle = true,
+                useSettingsImage = true,
             } = options;
 
             const settingsIcons = this.settings?.icons || [];
-
-            // Создаём Map для быстрого поиска: slug → icon config
-            const iconsMap = new Map(
-                settingsIcons.map(icon => [icon.slug, icon])
-            );
+            const iconsMap = new Map(settingsIcons.map(icon => [icon.slug, icon]));
 
             return items
-                // 1. Фильтрация по condition (если задан)
                 .filter(item => {
                     if (!checkCondition || !item.condition) return true;
                     return !!this.settings?.[item.condition];
                 })
-                // 2. Фильтрация по is_visible из настроек
                 .filter(item => {
                     if (!checkVisibility) return true;
                     const iconConfig = iconsMap.get(item.key);
-                    // Если в настройках нет — показываем по умолчанию
                     if (!iconConfig) return true;
                     return iconConfig.is_visible !== false;
                 })
-                // 3. Модификация на основе настроек
                 .map(item => {
                     const iconConfig = iconsMap.get(item.key);
-
-                    if (!iconConfig) {
-                        // Если в настройках нет — возвращаем как есть
-                        return { ...item };
-                    }
+                    if (!iconConfig) return { ...item };
 
                     const result = { ...item };
-
-                    // Переопределяем название
-                    if (useSettingsTitle && iconConfig.title) {
-                        result.text = iconConfig.title;
-                    }
-
-                    // Переопределяем иконку/изображение
-                    if (useSettingsImage && iconConfig.image_url) {
-                        result.img = iconConfig.image_url;
-                    }
+                    if (useSettingsTitle && iconConfig.title) result.text = iconConfig.title;
+                    if (useSettingsImage && iconConfig.image_url) result.img = iconConfig.image_url;
 
                     return result;
                 });
@@ -527,14 +638,13 @@ export default {
 </script>
 
 <style scoped>
+
+
 .home-page {
     min-height: 100vh;
     background: var(--bs-body-bg);
 }
 
-/* ==========================================
-   HERO СЕКЦИЯ
-   ========================================== */
 .hero-section {
     position: relative;
     padding: 24px 16px 20px;
@@ -612,7 +722,6 @@ export default {
     object-fit: cover;
 }
 
-/* Мини-статистика */
 .hero-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -664,9 +773,6 @@ export default {
     letter-spacing: 0.3px;
 }
 
-/* ==========================================
-   НАСТРОЙКИ ТЕМЫ (Компактный блок)
-   ========================================== */
 .theme-settings-card {
     background: var(--bs-body-bg);
     border: 1px solid var(--bs-border-color);
@@ -718,7 +824,6 @@ export default {
     padding: 0 16px 16px;
 }
 
-/* Анимация раскрытия */
 .slide-down-enter-active,
 .slide-down-leave-active {
     transition: all 0.3s ease;
@@ -737,9 +842,6 @@ export default {
     max-height: 1000px;
 }
 
-/* ==========================================
-   ЗАГОЛОВКИ СЕКЦИЙ
-   ========================================== */
 .section-header {
     display: flex;
     align-items: center;
@@ -767,11 +869,6 @@ export default {
     box-shadow: 0 4px 12px rgba(245, 87, 108, 0.25);
 }
 
-.section-icon.admin-icon {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    box-shadow: 0 4px 12px rgba(118, 75, 162, 0.25);
-}
-
 .section-title {
     margin: 0;
     font-weight: 700;
@@ -785,9 +882,6 @@ export default {
     color: var(--bs-secondary-color);
 }
 
-/* ==========================================
-   СЕТКА СЕРВИСОВ
-   ========================================== */
 .services-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -801,9 +895,6 @@ export default {
     }
 }
 
-/* ==========================================
-   КОЛЕСО ФОРТУНЫ (Wow-карточка)
-   ========================================== */
 .fortune-card {
     position: relative;
     padding: 20px;
@@ -867,23 +958,9 @@ export default {
     animation: sparkle 2s ease-in-out infinite;
 }
 
-.sparkle-1 {
-    top: -4px;
-    right: -4px;
-    animation-delay: 0s;
-}
-
-.sparkle-2 {
-    bottom: -4px;
-    left: -4px;
-    animation-delay: 0.7s;
-}
-
-.sparkle-3 {
-    top: 50%;
-    right: -8px;
-    animation-delay: 1.4s;
-}
+.sparkle-1 { top: -4px; right: -4px; animation-delay: 0s; }
+.sparkle-2 { bottom: -4px; left: -4px; animation-delay: 0.7s; }
+.sparkle-3 { top: 50%; right: -8px; animation-delay: 1.4s; }
 
 @keyframes sparkle {
     0%, 100% { opacity: 0; transform: scale(0.5); }
@@ -923,9 +1000,6 @@ export default {
     flex-shrink: 0;
 }
 
-/* ==========================================
-   БОНУСЫ КАРУСЕЛЬ
-   ========================================== */
 .bonus-carousel {
     margin: 0 -8px;
 }
@@ -1006,7 +1080,6 @@ export default {
     transform: translateX(4px);
 }
 
-/* Навигация карусели */
 :deep(.carousel__prev),
 :deep(.carousel__next) {
     background: var(--bs-body-bg);
@@ -1019,40 +1092,360 @@ export default {
 }
 
 /* ==========================================
-   АДАПТИВ
+   АДМИН МЕНЮ (Полный список)
    ========================================== */
+.admin-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.admin-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    color: var(--bs-body-color);
+}
+
+.admin-menu-item:hover {
+    background: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.admin-item-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.admin-item-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-item-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1.2;
+}
+
+.admin-item-desc {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    margin-top: 2px;
+}
+
+.admin-item-arrow {
+    color: var(--bs-secondary-color);
+    font-size: 0.8rem;
+    opacity: 0.5;
+}
+
 @media (max-width: 576px) {
-    .greeting-name {
-        font-size: 1.3rem;
-    }
+    .greeting-name { font-size: 1.3rem; }
+    .hero-avatar { width: 48px; height: 48px; font-size: 1.3rem; }
+    .stat-pill { padding: 8px 10px; }
+    .stat-value { font-size: 0.85rem; }
+    .fortune-content { flex-wrap: wrap; }
+    .fortune-action { width: 100%; justify-content: center; margin-top: 8px; }
+}
 
-    .hero-avatar {
-        width: 48px;
-        height: 48px;
-        font-size: 1.3rem;
-    }
+:deep(*) {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
 
-    .stat-pill {
-        padding: 8px 10px;
-    }
+/* ==========================================
+   ПЛАШКА "МАГАЗИН ВЫКЛЮЧЕН" (Premium Style)
+   ========================================== */
+.disabled-alert-btn {
+    width: calc(100% - 16px); /* mx-2 компенсируется */
+    border: none;
+    border-radius: 16px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+    color: white;
+    box-shadow: 0 8px 24px rgba(255, 65, 108, 0.35);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    text-align: left;
+    cursor: pointer;
+    z-index: 1020; /* Выше обычного контента, но ниже модалок */
+}
 
-    .stat-value {
-        font-size: 0.85rem;
-    }
+/* Эффект приподнимания и усиления тени при наведении */
+.disabled-alert-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(255, 65, 108, 0.45);
+}
 
-    .fortune-content {
-        flex-wrap: wrap;
-    }
+.disabled-alert-btn:active {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(255, 65, 108, 0.35);
+}
 
-    .fortune-action {
-        width: 100%;
-        justify-content: center;
-        margin-top: 8px;
+/* Декоративный пробегающий блик */
+.alert-shine {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.15),
+        transparent
+    );
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+    pointer-events: none;
+}
+
+.disabled-alert-btn:hover .alert-shine {
+    transform: translateX(100%);
+}
+
+/* Внутренняя структура */
+.alert-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 2;
+}
+
+.alert-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+/* Иконка в полупрозрачном круге (glassmorphism) */
+.alert-icon-wrapper {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.alert-text-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.alert-title {
+    font-weight: 700;
+    font-size: 1rem;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+}
+
+.alert-subtitle {
+    font-size: 0.8rem;
+    opacity: 0.9;
+    font-weight: 400;
+    margin-top: 3px;
+}
+
+/* Стрелка справа */
+.alert-arrow {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.disabled-alert-btn:hover .alert-arrow {
+    background: rgba(255, 255, 255, 0.35);
+    transform: translateX(4px);
+}
+
+/* Адаптив для очень маленьких экранов */
+@media (max-width: 380px) {
+    .disabled-alert-btn {
+        padding: 14px 16px;
+    }
+    .alert-icon-wrapper {
+        width: 38px;
+        height: 38px;
+        font-size: 1rem;
+    }
+    .alert-title {
+        font-size: 0.9rem;
+    }
+    .alert-subtitle {
+        font-size: 0.75rem;
     }
 }
 
-/* Плавные переходы для всей страницы */
-:deep(*) {
-    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+/* Добавьте это к существующим стилям модалки, если их там нет */
+.modal-header.bg-danger .modal-icon {
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+    border: 1px solid rgba(220, 53, 69, 0.1);
+}
+
+.modal-header.bg-danger {
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%) !important;
+}
+
+/* ==========================================
+   🆕 ПЕРЕКЛЮЧАТЕЛЬ ВИДА АДМИН-МЕНЮ
+   ========================================== */
+.admin-view-toggle {
+    display: flex;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.admin-view-toggle .toggle-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    color: var(--bs-secondary-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.admin-view-toggle .toggle-btn.active {
+    background: var(--bs-primary);
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.admin-view-toggle .toggle-btn:hover:not(.active) {
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+}
+
+/* ==========================================
+   🆕 СЕТКА (GRID) ДЛЯ АДМИН-МЕНЮ
+   ========================================== */
+.admin-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 колонки на мобильных */
+    gap: 12px;
+}
+
+@media (min-width: 576px) {
+    .admin-menu-grid {
+        grid-template-columns: repeat(3, 1fr); /* 3 колонки на планшетах */
+    }
+}
+
+@media (min-width: 768px) {
+    .admin-menu-grid {
+        grid-template-columns: repeat(4, 1fr); /* 4 колонки на десктопе */
+    }
+}
+
+.admin-grid-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 12px;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--bs-body-color);
+    position: relative;
+    overflow: hidden;
+}
+
+.admin-grid-item:hover {
+    border-color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.03);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+.admin-grid-item:active {
+    transform: translateY(-1px);
+}
+
+.admin-grid-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    margin-bottom: 14px;
+    transition: all 0.25s ease;
+}
+
+.admin-grid-item:hover .admin-grid-icon {
+    background: var(--bs-primary);
+    color: white;
+    transform: scale(1.05);
+}
+
+.admin-grid-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    margin-bottom: 6px;
+    color: var(--bs-body-color);
+}
+
+.admin-grid-desc {
+    font-size: 0.7rem;
+    color: var(--bs-secondary-color);
+    line-height: 1.3;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Ограничиваем описание 2 строками */
+    -webkit-box-orient: vertical;
 }
 </style>

@@ -528,6 +528,82 @@ trait BasketHelper
     }
 
     /**
+     * 🆕 Обновляет профиль пользователя данными из чекаута, если они были введены впервые
+     */
+    private function updateUserProfileFromCheckout(array $checkoutData): void
+    {
+        $user = $this->tenantUser;
+        $isUpdated = false;
+
+        // Поля, которые мы хотим обогатить из данных чекаута
+        $fieldsToSync = [
+            'name'    => $checkoutData['name'] ?? null,
+            'phone'   => $checkoutData['phone'] ?? null,
+            'email'   => $checkoutData['email'] ?? null,
+            'address' => $checkoutData['address'] ?? $checkoutData['delivery_note'] ?? null,
+            'city'    => $checkoutData['city'] ?? null,
+        ];
+
+        foreach ($fieldsToSync as $field => $value) {
+            if (!empty($value)) {
+                // Для телефона обновляем всегда, если он пришел (телефон — ключевой идентификатор)
+                // Для остальных полей обновляем, только если они сейчас пустые
+                if ($field === 'phone' || empty($user->$field)) {
+                    $user->$field = $value;
+                    $isUpdated = true;
+                }
+            }
+        }
+
+        // Сохраняем флаг, что профиль был авто-заполнен при заказе
+        $meta = $user->meta ?? [];
+        if ($isUpdated) {
+            $meta['profile_auto_filled_at'] = now()->toIso8601String();
+            $user->meta = $meta;
+            $user->save();
+
+            Log::info("[Checkout] Профиль пользователя #{$user->id} обновлен данными из заказа.");
+        }
+    }
+
+    /**
+     * 🆕 Выдает VIP статус за первый успешный заказ
+     */
+    private function grantFirstOrderVipReward(): void
+    {
+        $user = $this->tenantUser;
+
+        // Если у пользователя еще нет VIP статуса, дарим его
+        if (!$user->is_vip) {
+            // Дарим VIP на 30 дней (можете изменить на 365 или null для бессрочного)
+            $vipDays = 30;
+            $user->grantVip($vipDays);
+
+            Log::info("[Checkout] Пользователю #{$user->id} выдан VIP статус на {$vipDays} дней за первый заказ.");
+
+            // 🎯 Бонус: добавляем системное сообщение в диалог заказа об этом (если диалог существует)
+            try {
+                $orderDialogService = app(\App\Services\OrderDialogService::class);
+                // Мы не знаем ID заказа здесь напрямую, но можем найти последний
+                $lastOrder = \App\Models\Tenant\Order::query()
+                    ->where('tenant_user_id', $user->id)
+                    ->latest('id')
+                    ->first();
+
+                if ($lastOrder) {
+                    $orderDialogService->addStatusMessage(
+                        $lastOrder,
+                        'success',
+                        "🎉 Поздравляем! За этот заказ вам начислен <b>VIP-статус</b> на {$vipDays} дней!"
+                    );
+                }
+            } catch (\Throwable $e) {
+                // Не критично, если не получится отправить сообщение
+                Log::warning("[Checkout] Не удалось уведомить о VIP в диалоге: " . $e->getMessage());
+            }
+        }
+    }
+    /**
      * Оформление заказа из магазина еды
      * ОБНОВЛЕНО:
      * - Один диалог на заказ (не создаются лишние)
@@ -575,6 +651,9 @@ trait BasketHelper
         $paymentType = $this->safeInt($this->data["payment_type"] ?? 4);
         $deliveryDetails = json_decode($this->data["delivery_details"] ?? '[]', true) ?: [];
         $useCashback = ($this->data["use_cashback"] ?? "false") === "true";
+
+        // 🆕 1. ОБНОВЛЯЕМ ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ ДАННЫМИ ИЗ ЧЕКАУТА
+        $this->updateUserProfileFromCheckout($this->data);
 
         // ==========================================
         // 1. ОБРАБОТКА КОРЗИНЫ
@@ -1069,7 +1148,13 @@ trait BasketHelper
         $this->tenantUser->meta = $config;
         $this->tenantUser->save();
 
-        // 🆕 12. ФОРМИРОВАНИЕ И ВОЗВРАТ МАССИВА С ДАННЫМИ ЗАКАЗА
+        // ==========================================
+        // 12. 🆕 НАГРАДА ЗА ПЕРВЫЙ ЗАКАЗ (VIP)
+        // ==========================================
+        // Вызываем только если заказ успешно дошел до этого этапа
+        $this->grantFirstOrderVipReward();
+
+        // 🆕 13. ФОРМИРОВАНИЕ И ВОЗВРАТ МАССИВА С ДАННЫМИ ЗАКАЗА
         return [
             'success' => true,
             'order_id' => $order->id,

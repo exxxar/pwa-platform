@@ -34,12 +34,12 @@
     @inertiaHead
 
     <style>
-        html, body {
+        /*html, body {
             overscroll-behavior-y: contain;
             touch-action: manipulation;
             -webkit-text-size-adjust: 100%;
             -ms-text-size-adjust: 100%;
-        }
+        }*/
     </style>
 </head>
 
@@ -60,7 +60,7 @@
             changeTheme.href = theme
         }
 
-        // Запрет pull-to-refresh на старых браузерах
+      /*  // Запрет pull-to-refresh на старых браузерах
         let touchStartY = 0;
         document.addEventListener('touchstart', e => {
             touchStartY = e.touches[0].clientY;
@@ -86,7 +86,7 @@
         document.addEventListener('wheel', e => {
             if (e.ctrlKey) e.preventDefault();
         }, { passive: false });
-
+*/
     }
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {

@@ -41,12 +41,28 @@ class TenantAuthController extends Controller
 
     }
 
-    public function loginPage()
+    public function loginPage($tenant)
     {
-        return Inertia::render('Tenant/Auth/Login', [
-            'tenant' => tenant(),
-            'user' => auth('tenant')->user(),
+
+        $tenantModel = Tenant::query()->where('slug', $tenant)->first();
+
+        if (is_null($tenantModel)) {
+            return redirect()->route('public.landing')->with('requested_slug', $tenant);
+        }
+
+        Session::put("tenant", $tenantModel);
+
+        $tenantUser = Auth::guard('tenant')->user();
+
+        Inertia::setRootView("mobile");
+
+
+        return Inertia::render('LoginPage', [
+            'tenant' => $tenantModel,
+            'tenant_user' => $tenantUser,
+            'initial_data' => null,
         ]);
+
     }
 
     public function registrationPage()
@@ -57,6 +73,47 @@ class TenantAuthController extends Controller
         ]);
     }
 
+    public function login(Request $request)
+    {
+        $request->validate([
+            'identifier' => 'required|string',
+            'password' => 'required|string',
+        ]);
+
+        // Определяем, что ввел пользователь: email или телефон
+        $field = filter_var($request->identifier, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
+
+        $credentials = [
+            $field => $request->identifier,
+            'password' => $request->password,
+        ];
+
+
+        // Пытаемся авторизовать через guard 'tenant'
+        if (Auth::guard('tenant')->attempt($credentials)) {
+            // Защита от фиксации сессии
+            $request->session()->regenerate();
+
+            $user = Auth::guard('tenant')->user();
+
+            // 🚀 ВАЖНО: Загружаем роли и права, чтобы фронтенд их сразу получил
+            $user->load('roles.permissions');
+
+            return response()->json([
+                'message' => 'Успешный вход',
+                'user' => $user,
+                // 'token' => $user->createToken('auth_token')->plainTextToken, // Раскомментируйте, если используете Laravel Sanctum с токенами
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Неверный телефон/email или пароль'
+        ], 401);
+    }
+
+    /**
+     * Регистрация нового пользователя
+     */
     public function register(Request $request)
     {
         $data = $request->validate([
@@ -66,32 +123,36 @@ class TenantAuthController extends Controller
         ]);
 
         $user = TenantUser::create([
-            'tenant_id' => tenant()->id,
+            'tenant_id' => app('tenant')->id, // или tenant()->id
             'name' => $data['name'],
             'phone' => $data['phone'],
-            'password' => bcrypt($data['password']),
+            'password' => Hash::make($data['password']),
+            'is_active' => true, // Гарантируем, что пользователь активен
+            // 'uuid' => (string) \Illuminate\Support\Str::uuid(), // Если модель не генерирует это сама
         ]);
 
+        // Автоматический вход после регистрации
         Auth::guard('tenant')->login($user);
+        $request->session()->regenerate();
 
-        return redirect('/');
+        $user->load('roles.permissions');
+
+        return response()->json([
+            'message' => 'Регистрация успешна',
+            'user' => $user,
+        ], 201);
     }
 
-    public function login(Request $request)
-    {
-        $credentials = $request->only('phone', 'password');
-
-        if (Auth::guard('tenant')->attempt($credentials)) {
-            return redirect()->intended('/'); // или куда нужно
-        }
-
-        return back()->withErrors(['phone' => 'Неверный телефон или пароль']);
-    }
-
-    public function logout()
+    /**
+     * Выход из системы
+     */
+    public function logout(Request $request)
     {
         Auth::guard('tenant')->logout();
-        return response()->json(['success' => true]);
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return response()->json(['message' => 'Вы успешно вышли']);
     }
 
     public function me()
@@ -146,8 +207,6 @@ class TenantAuthController extends Controller
         ProductService $productService
     )
     {
-
-
         if (empty($tenant) || !preg_match('/^[a-zA-Z0-9_-]+$/', $tenant)) {
             return redirect()->route('public.landing');
         }
@@ -159,7 +218,24 @@ class TenantAuthController extends Controller
         }
 
         Session::put("tenant", $tenantModel);
+
+        $rawDisabled = $tenantModel->settings["is_disabled"] ?? false;
+
+        $isDisabled = match (true) {
+            is_bool($rawDisabled) => $rawDisabled,
+            is_string($rawDisabled) => in_array(strtolower($rawDisabled), ['true', '1', 'yes', 'on']),
+            is_numeric($rawDisabled) => (int)$rawDisabled === 1,
+            default => false,
+        };
+
         $tenantUser = Auth::guard('tenant')->user();
+
+        // 🆕 Проверяем, является ли пользователь администратором или суперадмином
+        // (Используем аксессор role_names, который мы добавляли в модель TenantUser)
+        $isAdmin = $tenantUser && (
+                in_array('super_admin', $tenantUser->role_names ?? []) ||
+                in_array('admin', $tenantUser->role_names ?? [])
+            );
 
         // 🆕 Предзагрузка данных для мгновенного отображения
         $initialData = $this->loadInitialData(
@@ -171,10 +247,21 @@ class TenantAuthController extends Controller
         );
 
         Inertia::setRootView("mobile");
+
+        // 🆕 Показываем страницу обслуживания ТОЛЬКО если магазин выключен И пользователь НЕ админ
+        if ($isDisabled && !$isAdmin) {
+            return Inertia::render('Public/MaintenancePage', [
+                'tenant' => $tenantModel,
+                'tenant_user' => $tenantUser,
+                'initial_data' => $initialData,
+            ]);
+        }
+
+        // В противном случае (магазин включен ИЛИ пользователь админ) показываем основное приложение
         return Inertia::render('MobileMain', [
             'tenant' => $tenantModel,
             'tenant_user' => $tenantUser,
-            'initial_data' => $initialData, // 🆕
+            'initial_data' => $initialData,
         ]);
     }
 

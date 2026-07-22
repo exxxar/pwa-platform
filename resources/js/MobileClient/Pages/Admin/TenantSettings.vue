@@ -114,7 +114,12 @@
                                     </div>
                                 </template>
                                 <template v-else>
-                                    <input type="text" v-model="day.closed_comment" placeholder="Причина">
+                                    <input
+                                        type="text"
+                                        v-model="day.closed_comment"
+                                        placeholder="Причина выходного"
+                                        class="closed-comment-input"
+                                    >
                                 </template>
                             </div>
                         </div>
@@ -738,6 +743,21 @@
                                             </select>
                                         </div>
                                     </div>
+
+                                    <!-- 🆕 Кнопка тестирования оплаты -->
+                                    <div class="test-payment-wrapper">
+                                        <button
+                                            type="button"
+                                            class="btn-test-payment"
+                                            @click="testSbpPayment(bankKey)"
+                                            :disabled="isTestingPayment"
+                                        >
+                                            <i v-if="isTestingPayment && testingBank === bankKey" class="fa-solid fa-spinner fa-spin"></i>
+                                            <i v-else class="fa-solid fa-credit-card"></i>
+                                            <span>Проверить оплату (100 ₽)</span>
+                                        </button>
+                                        <span class="field-hint">Откроет тестовую ссылку в новой вкладке. Создаст тестовый заказ на 100 ₽.</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1129,6 +1149,10 @@ export default {
 
     data() {
         return {
+
+            isTestingPayment: false,
+            testingBank: null,
+
             activeTab: 0,
             activePwaSubTab: 'general',
             mainMenuPreviews: {},
@@ -1217,6 +1241,54 @@ export default {
             return names[key] || key;
         },
 
+        async testSbpPayment(bankKey) {
+            const bankConfig = this.shopForm.sbp_banks[bankKey];
+
+            if (!bankConfig.terminal_key || !bankConfig.terminal_password) {
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Заполните ключ и пароль терминала перед проверкой',
+                    type: 'warning'
+                });
+                return;
+            }
+
+            this.isTestingPayment = true;
+            this.testingBank = bankKey;
+
+            try {
+                const response = await axios.post('/admin/tenant-settings/shop/test-sbp-payment', {
+                    bank_key: bankKey,
+                    config: bankConfig
+                });
+
+                if (response.data && response.data.success && response.data.url) {
+                    this.$notify?.({
+                        title: 'Успешно',
+                        text: response.data.message || 'Ссылка сформирована, открываем...',
+                        type: 'success'
+                    });
+
+                    // Небольшая задержка, чтобы браузер успел показать уведомление перед открытием вкладки
+                    setTimeout(() => {
+                        window.open(response.data.url, '_blank');
+                    }, 600);
+                } else {
+                    throw new Error(response.data.message || 'Ссылка не получена');
+                }
+            } catch (error) {
+                console.error('Ошибка тестирования оплаты:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось сформировать тестовую ссылку. Проверьте настройки.',
+                    type: 'error'
+                });
+            } finally {
+                this.isTestingPayment = false;
+                this.testingBank = null;
+            }
+        },
+
         async initForms() {
             const tenant = window.Tenant;
             if (!tenant) return;
@@ -1230,7 +1302,7 @@ export default {
             this.companyForm.links = companyMeta.links || { vk: null, inst: null, map_link: null, site: null };
             if (companyMeta.schedule?.length >= 7) this.companyForm.schedule = companyMeta.schedule;
 
-            this.shopForm = { ...this.shopForm, ...(settings.shop || {}) };
+            this.shopForm = { ...this.shopForm, ...(settings.shop || {}),...(settings || {}) };
             // Миграция старых данных менеджера, если они были в старом формате
             if (typeof this.shopForm.manager === 'string' || !this.shopForm.manager.name) {
                 this.shopForm.manager = { name: '', phone: '', email: '', social_link: this.shopForm.manager?.link || '' };
@@ -1859,6 +1931,28 @@ $warning: #f59e0b;
 
     &.is-closed {
         background: rgba($danger, 0.05);
+    }
+
+    .closed-comment-input {
+        width: 100%;
+        padding: 8px 12px;
+        background: #ffffff; // Белый фон для контраста с красной строкой
+        border: 1px solid rgba($danger, 0.2); // Легкая красная обводка
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: $text;
+        transition: all 0.2s ease;
+
+        &::placeholder {
+            color: rgba($danger, 0.5); // Плейсхолдер в тон теме выходного
+            font-style: italic;
+        }
+
+        &:focus {
+            outline: none;
+            border-color: $danger; // Яркая обводка при клике
+            box-shadow: 0 0 0 3px rgba($danger, 0.1); // Легкое свечение
+        }
     }
 }
 
@@ -2743,6 +2837,42 @@ $warning: #f59e0b;
 
     i {
         font-size: 1.1rem;
+    }
+}
+
+.test-payment-wrapper {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--border, #e5e7eb);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.btn-test-payment {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%); // Зеленый цвет для теста
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+
+    &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
 }
 </style>

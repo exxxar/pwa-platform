@@ -462,7 +462,7 @@ export default {
 .form-container {
     max-width: 600px;
     margin: 0 auto;
-    padding: 0 16px;
+    padding: 0px;
 }
 
 /* Секции формы */

@@ -49,6 +49,15 @@
                 <button
                     type="button"
                     class="edit-tab"
+                    :class="{ 'is-active': activeTab === 'roles' }"
+                    @click="activeTab = 'roles'"
+                >
+                    <i class="fa-solid fa-user-tag"></i>
+                    <span>Роли</span>
+                </button>
+                <button
+                    type="button"
+                    class="edit-tab"
                     :class="{ 'is-active': activeTab === 'security' }"
                     @click="activeTab = 'security'"
                 >
@@ -62,7 +71,7 @@
 
                 <!-- ===== ТАБ: ОСНОВНОЕ ===== -->
                 <div v-if="activeTab === 'main'" class="tab-panel">
-
+                    <!-- ... (без изменений, как было) ... -->
                     <div class="form-section">
                         <h4 class="section-title">
                             <i class="fa-solid fa-id-card"></i>
@@ -127,12 +136,11 @@
                             </div>
                         </div>
                     </div>
-
                 </div>
 
                 <!-- ===== ТАБ: СТАТУСЫ ===== -->
                 <div v-if="activeTab === 'status'" class="tab-panel">
-
+                    <!-- ... (без изменений, как было) ... -->
                     <div class="form-section">
                         <h4 class="section-title">
                             <i class="fa-solid fa-circle-check"></i>
@@ -185,12 +193,71 @@
                             </div>
                         </transition>
                     </div>
+                </div>
 
+                <!-- ===== ТАБ: РОЛИ (НОВЫЙ) ===== -->
+                <div v-if="activeTab === 'roles'" class="tab-panel">
+                    <div class="form-section">
+                        <h4 class="section-title">
+                            <i class="fa-solid fa-user-tag"></i>
+                            Роли и доступы
+                        </h4>
+
+                        <!-- Индикатор загрузки ролей -->
+                        <div v-if="loadingRoles" class="roles-loading">
+                            <div class="loading-spinner small"></div>
+                            <span>Загружаем роли...</span>
+                        </div>
+
+                        <!-- Текущая роль пользователя -->
+                        <div v-else>
+                            <p class="roles-hint">
+                                Выберите роли для этого пользователя. Пользователь получит все права, связанные с выбранными ролями.
+                            </p>
+
+                            <!-- Список ролей как чипы -->
+                            <div class="roles-list">
+                                <div
+                                    v-for="role in availableRoles"
+                                    :key="role.id"
+                                    class="role-chip"
+                                    :class="{ 'is-selected': form.role_ids.includes(role.id) }"
+                                    @click="toggleRole(role.id)"
+                                >
+                                    <div class="role-icon">
+                                        <i class="fa-solid" :class="getRoleIcon(role.name)"></i>
+                                    </div>
+                                    <div class="role-info">
+                                        <span class="role-name">{{ role.label }}</span>
+                                        <span class="role-count">{{ role.permissions_count || 0 }} прав</span>
+                                    </div>
+                                    <div class="role-check">
+                                        <i v-if="form.role_ids.includes(role.id)" class="fa-solid fa-check"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Предупреждение о суперадмине -->
+                            <div v-if="form.role_ids.some(id => isSuperAdminRole(id))" class="warning-box">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <div>
+                                    <strong>Суперадмин</strong>
+                                    <p>Этот пользователь получит полный доступ ко всем функциям системы.</p>
+                                </div>
+                            </div>
+
+                            <!-- Пустое состояние -->
+                            <div v-if="availableRoles.length === 0" class="empty-roles">
+                                <i class="fa-solid fa-user-slash"></i>
+                                <p>Роли не найдены. Создайте роли в разделе "Управление ролями".</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ===== ТАБ: БЕЗОПАСНОСТЬ ===== -->
                 <div v-if="activeTab === 'security'" class="tab-panel">
-
+                    <!-- ... (без изменений, как было) ... -->
                     <div class="form-section">
                         <h4 class="section-title">
                             <i class="fa-solid fa-ban"></i>
@@ -234,7 +301,6 @@
                             </div>
                         </transition>
                     </div>
-
                 </div>
 
             </div>
@@ -286,13 +352,14 @@ export default {
         },
     },
 
-    emits: ['close', 'saved'],
+    emits: ['close', 'saved', 'save', 'toggle-block'],
 
     data() {
         return {
             activeTab: 'main',
             isMobile: window.innerWidth < 640,
             isSaving: false,
+            loadingRoles: false,
 
             form: {
                 name: '',
@@ -305,10 +372,12 @@ export default {
                 vip_expires_at: '',
                 blocked: false,
                 blocked_message: '',
+                role_ids: [], // Массив ID выбранных ролей
             },
 
             initialForm: {},
             errors: {},
+            availableRoles: [], // Список всех доступных ролей
         };
     },
 
@@ -334,6 +403,7 @@ export default {
             handler(user) {
                 if (user) {
                     this.initializeForm(user);
+                    this.loadRoles();
                 }
             },
         },
@@ -352,9 +422,64 @@ export default {
                 vip_expires_at: user.vip_expires_at ? user.vip_expires_at.split(' ')[0] : '',
                 blocked: !!user.blocked_at,
                 blocked_message: user.blocked_message || '',
+                role_ids: user.roles ? user.roles.map(r => r.id) : [],
             };
 
             this.initialForm = { ...this.form };
+        },
+
+        /**
+         * Загрузка списка доступных ролей
+         */
+        async loadRoles() {
+            this.loadingRoles = true;
+            try {
+                const response = await axios.get('/admin/roles');
+                this.availableRoles = response.data.data || response.data;
+            } catch (error) {
+                console.error('Ошибка загрузки ролей:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось загрузить список ролей',
+                    type: 'error',
+                });
+            } finally {
+                this.loadingRoles = false;
+            }
+        },
+
+        /**
+         * Переключение роли (добавить/убрать)
+         */
+        toggleRole(roleId) {
+            const index = this.form.role_ids.indexOf(roleId);
+            if (index === -1) {
+                this.form.role_ids.push(roleId);
+            } else {
+                this.form.role_ids.splice(index, 1);
+            }
+        },
+
+        /**
+         * Проверка, является ли роль суперадмином
+         */
+        isSuperAdminRole(roleId) {
+            const role = this.availableRoles.find(r => r.id === roleId);
+            return role && role.name === 'super_admin';
+        },
+
+        /**
+         * Получение иконки для роли
+         */
+        getRoleIcon(roleName) {
+            const icons = {
+                'super_admin': 'fa-crown',
+                'admin': 'fa-user-shield',
+                'worker': 'fa-user-gear',
+                'user': 'fa-user',
+                'delivery': 'fa-motorcycle',
+            };
+            return icons[roleName] || 'fa-user-tag';
         },
 
         formatPhone(e) {
@@ -413,9 +538,10 @@ export default {
                     is_active: this.form.is_active,
                     is_vip: this.form.is_vip,
                     vip_expires_at: this.form.vip_expires_at || null,
+                    role_ids: this.form.role_ids, // Отправляем выбранные роли
                 };
 
-                // Обновляем основные данные
+                // Обновляем основные данные (включая роли)
                 await this.$emit('save', data);
 
                 // Если изменилась блокировка — отдельный запрос
@@ -1020,6 +1146,123 @@ $border: #e5e7eb;
 
     .edit-tab span {
         display: none;
+    }
+}
+
+.roles-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
+    color: $text-muted;
+    font-size: 0.9rem;
+
+    .loading-spinner.small {
+        width: 20px;
+        height: 20px;
+        border-width: 2px;
+    }
+}
+
+.roles-hint {
+    font-size: 0.85rem;
+    color: $text-muted;
+    margin: 0 0 16px;
+    line-height: 1.5;
+}
+
+.roles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.role-chip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: $bg-secondary;
+    border: 1.5px solid $border;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        border-color: $primary;
+        background: rgba($primary, 0.02);
+    }
+
+    &.is-selected {
+        border-color: $primary;
+        background: rgba($primary, 0.08);
+    }
+}
+
+.role-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, $primary, $primary-dark);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.role-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.role-name {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: $text;
+    margin-bottom: 2px;
+}
+
+.role-count {
+    display: block;
+    font-size: 0.75rem;
+    color: $text-muted;
+}
+
+.role-check {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: $primary;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    .is-selected & {
+        opacity: 1;
+    }
+}
+
+.empty-roles {
+    text-align: center;
+    padding: 30px 20px;
+    color: $text-muted;
+
+    i {
+        font-size: 2rem;
+        margin-bottom: 10px;
+        opacity: 0.5;
+    }
+
+    p {
+        font-size: 0.85rem;
+        margin: 0;
     }
 }
 </style>

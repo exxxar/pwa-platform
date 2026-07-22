@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\Tenant;
+
+use App\Services\PaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class TenantSettingsController extends Controller
@@ -21,6 +24,38 @@ class TenantSettingsController extends Controller
         return app('tenant');
     }
 
+    public function testSbpPayment(Request $request)
+    {
+        $request->validate([
+            'bank_key' => 'required|string',
+            'config' => 'required|array',
+            'config.terminal_key' => 'required|string',
+            'config.terminal_password' => 'required|string',
+        ]);
+
+        try {
+            $result = PaymentService::call()->testSbpPayment(
+                $request->input('config'),
+                $request->input('bank_key')
+            );
+
+            return response()->json([
+                'success' => true,
+                'url' => $result['url'],
+                'message' => $result['message']
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Test SBP Payment Failed: ' . $e->getMessage(), [
+                'bank_key' => $request->input('bank_key'),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Не удалось сформировать тестовую ссылку'
+            ], 400);
+        }
+    }
     /**
      * Безопасное обновление части meta-данных
      */

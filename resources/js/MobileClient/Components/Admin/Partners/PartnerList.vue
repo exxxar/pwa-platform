@@ -742,7 +742,7 @@ $admin-warning: #f59e0b;
 // СПИСОК ПАРТНЕРОВ
 // ==========================================
 .partners-list {
-    padding: 16px;
+    padding: 10px;
 }
 
 .partners-group {

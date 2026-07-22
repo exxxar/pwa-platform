@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicLandingController;
+use App\Http\Controllers\Tenant\PaymentCallbackController;
 use App\Models\Tenant\Tenant;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -35,7 +36,25 @@ Route::view('/maintenance', 'pages.maintenance')
 Route::get('/landing', [PublicLandingController::class, 'index'])
     ->name('public.landing');
 
-// В routes/api.php
+Route::prefix('payment-products-notify')->group(function () {
+    // Универсальный маршрут для всех банков
+    // Примеры: /payment-products-notify/tinkoff/my-shop, /payment-products-notify/sber/123
+    Route::any('/{bank}/{tenant}', [PaymentCallbackController::class, 'handleProductsCallback'])
+        ->name('payment.products.callback');
+});
+
+
+// ==========================================
+// МАРШРУТЫ ДЛЯ ОПЛАТЫ УСЛУГ СЕРВИСА
+// ==========================================
+Route::prefix('payment-service-notify')->group(function () {
+    Route::any('/tinkoff', [PaymentCallbackController::class, 'tinkoffServiceCallback'])
+        ->name('payment.tinkoff.service.callback');
+
+    // Можно добавить другие банки для услуг в будущем:
+    // Route::any('/sber', [PaymentCallbackController::class, 'sberServiceCallback'])
+    //     ->name('payment.sber.service.callback');
+});
 
 
 Route::get('/pricing', function () {

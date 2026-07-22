@@ -141,11 +141,14 @@ export const useUsersStore = defineStore('users', {
          * 🆕 Загрузка списка пользователей
          */
         async loadUsers(payload = {}) {
+
+
             this.isLoading = true;
             this.lastError = null;
 
             try {
                 const { dataObject = {}, page = 0 } = payload;
+
 
                 const params = {
                     page: page,

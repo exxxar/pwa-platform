@@ -15,7 +15,7 @@
                 </div>
             </div>
 
-            <form @submit.prevent="handleSearch" class="search-form">
+            <form @submit.prevent="handleSearch(1)" class="search-form">
                 <div class="input-wrapper">
                     <i class="fa-solid fa-user input-icon"></i>
                     <input
@@ -28,57 +28,27 @@
 
                 <!-- Фильтры в виде чипов -->
                 <div class="filters-chips">
-                    <button
-                        type="button"
-                        class="filter-chip"
-                        :class="{ 'is-active': need_admins }"
-                        @click="need_admins = !need_admins"
-                    >
+                    <button type="button" class="filter-chip" :class="{ 'is-active': need_admins }" @click="toggleFilter('need_admins')">
                         <i class="fa-solid fa-user-shield"></i>
                         <span>Админы</span>
                     </button>
-                    <button
-                        type="button"
-                        class="filter-chip"
-                        :class="{ 'is-active': need_with_phone }"
-                        @click="need_with_phone = !need_with_phone"
-                    >
+                    <button type="button" class="filter-chip" :class="{ 'is-active': need_with_phone }" @click="toggleFilter('need_with_phone')">
                         <i class="fa-solid fa-phone"></i>
                         <span>С телефоном</span>
                     </button>
-                    <button
-                        type="button"
-                        class="filter-chip"
-                        :class="{ 'is-active': need_without_phone }"
-                        @click="need_without_phone = !need_without_phone"
-                    >
+                    <button type="button" class="filter-chip" :class="{ 'is-active': need_without_phone }" @click="toggleFilter('need_without_phone')">
                         <i class="fa-solid fa-phone-slash"></i>
                         <span>Без телефона</span>
                     </button>
-                    <button
-                        type="button"
-                        class="filter-chip"
-                        :class="{ 'is-active': need_deliveryman }"
-                        @click="need_deliveryman = !need_deliveryman"
-                    >
+                    <button type="button" class="filter-chip" :class="{ 'is-active': need_deliveryman }" @click="toggleFilter('need_deliveryman')">
                         <i class="fa-solid fa-motorcycle"></i>
                         <span>Курьеры</span>
                     </button>
-                    <button
-                        type="button"
-                        class="filter-chip vip"
-                        :class="{ 'is-active': need_vip }"
-                        @click="need_vip = !need_vip"
-                    >
+                    <button type="button" class="filter-chip vip" :class="{ 'is-active': need_vip }" @click="toggleFilter('need_vip')">
                         <i class="fa-solid fa-crown"></i>
                         <span>VIP</span>
                     </button>
-                    <button
-                        type="button"
-                        class="filter-chip"
-                        :class="{ 'is-active': need_not_vip }"
-                        @click="need_not_vip = !need_not_vip"
-                    >
+                    <button type="button" class="filter-chip" :class="{ 'is-active': need_not_vip }" @click="toggleFilter('need_not_vip')">
                         <i class="fa-solid fa-user"></i>
                         <span>Не VIP</span>
                     </button>
@@ -156,25 +126,14 @@
                 <p>Попробуйте изменить параметры поиска</p>
             </div>
 
-            <!-- Пагинация -->
-            <div v-if="users_paginate_object && users_paginate_object.last_page > 1" class="pagination-wrapper">
-                <button
-                    class="pagination-btn"
-                    :disabled="!users_paginate_object.current_page || users_paginate_object.current_page <= 1"
-                    @click="handlePagination(users_paginate_object.current_page - 1)"
-                >
-                    <i class="fa-solid fa-chevron-left"></i>
-                </button>
-                <span class="pagination-info">
-                    {{ users_paginate_object.current_page }} / {{ users_paginate_object.last_page }}
-                </span>
-                <button
-                    class="pagination-btn"
-                    :disabled="users_paginate_object.current_page >= users_paginate_object.last_page"
-                    @click="handlePagination(users_paginate_object.current_page + 1)"
-                >
-                    <i class="fa-solid fa-chevron-right"></i>
-                </button>
+            <!-- ========================================== -->
+            <!-- НОВАЯ ПАГИНАЦИЯ -->
+            <!-- ========================================== -->
+            <div v-if="hasPagination" class="pagination-wrapper">
+                <Pagination
+                    :pagination="users_paginate_object"
+                    @pagination_page="handleSearch"
+                />
             </div>
         </div>
 
@@ -191,9 +150,15 @@
 
 <script>
 import { useUsers } from '@/MobileClient/Composables/useUsers.js';
+// Укажите правильный путь к вашему компоненту пагинации
+import Pagination from '@/MobileClient/Components/Pagination.vue';
 
 export default {
     name: "UsersSearch",
+
+    components: {
+        Pagination,
+    },
 
     props: {
         selectedBotUser: {
@@ -221,15 +186,33 @@ export default {
         };
     },
 
+    computed: {
+        /**
+         * Проверяем, есть ли вообще больше 1 страницы
+         */
+        hasPagination() {
+            return this.users_paginate_object && Number(this.users_paginate_object.last_page) > 1;
+        }
+    },
+
     mounted() {
-        this.handleSearch();
+        this.handleSearch(1);
     },
 
     methods: {
         /**
-         * Поиск пользователей
+         * Переключение фильтра со сбросом на 1 страницу
          */
-        async handleSearch(page = 0) {
+        toggleFilter(filterName) {
+            this[filterName] = !this[filterName];
+            this.handleSearch(1);
+        },
+
+        /**
+         * Поиск пользователей (page по умолчанию = 1, а не 0)
+         */
+        async handleSearch(page = 1) {
+
             try {
                 await this.loadUsers({
                     dataObject: {
@@ -254,13 +237,6 @@ export default {
         },
 
         /**
-         * Обработка пагинации
-         */
-        handlePagination(page) {
-            this.handleSearch(page);
-        },
-
-        /**
          * Выбор пользователя
          */
         selectUser(user) {
@@ -281,7 +257,6 @@ export default {
     },
 };
 </script>
-
 <style lang="scss" scoped>
 $primary: #667eea;
 $primary-dark: #5a67d8;

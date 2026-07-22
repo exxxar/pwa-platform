@@ -65,6 +65,7 @@ class TenantUser extends Authenticatable
 
     protected $appends = [
         'role_names',
+        'permission_names',
         'default_address',
         'settings',
         'cashback_balance',
@@ -85,6 +86,12 @@ class TenantUser extends Authenticatable
     // 🆕 SCOPES
     // ==========================================
 
+    protected function permissionNames(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => $this->roles->flatMap->permissions->pluck('name')->unique()->values()->toArray()
+        );
+    }
     /**
      * Только активные пользователи
      */

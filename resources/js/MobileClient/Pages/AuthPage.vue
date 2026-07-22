@@ -18,14 +18,14 @@
                 <button
                     class="flex-grow-1 btn py-2 rounded-3 fw-semibold transition-all"
                     :class="mode === 'login' ? 'btn-warning text-white shadow-sm' : 'btn-light text-muted'"
-                    @click="mode = 'login'"
+                    @click="switchMode('login')"
                 >
                     Вход
                 </button>
                 <button
                     class="flex-grow-1 btn py-2 rounded-3 fw-semibold transition-all"
                     :class="mode === 'register' ? 'btn-warning text-white shadow-sm' : 'btn-light text-muted'"
-                    @click="mode = 'register'"
+                    @click="switchMode('register')"
                 >
                     Регистрация
                 </button>
@@ -56,16 +56,25 @@
                             <label for="loginId"><i class="fa-solid fa-user me-1"></i> Телефон или Email</label>
                         </div>
 
-                        <div class="form-floating mb-3">
+                        <div class="form-floating position-relative mb-3">
                             <input
                                 v-model="form.password"
-                                type="password"
-                                class="form-control rounded-3"
+                                :type="showLoginPassword ? 'text' : 'password'"
+                                class="form-control rounded-3 pe-5"
                                 id="loginPassword"
                                 placeholder="Пароль"
                                 required
                             >
                             <label for="loginPassword"><i class="fa-solid fa-lock me-1"></i> Пароль</label>
+                            <button
+                                type="button"
+                                class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted pe-3"
+                                @click="showLoginPassword = !showLoginPassword"
+                                style="z-index: 5; text-decoration: none;"
+                                tabindex="-1"
+                            >
+                                <i :class="showLoginPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                            </button>
                         </div>
 
                         <div class="d-flex justify-content-end mb-4">
@@ -108,24 +117,82 @@
                             <label for="regPhone"><i class="fa-solid fa-phone me-1"></i> Телефон</label>
                         </div>
 
-                        <div class="form-floating mb-3">
+                        <div class="form-floating position-relative mb-3">
                             <input
                                 v-model="form.password"
-                                type="password"
-                                class="form-control rounded-3"
+                                :type="showRegisterPassword ? 'text' : 'password'"
+                                class="form-control rounded-3 pe-5"
                                 id="regPassword"
                                 placeholder="Пароль"
                                 minlength="6"
                                 required
                             >
-                            <label for="regPassword"><i class="fa-solid fa-lock me-1"></i> Пароль (мин. 6 символов)</label>
+                            <label for="regPassword"><i class="fa-solid fa-lock me-1"></i> Пароль</label>
+                            <button
+                                type="button"
+                                class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted pe-3"
+                                @click="showRegisterPassword = !showRegisterPassword"
+                                style="z-index: 5; text-decoration: none;"
+                                tabindex="-1"
+                            >
+                                <i :class="showRegisterPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                            </button>
                         </div>
 
-                        <div class="form-check mb-4">
-                            <input class="form-check-input" type="checkbox" id="agreeTerms" required>
-                            <label class="form-check-label small text-muted" for="agreeTerms">
-                                Я согласен с <a href="#" class="text-decoration-none">условиями использования</a>
-                            </label>
+                        <div class="form-floating position-relative mb-3">
+                            <input
+                                v-model="form.password_confirm"
+                                :type="showRegisterPassword ? 'text' : 'password'"
+                                class="form-control rounded-3 pe-5"
+                                id="regPasswordConfirm"
+                                placeholder="Подтвердите пароль"
+                                minlength="6"
+                                required
+                                :class="{ 'is-invalid': form.password_confirm && form.password !== form.password_confirm }"
+                            >
+                            <label for="regPasswordConfirm"><i class="fa-solid fa-shield-halved me-1"></i> Подтвердите пароль</label>
+                            <button
+                                type="button"
+                                class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted pe-3"
+                                @click="showRegisterPassword = !showRegisterPassword"
+                                style="z-index: 5; text-decoration: none;"
+                                tabindex="-1"
+                            >
+                                <i :class="showRegisterPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                            </button>
+                            <div class="invalid-feedback" v-if="form.password_confirm && form.password !== form.password_confirm">
+                                Пароли не совпадают
+                            </div>
+                        </div>
+
+                        <div class="d-grid mb-3">
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm rounded-3"
+                                @click="generatePassword"
+                            >
+                                <i class="fa-solid fa-wand-magic-sparkles me-2"></i>
+                                Сгенерировать надежный пароль
+                            </button>
+                        </div>
+
+                        <!-- 🆕 Блок обязательного согласия со всеми документами -->
+                        <div class="agreement-box mb-4 p-3 bg-light rounded-3 border">
+                            <div class="form-check">
+                                <input
+                                    class="form-check-input mt-1"
+                                    type="checkbox"
+                                    id="agreeAll"
+                                    v-model="form.agreeToPolicies"
+                                    required
+                                >
+                                <label class="form-check-label small text-muted lh-sm" for="agreeAll">
+                                    Я принимаю и соглашаюсь с
+                                    <router-link :to="{ name: 'PrivacyPolicy' }" class="text-primary fw-semibold" target="_blank">Политикой конфиденциальности</router-link>,
+                                    <router-link :to="{ name: 'TermsOfService' }" class="text-primary fw-semibold" target="_blank">Условиями использования</router-link> и
+                                    <router-link :to="{ name: 'CookiePolicy' }" class="text-primary fw-semibold" target="_blank">Политикой cookie</router-link>.
+                                </label>
+                            </div>
                         </div>
 
                         <button
@@ -140,99 +207,107 @@
 
                 </transition>
 
-                <!-- Разделитель (опционально, для соц. сетей) -->
-                <div class="text-center my-4 text-muted small">
-                    <span class="bg-white px-2">или</span>
-                </div>
-
-                <!-- Кнопка входа через Telegram (пример) -->
-                <button class="btn btn-outline-primary w-100 rounded-3 py-2 fw-semibold">
-                    <i class="fa-brands fa-telegram me-2"></i> Войти через Telegram
-                </button>
-
             </div>
-        </div>
-
-        <!-- Футер -->
-        <div class="text-center mt-4 text-muted small fade-in" style="animation-delay: 0.2s;">
-            <router-link to="/about" class="text-decoration-none text-muted">
-                О платформе и разработчике
-            </router-link>
         </div>
 
     </div>
 </template>
 
 <script>
-import axios from 'axios';
-// import { useAuthStore } from '@/MobileClient/stores/auth.js'; // Раскомментируй при использовании Pinia
+import { useAuth } from '@/MobileClient/Composables/useAuth.js';
 
 export default {
     name: "AuthPage",
 
+    setup() {
+        const auth = useAuth();
+        return { ...auth };
+    },
+
     data() {
         return {
-            mode: 'login', // 'login' или 'register'
-            isLoading: false,
-            errorMessage: '',
+            mode: 'login',
+            showLoginPassword: false,
+            showRegisterPassword: false,
             form: {
-                identifier: '', // Для входа (email или телефон)
-                name: '',       // Для регистрации
-                phone: '',      // Для регистрации
-                password: ''
+                identifier: '',
+                name: '',
+                phone: '',
+                password: '',
+                password_confirm: '',
+                agreeToPolicies: false, // 🆕 Новое поле для согласия
             }
-        }
+        };
     },
 
     methods: {
+        switchMode(newMode) {
+            this.mode = newMode;
+            this.clearError();
+            this.showLoginPassword = false;
+            this.showRegisterPassword = false;
+            this.form.agreeToPolicies = false; // Сбрасываем согласие при переключении
+        },
+
+        generatePassword() {
+            const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+            let pass = "";
+            for (let i = 0; i < 12; i++) {
+                pass += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            this.form.password = pass;
+            this.form.password_confirm = pass;
+            this.showRegisterPassword = true;
+
+            this.$notify?.({
+                title: 'Пароль создан',
+                text: 'Не забудьте его сохранить!',
+                type: 'info'
+            });
+        },
+
         async submitForm() {
-            this.errorMessage = '';
-            this.isLoading = true;
+            this.clearError();
+
+            // 🆕 Строгая валидация для регистрации
+            if (this.mode === 'register') {
+                if (!this.form.agreeToPolicies) {
+                    this.errorMessage = 'Необходимо принять все условия использования';
+                    return;
+                }
+                if (this.form.password !== this.form.password_confirm) {
+                    this.errorMessage = 'Пароли не совпадают';
+                    return;
+                }
+                if (this.form.password.length < 6) {
+                    this.errorMessage = 'Пароль должен быть не менее 6 символов';
+                    return;
+                }
+            }
 
             try {
                 if (this.mode === 'login') {
-                    await this.handleLogin();
+                    await this.login({
+                        identifier: this.form.identifier,
+                        password: this.form.password
+                    });
                 } else {
-                    await this.handleRegister();
+                    await this.register({
+                        name: this.form.name,
+                        phone: this.form.phone,
+                        password: this.form.password
+                    });
                 }
 
-                // Успешный вход: редирект на главную или в профиль
                 this.$router.push('/menu');
 
             } catch (error) {
                 console.error('Auth error:', error);
-                this.errorMessage = error.response?.data?.message || 'Произошла ошибка. Проверьте данные.';
-            } finally {
-                this.isLoading = false;
             }
-        },
-
-        async handleLogin() {
-            // Пример запроса. Замени на свой API endpoint или вызов Pinia store
-            const response = await axios.post('/api/auth/login', {
-                identifier: this.form.identifier,
-                password: this.form.password
-            });
-
-            // Сохранение токена (пример)
-            // localStorage.setItem('token', response.data.token);
-            // this.$pinia.use(AuthStore).setUser(response.data.user);
-        },
-
-        async handleRegister() {
-            // Пример запроса. Замени на свой API endpoint
-            const response = await axios.post('/api/auth/register', {
-                name: this.form.name,
-                phone: this.form.phone,
-                password: this.form.password
-            });
-
-            // Автоматический вход после регистрации или сообщение об успехе
         }
     }
-}
+};
 </script>
-
 <style scoped>
 /* Фон страницы с легким градиентом */
 .auth-page {
@@ -280,7 +355,112 @@ export default {
     border-color: #ff8a00;
 }
 
+/* Стили для иконки глаза внутри form-floating */
+.form-floating .btn-link {
+    color: #6c757d;
+    transition: color 0.2s;
+}
+
+.form-floating .btn-link:hover {
+    color: #ff8a00;
+}
+
 /* Общая анимация появления */
+.fade-in {
+    opacity: 0;
+    animation: fadeUp 0.6s ease-out forwards;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.auth-page {
+    background: linear-gradient(135deg, #fffdf8 0%, #fff3df 100%);
+}
+
+.auth-logo {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff7a00 0%, #ffb300 100%);
+    box-shadow: 0 8px 20px rgba(255, 138, 0, 0.25);
+}
+
+.transition-all {
+    transition: all 0.3s ease;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from {
+    opacity: 0;
+    transform: translateX(20px);
+}
+
+.fade-leave-to {
+    opacity: 0;
+    transform: translateX(-20px);
+}
+
+.form-control:focus {
+    border-color: #ff8a00;
+    box-shadow: 0 0 0 0.25rem rgba(255, 138, 0, 0.15);
+}
+
+.form-check-input:checked {
+    background-color: #ff8a00;
+    border-color: #ff8a00;
+}
+
+.form-floating .btn-link {
+    color: #6c757d;
+    transition: color 0.2s;
+}
+
+.form-floating .btn-link:hover {
+    color: #ff8a00;
+}
+
+/* 🆕 Стили для блока согласия */
+.agreement-box {
+    transition: all 0.2s ease;
+}
+
+.agreement-box .form-check-input {
+    cursor: pointer;
+    width: 1.2em;
+    height: 1.2em;
+    margin-top: 0.15em;
+}
+
+.agreement-box .form-check-label {
+    cursor: pointer;
+    line-height: 1.5;
+}
+
+.agreement-box .form-check-label a {
+    color: #667eea; /* Ваш primary цвет */
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.agreement-box .form-check-label a:hover {
+    color: #5a67d8; /* Ваш primary-dark цвет */
+    text-decoration: underline;
+}
+
 .fade-in {
     opacity: 0;
     animation: fadeUp 0.6s ease-out forwards;

@@ -8,13 +8,17 @@ use App\Http\Controllers\PartnersController;
 use App\Http\Controllers\ProductCollectionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+
 use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TableController;
+use App\Http\Controllers\Tenant\AchievementAdminController;
 use App\Http\Controllers\Tenant\AchievementController;
 use App\Http\Controllers\Tenant\ClientsController;
 use App\Http\Controllers\Tenant\FavoriteController;
 use App\Http\Controllers\Tenant\PromoCodeController;
+use App\Http\Controllers\Tenant\RolesController;
 use App\Http\Controllers\Tenant\StatisticController;
+use App\Http\Controllers\Tenant\TransactionAdminController;
 use App\Http\Controllers\Tenant\UsersController;
 use App\Http\Controllers\Tenant\BroadcastController;
 use App\Http\Controllers\Tenant\OrderController;
@@ -54,12 +58,15 @@ $routesManager = function () {
     Route::get('/agent/{any?}', [TenantAuthController::class, 'handlerAgent'])
         ->where('any', '.*');
 
-    Route::get('/sw.js',  [TenantAuthController::class, 'serviceWorker']);
+    Route::get('/sw.js', [TenantAuthController::class, 'serviceWorker']);
 
     Route::get('/manifest.json', [TenantAuthController::class, 'manifest']);
 };
 
 $routes = function () {
+
+    Route::get('/auth/login', [TenantAuthController::class, 'loginPage']);
+    Route::get('/auth/register', [TenantAuthController::class, 'registrationPage']);
 
     Route::any('/webhook', [WebhookReceiverController::class, 'handle'])
         ->name('webhook.workspace');
@@ -71,7 +78,8 @@ $routes = function () {
             return redirect()->to('/pwa', 301, [], false);
         }
 
-        return view("landing");
+       // return view("landing");
+        return redirect()->to('/shop', 301, [], false);
     });
 
     Route::get('/shop/{any?}', [TenantAuthController::class, 'handlerShopLanding'])
@@ -83,7 +91,7 @@ $routes = function () {
 
     Route::get('/manifest.json', [TenantAuthController::class, 'manifest']);
 
-    Route::get('/sw.js',  [TenantAuthController::class, 'serviceWorker']);
+    Route::get('/sw.js', [TenantAuthController::class, 'serviceWorker']);
 
 
     Route::post('/push/subscribe', function (Request $request) {
@@ -136,6 +144,16 @@ $routes = function () {
 
     Route::prefix('admin')->group(function () {
 
+        Route::get('/transactions', [TransactionAdminController::class, 'index'])
+            ->name('admin.transactions.index');
+
+        Route::prefix('achievements')->group(function () {
+            Route::get('/data', [AchievementAdminController::class, 'index']);
+            Route::post('/', [AchievementAdminController::class, 'store']);
+            Route::put('/{achievement}', [AchievementAdminController::class, 'update']);
+            Route::post('/{achievement}/toggle', [AchievementAdminController::class, 'toggle']);
+            Route::delete('/{achievement}', [AchievementAdminController::class, 'destroy']);
+        });
         Route::prefix('clients')->middleware(['auth:tenant'])->group(function () {
             Route::get('/{userId}', [ClientsController::class, 'show']);
             Route::get('/{userId}/messages', [ClientsController::class, 'messages']);
@@ -144,6 +162,17 @@ $routes = function () {
             Route::post('/{userId}/read', [ClientsController::class, 'markAsRead']);
             Route::delete('/messages/{messageId}', [ClientsController::class, 'deleteMessage']);
         });
+
+        // Управление ролями
+        Route::prefix('roles')->group(function () {
+            Route::get('/', [RolesController::class, 'index']);
+            Route::post('/', [RolesController::class, 'store']);
+            Route::put('/{roleId}', [RolesController::class, 'update']);
+            Route::delete('/{roleId}', [RolesController::class, 'destroy']);
+        });
+
+        // Получение списка всех доступных разрешений
+        Route::get('/permissions', [RolesController::class, 'permissions']);
 
 
         Route::prefix('statistic')->middleware(['auth:tenant'])->group(function () {
@@ -186,6 +215,10 @@ $routes = function () {
             Route::post('/pwa/upload-screenshot', [TenantPwaController::class, 'uploadScreenshot']);
             Route::delete('/pwa/icon', [TenantPwaController::class, 'deleteIcon']);
             Route::delete('/pwa/screenshot', [TenantPwaController::class, 'deleteScreenshot']);
+
+            Route::post('/shop/test-sbp-payment', [TenantSettingsController::class, 'testSbpPayment']);
+
+
         });
 
         Route::prefix('users')->middleware(['auth:tenant'])->group(function () {
@@ -479,20 +512,17 @@ Route::domain('{tenant}.mypwa.ru')->group($routes);
 Route::domain('{tenant}.pwa-platform.test')->group($routes);
 
 
-
 Route::get('/auth/vk/redirect', [TenantSocialAuthController::class, 'redirect']);
 Route::get('/auth/vk/callback', [TenantSocialAuthController::class, 'callback']);
 
-Route::post('/login', [TenantAuthController::class, 'login']);
-Route::post('/logout', [TenantAuthController::class, 'logout']);
-Route::get('/login', [TenantAuthController::class, 'loginPage']);
-Route::get('/register', [TenantAuthController::class, 'registrationPage']);
+Route::post('/auth/login', [TenantAuthController::class, 'login']);
+Route::post('/auth/logout', [TenantAuthController::class, 'logout']);
+
 
 Route::get('/me', [TenantAuthController::class, 'me']);
 
 
 Route::middleware(['tenant.access'])->group(function () {
-
 
 
 });

@@ -34,6 +34,36 @@ createInertiaApp({
 
         const app = createApp({render: () => h(App, props)});
 
+        // Директива v-can="['admin', 'worker']" или v-can="'manage_orders'"
+        app.directive('can', {
+            mounted(el, binding) {
+                const user = window.TenantUser || {};
+                const value = binding.value;
+
+                let hasAccess = false;
+
+                // Если передали массив или строку ролей
+                if (typeof value === 'string' || Array.isArray(value)) {
+                    const rolesToCheck = Array.isArray(value) ? value : [value];
+                    hasAccess = rolesToCheck.some(role => user.role_names?.includes(role));
+                }
+                // Если передали объект с настройками (продвинутый уровень)
+                else if (typeof value === 'object' && value.permission) {
+                    const permsToCheck = Array.isArray(value.permission) ? value.permission : [value.permission];
+                    if (user.role_names?.includes('super_admin')) {
+                        hasAccess = true;
+                    } else {
+                        hasAccess = permsToCheck.some(perm => user.permission_names?.includes(perm));
+                    }
+                }
+
+                // Если доступа нет, удаляем элемент из DOM
+                if (!hasAccess) {
+                    el.parentNode?.removeChild(el);
+                }
+            }
+        });
+
         app.config.globalProperties.$filters = {
             local(date){
                 return moment(date).format("YYYY-MM-DDThh:mm")

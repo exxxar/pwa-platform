@@ -533,13 +533,13 @@ $admin-danger: #ef4444;
 // СТАТИСТИКА
 // ==========================================
 .stats-section {
-    padding: 16px;
+    padding: 10px;
 }
 
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
+    gap: 6px;
 }
 
 .stat-card {
@@ -589,6 +589,7 @@ $admin-danger: #ef4444;
     font-size: 0.75rem;
     color: #6c757d;
     margin-top: 2px;
+    line-height: 100%;
 }
 
 .stat-loading {
@@ -612,7 +613,7 @@ $admin-danger: #ef4444;
     }
 
     .stat-value {
-        font-size: 1.1rem;
+        font-size: 0.9rem;
     }
 }
 
@@ -1085,7 +1086,7 @@ $admin-danger: #ef4444;
     }
 
     .stat-value {
-        font-size: 1.2rem;
+        font-size: 0.9rem;
     }
 
     .setting-card {

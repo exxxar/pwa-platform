@@ -1,141 +1,139 @@
 <template>
-    <!-- Проверяем наличие пагинации и что страниц больше одной -->
-    <nav v-if="hasPagination" class="mt-4">
-        <ul class="pagination justify-content-center mb-3">
-
+    <nav v-if="hasPagination" class="custom-pagination">
+        <div class="pagination-controls">
             <!-- Первая страница -->
-            <li class="page-item">
-                <button
-                    type="button"
-                    @click="first"
-                    :disabled="pagination.meta.current_page === 1"
-                    class="page-link rounded-xs color-white shadow-xl border-0"
-                    :class="{ 'bg-gray2-dark': pagination.meta.current_page === 1, 'bg-black': pagination.meta.current_page > 1 }"
-                >
-                    <i class="fa-solid fa-angles-left"></i>
-                </button>
-            </li>
+            <button
+                type="button"
+                @click="first"
+                :disabled="currentPage === 1"
+                class="page-btn"
+                title="В начало"
+            >
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+
 
             <!-- Предыдущая страница -->
-            <li class="page-item">
-                <button
-                    type="button"
-                    @click="prevPage"
-                    :disabled="pagination.meta.current_page === 1"
-                    class="page-link rounded-xs color-white shadow-xl border-0"
-                    :class="{ 'bg-gray2-dark': pagination.meta.current_page === 1, 'bg-black': pagination.meta.current_page > 1 }"
-                >
-                    <i class="fa fa-angle-left"></i>
-                </button>
-            </li>
-
-            <!-- Числовые ссылки на страницы (раньше этот блок отсутствовал, хотя логика для него была) -->
-            <li
-                v-for="link in numericLinks"
-                :key="link.label"
-                class="page-item"
+            <button
+                type="button"
+                @click="prevPage"
+                :disabled="currentPage === 1"
+                class="page-btn"
+                title="Назад"
             >
+                <i class="fa-solid fa-angle-left"></i>
+            </button>
+
+            <!-- Числовые ссылки -->
+            <div class="page-numbers">
                 <button
+                    v-for="link in numericLinks"
+                    :key="link.label"
                     type="button"
                     @click="page(link.label)"
                     :disabled="link.active"
-                    class="page-link rounded-xs shadow-xl border-0"
-                    :class="{ 'bg-gray2-dark': link.active, 'bg-black': !link.active, 'color-white': true }"
+                    class="page-number"
+                    :class="{ 'is-active': link.active }"
                     v-html="link.label"
                 ></button>
-            </li>
+            </div>
 
             <!-- Следующая страница -->
-            <li class="page-item">
-                <button
-                    type="button"
-                    @click="nextPage"
-                    :disabled="pagination.meta.current_page === pagination.meta.last_page"
-                    class="page-link rounded-xs color-white shadow-xl border-0"
-                    :class="{ 'bg-gray2-dark': pagination.meta.current_page === pagination.meta.last_page, 'bg-black': pagination.meta.current_page < pagination.meta.last_page }"
-                >
-                    <i class="fa fa-angle-right"></i>
-                </button>
-            </li>
+            <button
+                type="button"
+                @click="nextPage"
+                :disabled="currentPage === lastPage"
+                class="page-btn"
+                title="Вперед"
+            >
+                <i class="fa-solid fa-angle-right"></i>
+            </button>
 
             <!-- Последняя страница -->
-            <li class="page-item">
-                <button
-                    type="button"
-                    @click="last"
-                    :disabled="pagination.meta.current_page === pagination.meta.last_page"
-                    class="page-link rounded-xs color-white shadow-xl border-0"
-                    :class="{ 'bg-gray2-dark': pagination.meta.current_page === pagination.meta.last_page, 'bg-black': pagination.meta.current_page < pagination.meta.last_page }"
-                >
-                    <i class="fa-solid fa-angles-right"></i>
-                </button>
-            </li>
-        </ul>
+            <button
+                type="button"
+                @click="last"
+                :disabled="currentPage === lastPage"
+                class="page-btn"
+                title="В конец"
+            >
+                <i class="fa-solid fa-angles-right"></i>
+            </button>
+        </div>
 
-        <!-- Информация о текущей странице -->
-        <p class="text-center mb-3">
-            <small style="font-weight: bold;">
-                Страница {{ pagination.meta.current_page }} из {{ pagination.meta.last_page }}
-            </small>
+        <!-- Информация о странице -->
+        <p class="pagination-info">
+            Страница <strong>{{ currentPage }}</strong> из <strong>{{ lastPage }}</strong>
+            <span v-if="pagination.total"> (всего: {{ pagination.total }})</span>
         </p>
     </nav>
 </template>
 
 <script>
 export default {
-    // Добавлена валидация пропсов для надежности
+    name: 'Pagination',
+
     props: {
+        // Ожидаем плоский объект пагинации Laravel (как в вашем JSON)
         pagination: {
             type: Object,
             required: true
         }
     },
+
     computed: {
-        // Надежная проверка: пагинация есть только если страниц больше 1
-        hasPagination() {
-            return this.pagination &&
-                this.pagination.meta &&
-                this.pagination.meta.last_page > 1;
+        // Строго приводим к числам, чтобы избежать "1" + 1 = "11"
+        currentPage() {
+            return Number(this.pagination?.current_page || 1);
         },
-        // Фильтруем только числовые ссылки, исключая служебные "Previous" и "Next" от Laravel
+        lastPage() {
+            return Number(this.pagination?.last_page || 1);
+        },
+        hasPagination() {
+            return this.lastPage > 1;
+        },
         numericLinks() {
-            if (!this.pagination || !this.pagination.meta || !this.pagination.meta.links) {
-                return [];
-            }
-            return this.pagination.meta.links.filter(link => {
+            if (!this.pagination?.links) return [];
+
+            return this.pagination.links.filter(link => {
                 const label = String(link.label);
-                // Исключаем стандартные текстовые метки Laravel
-                return !label.includes('Previous') &&
-                    !label.includes('Next') &&
-                    !label.includes('&laquo;') &&
-                    !label.includes('&raquo;') &&
-                    link.url !== null;
+                // Исключаем ТОЛЬКО текстовые навигационные ссылки.
+                // Цифры оставляем, даже если url === null (это текущая страница, она будет просто неактивна).
+                const isNavText = label.includes('Previous') ||
+                    label.includes('Next') ||
+                    label.includes('&laquo;') ||
+                    label.includes('&raquo;');
+                return !isNavText;
             });
         }
     },
+
     methods: {
         first() {
             this.$emit('pagination_page', 1);
         },
         last() {
-            this.$emit('pagination_page', this.pagination.meta.last_page);
-        },
-        nextPage() {
-            if (this.pagination.meta.current_page < this.pagination.meta.last_page) {
-                this.$emit('pagination_page', this.pagination.meta.current_page + 1);
-            }
+            this.$emit('pagination_page', this.lastPage);
         },
         prevPage() {
-            if (this.pagination.meta.current_page > 1) {
-                this.$emit('pagination_page', this.pagination.meta.current_page - 1);
+            console.log("prevPage", this.currentPage - 1)
+            if (this.currentPage > 1) {
+                this.$emit('pagination_page', this.currentPage - 1);
+            }
+        },
+        nextPage() {
+            console.log("nextPage", this.currentPage + 1)
+            if (this.currentPage < this.lastPage) {
+                this.$emit('pagination_page', this.currentPage + 1);
             }
         },
         page(index) {
-            // Преобразуем в число на случай, если label пришел строкой
             const pageNum = parseInt(index, 10);
+            if (isNaN(pageNum)) return;
 
+            // Плавная прокрутка наверх
             window.scrollTo({
-                top: 10,
+                top: 0,
                 behavior: "smooth"
             });
 
@@ -145,14 +143,117 @@ export default {
 }
 </script>
 
-<style scoped>
-/* Добавлен scoped, чтобы стили не влияли на другие пагинации в проекте */
-.page-item {
-    height: 100%;
+<style lang="scss" scoped>
+$primary: #667eea;
+$primary-dark: #5a67d8;
+$text: #1f2937;
+$text-muted: #6b7280;
+$border: #e5e7eb;
+$bg: #f9fafb;
+
+.custom-pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid $border;
 }
 
-/* Опционально: убираем стандартный аутлайн Bootstrap при фокусе, если он мешает вашему дизайну */
-.page-link:focus {
-    box-shadow: none;
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.page-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid $border;
+    border-radius: 8px;
+    background: white;
+    color: $text;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover:not(:disabled) {
+        border-color: $primary;
+        color: $primary;
+        background: rgba($primary, 0.05);
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        background: $bg;
+    }
+}
+
+.page-numbers {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.page-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: $text;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover:not(.is-active) {
+        background: $bg;
+        color: $primary;
+    }
+
+    &.is-active {
+        background: $primary;
+        color: white;
+        font-weight: 700;
+        box-shadow: 0 2px 8px rgba($primary, 0.3);
+        cursor: default;
+    }
+}
+
+.pagination-info {
+    font-size: 0.8rem;
+    color: $text-muted;
+    margin: 0;
+    text-align: center;
+
+    strong {
+        color: $text;
+        font-weight: 600;
+    }
+}
+
+// Адаптив для мобильных
+@media (max-width: 480px) {
+    .page-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.8rem;
+    }
+    .page-number {
+        min-width: 32px;
+        height: 32px;
+        font-size: 0.85rem;
+        padding: 0 6px;
+    }
 }
 </style>

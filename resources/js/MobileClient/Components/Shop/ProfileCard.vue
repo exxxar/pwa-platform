@@ -203,8 +203,10 @@
                 <i class="fa-solid fa-user-switch me-2"></i> Сменить аккаунт
             </button>
 
-            <button v-if="isOwnProfile" class="btn-logout" @click="logout">
-                <i class="fa-solid fa-right-from-bracket me-2"></i> Выйти
+            <button v-if="isOwnProfile" class="btn-logout" @click="logout" :disabled="isLoggingOut">
+                <span v-if="isLoggingOut" class="spinner-border spinner-border-sm me-2"></span>
+                <i v-else class="fa-solid fa-right-from-bracket me-2"></i>
+                {{ isLoggingOut ? 'Выходим...' : 'Выйти' }}
             </button>
         </div>
 
@@ -478,7 +480,7 @@ export default {
                 email: '',    // 🆕
                 city: '',     // 🆕
             },
-
+            isLoggingOut: false,
             // 🆕 Аватар
             avatarFile: null,
             avatarPreview: null,
@@ -792,11 +794,28 @@ export default {
         goToFriends() { this.$router.push({ name: 'ReferralsPage' }); },
         goToCashback() { this.$router.push({ name: 'Cashback' }); },
 
-        logout() {
+        async logout() {
             if (!confirm('Вы уверены, что хотите выйти?')) return;
-            window.TenantUser = null;
-            localStorage.removeItem('token');
-            this.$router.push({ name: 'Auth' });
+
+            this.isLoggingOut = true;
+
+            try {
+                // 🆕 Вызываем серверный logout
+                await axios.post('/auth/logout');
+            } catch (error) {
+                console.error('Ошибка при выходе с сервера:', error);
+                // Даже если сервер вернул ошибку, мы всё равно должны
+                // очистить локальные данные, чтобы не застрять в сломанном состоянии
+            } finally {
+                // 🆕 Очистка локальных данных
+                window.TenantUser = null;
+                localStorage.removeItem('token'); // Или 'auth_token', в зависимости от того, как вы его сохраняете
+
+                // 🆕 Перенаправление на страницу входа
+                window.location.href = "/auth/login"
+
+                this.isLoggingOut = false;
+            }
         },
 
         showNotification(type, text, icon) {

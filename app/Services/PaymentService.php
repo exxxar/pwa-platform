@@ -2,267 +2,603 @@
 
 namespace App\Services;
 
+use App\Models\Tenant\Order;
+use App\Models\Tenant\TenantDialog;
+use App\Models\Tenant\TenantMessage;
+use App\Models\Tenant\TenantUser;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+
 class PaymentService
 {
-
     public static function call(): self
     {
         return app(self::class);
     }
 
-
-    /**
-     * Универсальный прокси (если вдруг хочешь динамику)
-     */
     public static function __callStatic($method, $args)
     {
         return app(self::class)->$method(...$args);
     }
 
-    public function setBotBalance($amount)
+    /**
+     * 🆕 Единый источник конфигурации для любого банка
+     */
+    private function getPaymentConfig(string $bankKey): array
     {
-        if (is_null($this->bot) || is_null($this->botUser))
-            throw new HttpException(400, "Критерии функции не выполнены!");
+        $tenant = app('tenant');
+        $config = $tenant->settings['sbp'] ?? [];
+        $bankConfig = $config[$bankKey] ?? [];
 
-        $accountBalance = $this->botUser->manager->balance ?? 0;
-
-        if ($accountBalance - $amount < 0)
-            throw new HttpException(400, "Недостаточно средств на балансе");
-
-        $this->botUser->manager->balance -= $amount;
-        $this->botUser->save();
-        $this->bot->balance += min($amount, $accountBalance);
-        $this->bot->save();
-
-        BotMethods::bot()
-            ->whereBot($this->bot)
-            ->sendMessage(
-                $this->botUser->telegram_chat_id,
-                "Баланс бота <b>" . $this->bot->bot_domain . "</b> успешно пополнен на <b>$amount руб</b>. И составляет теперь <b>" . $this->bot->balance . " руб.</b>");
-
+        return match ($bankKey) {
+            'vtb' => [
+                'terminal_key' => $bankConfig['terminal_key'] ?? env('VTB_MERCHANT_ID'),
+                'terminal_password' => $bankConfig['terminal_password'] ?? env('VTB_API_KEY'),
+                'tax' => $bankConfig['tax'] ?? env('VTB_TAXATION', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('VTB_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? 'https://api.vtb.ru/acquiring/v1/',
+            ],
+            'yandex' => [
+                'terminal_key' => $bankConfig['terminal_key'] ?? env('YOOKASSA_SHOP_ID'),
+                'terminal_password' => $bankConfig['terminal_password'] ?? env('YOOKASSA_SECRET_KEY'),
+                'tax' => $bankConfig['tax'] ?? env('YOOKASSA_TAXATION', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('YOOKASSA_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? 'https://api.yookassa.ru/v3/',
+            ],
+            'psb' => [
+                'terminal_key' => $bankConfig['terminal_key'] ?? env('PSB_MERCHANT_ID'),
+                'terminal_password' => $bankConfig['terminal_password'] ?? env('PSB_SECRET_KEY'),
+                'tax' => $bankConfig['tax'] ?? env('PSB_TAXATION', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('PSB_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? 'https://pg.bspb.ru/psb-rest-acquiring/v2/',
+            ],
+            'sber' => [
+                'terminal_key' => $bankConfig['terminal_key'] ?? env('SBER_API_LOGIN'),
+                'terminal_password' => $bankConfig['terminal_password'] ?? env('SBER_API_PASSWORD'),
+                'tax' => $bankConfig['tax'] ?? env('SBER_TAXATION', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('SBER_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? 'https://securepayments.sberbank.ru/api/v2/',
+            ],
+            default => [ // Т-Банк по умолчанию
+                'terminal_key' => $bankConfig['terminal_key'] ?? env('TINKOFF_TERMINAL_KEY'),
+                'terminal_password' => $bankConfig['terminal_password'] ?? env('TINKOFF_TERMINAL_PASSWORD'),
+                'tax' => $bankConfig['tax'] ?? env('TINKOFF_PAYMENT_TAX', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('TINKOFF_PAYMENT_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? config('sbp.payments.tinkoff.url', 'https://securepay.tinkoff.ru/v2/'),
+            ]
+        };
     }
 
-
-    public function sbpNotificationProductsPayment($data)
+    /**
+     * 🆕 Получает конфигурацию текущего выбранного банка тенантом
+     */
+    private function getCurrentBankConfig(): array
     {
-        if (is_null($this->bot)) {
-            throw new HttpException(404, "Бот не найден!");
+        $tenant = app('tenant');
+        $selectedBank = $tenant->settings['sbp']['selected_sbp_bank'] ?? 'tinkoff';
+        $config = $this->getPaymentConfig($selectedBank);
+        $config['bank_key'] = $selectedBank;
+        return $config;
+    }
+
+    /**
+     * 🆕 Фабрика платежных шлюзов (устраняет огромные if/else блоки)
+     */
+    private function getPaymentGateway(string $bankKey, array $config): object
+    {
+        $namespace = 'App\\Http\\BusinessLogic\\Methods\\Classes\\Banking\\';
+
+        $className = match ($bankKey) {
+            'yandex' => $namespace . 'YookassaService',
+            'vtb' => $namespace . 'VtbBankService',
+            'psb' => $namespace . 'PsbBankService',
+            'sber' => $namespace . 'SberbankService',
+            default => $namespace . 'TinkoffBankService',
+        };
+
+        return new $className($config['url'], $config['terminal_key'], $config['terminal_password']);
+    }
+
+    // ==========================================
+    // 🆕 1. ВНУТРЕННИЕ ДИАЛОГИ
+    // ==========================================
+
+    private function getOrCreateDialog(TenantUser $user, string $type = 'payment', string $title = 'Оплата заказов'): TenantDialog
+    {
+        return TenantDialog::firstOrCreate(
+            [
+                'tenant_id' => $user->tenant_id,
+                'tenant_user_id' => $user->id,
+                'type' => $type,
+            ],
+            [
+                'title' => $title,
+                'is_closed' => false,
+                'last_message_at' => now(),
+            ]
+        );
+    }
+
+    private function notifyUser(TenantUser $user, string $message, array $meta = []): void
+    {
+        $dialog = $this->getOrCreateDialog($user, 'payment', 'Оплата заказов');
+
+        TenantMessage::create([
+            'tenant_id' => $user->tenant_id,
+            'tenant_user_id' => $user->id,
+            'dialog_id' => $dialog->id,
+            'message' => $message,
+            'meta' => array_merge(['type' => 'text'], $meta),
+            'is_read' => false,
+        ]);
+
+        $dialog->update(['last_message_at' => now()]);
+    }
+
+    // ==========================================
+    // 🆕 2. KANBAN CRM ИНТЕГРАЦИЯ
+    // ==========================================
+
+    private function getKanbanConfig(): ?array
+    {
+        $tenant = app('tenant');
+        $kanbanConfig = $tenant->settings['kanban'] ?? [];
+
+        if (!($kanbanConfig['enabled'] ?? false)) {
+            return null;
         }
 
+        return [
+            'enabled' => true,
+            'board_uuid' => $kanbanConfig['board_uuid'] ?? null,
+            'base_url' => $kanbanConfig['base_url'] ?? config('kanban.base_url'),
+            'token' => $kanbanConfig['token'] ?? config('kanban.token'),
+            'thread' => $kanbanConfig['order_thread'] ?? 0,
+        ];
+    }
+
+    private function initKanbanSdk(array $config): void
+    {
+        try {
+            \Exxxar\Kanban\Facades\Kanban::setBaseUrl($config['base_url'])
+                ->setToken($config['token'])
+                ->setTimeout(30)
+                ->setConnectTimeout(10)
+                ->setRetryTimes(3)
+                ->setRetrySleep(100)
+                ->setLoggingEnabled(true);
+        } catch (\Throwable $e) {
+            Log::error('[KanbanCRM] Ошибка настройки SDK: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    private function findKanbanClientByPhone(string $boardUuid, ?string $phone): ?string
+    {
+        if (!$phone) return null;
+
+        try {
+            $clients = \Exxxar\Kanban\Facades\Kanban::clients()
+                ->board($boardUuid)
+                ->search(['phone' => $phone])
+                ->get();
+
+            return !empty($clients) ? ($clients[0]['task_id'] ?? $clients[0]['id'] ?? null) : null;
+        } catch (\Throwable $e) {
+            Log::warning('[KanbanCRM] Не удалось найти клиента по телефону: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 🆕 Генерация сообщения для CRM (исправляет ошибку undefined $crmMessage)
+     */
+    private function buildCrmMessage(Order $order, array $tmpOrderProductInfo, float $summaryPrice, float $deliveryPrice, string $paymentType): string
+    {
+        $message = "<b>⚠️⚠️⚠️ Сводный заказ ⚠️⚠️⚠️</b>\n";
+        $message .= "Номер заказа: <b>#{$order->id}</b>\n";
+        $message .= "Способ оплаты: <b>{$paymentType}</b>\n\n";
+
+        foreach ($tmpOrderProductInfo as $product) {
+            $name = $product['title'] ?? $product['name'] ?? 'Товар';
+            $count = $product['count'] ?? 1;
+            $price = $product['price'] ?? 0;
+            $message .= "• {$name} x{$count} = {$price} руб.\n";
+        }
+
+        $message .= "\nИтого: <b>" . ($summaryPrice + $deliveryPrice) . " руб.</b>\n";
+        $message .= "Клиент: <b>{$order->receiver_name}</b>\n";
+        $message .= "Телефон: <b>{$order->receiver_phone}</b>\n";
+        if ($order->delivery_note) {
+            $message .= "Комментарий: {$order->delivery_note}\n";
+        }
+
+        return $message;
+    }
+
+    private function sendToKanbanCrm(
+        Order $order,
+        TenantUser $tenantUser,
+        array $tmpOrderProductInfo,
+        float $summaryPrice,
+        float $cashback,
+        int $summaryCount,
+        float $summaryDiscount,
+        float $deliveryPrice,
+        float $distance,
+        bool $needPickup,
+        string $paymentType = 'SBP'
+    ): void {
+        $kanbanConfig = $this->getKanbanConfig();
+        if (!$kanbanConfig || !$kanbanConfig['board_uuid'] || !$kanbanConfig['token']) {
+            return;
+        }
+
+        $this->initKanbanSdk($kanbanConfig);
+
+        $kanbanBoardUuid = $kanbanConfig['board_uuid'];
+        $kanbanThread = $kanbanConfig['thread'];
+        $customerName = $order->receiver_name ?? 'Нет имени';
+        $customerPhone = $order->receiver_phone ?? null;
+        $deliveryNote = $order->delivery_note ?? '';
+
+        $kanbanProductDetails = [
+            [
+                'from' => app('tenant')->title ?? app('tenant')->name ?? 'Магазин',
+                'products' => $tmpOrderProductInfo,
+            ]
+        ];
+
+        $kanbanCustomData = [
+            'tenant_id' => $order->tenant_id,
+            'tenant_name' => app('tenant')->name ?? app('tenant')->title,
+            'tenant_user_id' => $tenantUser->id,
+            'last_order_id' => $order->id,
+            'last_order_date' => now()->toIso8601String(),
+            'product_details' => $kanbanProductDetails,
+            'product_count' => $summaryCount,
+            'delivery_price' => $deliveryPrice,
+            'delivery_note' => $deliveryNote,
+            'payment_type' => $paymentType,
+            'summary_price' => (float)($summaryPrice - $cashback),
+            'summary_count' => $summaryCount,
+        ];
+
+        // ❗ ИСПРАВЛЕНО: Теперь $crmMessage определен
+        $crmMessage = $this->buildCrmMessage($order, $tmpOrderProductInfo, $summaryPrice, $deliveryPrice, $paymentType);
+        $existingTaskId = $this->findKanbanClientByPhone($kanbanBoardUuid, $customerPhone);
+
+        try {
+            if ($existingTaskId) {
+                \Exxxar\Kanban\Facades\Kanban::clients()->updateCustomData($existingTaskId, $kanbanCustomData);
+
+                $result = \Exxxar\Kanban\Facades\Kanban::query()
+                    ->task($existingTaskId)
+                    ->message($crmMessage)
+                    ->senderType('system')
+                    ->senderLabel('FoodShop Checkout')
+                    ->payload(array_merge($kanbanCustomData, [
+                        'source' => 'foodshop',
+                        'order_id' => $order->id,
+                        'customer_name' => $customerName,
+                        'customer_phone' => $customerPhone,
+                        'type' => 'new_order',
+                    ]))
+                    ->send();
+
+                $kanbanTaskId = $result['task_id'] ?? $existingTaskId;
+                $kanbanMessageId = $result['message_id'] ?? null;
+            } else {
+                $result = \Exxxar\Kanban\Facades\Kanban::client()
+                    ->board($kanbanBoardUuid)
+                    ->thread($kanbanThread)
+                    ->title($customerName)
+                    ->priority('medium')
+                    ->label('order')
+                    ->label('foodshop')
+                    ->clientData([
+                        'company_name' => $customerName,
+                        'contact_person' => $customerName,
+                        'phone' => $customerPhone,
+                        'source' => 'FoodShop',
+                        'cost' => (float)($summaryPrice - $cashback),
+                        'placement_type' => $needPickup ? 'Самовывоз' : 'Доставка',
+                        'address' => $deliveryNote,
+                        'custom_data' => $kanbanCustomData,
+                    ])
+                    ->message($crmMessage)
+                    ->senderType('system')
+                    ->senderLabel('FoodShop Checkout')
+                    ->payload(array_merge($kanbanCustomData, [
+                        'source' => 'foodshop',
+                        'order_id' => $order->id,
+                        'customer_name' => $customerName,
+                        'customer_phone' => $customerPhone,
+                        'type' => 'new_client_and_order',
+                    ]))
+                    ->send();
+
+                $kanbanTaskId = $result['task_id'] ?? null;
+                $kanbanMessageId = $result['message_id'] ?? null;
+            }
+
+            if ($kanbanTaskId) {
+                $order->update([
+                    'meta' => array_merge($order->meta ?? [], [
+                        'kanban_task_id' => $kanbanTaskId,
+                        'kanban_message_id' => $kanbanMessageId,
+                        'kanban_board_uuid' => $kanbanBoardUuid,
+                    ]),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('[KanbanCRM] Ошибка отправки: ' . $e->getMessage(), ['order_id' => $order->id]);
+        }
+    }
+
+    // ==========================================
+    // 🆕 3. ОСНОВНАЯ ЛОГИКА ОПЛАТЫ
+    // ==========================================
+
+    public function sbpNotificationProductsPayment(array $data): string
+    {
         $orderId = $data['OrderId'] ?? null;
         $amount = isset($data['Amount']) && is_numeric($data['Amount']) ? $data['Amount'] / 100 : 0;
-
-        $callbackChannel = $this->bot->order_channel ?? $this->bot->main_channel ?? env("BASE_ADMIN_CHANNEL");
-        $thread = $this->bot->topics["orders"] ?? null;
-
+        $status = $data['Status'] ?? '';
         $customerKey = $data['CustomerKey'] ?? null;
         $rebillId = $data['RebillId'] ?? null;
 
+        if (!$orderId) return "OK";
 
-        $order = Order::query()
-            ->where("id", $orderId)
-            ->first();
-
+        $order = Order::query()->where("id", $orderId)->first();
         if (is_null($order)) {
+            Log::warning("Payment webhook: Order #$orderId not found.");
             return "OK";
         }
 
-        if (is_null($customerKey))
-            $customerKey = $order->customer_id;
+        if (!isset($data['Success']) || $status !== 'CONFIRMED') {
+            Log::info("Payment status for order #$orderId: " . print_r($data, true));
 
-        if (!isset($data['Success']) || !isset($data['Status']) || $data['Status'] !== 'CONFIRMED') {
-
-            Log::info("test payment status=>" . print_r($data, true));
-            if (($data["Status"] ?? 'REFUNDED') == 'REFUNDED' || ($data["Status"] ?? 'REJECTED') == 'REJECTED') {
-
-                $file = print_r($data, true);
-
-                BotMethods::bot()
-                    ->whereBot($this->bot)
-                    ->sendMessage(
-                        $callbackChannel,
-                        "⛔Оплата СБП по заказу #$orderId в размере $amount руб. НЕ прошла!",
-                        $thread
-                    );
-                sleep(1);
-
-                BotMethods::bot()
-                    ->whereBot($this->bot)
-                    ->sendDocument(
-                        $callbackChannel,
-                        "Данные по запросу СБП #" . ($order->id ?? 'не указан'),
-                        InputFile::createFromContents($file, "sbp-support-info.txt")
-                    );
-
-                sleep(1);
-                if (!is_null($customerKey)) {
-                    $botUser = BotUser::query()
-                        ->where("id", $customerKey)
-                        ->first();
-
-                    if (!is_null($botUser))
-                        BotMethods::bot()
-                            ->whereBot($this->bot)
-                            ->sendMessage(
-                                $botUser->telegram_chat_id,
-                                "⛔Оплата СБП по заказу #$orderId в размере $amount руб. НЕ прошла!"
-                            );
-
-
+            if (in_array($status, ['REFUNDED', 'REJECTED'])) {
+                if ($customerKey) {
+                    $user = TenantUser::query()->where("id", $customerKey)->first();
+                    if ($user) {
+                        $this->notifyUser($user, "⛔ Оплата по заказу #$orderId в размере $amount руб. НЕ прошла или была отменена.");
+                    }
                 }
-
             }
-
-
             return "OK";
         }
 
-
-        if (!$orderId || $amount <= 0) {
-            return "OK";
-        }
-
+        // Успешная оплата
         $order->payed_at = Carbon::now();
-        $order->status = OrderStatusEnum::Completed->value;
+        $order->status = \App\Enums\OrderStatusEnum::Completed->value ?? 'completed';
         $order->save();
 
-        BotMethods::bot()
-            ->whereBot($this->bot)
-            ->sendMessage(
-                $callbackChannel,
-                "✅Оплата СБП по заказу #$order->id в размере $amount (в заказе $order->summary_price) руб. прошла успешно!",
-                $thread
-            );
+        $user = TenantUser::query()->find($order->tenant_user_id);
+        if ($user) {
+            if ($rebillId) {
+                $meta = $user->meta ?? [];
+                $meta['rebill_id'] = $rebillId;
+                $user->meta = $meta;
+                $user->save();
+            }
 
-        $file = print_r($data, true);
+            $this->notifyUser($user, "✅ Ваша оплата в размере $amount руб. по заказу №$orderId прошла успешно! Заказ принят в работу.", ['type' => 'success']);
+        }
 
-        BotMethods::bot()
-            ->whereBot($this->bot)
-            ->sendDocument(
-                $callbackChannel,
-                "Данные по запросу СБП #" . ($order->id ?? 'не указан'),
-                InputFile::createFromContents($file, "sbp-support-info.txt")
-            );
-
-        if (!is_null($customerKey)) {
-            $clientBotUser = BotUser::query()
-                ->where("id", $customerKey)
-                ->first();
-
-            if (!is_null($clientBotUser)) {
-                $config = $clientBotUser->config ?? [];
-                $config["tinkoff_rebill_id"] = $rebillId;
-                $clientBotUser->config = $config;
-                $clientBotUser->save();
-
-                BotMethods::bot()
-                    ->whereBot($this->bot)
-                    ->sendMessage(
-                        $clientBotUser->telegram_chat_id,
-                        "✅Ваша СБП-оплата в размере $amount руб. прошла успешно (заказ №$orderId)!\nЗаказ принят в работу!"
-                    );
+        // Отправка в CRM
+        $productDetails = $order->product_details ?? [];
+        $tmpOrderProductInfo = [];
+        foreach ($productDetails as $detail) {
+            if (isset($detail['products']) && is_array($detail['products'])) {
+                $tmpOrderProductInfo = array_merge($tmpOrderProductInfo, $detail['products']);
             }
         }
+
+        $this->sendToKanbanCrm(
+            $order,
+            $user,
+            $tmpOrderProductInfo,
+            $order->summary_price,
+            0,
+            $order->product_count,
+            0,
+            $order->delivery_price ?? 0,
+            0,
+            false,
+            'SBP_WEBHOOK'
+        );
 
         return "OK";
     }
 
     /**
-     * @throws ValidationException
+     * Формирует тестовую ссылку на оплату (100 руб) с переданными настройками
      */
-    public function sbpTablePayment(array $data, $table): string
+    public function testSbpPayment(array $bankConfig, string $bankKey): array
     {
-        if (is_null($this->bot) || is_null($this->botUser)) {
-            throw new HttpException(404, "Бот не найден!");
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        if (!$tenant || !$tenantUser) {
+            throw new HttpException(404, "Пользователь или тенант не найдены!");
         }
 
-        $bot = $this->bot;
-        $botUser = $this->botUser;
+        // 🆕 Используем фабрику вместо дублирующегося кода
+        $config = $this->getPaymentConfig($bankKey);
+        $paymentGateway = $this->getPaymentGateway($bankKey, $config);
 
+        $order = Order::query()->create([
+            'tenant_id' => $tenant->id,
+            'tenant_user_id' => $tenantUser->id,
+            'product_count' => 1,
+            'summary_price' => 100.00,
+            'delivery_price' => 0,
+            'delivery_note' => "ТЕСТ: Проверка настроек СБП ($bankKey)",
+            'receiver_name' => $tenantUser->name ?? 'Тестовый клиент',
+            'receiver_phone' => $tenantUser->phone ?? '+79990000000',
+            'status' => \App\Enums\OrderStatusEnum::NewOrder->value,
+            'order_type' => \App\Enums\OrderTypeEnum::InternalStore->value,
+        ]);
 
-        $isSelf = ($this->data["is_self"] ?? "false") === "true";
+        $items = [[
+            'Name' => "Тестовая оплата (100 руб)",
+            'Quantity' => 1,
+            'Price' => 100.00,
+            'NDS' => $config['vat'],
+        ]];
+
+        $payment = [
+            'OrderId' => $order->id,
+            'Amount' => 100.00,
+            'Language' => 'ru',
+            'Description' => "Тестовая проверка интеграции ({$bankKey})",
+            'Email' => $tenantUser->email ?? 'test@test.com',
+            'Phone' => $order->receiver_phone,
+            'Name' => $order->receiver_name,
+            'Taxation' => $config['tax'],
+            'CustomerKey' => $tenantUser->id,
+            'ReturnUrl' => route('home'),
+        ];
+
+        $paymentURL = $paymentGateway->paymentURL($payment, $items);
+
+        if (!$paymentURL) {
+            $order->delete();
+            throw new HttpException(400, "Ошибка банка: " . ($paymentGateway->getError() ?: 'Неверные ключи'));
+        }
+
+        $payment_id = $paymentGateway->payment_id ?? Str::uuid()->toString();
+
+        if (class_exists(\App\Services\TransactionService::class)) {
+            \App\Services\TransactionService::call()->createPending(
+                tenantId: $tenant->id,
+                tenantUserId: $tenantUser->id,
+                orderId: $order->id,
+                externalPaymentId: $payment_id,
+                amount: 100.00,
+                metaData: [
+                    'is_test' => true,
+                    'bank_key' => $bankKey,
+                    'terminal_key_masked' => substr($config['terminal_key'], 0, 4) . '***'
+                ],
+                provider: $bankKey
+            );
+        }
+
+        return [
+            'url' => $paymentURL,
+            'order_id' => $order->id,
+            'message' => "Тестовая ссылка успешно сформирована для заказа #$order->id"
+        ];
+    }
+
+    public function invoiceServiceLink(array $data): object
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        if (!$tenant || !$tenantUser) {
+            throw new HttpException(404, "Пользователь или тенант не найдены!");
+        }
+
+        // 🆕 Теперь использует текущий выбранный банк тенанта, а не хардкод Т-Банка
+        $config = $this->getCurrentBankConfig();
+        $paymentGateway = $this->getPaymentGateway($config['bank_key'], $config);
+
+        $items = [[
+            'Name' => "Оплата услуг сервиса",
+            'Quantity' => 1,
+            'Price' => $data["amount"],
+            'NDS' => $config['vat'],
+        ]];
+
+        $payment = [
+            'OrderId' => $data["order_id"] ?? Str::uuid(),
+            'Amount' => $data["amount"],
+            'Language' => 'ru',
+            'Description' => "Оплата услуг сервиса",
+            'Email' => $tenantUser->email ?? '',
+            'Phone' => $tenantUser->phone ?? '',
+            'Name' => $tenantUser->name ?? 'Клиент',
+            'Taxation' => $config['tax'],
+            'CustomerKey' => $tenantUser->id,
+            'ReturnUrl' => route('home'),
+        ];
+
+        $paymentURL = $paymentGateway->paymentURL($payment, $items);
+
+        if (!$paymentURL) {
+            throw new HttpException(400, "Ошибка формирования ссылки: " . $paymentGateway->getError());
+        }
+
+        return (object)["url" => $paymentURL];
+    }
+
+    public function sbpTablePayment(array $data, object $table): string
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        if (!$tenant || !$tenantUser) {
+            throw new HttpException(404, "Пользователь или тенант не найдены!");
+        }
 
         $client = isset($data["client"]) ? json_decode($data["client"]) : null;
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new HttpException(400, "Ошибка в JSON клиента");
-        }
-        if (is_null($client)) {
-            throw new HttpException(400, "Не указаны данные клиента");
+        if (json_last_error() !== JSON_ERROR_NONE || is_null($client)) {
+            throw new HttpException(400, "Ошибка в JSON данных клиента");
         }
 
-        $basketQuery = \App\Models\Basket::query()
-            ->where("bot_id", $bot->id)
+        $basketQuery = \App\Models\Tenant\Basket::query()
+            ->where("tenant_id", $tenant->id)
             ->where("table_id", $table->id)
             ->whereNull("ordered_at");
 
-        if ($isSelf) {
-            $basketQuery->where("bot_user_id", $botUser->id);
+        if (($data["is_self"] ?? "false") === "true") {
+            $basketQuery->where("tenant_user_id", $tenantUser->id);
         }
 
         $basket = $basketQuery->get();
+        if ($basket->isEmpty()) {
+            throw new HttpException(400, "Корзина пуста");
+        }
 
-        $items = [];
         $tmpOrderProductInfo = [];
-        $currency = "RUB";
         $summaryPrice = 0;
         $summaryCount = 0;
-        $description = "";
-
-        $config = $bot->config ?? null;
-        if (is_null($config)) {
-            throw new HttpException(400, "Система не настроена!");
-        }
-
-        $sbpItem = Collection::make($config)->where("key", "sbp")->first();
-        $sbp = $sbpItem->value ?? null;
-
-        if (!isset($sbp["tinkoff"])) {
-            throw new HttpException(400, "Настройки Tinkoff не найдены!");
-        }
-
-        $terminalKey = $sbp["tinkoff"]["terminal_key"] ?? null;
-        $terminalPassword = $sbp["tinkoff"]["terminal_password"] ?? null;
-        $tax = $sbp["tinkoff"]["tax"] ?? "osn";
-        $vat = $sbp["tinkoff"]["vat"] ?? "vat20";
 
         foreach ($basket as $basketItem) {
             $product = $basketItem->product ?? null;
             $count = $basketItem->count ?? 0;
-            $price = 0;
+            $price = $product ? ($product->price ?? 0) : 0;
 
             if ($product) {
-                $price = $product->price ?? 0;
-                $description .= "$product->title x$count = $price,\n";
-                $tmpOrderProductInfo[] = (object)[
+                $tmpOrderProductInfo[] = [
                     "title" => $product->title,
                     "count" => $count,
                     "price" => $price,
-                    "frontpad_article" => $product->frontpad_article ?? null,
-                    "iiko_article" => $product->iiko_article ?? null,
                 ];
-                $price *= $count;
             }
-
             $summaryCount += $count;
-            $summaryPrice += $price;
+            $summaryPrice += ($price * $count);
         }
 
         $priceWithDiscount = max(0, $summaryPrice);
-        $items[] = [
-            'Name' => "Оплата столика",
-            'Quantity' => 1,
-            'Price' => $priceWithDiscount,
-            'NDS' => $vat,
-        ];
 
-        $tinkoff = new TinkoffBankService(config('sbp.payments.tinkoff.url'), $terminalKey, $terminalPassword);
+        // 🆕 Динамический шлюз
+        $config = $this->getCurrentBankConfig();
+        $paymentGateway = $this->getPaymentGateway($config['bank_key'], $config);
 
         $order = Order::query()->create([
-            'bot_id' => $bot->id,
-            'customer_id' => $botUser->id,
-            'product_details' => [(object)[
+            'tenant_id' => $tenant->id,
+            'tenant_user_id' => $tenantUser->id,
+            'product_details' => [[
                 "data" => $data,
-                "from" => $bot->title ?? $bot->bot_domain ?? $bot->id,
+                "from" => $tenant->name ?? 'Tenant',
                 "products" => $tmpOrderProductInfo,
             ]],
             'product_count' => $summaryCount,
@@ -270,643 +606,145 @@ class PaymentService
             'receiver_name' => $client->name ?? 'Нет имени',
             'receiver_phone' => $client->phone ?? 'Нет телефона',
             'table_id' => $table->id,
-            'status' => OrderStatusEnum::NewOrder->value,
-            'order_type' => OrderTypeEnum::InternalStore->value,
-            'payed_at' => null,
+            'status' => \App\Enums\OrderStatusEnum::NewOrder->value,
+            'order_type' => \App\Enums\OrderTypeEnum::InternalStore->value,
         ]);
+
+        $items = [[
+            'Name' => "Оплата столика №{$table->number}",
+            'Quantity' => 1,
+            'Price' => $priceWithDiscount,
+            'NDS' => $config['vat'],
+        ]];
 
         $payment = [
             'OrderId' => $order->id,
             'Amount' => $priceWithDiscount,
             'Language' => 'ru',
-            'Description' => "Оплата за обслуживание столика $table->number",
-            'Email' => $botUser->email ?? '',
+            'Description' => "Оплата за обслуживание столика №{$table->number}",
+            'Email' => $tenantUser->email ?? '',
             'Phone' => $order->receiver_phone,
             'Name' => $order->receiver_name,
-            'Taxation' => $tax,
+            'Taxation' => $config['tax'],
+            'CustomerKey' => $tenantUser->id,
+            'ReturnUrl' => route('home'),
         ];
 
-        $paymentURL = $tinkoff->paymentURL($payment, $items);
+        $paymentURL = $paymentGateway->paymentURL($payment, $items);
         if (!$paymentURL) {
-            throw new HttpException(400, "Ошибка формирования платежной ссылки!");
+            throw new HttpException(400, "Ошибка формирования ссылки: " . $paymentGateway->getError());
         }
 
-        $payment_id = $tinkoff->payment_id ?? Str::uuid()->toString();
+        $payment_id = $paymentGateway->payment_id ?? Str::uuid()->toString();
 
-        Transaction::query()->create([
-            'user_id' => $botUser->user_id,
-            'bot_user_id' => $botUser->id,
-            'bot_id' => $bot->id,
-            'payload' => $payment_id,
-            'currency' => $currency,
-            'total_amount' => $summaryPrice,
-            'status' => 0,
-            'products_info' => (object)[
-                "payment_id" => $payment_id,
-                "payload" => $description,
-                "prices" => $items,
-            ],
-        ]);
+        if (class_exists(\App\Services\TransactionService::class)) {
+            \App\Services\TransactionService::call()->createPending(
+                tenantId: $tenant->id,
+                tenantUserId: $tenantUser->id,
+                orderId: $order->id,
+                externalPaymentId: $payment_id,
+                amount: $priceWithDiscount,
+                metaData: [
+                    "order_id" => $order->id,
+                    "table_id" => $table->id,
+                    "products_info" => $tmpOrderProductInfo,
+                    "terminal_key" => substr($config['terminal_key'], 0, 4) . '***',
+                ],
+                provider: $config['bank_key']
+            );
+        }
+
+        $this->notifyUser($tenantUser, "💳 Для оплаты столика №{$table->number} перейдите по ссылке:\n<code>$paymentURL</code>\n\nСумма к оплате: <b>$priceWithDiscount руб.</b>\nЗаказ №$order->id принят в работу.", ['type' => 'payment_link', 'url' => $paymentURL]);
+
+        $this->sendToKanbanCrm(
+            $order,
+            $tenantUser,
+            $tmpOrderProductInfo,
+            $summaryPrice,
+            0,
+            $summaryCount,
+            0,
+            0,
+            0,
+            true,
+            $config['bank_key']
+        );
 
         return $paymentURL;
     }
 
-
-    public function invoiceServiceLink(array $data): object
+    public function createInvoiceLink(array $data): object
     {
-        if (is_null($this->bot) || is_null($this->botUser))
-            throw new HttpException(404, "Бот не найден!");
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
 
-        $terminalKey = env("TINKOFF_TERMINAL_KEY");
-        $terminalPassword = env("TINKOFF_TERMINAL_PASSWORD");
-        $tax = env("TINKOFF_PAYMENT_TAX");
-        $vat = env("TINKOFF_PAYMENT_VAT");
-
-        $items[] = [
-            'Name' => "Оплата услуг сервиса",
-            'Quantity' => 1,
-            'Price' => $data["amount"],    //цена товара в рублях
-            'NDS' => $vat ?? 'vat20',  //НДС //tax
-        ];
-
-        $tinkoff = new TinkoffBankService(config('sbp.payments.tinkoff.url'), $terminalKey, $terminalPassword);
-
-        $payment = [
-            'OrderId' => $data["order_id"] ?? Str::uuid(),        //Ваш идентификатор платежа
-            'Amount' => $data["amount"],           //сумма всего платежа в рублях
-            'Language' => 'ru',            //язык - используется для локализации страницы оплаты
-            'Description' => "Оплата услуг сервиса",   //описание платежа
-            'Email' => $this->botUser->email ?? env("TINKOFF_INVOICE_ERROR_EMAIL") ?? '',//email покупателя
-            'Phone' => $this->botUser->phone ?? env("TINKOFF_INVOICE_ERROR_PHONE") ?? '',   //телефон покупателя
-            'Name' => $this->botUser->fio_from_telegram ?? $this->botUser->username ?? '', //Имя покупателя
-            'Taxation' => $tax,     //Налогооблажение
-            'CustomerKey' => $this->botUser->id
-        ];
-
-
-//Получение url для оплаты
-        $paymentURL = $tinkoff->paymentURL($payment, $items);
-
-        if (!$paymentURL)
-            throw new HttpException(400, "Ошибка формирования платежной ссылки!");
-
-        return (object)[
-            "url" => $paymentURL
-        ];
-
-    }
-
-    public function invoiceLink(array $data, $needKeyboard = false)
-    {
-        if (is_null($this->bot) || is_null($this->botUser) || is_null($this->slug))
-            throw new HttpException(404, "Бот не найден!");
-
-        $bot = $this->bot;
-        $botUser = $this->botUser;
-        $slug = $this->slug;
-        $currency = "RUB";
-        $isRecurrent = ($data["is_recurrent"] ?? false) == "true";
-
-
-        $config = $slug->config ?? null;
-
-        if (is_null($config))
-            throw new HttpException(400, "Система не настроена!");
-
-        $sbp = Collection::make($config)
-            ->where("key", "sbp")
-            ->first()["value"] ?? null;
-
-        $terminalKey = $sbp["tinkoff"]["terminal_key"] ?? null;
-        $terminalPassword = $sbp["tinkoff"]["terminal_password"] ?? null;
-        $tax = $sbp["tinkoff"]["tax"] ?? "osn";
-        $vat = $sbp["tinkoff"]["vat"] ?? "vat20";
-
-        $items[] = [
-            'Name' => $data["description"],
-            'Quantity' => 1,
-            'Price' => $data["amount"],    //цена товара в рублях
-            'NDS' => $vat ?? 'vat20',  //НДС //tax
-        ];
-
-        $tinkoff = new TinkoffBankService(config('sbp.payments.tinkoff.url'), $terminalKey, $terminalPassword);
-
-        $order = Order::query()
-            ->create([
-                'bot_id' => $this->bot->id,
-                'customer_id' => $this->botUser->id,
-                'product_count' => 1,
-                'summary_price' => $data["amount"],
-                'delivery_note' => $data["description"],
-                'receiver_name' => $data["name"],
-                'receiver_phone' => $data["phone"],
-                'status' => OrderStatusEnum::NewOrder->value,
-                'order_type' => OrderTypeEnum::InternalStore->value,
-            ]);
-
-        $payment = [
-            'OrderId' => $order->id ?? Str::uuid(),        //Ваш идентификатор платежа
-            'Amount' => $data["amount"],           //сумма всего платежа в рублях
-            'Language' => 'ru',            //язык - используется для локализации страницы оплаты
-            'Description' => $data["description"],   //описание платежа
-            'Email' => $data["email"] ?? '',//email покупателя
-            'Phone' => $data["phone"] ?? '',   //телефон покупателя
-            'Name' => $data["name"] ?? '', //Имя покупателя
-            'Taxation' => $tax,     //Налогооблажение
-            'CustomerKey' => $botUser->id
-        ];
-
-        if ($isRecurrent)
-            $payment["Recurrent"] = 'Y';
-
-
-//Получение url для оплаты
-        $paymentURL = $tinkoff->paymentURL($payment, $items);
-
-        if (!$paymentURL)
-            throw new HttpException(400, "Ошибка формирования платежной ссылки!");
-
-        $payment_id = $tinkoff->payment_id ?? null;
-
-        /*  $keyboard = [
-              [
-                  ["text" => "Проверить оплату СБП", "callback_data" => "/test_invoice_sbp_tinkoff_automatic $payment_id $slug->id"]
-              ],
-          ];*/
-
-        BotMethods::bot()
-            ->whereBot($this->bot)
-            ->sendMessage(
-                $botUser->telegram_chat_id,
-                "<code>$paymentURL</code> - нажмите чтобы скопировать\n\nВам необходимо подтвердить факт платежа клиента <code>" . ($data["phone"] ?? '') . "</code>. Сумма платежа " . $data["amount"] . " руб. (Зака №$order->id)"
-            //   $keyboard
-            );
-    }
-
-    /**
-     * @throws ValidationException
-     */
-    public function sbpForShop($order, $message = null): ?object
-    {
-        if (is_null($this->bot) || is_null($this->botUser))
-            throw new HttpException(404, "Бот не найден!");
-
-        $bot = $this->bot;
-        $botUser = $this->botUser;
-
-        $currency = "RUB";
-
-        $config = $bot->config ?? null;
-
-        if (is_null($config))
-            throw new HttpException(400, "Система не настроена!");
-
-        $sbp = $config["sbp"] ?? null;
-        $selectedSBPBank = $sbp["selected_sbp_bank"] ?? "tinkoff";
-
-        $terminalKey = $sbp[$selectedSBPBank]["terminal_key"] ?? null;
-        $terminalPassword = $sbp[$selectedSBPBank]["terminal_password"] ?? null;
-        $tax = $sbp[$selectedSBPBank]["tax"] ?? "osn";
-        $vat = $sbp[$selectedSBPBank]["vat"] ?? "vat20";
-
-        $items[] = [
-            'Name' => "Товар магазина",
-            'Quantity' => 1,
-            'Price' => $order->summary_price,    //цена товара в рублях
-            'NDS' => $vat ?? 'vat20',  //НДС //tax
-        ];
-
-        $deliveryPrice = $order->delivery_price ?? 0;
-
-        if ($deliveryPrice > 0) {
-            $items[] = [
-                'Name' => "Доставка",
-                'Quantity' => 1,
-                'Price' => $order->delivery_price,    //цена товара в рублях
-                'NDS' => $vat ?? 'vat20',  //НДС //tax
-            ];
-
-            $message .= "\nЦена доставки: <b>$deliveryPrice</b> руб.";
-            $message .= "\nИтого с доставкой: <b>" . ($order->summary_price + $deliveryPrice) . "</b> руб.";
-
+        if (!$tenant || !$tenantUser) {
+            throw new HttpException(404, "Пользователь или тенант не найдены!");
         }
 
-        $tinkoff = new TinkoffBankService(config('sbp.payments.tinkoff.url'), $terminalKey, $terminalPassword);
+        // 🆕 Динамический шлюз
+        $config = $this->getCurrentBankConfig();
+        $paymentGateway = $this->getPaymentGateway($config['bank_key'], $config);
 
+        $isRecurrent = ($data["is_recurrent"] ?? false) == "true";
+        $amount = (float)($data["amount"] ?? 0);
 
-        $payment = [
-            'OrderId' => $order->id,        //Ваш идентификатор платежа
-            'Amount' => $order->summary_price + $deliveryPrice,           //сумма всего платежа в рублях
-            'Language' => 'ru',            //язык - используется для локализации страницы оплаты
-            'Description' => "Оплата заказа " . ($deliveryPrice > 0 ? "и доставки" : ""),   //описание платежа
-            'Email' => $this->botUser->email ?? '',//email покупателя
-            'Phone' => $order->receiver_phone,   //телефон покупателя
-            'Name' => $order->receiver_name, //Имя покупателя
-            'Taxation' => $tax,    //Налогооблажение
-            'CustomerKey' => $botUser->id,    //покупатель
+        if ($amount <= 0) {
+            throw new HttpException(400, "Сумма оплаты должна быть больше 0");
+        }
+
+        $items[] = [
+            'Name' => $data["description"] ?? "Оплата услуг",
+            'Quantity' => 1,
+            'Price' => $amount,
+            'NDS' => $config['vat'],
         ];
 
+        $orderId = $data["order_id"] ?? null;
+        if (!$orderId) {
+            $order = Order::query()->create([
+                'tenant_id' => $tenant->id,
+                'tenant_user_id' => $tenantUser->id,
+                'product_count' => 1,
+                'summary_price' => $amount,
+                'delivery_note' => $data["description"] ?? '',
+                'receiver_name' => $data["name"] ?? $tenantUser->name ?? 'Клиент',
+                'receiver_phone' => $data["phone"] ?? $tenantUser->phone ?? '',
+                'status' => \App\Enums\OrderStatusEnum::NewOrder->value,
+            ]);
+            $orderId = $order->id;
+        } else {
+            $order = Order::query()->findOrFail($orderId);
+        }
 
-//Получение url для оплаты
-        $paymentURL = $tinkoff->paymentURL($payment, $items);
+        $payment = [
+            'OrderId' => $orderId,
+            'Amount' => $amount,
+            'Language' => 'ru',
+            'Description' => $data["description"] ?? "Оплата услуг сервиса",
+            'Email' => $data["email"] ?? $tenantUser->email ?? '',
+            'Phone' => $data["phone"] ?? $tenantUser->phone ?? '',
+            'Name' => $data["name"] ?? $tenantUser->name ?? 'Клиент',
+            'Taxation' => $config['tax'],
+            'CustomerKey' => $tenantUser->id,
+            'ReturnUrl' => route('home'),
+        ];
+
+        if ($isRecurrent) {
+            $payment["Recurrent"] = 'Y';
+        }
+
+        $paymentURL = $paymentGateway->paymentURL($payment, $items);
 
         if (!$paymentURL) {
-            \App\Facades\BotMethods::bot()
-                ->whereBot($this->bot)
-                ->sendMessage(
-                    $this->botUser->telegram_chat_id, "Ошибка формирования платежной ссылки!");
-
-
-            return null;
-
+            throw new HttpException(400, "Ошибка формирования ссылки: " . $paymentGateway->getError());
         }
 
-        $payment_id = $tinkoff->payment_id ?? Str::uuid()->toString();
-
-        // $payload = Str::uuid()->toString();
-
-        Transaction::query()->create([
-            'user_id' => $botUser->user_id,
-            'bot_user_id' => $botUser->id,
-            'bot_id' => $bot->id,
-            'payload' => $payment_id,
-            'currency' => $currency,
-            'total_amount' => $order->summary_price,
-            'status' => 0,
-            'products_info' => (object)[
-                "order_id" => $order->id,
-                "payment_id" => $payment_id,
-                "payload" => $payment ?? null,
-            ],
-        ]);
-
-        /*
-                $keyboard = [
-                    [
-                        ["text" => "💳Перейти к оплате", "url" => "$paymentURL"],
-                    ],
-
-                ];
-
-                \App\Facades\BotMethods::bot()
-                    ->whereBot($this->bot)
-                    ->sendInlineKeyboard(
-                        $this->botUser->telegram_chat_id,
-                        $message ?? "Оплатите заказ, для того чтоб мы приступили к его выполнению:)",
-                        $keyboard
-                    );*/
-
-        $keyboard = [
-            /*   [
-                   ["text" => "Автоматическая проверка СБП", "callback_data" => "/test_foods_sbp_tinkoff_automatic $payment_id $order->id"]
-               ],
-               [
-                   ["text" => "Клиент оплатил (прислали скриншот)", "callback_data" => "/test_foods_manual_payment $botUser->id $order->id"]
-               ]*/
-        ];
-
-
-        BotMethods::bot()
-            ->whereBot($this->bot)
-            ->sendInlineKeyboard(
-                $bot->order_channel,
-                "<b>⚠Внимание заказ СБП! № заказа: $order->id\n</b>\nОжидаемая сумма платежа <b>" . ($order->summary_price + $deliveryPrice) . " руб. ($order->summary_price руб - цена заказа и $deliveryPrice руб - цена доставки)</b>. Клиент еще не оплатил.",
-                $keyboard
-            );
+        $this->notifyUser($tenantUser, "💳 Ссылка на оплату сформирована:\n<code>$paymentURL</code>\n\nСумма: <b>$amount руб.</b>\nОписание: {$data['description']}", ['type' => 'payment_link', 'url' => $paymentURL]);
 
         return (object)[
-            "url" => $paymentURL
+            "url" => $paymentURL,
+            "order_id" => $orderId
         ];
-    }
-
-    /**
-     * @throws ValidationException
-     */
-    public function checkout(): void
-    {
-        if (is_null($this->bot) || is_null($this->botUser))
-            throw new HttpException(404, "Бот не найден!");
-
-        $bot = $this->bot;
-        $botUser = $this->botUser;
-
-        $config = $this->getConfig();
-
-        $taxSystemCode = $bot->company->vat_code ?? 1;
-
-
-        $basket = \App\Models\Basket::query()
-            ->where("bot_id", $this->bot->id)
-            ->where("bot_user_id", $this->botUser->id)
-            ->whereNull("ordered_at")
-            ->get();
-        $prices = [];
-
-        $currency = "RUB";
-        $providerData = (object)[
-            "receipt" => []
-        ];
-
-        $summaryPrice = 0;
-        $summaryCount = 0;
-        $description = "";
-
-
-        foreach ($basket as $basketItem) {
-
-
-            $product = $basketItem->product ?? null;
-            $collection = $basketItem->collection ?? null;
-            $count = $basketItem->count ?? 0;
-            $price = 0;
-
-            if (!is_null($product)) {
-                $price = ($product->price ?? 0) * $count;
-
-
-                $prices[] = [
-                    "label" => $product->title,
-                    "amount" => $price * 100
-                ];
-
-                $description .= "$product->title x$count = $price\n";
-
-                $providerData->receipt[] =
-                    (object)[
-                        "description" => "$product->title",
-                        "quantity" => "$count.00",
-                        "amount" => (object)[
-                            "value" => $price * 100,
-                            "currency" => $currency
-                        ],
-                        "vat_code" => $taxSystemCode
-                    ];
-            }
-
-            if (!is_null($collection)) {
-                $collectionTitles = "";
-
-
-                $params = is_null($item->params ?? null) ? null : (object)$basketItem->params;
-
-
-                foreach (($collection->products ?? []) as $basketProduct) {
-
-
-                    if (!in_array($basketProduct->id, $params->ids ?? []))
-                        continue;
-
-                    $collectionTitles .= "-" . $basketProduct->title . "\n";
-                    $price += $product->price ?? 0;
-                }
-
-                $price = $price * $basketItem->count;
-
-                $prices[] = [
-                    "label" => "Коллекция `" . ($collection->title) . "`: " . $collectionTitles,
-                    "amount" => $price * 100
-                ];
-
-                $description .= "Коллекция $collection->title x$count = $price\n";
-
-                $providerData->receipt[] =
-                    (object)[
-                        "description" => "Коллекция `" . ($collection->title) . "`: " . $collectionTitles,
-                        "quantity" => "$count.00",
-                        "amount" => (object)[
-                            "value" => $price * 100,
-                            "currency" => $currency
-                        ],
-                        "vat_code" => $taxSystemCode
-                    ];
-
-
-            }
-
-
-            $summaryCount += $count;
-            $summaryPrice += $price;
-        }
-
-
-        if ($summaryPrice < 100) {
-            \App\Facades\BotMethods::bot()
-                ->whereBot($this->bot)
-                ->sendMessage(
-                    $this->botUser->telegram_chat_id, "❗Сумма заказа должна быть больше чем <strong>100 руб 00 коп.</strong>❗");
-
-            return;
-        }
-
-        $payload = Str::uuid()->toString();
-
-        $providerToken = $bot->payment_provider_token;
-
-        Transaction::query()->create([
-            'user_id' => $botUser->user_id,
-            'bot_user_id' => $botUser->id,
-            'bot_id' => $bot->id,
-            'payload' => $payload,
-            'currency' => $currency,
-            'total_amount' => $summaryPrice,
-            'status' => 0,
-            'products_info' => (object)[
-                "payload" => $tmpDescription ?? null,
-                "prices" => $prices,
-            ],
-        ]);
-
-        $needs = $config["base_payment_service"]["needs"] ?? [
-            "need_name" => true,
-            "need_phone_number" => true,
-            "need_email" => false,
-            "need_shipping_address" => false,
-            "send_phone_number_to_provider" => false,
-            "send_email_to_provider" => false,
-            "is_flexible" => false,
-            "disable_notification" => false,
-            "protect_content" => false,
-        ];
-
-        $btnPaymentText = "\xF0\x9F\x8E\xB2Оплатить";
-
-        $keyboard = [
-            [
-                ["text" => $btnPaymentText, "pay" => true],
-            ],
-
-        ];
-
-        $title = $config["base_payment_service"]["checkout_title"] ?? "Заказ товара";
-        $description = $config["base_payment_service"]["checkout_description"] ?? "Ваш товар";
-
-        \App\Facades\BotMethods::bot()
-            ->whereBot($this->bot)
-            ->sendInvoice(
-                $this->botUser->telegram_chat_id,
-                title: $title,
-                description: $description,
-                prices: $prices,
-                payload: $payload,
-                providerToken: $providerToken,
-                currency: $currency,
-                needs: $needs,
-                keyboard: $keyboard,
-                providerData: $providerData
-            );
-    }
-
-    /**
-     * @throws ValidationException
-     */
-    public function checkoutLink(array $data)
-    {
-
-        if (is_null($this->bot) || is_null($this->botUser) || is_null($this->slug))
-            throw new HttpException(404, "Бот не найден!");
-
-        $validator = Validator::make($data, [
-            "products.*" => "required",
-        ]);
-
-        if ($validator->fails())
-            throw new ValidationException($validator);
-
-
-        $bot = $this->bot;
-        $botUser = $this->botUser;
-        $slug = $this->slug;
-
-        //  Log::info("slug config".print_r($slug->config, true));
-
-        $taxSystemCode = (Collection::make($slug->config)
-            ->where("key", "tax_system_code")
-            ->first())["value"] ?? $bot->company->vat_code ?? 1;
-
-        $tmpProducts = $data["products"];
-        $ids = Collection::make($tmpProducts)
-            ->pluck("id")
-            ->toArray();
-
-
-        $products = Product::query()
-            ->whereIn("id", is_array($ids) ? $ids : [$ids])
-            ->get();
-
-
-        $prices = [];
-        $currency = "RUB";
-        $providerData = (object)[
-            "receipt" => []
-        ];
-
-        $summaryPrice = 0;
-        $summaryCount = 0;
-        $discount = $data["discount"] ?? 0;
-        $tmpDescription = "";
-
-        foreach ($products as $product) {
-
-            $tmpCount = array_values(array_filter($tmpProducts, function ($item) use ($product) {
-                return $item->id === $product->id;
-            }))[0]->count ?? 0;
-
-            $tmpPrice = ($product->price ?? 0) * $tmpCount;
-
-
-            $prices[] = [
-                "label" => $product->title,
-                "amount" => $tmpPrice * 100
-            ];
-
-            $tmpDescription .= "$product->title x$tmpCount = $tmpPrice\n";
-
-            $providerData->receipt[] =
-                (object)[
-                    "description" => "Заказ товара",
-                    "quantity" => "$tmpCount.00",
-                    "amount" => (object)[
-                        "value" => $tmpPrice * 100,
-                        "currency" => $currency
-                    ],
-                    "vat_code" => $taxSystemCode
-                ];
-
-            $summaryCount += $tmpCount;
-            $summaryPrice += $tmpPrice;
-        }
-
-
-        $payload = Str::uuid()->toString();
-
-        $providerToken = $bot->payment_provider_token;
-
-        Transaction::query()->create([
-            'user_id' => $botUser->user_id,
-            'bot_user_id' => $botUser->id,
-            'bot_id' => $bot->id,
-            'payload' => $payload,
-            'currency' => $currency,
-            'total_amount' => max(1, $summaryPrice - $discount),
-            'status' => 0,
-            'products_info' => (object)[
-                "payload" => $tmpDescription ?? null,
-                "prices" => $prices,
-            ],
-        ]);
-
-        $needs = [
-            "need_name" => (Collection::make($slug->config)
-                    ->where("key", "need_name")
-                    ->first())["value"] ?? false,
-            "need_phone_number" => (Collection::make($slug->config)
-                    ->where("key", "need_phone_number")
-                    ->first())["value"] ?? false,
-            "need_email" => (Collection::make($slug->config)
-                    ->where("key", "need_email")
-                    ->first())["value"] ?? false,
-            "need_shipping_address" => (Collection::make($slug->config)
-                    ->where("key", "need_shipping_address")
-                    ->first())["value"] ?? false,
-            "send_phone_number_to_provider" => (Collection::make($slug->config)
-                    ->where("key", "need_send_phone_number_to_provider")
-                    ->first())["value"] ?? false,
-            "send_email_to_provider" => (Collection::make($slug->config)
-                    ->where("key", "need_send_email_to_provider")
-                    ->first())["value"] ?? false,
-            "is_flexible" => (Collection::make($slug->config)
-                    ->where("key", "is_flexible")
-                    ->first())["value"] ?? false,
-            "disable_notification" => (Collection::make($slug->config)
-                    ->where("key", "disable_notification")
-                    ->first())["value"] ?? false,
-            "protect_content" => (Collection::make($slug->config)
-                    ->where("key", "protect_content")
-                    ->first())["value"] ?? false,
-        ];
-
-
-        $title = (Collection::make($slug->config)
-            ->where("key", "checkout_title")
-            ->first())["value"] ?? "Заказ товара";
-
-        $description = (Collection::make($slug->config)
-            ->where("key", "checkout_description")
-            ->first())["value"] ?? "Ваш товар";
-
-
-        return \App\Facades\BotMethods::bot()
-            ->whereBot($this->bot)
-            ->createInvoiceLink(
-                $this->botUser->telegram_chat_id,
-                title: $title,
-                description: $description,
-                prices: $prices,
-                payload: $payload,
-                providerToken: $providerToken,
-                currency: $currency,
-                needs: $needs,
-                providerData: $providerData
-            );
     }
 }
