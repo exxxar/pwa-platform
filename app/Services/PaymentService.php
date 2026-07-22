@@ -462,7 +462,7 @@ class PaymentService
             'Name' => $order->receiver_name,
             'Taxation' => $config['tax'],
             'CustomerKey' => $tenantUser->id,
-            'ReturnUrl' => route('home'),
+            'ReturnUrl' => "https://".$tenant->slug.".mypwa.ru/pwa",
         ];
 
         $paymentURL = $paymentGateway->paymentURL($payment, $items);
