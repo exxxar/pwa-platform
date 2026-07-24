@@ -21,7 +21,7 @@
                             </div>
                             <div>
                                 <h3 class="modal-title">Добавление партнёра</h3>
-                                <p class="modal-subtitle">Укажите ссылку на Telegram-бот</p>
+                                <p class="modal-subtitle">Укажите ссылку и теги для поиска</p>
                             </div>
                         </div>
                     </div>
@@ -33,6 +33,7 @@
                         </div>
 
                         <form @submit.prevent="handleSubmit" class="partner-form">
+                            <!-- Telegram Input -->
                             <div class="form-group">
                                 <label class="form-label" for="telegram-input">
                                     <i class="fa-brands fa-telegram"></i>
@@ -56,6 +57,46 @@
                                 </span>
                                 <span v-else class="form-hint">
                                     Пример: https://t.me/my_bot или @my_bot
+                                </span>
+                            </div>
+
+                            <!-- 🆕 Tags Input -->
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fa-solid fa-tags"></i>
+                                    Теги партнёра
+                                    <span class="optional">(необязательно)</span>
+                                </label>
+                                <div
+                                    class="tags-input-container"
+                                    :class="{ 'has-error': errors.tags }"
+                                    @click="focusTagInput"
+                                >
+                                    <div class="tags-list">
+                                        <span v-for="(tag, index) in tags" :key="index" class="tag-chip">
+                                            {{ tag }}
+                                            <button type="button" class="tag-remove" @click.stop="removeTag(index)">
+                                                <i class="fa-solid fa-xmark"></i>
+                                            </button>
+                                        </span>
+                                        <input
+                                            ref="tagInputRef"
+                                            v-model="tagInput"
+                                            @keydown.enter.prevent="addTag"
+                                            @keydown.,.prevent="addTag"
+                                            @keydown.backspace="handleBackspace"
+                                            placeholder="Введите тег и нажмите Enter"
+                                            class="tag-input-field"
+                                            :disabled="isLoading"
+                                        >
+                                    </div>
+                                </div>
+                                <span v-if="errors.tags" class="form-error">
+                                    <i class="fa-solid fa-circle-exclamation"></i>
+                                    {{ errors.tags }}
+                                </span>
+                                <span v-else class="form-hint">
+                                    Нажмите Enter или запятую, чтобы добавить. Максимум 10 тегов.
                                 </span>
                             </div>
 
@@ -108,8 +149,14 @@ export default {
             showModal: false,
             isLoading: false,
             telegramInput: '',
+
+            // 🆕 Данные для тегов
+            tags: [],
+            tagInput: '',
+
             errors: {
                 telegram: '',
+                tags: '', // 🆕 Ошибки тегов
             },
         }
     },
@@ -124,12 +171,22 @@ export default {
         openModal() {
             this.showModal = true
             document.body.style.overflow = 'hidden'
+            // Фокус на поле Telegram при открытии
+            this.$nextTick(() => {
+                document.getElementById('telegram-input')?.focus()
+            })
         },
 
         closeModal() {
             this.showModal = false
             this.telegramInput = ''
             this.errors.telegram = ''
+
+            // 🆕 Сброс тегов
+            this.tags = []
+            this.tagInput = ''
+            this.errors.tags = ''
+
             document.body.style.overflow = ''
         },
 
@@ -162,6 +219,52 @@ export default {
             return processedLink
         },
 
+        // 🆕 Методы для работы с тегами
+        focusTagInput() {
+            this.$refs.tagInputRef?.focus()
+        },
+
+        addTag() {
+            const newTag = this.tagInput.trim().toLowerCase()
+
+            if (!newTag) return
+
+            if (this.tags.length >= 10) {
+                this.errors.tags = 'Максимальное количество тегов: 10'
+                return
+            }
+
+            if (this.tags.includes(newTag)) {
+                this.errors.tags = 'Этот тег уже добавлен'
+                this.tagInput = ''
+                setTimeout(() => { this.errors.tags = '' }, 2000)
+                return
+            }
+
+            // Проверка на недопустимые символы (только буквы, цифры, дефис)
+            if (!/^[a-zа-яё0-9\-]+$/i.test(newTag)) {
+                this.errors.tags = 'Тег может содержать только буквы, цифры и дефис'
+                setTimeout(() => { this.errors.tags = '' }, 2000)
+                return
+            }
+
+            this.errors.tags = ''
+            this.tags.push(newTag)
+            this.tagInput = ''
+        },
+
+        removeTag(index) {
+            this.tags.splice(index, 1)
+            this.errors.tags = '' // Сбрасываем ошибку при удалении
+        },
+
+        handleBackspace() {
+            // Если инпут пустой и есть теги, удаляем последний тег по Backspace
+            if (!this.tagInput && this.tags.length > 0) {
+                this.removeTag(this.tags.length - 1)
+            }
+        },
+
         async handleSubmit() {
             if (!this.isValid) return
 
@@ -172,6 +275,11 @@ export default {
 
                 const data = new FormData()
                 data.append('telegram_domain', processedTelegram)
+
+                // 🆕 Добавляем теги в FormData (формат tags[] для Laravel)
+                this.tags.forEach(tag => {
+                    data.append('tags[]', tag)
+                })
 
                 await this.storePartner({ form: data })
 
@@ -393,6 +501,12 @@ $admin-telegram: #0088cc;
         color: $admin-danger;
         font-weight: 700;
     }
+
+    .optional {
+        color: $admin-text-muted;
+        font-weight: 400;
+        font-size: 0.8rem;
+    }
 }
 
 .form-input {
@@ -428,6 +542,99 @@ $admin-telegram: #0088cc;
     &::placeholder {
         color: $admin-text-muted;
     }
+}
+
+// 🆕 Стили для инпута тегов
+.tags-input-container {
+    border: 1px solid $admin-border;
+    border-radius: 10px;
+    background: $admin-card-bg;
+    padding: 8px 12px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s;
+    cursor: text;
+
+    &:focus-within {
+        outline: none;
+        border-color: $admin-primary;
+        box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+    }
+
+    &.has-error {
+        border-color: $admin-danger;
+
+        &:focus-within {
+            box-shadow: 0 0 0 3px rgba($admin-danger, 0.1);
+        }
+    }
+}
+
+.tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba($admin-primary, 0.1);
+    color: $admin-primary;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    animation: tagPop 0.2s ease;
+}
+
+.tag-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: $admin-primary;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.15s;
+
+    &:hover {
+        background: $admin-primary;
+        color: white;
+    }
+}
+
+.tag-input-field {
+    flex: 1;
+    min-width: 120px;
+    border: none;
+    outline: none;
+    font-size: 0.95rem;
+    color: $admin-text;
+    background: transparent;
+    padding: 4px 0;
+
+    &::placeholder {
+        color: $admin-text-muted;
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+}
+
+@keyframes tagPop {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 .form-hint {

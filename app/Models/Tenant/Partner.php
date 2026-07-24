@@ -14,6 +14,7 @@ class Partner extends Model
         'tenant_partner_id',
         'title',
         'description',
+        'tags',
         'order_position',
         'image',
         'is_active',
@@ -26,6 +27,7 @@ class Partner extends Model
         'is_active' => 'boolean',
         'config' => 'array',
         'legal_info' => 'array',
+        'tags' => 'array',
     ];
 
     /*
@@ -58,6 +60,28 @@ class Partner extends Model
     public function scopeOrdered($query)
     {
         return $query->orderBy('order_position');
+    }
+
+    /**
+     * 🆕 Фильтрация по одному тегу
+     * Использование: Partner::whereTag('доставка')->get();
+     */
+    public function scopeWhereTag($query, string $tag)
+    {
+        return $query->whereJsonContains('tags', $tag);
+    }
+
+    /**
+     * 🆕 Фильтрация по нескольким тегам (логика ИЛИ: партнер имеет хотя бы один из тегов)
+     * Использование: Partner::whereTags(['еда', 'напитки'])->get();
+     */
+    public function scopeWhereTags($query, array $tags)
+    {
+        return $query->where(function ($q) use ($tags) {
+            foreach ($tags as $tag) {
+                $q->orWhereJsonContains('tags', $tag);
+            }
+        });
     }
 
     /**

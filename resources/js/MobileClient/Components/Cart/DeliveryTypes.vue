@@ -3,7 +3,9 @@
 
         <!-- Основные способы -->
         <div class="types-grid">
+            <!-- 🆕 Доставка: показываем только если разрешена в настройках -->
             <button
+                v-if="allowDelivery"
                 type="button"
                 class="type-card"
                 :class="{ 'active': !deliveryForm.need_pickup }"
@@ -21,7 +23,9 @@
                 </div>
             </button>
 
+            <!-- 🆕 Самовывоз: показываем только если разрешен в настройках -->
             <button
+                v-if="allowPickup"
                 type="button"
                 class="type-card"
                 :class="{ 'active': deliveryForm.need_pickup }"
@@ -89,6 +93,26 @@ export default {
         };
     },
 
+    computed: {
+        tenant() {
+            return window.Tenant || null;
+        },
+
+        settings() {
+            return this.tenant?.settings || {};
+        },
+
+        // 🆕 Вычисляем, разрешена ли доставка (с фоллбэком на true для безопасности)
+        allowDelivery() {
+            return this.settings.allow_delivery ?? true;
+        },
+
+        // 🆕 Вычисляем, разрешен ли самовывоз (с фоллбэком на true для безопасности)
+        allowPickup() {
+            return this.settings.allow_pickup ?? true;
+        },
+    },
+
     watch: {
         deliveryForm: {
             handler(newValue) {
@@ -99,13 +123,36 @@ export default {
         modelValue: {
             handler(newValue) {
                 this.deliveryForm = newValue;
+                this.enforceDeliveryRules(); // Проверяем правила при изменении props
             },
             deep: true,
+            immediate: true,
         },
     },
 
     mounted() {
         this.deliveryForm = this.modelValue;
+        this.enforceDeliveryRules();
+    },
+
+    methods: {
+        // 🆕 Метод для принудительного выставления корректного состояния,
+        // если в настройках оставлен только один способ получения
+        enforceDeliveryRules() {
+            if (!this.deliveryForm) return;
+
+            if (!this.allowDelivery && !this.allowPickup) {
+                // Крайний случай: отключено всё. По умолчанию ставим доставку,
+                // но на уровне CheckoutProductForm это должно блокироваться предупреждением.
+                this.deliveryForm.need_pickup = false;
+            } else if (!this.allowDelivery) {
+                // Разрешен только самовывоз
+                this.deliveryForm.need_pickup = true;
+            } else if (!this.allowPickup) {
+                // Разрешена только доставка
+                this.deliveryForm.need_pickup = false;
+            }
+        }
     },
 };
 </script>

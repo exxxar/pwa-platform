@@ -98,6 +98,51 @@
             </div>
         </div>
 
+        <!-- 🆕 ТЕГИ -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="fa-solid fa-tags"></i>
+                Теги для поиска
+            </div>
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fa-solid fa-hashtag"></i>
+                    Теги партнёра
+                </label>
+                <div
+                    class="tags-input-container"
+                    :class="{ 'has-error': errors.tags }"
+                    @click="focusTagInput"
+                >
+                    <div class="tags-list">
+                        <span v-for="(tag, index) in form.tags" :key="index" class="tag-chip">
+                            {{ tag }}
+                            <button type="button" class="tag-remove" @click.stop="removeTag(index)">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </span>
+                        <input
+                            ref="tagInputRef"
+                            v-model="tagInput"
+                            @keydown.enter.prevent="addTag"
+                            @keydown.,.prevent="addTag"
+                            @keydown.backspace="handleBackspace"
+                            placeholder="Введите тег и нажмите Enter"
+                            class="tag-input-field"
+                            :disabled="isLoading"
+                        >
+                    </div>
+                </div>
+                <span v-if="errors.tags" class="form-error">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    {{ errors.tags }}
+                </span>
+                <span v-else class="form-hint">
+                    Нажмите Enter или запятую, чтобы добавить. Максимум 10 тегов. Только буквы, цифры и дефис.
+                </span>
+            </div>
+        </div>
+
         <!-- Изображение -->
         <div class="form-section">
             <div class="section-title">
@@ -243,13 +288,16 @@ export default {
             file: null,
             preview: null,
             isDragging: false,
+            tagInput: '', // 🆕 Для ввода нового тега
             errors: {
                 title: '',
+                tags: '', // 🆕 Ошибки тегов
             },
             form: {
                 id: null,
                 title: '',
                 description: '',
+                tags: [], // 🆕 Массив тегов
                 image: '',
                 order_position: 0,
                 is_active: true,
@@ -284,6 +332,15 @@ export default {
     mounted() {
         if (this.initialData) {
             this.form = { ...this.form, ...this.initialData }
+
+            // 🆕 Гарантируем, что tags всегда является массивом (защита от null или строки из БД)
+            if (!Array.isArray(this.form.tags)) {
+                if (typeof this.form.tags === 'string' && this.form.tags.trim() !== '') {
+                    this.form.tags = this.form.tags.split(',').map(t => t.trim()).filter(Boolean)
+                } else {
+                    this.form.tags = []
+                }
+            }
         }
     },
 
@@ -294,6 +351,57 @@ export default {
     },
 
     methods: {
+        // ==========================================
+        // 🆕 МЕТОДЫ ДЛЯ ТЕГОВ
+        // ==========================================
+        focusTagInput() {
+            this.$refs.tagInputRef?.focus()
+        },
+
+        addTag() {
+            const newTag = this.tagInput.trim().toLowerCase()
+            if (!newTag) return
+
+            if (this.form.tags.length >= 10) {
+                this.errors.tags = 'Максимальное количество тегов: 10'
+                this.tagInput = ''
+                setTimeout(() => { this.errors.tags = '' }, 2000)
+                return
+            }
+
+            if (this.form.tags.includes(newTag)) {
+                this.errors.tags = 'Этот тег уже добавлен'
+                this.tagInput = ''
+                setTimeout(() => { this.errors.tags = '' }, 2000)
+                return
+            }
+
+            if (!/^[a-zа-яё0-9\-]+$/i.test(newTag)) {
+                this.errors.tags = 'Тег может содержать только буквы, цифры и дефис'
+                this.tagInput = ''
+                setTimeout(() => { this.errors.tags = '' }, 2000)
+                return
+            }
+
+            this.errors.tags = ''
+            this.form.tags.push(newTag)
+            this.tagInput = ''
+        },
+
+        removeTag(index) {
+            this.form.tags.splice(index, 1)
+            this.errors.tags = ''
+        },
+
+        handleBackspace() {
+            if (!this.tagInput && this.form.tags.length > 0) {
+                this.removeTag(this.form.tags.length - 1)
+            }
+        },
+
+        // ==========================================
+        // МЕТОДЫ ФАЙЛОВ
+        // ==========================================
         triggerFileInput() {
             this.$refs.fileInput?.click()
         },
@@ -336,6 +444,9 @@ export default {
             }
         },
 
+        // ==========================================
+        // ВАЛИДАЦИЯ И ОТПРАВКА
+        // ==========================================
         validateForm() {
             this.errors.title = ''
 
@@ -360,10 +471,13 @@ export default {
             try {
                 const data = new FormData()
 
+                // 🆕 Улучшенная сериализация: массивы как key[], объекты как JSON
                 Object.keys(this.form).forEach(key => {
                     const item = this.form[key]
                     if (item !== null && item !== undefined) {
-                        if (typeof item === 'object') {
+                        if (Array.isArray(item)) {
+                            item.forEach(val => data.append(`${key}[]`, val))
+                        } else if (typeof item === 'object') {
                             data.append(key, JSON.stringify(item))
                         } else {
                             data.append(key, item)
@@ -388,7 +502,7 @@ export default {
                 console.error('Ошибка сохранения партнёра:', err)
                 this.$notify?.({
                     title: 'Ошибка',
-                    text: 'Не удалось сохранить параметры',
+                    text: err.response?.data?.message || 'Не удалось сохранить параметры',
                     type: 'error',
                 })
             } finally {
@@ -606,6 +720,101 @@ $admin-danger: #ef4444;
     font-weight: 600;
     color: $admin-text-muted;
     pointer-events: none;
+}
+
+// ==========================================
+// 🆕 СТИЛИ ДЛЯ ТЕГОВ
+// ==========================================
+.tags-input-container {
+    border: 1px solid $admin-border;
+    border-radius: 10px;
+    background: $admin-card-bg;
+    padding: 8px 12px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s;
+    cursor: text;
+
+    &:focus-within {
+        outline: none;
+        border-color: $admin-primary;
+        box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+    }
+
+    &.has-error {
+        border-color: $admin-danger;
+
+        &:focus-within {
+            box-shadow: 0 0 0 3px rgba($admin-danger, 0.1);
+        }
+    }
+}
+
+.tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba($admin-primary, 0.1);
+    color: $admin-primary;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    animation: tagPop 0.2s ease;
+}
+
+.tag-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: $admin-primary;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.15s;
+
+    &:hover {
+        background: $admin-primary;
+        color: white;
+    }
+}
+
+.tag-input-field {
+    flex: 1;
+    min-width: 120px;
+    border: none;
+    outline: none;
+    font-size: 0.95rem;
+    color: $admin-text;
+    background: transparent;
+    padding: 4px 0;
+
+    &::placeholder {
+        color: $admin-text-muted;
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+}
+
+@keyframes tagPop {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 // ==========================================

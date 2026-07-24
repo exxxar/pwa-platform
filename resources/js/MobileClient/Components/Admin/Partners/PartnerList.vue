@@ -30,7 +30,29 @@
                 </button>
             </div>
 
-            <!-- Фильтры -->
+            <!-- 🆕 Фильтры по тегам -->
+            <div class="tags-filters-row" v-if="availableTagsWithCount.length > 0">
+                <button
+                    class="tag-filter-btn"
+                    :class="{ 'is-active': activeTag === null }"
+                    @click="activeTag = null"
+                >
+                    <i class="fa-solid fa-tags"></i>
+                    <span>Все теги</span>
+                </button>
+                <button
+                    v-for="tagData in availableTagsWithCount"
+                    :key="tagData.tag"
+                    class="tag-filter-btn"
+                    :class="{ 'is-active': activeTag === tagData.tag }"
+                    @click="activeTag = activeTag === tagData.tag ? null : tagData.tag"
+                >
+                    <span class="tag-name">{{ tagData.tag }}</span>
+                    <span class="tag-count">{{ tagData.count }}</span>
+                </button>
+            </div>
+
+            <!-- Фильтры по статусу -->
             <div class="filters-row">
                 <button
                     v-for="filter in filters"
@@ -126,11 +148,11 @@
                 <i class="fa-solid fa-handshake"></i>
             </div>
             <h3>Партнёры не найдены</h3>
-            <p v-if="searchQuery || activeFilter !== 'all'">
+            <p v-if="searchQuery || activeFilter !== 'all' || activeTag">
                 Попробуйте изменить параметры поиска
             </p>
             <p v-else>Добавьте первого партнера</p>
-            <button v-if="searchQuery || activeFilter !== 'all'" class="reset-filters-btn" @click="resetFilters">
+            <button v-if="searchQuery || activeFilter !== 'all' || activeTag" class="reset-filters-btn" @click="resetFilters">
                 <i class="fa-solid fa-rotate-left"></i>
                 Сбросить фильтры
             </button>
@@ -260,6 +282,7 @@ export default {
         return {
             searchQuery: '',
             activeFilter: 'all',
+            activeTag: null, // 🆕 Активный тег для фильтрации
             selected: null,
             showConfigModal: false,
             showProductsModal: false,
@@ -292,8 +315,33 @@ export default {
             ]
         },
 
+        // 🆕 Получить все уникальные теги с подсчетом количества партнеров
+        availableTagsWithCount() {
+            const tagCounts = {}
+
+            this.partners.forEach(partner => {
+                if (Array.isArray(partner.tags)) {
+                    partner.tags.forEach(tag => {
+                        tagCounts[tag] = (tagCounts[tag] || 0) + 1
+                    })
+                }
+            })
+
+            // Преобразуем в массив и сортируем по популярности
+            return Object.entries(tagCounts)
+                .map(([tag, count]) => ({ tag, count }))
+                .sort((a, b) => b.count - a.count)
+        },
+
         filteredPartners() {
             let result = [...this.partners]
+
+            // 🆕 Фильтр по тегу
+            if (this.activeTag) {
+                result = result.filter(p =>
+                    Array.isArray(p.tags) && p.tags.includes(this.activeTag)
+                )
+            }
 
             // Фильтр по статусу
             if (this.activeFilter === 'active') {
@@ -371,6 +419,7 @@ export default {
         resetFilters() {
             this.searchQuery = ''
             this.activeFilter = 'all'
+            this.activeTag = null // 🆕 Сбрасываем и тег
         },
 
         // ==========================================
@@ -600,6 +649,70 @@ $admin-warning: #f59e0b;
         background: $admin-danger;
         color: white;
     }
+}
+
+// ==========================================
+// 🆕 ФИЛЬТРЫ ПО ТЕГАМ
+// ==========================================
+.tags-filters-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.tag-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: $admin-bg;
+    border: 1px solid $admin-border;
+    border-radius: 16px;
+    color: $admin-text-muted;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+
+    i {
+        font-size: 0.75rem;
+    }
+
+    &:hover {
+        background: $admin-card-bg;
+        border-color: $admin-primary;
+        color: $admin-primary;
+    }
+
+    &.is-active {
+        background: $admin-primary;
+        border-color: $admin-primary;
+        color: white;
+
+        .tag-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+        }
+    }
+}
+
+.tag-name {
+    text-transform: lowercase;
+}
+
+.tag-count {
+    padding: 1px 6px;
+    background: $admin-border;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
 }
 
 // ==========================================

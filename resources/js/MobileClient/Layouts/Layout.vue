@@ -5,37 +5,41 @@
             <meta name="description" content="CashMan - система твоего бизнеса внутри"/>
         </Head>
 
-        <!-- HEADER -->
-        <header data-bs-theme="dark">
-            <div class="navbar shadow-sm">
-                <div class="container flex-row-reverse p-2">
+        <!-- ========================================== -->
+        <!-- MODERN HEADER -->
+        <!-- ========================================== -->
+        <header class="modern-header">
+            <div class="header-container">
 
-                    <!-- Кэшбэк -->
-                    <a
-                        v-if="loadedCashback"
-                        @click.prevent="goTo('Cashback')"
-                        class="badge bg-primary btn"
-                        href="#"
-                    >
-                        {{ cashback || 0 }} <i class="fa-solid fa-ruble-sign"></i>
-                    </a>
+                <!-- 1. Кнопка меню (Гамбургер) -->
+                <button class="menu-btn" @click="toggleSidebar" aria-label="Открыть меню">
+                    <HamburgerMenu target-id="sidebar-menu" />
+                </button>
 
-                    <!-- Название магазина -->
-                    <span
-                        data-bs-toggle="modal"
-                        data-bs-target="#bot-info-modal"
-                        class="text-primary fw-bold cursor-pointer"
-                    >
-                        {{ tenant?.name || 'Магазин' }}
-                    </span>
-
-
-                    <HamburgerMenu
-                        target-id="sidebar-menu"
-                        @toggle="toggleSidebar"
-                    />
-
+                <!-- 2. Название магазина (Триггер модалки) -->
+                <div
+                    class="brand-area"
+                    data-bs-toggle="modal"
+                    data-bs-target="#bot-info-modal"
+                    role="button"
+                    tabindex="0"
+                >
+                    <span class="brand-name">{{ tenant?.name || 'Магазин' }}</span>
+                    <i class="fa-solid fa-chevron-down brand-arrow"></i>
                 </div>
+
+                <!-- 3. Кэшбэк (Премиальный бейдж) -->
+                <a
+                    v-if="loadedCashback"
+                    @click.prevent="goTo('Cashback')"
+                    class="cashback-pill"
+                    href="#"
+                    title="Ваш кэшбэк"
+                >
+                    <i class="fa-solid fa-coins"></i>
+                    <span class="cashback-amount">{{ formatCashback(cashback) }}</span>
+                </a>
+
             </div>
         </header>
 
@@ -49,7 +53,9 @@
         />
 
         <!-- CONTENT -->
-        <slot/>
+        <main class="app-content">
+            <slot/>
+        </main>
 
         <!-- ProductInfo модалка (если нужна глобально) -->
         <ProductInfo/>
@@ -57,14 +63,10 @@
         <!-- BottomMenu -->
         <BottomMenu/>
 
-
         <!-- FOOTER -->
         <Footer/>
 
-
-        <AppSidebar id="sidebar-menu"
-                    @close="toggleSidebar"/>
-
+        <AppSidebar id="sidebar-menu" @close="toggleSidebar"/>
         <ShopInfoModal/>
 
         <!-- MODAL: График работы -->
@@ -167,7 +169,6 @@ import ProductInfo from "@/MobileClient/Components/Shop/ProductInfo.vue";
 import Preloader from "@/MobileClient/Components/Shop/Preloader.vue";
 import BottomMenu from "@/MobileClient/Components/BottomMenu.vue";
 import ShareLink from "@/MobileClient/Components/ShareLink.vue";
-
 import Footer from "@/MobileClient/Components/Footer.vue";
 import AppSidebar from '@/MobileClient/Components/AppSidebar.vue';
 import HamburgerMenu from '@/MobileClient/Components/HamburgerMenu.vue';
@@ -206,7 +207,6 @@ export default {
             cashback: 0,
             themeObserver: null,
             isLoading: false,
-
         };
     },
 
@@ -295,17 +295,13 @@ export default {
         });
 
         this.$router.afterEach(() => {
-            // Минимальная задержка для плавности
             setTimeout(() => {
                 this.isLoading = false;
             }, 700);
         });
-
-
     },
 
     beforeUnmount() {
-        // Отключаем observer при уничтожении компонента
         if (this.themeObserver) {
             this.themeObserver.disconnect();
         }
@@ -313,41 +309,39 @@ export default {
     },
 
     methods: {
-        applyCurrentTheme() {
-            const tenantSlug = this.tenantSlug
+        // 🆕 Форматирование числа кэшбэка (например: "1 250")
+        formatCashback(amount) {
+            return new Intl.NumberFormat('ru-RU').format(amount || 0);
+        },
 
+        applyCurrentTheme() {
+            const tenantSlug = this.tenantSlug;
             const savedColor = localStorage.getItem(`theme_color_${tenantSlug}`);
             const savedScheme = localStorage.getItem(`theme_scheme_${tenantSlug}`);
 
-            console.log("schecma", this.settings)
-            // 🆕 1. Определяем ID схемы: приоритет у выбора пользователя, затем дефолт админа, затем 'default'
             const schemeId = savedScheme || (this.settings?.default_theme_scheme) || 'default';
-
-            // Применяем схему
             this.applySchemeById(schemeId);
 
-            // 2. Если пользователь явно менял акцентный цвет, применяем его поверх схемы
             if (savedColor) {
                 this.applyColor(savedColor);
             }
         },
+
         installPWA() {
             if (typeof window.installPWA === 'function') {
-                window.installPWA()
+                window.installPWA();
             } else {
-                console.warn('PWA installation not available')
+                console.warn('PWA installation not available');
             }
         },
-        toggleSidebar() {
-             this.chat.fetchUnreadCount()
 
-            // Если используешь Bootstrap Offcanvas программно:
+        toggleSidebar() {
+            this.chat.fetchUnreadCount();
             const el = document.getElementById('sidebar-menu');
             const bsOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(el);
-
             bsOffcanvas ? bsOffcanvas.show() : bsOffcanvas.hide();
         },
-        // Загрузка кэшбэка
+
         async loadCashback() {
             try {
                 this.cashback = this.self?.cashBack?.amount || 0;
@@ -358,9 +352,6 @@ export default {
             }
         },
 
-
-
-        // Применение акцентного цвета
         applyColor(hex) {
             const root = document.documentElement;
             root.style.setProperty('--bs-primary', hex);
@@ -374,7 +365,6 @@ export default {
             root.style.setProperty('--bs-primary-light', `${hex}20`);
         },
 
-        // Замените applySchemeById в AppLayout.vue на этот универсальный метод:
         applySchemeById(schemeId) {
             const scheme = getThemeScheme(schemeId);
             const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
@@ -386,9 +376,7 @@ export default {
             });
         },
 
-        // Отслеживание изменений темы
         watchThemeChanges() {
-            // MutationObserver для отслеживания изменения data-bs-theme
             this.themeObserver = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     if (mutation.attributeName === 'data-bs-theme') {
@@ -402,36 +390,27 @@ export default {
                 attributeFilter: ['data-bs-theme']
             });
 
-            // Слушаем изменения localStorage (синхронизация между вкладками)
             window.addEventListener('storage', this.handleStorageChange);
         },
 
-        // Обработка смены режима день/ночь
         handleThemeModeChange() {
-            // Переприменяем текущую тему с учётом нового режима
             this.$nextTick(() => {
                 this.applyCurrentTheme();
             });
         },
 
-        // Обработка изменений localStorage (из другой вкладки)
         handleStorageChange(event) {
             if (!event.key) return;
-
             const tenantSlug = this.tenantSlug;
 
-            // Если изменился цвет темы
             if (event.key === `theme_color_${tenantSlug}` && event.newValue) {
                 this.applyColor(event.newValue);
             }
-
-            // Если изменилась схема темы
             if (event.key === `theme_scheme_${tenantSlug}` && event.newValue) {
                 this.applySchemeById(event.newValue);
             }
         },
 
-        // Конвертация HEX в RGB
         hexToRgb(hex) {
             const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
             return result ? {
@@ -441,7 +420,6 @@ export default {
             } : null;
         },
 
-        // Осветление/затемнение цвета
         adjustColor(color, percent) {
             const num = parseInt(color.replace('#', ''), 16);
             const amt = Math.round(2.55 * percent);
@@ -469,7 +447,6 @@ export default {
         closeModal(modalId) {
             const modalEl = document.getElementById(modalId);
             if (!modalEl) return;
-
             const modal = bootstrap.Modal.getInstance(modalEl);
             if (modal) {
                 modal.hide();
@@ -485,3 +462,148 @@ export default {
     },
 };
 </script>
+
+<style scoped>
+/* ==========================================
+   MODERN HEADER STYLES
+   ========================================== */
+.modern-header {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    /* Эффект стекла (Glassmorphism) */
+    background: rgba(var(--bs-body-bg-rgb, 255, 255, 255), 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(var(--bs-border-color-rgb, 0, 0, 0), 0.08);
+    transition: all 0.3s ease;
+}
+
+/* Поддержка темной темы для стекла */
+[data-bs-theme="dark"] .modern-header {
+    background: rgba(var(--bs-body-bg-rgb, 33, 37, 41), 0.85);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* 1. Кнопка меню */
+.menu-btn {
+    background: transparent;
+    border: none;
+    color: var(--bs-body-color);
+    padding: 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.menu-btn:hover {
+    background: rgba(var(--bs-body-color-rgb, 0, 0, 0), 0.06);
+    transform: scale(1.05);
+}
+
+.menu-btn:active {
+    transform: scale(0.95);
+}
+
+/* 2. Бренд / Название магазина */
+.brand-area {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 99px;
+    transition: all 0.25s ease;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.brand-area:hover {
+    background: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.08);
+}
+
+.brand-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--bs-body-color);
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.brand-arrow {
+    font-size: 0.7rem;
+    color: var(--bs-secondary-color);
+    transition: transform 0.3s ease;
+}
+
+.brand-area:hover .brand-arrow {
+    transform: translateY(2px);
+}
+
+/* 3. Кэшбэк (Премиальная пилюля) */
+.cashback-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, var(--bs-primary, #0d6efd) 0%, var(--bs-primary-hover, #0b5ed7) 100%);
+    color: white;
+    border-radius: 99px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb, 13, 110, 253), 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.cashback-pill:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(var(--bs-primary-rgb, 13, 110, 253), 0.4);
+    color: white;
+}
+
+.cashback-pill:active {
+    transform: translateY(0);
+}
+
+.cashback-pill i {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Адаптив для маленьких экранов */
+@media (max-width: 576px) {
+    .brand-name {
+        max-width: 140px;
+        font-size: 1rem;
+    }
+
+    .cashback-pill {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+}
+
+/* Основной контент, чтобы хедер его не перекрывал при необходимости,
+   хотя sticky обычно справляется сам */
+.app-content {
+    min-height: calc(100vh - 60px);
+}
+</style>

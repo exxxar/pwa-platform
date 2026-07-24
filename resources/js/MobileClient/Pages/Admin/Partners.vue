@@ -120,6 +120,15 @@
 
             <div class="settings-container">
 
+                <button class="config-button" @click="showUiSettings = true">
+                    <div class="config-button-icon"><i class="fa-solid fa-palette"></i></div>
+                    <div class="config-button-text">
+                        <span class="config-button-title">Настроить внешний вид</span>
+                        <span class="config-button-desc">Кухни, сервисы, фильтры и тексты</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right config-button-arrow"></i>
+                </button>
+
                 <!-- Режим работы с партнерами -->
                 <div class="setting-card" :class="{ 'is-active': form.is_active }">
                     <div class="setting-info">
@@ -199,6 +208,8 @@
             </div>
         </div>
 
+
+
         <!-- ========================================== -->
         <!-- СПИСОК ПАРТНЕРОВ -->
         <!-- ========================================== -->
@@ -254,7 +265,14 @@
             </div>
         </transition>
 
+
     </div>
+
+    <!-- Сама модалка -->
+    <PartnersUiSettingsModal
+        v-model="showUiSettings"
+        @saved="handleSettingsSaved"
+    />
 </template>
 
 <script>
@@ -262,13 +280,16 @@ import { usePartners } from '@/MobileClient/Composables/usePartners.js'
 import AddPartnerForm from '@/MobileClient/Components/Admin/Partners/AddPartnerForm.vue'
 import PartnerList from '@/MobileClient/Components/Admin/Partners/PartnerList.vue'
 import SelfConfigForm from '@/MobileClient/Components/Admin/Partners/SelfConfigForm.vue'
-
+import PartnersUiSettings from '@/MobileClient/Components/Admin/Partners/PartnersUiSettings.vue'
+import PartnersUiSettingsModal from '@/MobileClient/Components/Admin/Partners/PartnersUiSettingsModal.vue'
 export default {
     name: 'PartnersSettings',
 
     components: {
         AddPartnerForm,
         PartnerList,
+        PartnersUiSettings,
+        PartnersUiSettingsModal,
         SelfConfigForm,
     },
 
@@ -279,6 +300,7 @@ export default {
 
     data() {
         return {
+            showUiSettings: false,
             loading: false,
             showSelfConfigModal: false,
             form: {

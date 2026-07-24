@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import {defineStore} from 'pinia';
 import axios from 'axios';
 
 const BASE = '/partners';
@@ -10,6 +10,9 @@ export const usePartnersStore = defineStore('partners', {
     state: () => ({
         // Данные
         partners: [],
+
+        activeTagFilter: null,
+
         partners_paginate_object: null,
         categories: [],
         selfPartner: null,
@@ -45,6 +48,47 @@ export const usePartnersStore = defineStore('partners', {
     // GETTERS
     // ==========================================
     getters: {
+        /**
+         * 🆕 Партнёры, отфильтрованные по текущему активному тегу
+         */
+        filteredPartners: (state) => {
+            let result = state.partners || [];
+
+            // Сначала базовая фильтрация (например, только активные)
+            result = result.filter(p => p.is_active !== false);
+
+            // 🆕 Если задан тег, фильтруем по нему
+            if (state.activeTagFilter) {
+                result = result.filter(p => {
+                    // Проверяем, что tags существует и является массивом, и содержит нужный тег
+                    return Array.isArray(p.tags) && p.tags.includes(state.activeTagFilter);
+                });
+            }
+
+            // Сортировка (избранные сверху, затем по имени)
+            return result.sort((a, b) => {
+                if (a.is_favorite && !b.is_favorite) return -1;
+                if (!a.is_favorite && b.is_favorite) return 1;
+                const nameA = (a.title || a.name || '').toLowerCase(); // Используем title, как в модели
+                const nameB = (b.title || b.name || '').toLowerCase();
+                return nameA.localeCompare(nameB);
+            });
+        },
+
+        /**
+         * 🆕 Получить все уникальные теги из текущих загруженных партнеров
+         * Полезно для отрисовки кнопок-фильтров на фронтенде
+         */
+        availableTags: (state) => {
+            const tagsSet = new Set();
+            (state.partners || []).forEach(p => {
+                if (Array.isArray(p.tags)) {
+                    p.tags.forEach(tag => tagsSet.add(tag));
+                }
+            });
+            return Array.from(tagsSet).sort();
+        },
+
         /**
          * Все партнёры
          */
@@ -123,7 +167,7 @@ export const usePartnersStore = defineStore('partners', {
 
         // 🆕 Получить товары партнёра из стора
         getPartnerProducts: (state) => (partnerId) => {
-            return state.partnerProducts[String(partnerId)] || { categories: [], loading: false };
+            return state.partnerProducts[String(partnerId)] || {categories: [], loading: false};
         },
 
         // 🆕 Геттеры для статистики товаров
@@ -139,6 +183,39 @@ export const usePartnersStore = defineStore('partners', {
     // ACTIONS
     // ==========================================
     actions: {
+        /**
+         * 🆕 Установить фильтр по тегу
+         */
+        setTagFilter(tag) {
+            this.activeTagFilter = tag === this.activeTagFilter ? null : tag; // Toggle: если кликнули на активный, сбрасываем
+        },
+
+        /**
+         * 🆕 Загрузка партнеров с фильтрацией по тегу на стороне сервера (опционально)
+         * Если партнеров очень много, лучше фильтровать на бэкенде, а не в геттере
+         */
+        async loadPartnersByTag(tag, payload = {}) {
+            this.isLoading = true;
+            try {
+                // Передаем тег на бэкенд
+                const response = await axios.post(BASE, {
+                    ...payload,
+                    tag: tag
+                });
+                const dataObject = response.data;
+                this.partners = dataObject.data || [];
+
+                const {data, ...pagination} = dataObject;
+                this.partners_paginate_object = pagination;
+
+                return dataObject;
+            } catch (err) {
+                console.error('[Partners Store] Ошибка загрузки по тегу:', err);
+                throw err;
+            } finally {
+                this.isLoading = false;
+            }
+        },
 
         /**
          * Загрузка статистики по товарам всех партнёров
@@ -206,7 +283,7 @@ export const usePartnersStore = defineStore('partners', {
 
                 this.partners = dataObject.data || [];
 
-                const { data, ...pagination } = dataObject;
+                const {data, ...pagination} = dataObject;
                 this.partners_paginate_object = pagination;
 
                 this.isHydrated = true;
@@ -263,7 +340,7 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Создание нового партнёра
          */
-        async storePartner(payload = { form: null }) {
+        async storePartner(payload = {form: null}) {
             this.lastError = null;
 
             try {
@@ -284,7 +361,7 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Обновление партнёра
          */
-        async updatePartner(payload = { form: null }) {
+        async updatePartner(payload = {form: null}) {
             const partnerId = payload.form?.id;
             if (partnerId) {
                 this.partnerActions[String(partnerId)] = 'update';
@@ -298,13 +375,13 @@ export const usePartnersStore = defineStore('partners', {
                 if (partnerId) {
                     const index = this.partners.findIndex(p => String(p.id) === String(partnerId));
                     if (index !== -1) {
-                        this.partners[index] = { ...this.partners[index], ...updatedPartner };
+                        this.partners[index] = {...this.partners[index], ...updatedPartner};
                     }
                 }
 
                 // Если обновляли себя — обновляем selfPartner
                 if (this.selfPartner && String(this.selfPartner.id) === String(partnerId)) {
-                    this.selfPartner = { ...this.selfPartner, ...updatedPartner };
+                    this.selfPartner = {...this.selfPartner, ...updatedPartner};
                 }
 
                 return updatedPartner;
@@ -322,21 +399,21 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Обновление данных текущего пользователя-партнёра
          */
-        async updateSelfPartner(payload = { form: null }) {
+        async updateSelfPartner(payload = {form: null}) {
             try {
                 const response = await axios.post(`${BASE}/update-self`, payload.form);
                 const updated = response.data?.data || response.data;
 
                 // Обновляем selfPartner
                 if (this.selfPartner) {
-                    this.selfPartner = { ...this.selfPartner, ...updated };
+                    this.selfPartner = {...this.selfPartner, ...updated};
                 }
 
                 // Обновляем в общем списке
                 if (updated?.id) {
                     const index = this.partners.findIndex(p => String(p.id) === String(updated.id));
                     if (index !== -1) {
-                        this.partners[index] = { ...this.partners[index], ...updated };
+                        this.partners[index] = {...this.partners[index], ...updated};
                     }
                 }
 
@@ -351,7 +428,7 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Удаление партнёра
          */
-        async removePartner(payload = { partnerId: null }) {
+        async removePartner(payload = {partnerId: null}) {
             if (!payload.partnerId) {
                 throw new Error('Не указан ID партнёра');
             }
@@ -416,7 +493,7 @@ export const usePartnersStore = defineStore('partners', {
                 if (partnerId && updated) {
                     const index = this.partners.findIndex(p => String(p.id) === String(partnerId));
                     if (index !== -1) {
-                        this.partners[index] = { ...this.partners[index], ...updated };
+                        this.partners[index] = {...this.partners[index], ...updated};
                     }
                 }
 
@@ -452,7 +529,7 @@ export const usePartnersStore = defineStore('partners', {
                 if (partnerId) {
                     const index = this.partners.findIndex(p => String(p.id) === String(partnerId));
                     if (index !== -1) {
-                        this.partners[index] = { ...this.partners[index], ...updated };
+                        this.partners[index] = {...this.partners[index], ...updated};
                     }
                 }
 
@@ -485,35 +562,30 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Переключение партнёра в избранном (оптимистично)
          */
-        async togglePartnerInFavorites(payload = { form: null }) {
-            const partnerId = payload.form?.id || payload.form?.partner_id;
+        async togglePartnerInFavorites(payload = {form: null}) {
+            const partnerId = payload?.id || payload?.partner_id;
             if (!partnerId) {
                 throw new Error('Не указан ID партнёра');
             }
 
             this.partnerActions[String(partnerId)] = 'toggle-fav';
-
-            // Сохраняем предыдущее состояние
             const partner = this.getPartnerById(partnerId);
             const previousState = partner?.is_favorite;
 
-            // Оптимистично переключаем
             if (partner) {
                 partner.is_favorite = !partner.is_favorite;
             }
 
             try {
-                const response = await axios.post(`${BASE}/toggle-favorite`, payload.form);
+                // Отправляем на сервер именно то, что ему нужно (например, { id: partnerId })
+                const response = await axios.post(`${BASE}/toggle-favorite`, {id: partnerId});
                 const result = response.data?.data || response.data;
 
-                // Синхронизируем с сервером
                 if (partner && result) {
                     partner.is_favorite = result.is_favorite ?? !previousState;
                 }
-
                 return result;
             } catch (err) {
-                // Откатываем
                 if (partner && previousState !== undefined) {
                     partner.is_favorite = previousState;
                 }
@@ -528,7 +600,7 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Загрузка товаров партнёра по категориям
          */
-        async loadProductsByCategory(payload = { partner_id: null }) {
+        async loadProductsByCategory(payload = {partner_id: null}) {
             if (!payload.partner_id) {
                 throw new Error('partner_id is required');
             }
@@ -537,20 +609,20 @@ export const usePartnersStore = defineStore('partners', {
 
             // Инициализируем состояние для этого партнёра
             if (!this.partnerProducts[partnerId]) {
-                this.partnerProducts[partnerId] = { categories: [], loading: false };
+                this.partnerProducts[partnerId] = {categories: [], loading: false};
             }
 
             this.partnerProducts[partnerId].loading = true;
 
             try {
                 const response = await axios.get(`${BASE}/products-by-category`, {
-                    params: { partner_id: payload.partner_id },
+                    params: {partner_id: payload.partner_id},
                 });
 
                 const categories = response.data?.data || response.data || [];
                 this.partnerProducts[partnerId].categories = categories;
 
-                return { data: categories };
+                return {data: categories};
             } catch (err) {
                 console.error('[Partners] Ошибка загрузки товаров партнёра:', err);
                 throw err;
@@ -562,7 +634,7 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Загрузка дополнительных товаров категории
          */
-        async loadMoreProductsByCategory(payload = { partner_id: null, category_id: null, offset: 0 }) {
+        async loadMoreProductsByCategory(payload = {partner_id: null, category_id: null, offset: 0}) {
             if (!payload.partner_id || !payload.category_id) {
                 throw new Error('partner_id and category_id are required');
             }

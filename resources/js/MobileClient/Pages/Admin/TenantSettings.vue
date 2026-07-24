@@ -1131,6 +1131,62 @@
                 </form>
             </div>
 
+            <!-- ========== 🆕 10: ГОСТИ ========== -->
+            <div v-if="activeTab === 10" class="tab-panel">
+                <form @submit.prevent="saveGuests" class="settings-form">
+                    <div class="form-section">
+                        <h3 class="section-title">
+                            <i class="fa-solid fa-user-astronaut"></i>
+                            Имена для новых гостей
+                        </h3>
+
+                        <div class="alert-info">
+                            <i class="fa-solid fa-circle-info"></i>
+                            Когда новый пользователь заходит в приложение, ему присваивается случайное имя из этого списка в формате "Гость • [Имя]".
+                            Если список будет пуст, система автоматически использует встроенный набор из 50+ красивых вариантов.
+                        </div>
+
+                        <div class="form-field full-width">
+                            <label>Список имен (каждое с новой строки)</label>
+                            <textarea
+                                v-model="guestsForm.identities"
+                                rows="12"
+                                class="monospace-textarea"
+                                placeholder="Хитрый Енот&#10;Мудрая Сова&#10;Космический Кот"
+                            ></textarea>
+                            <span class="field-hint">
+                    Найдено вариантов: <strong>{{ countLines(guestsForm.identities) }}</strong>
+                </span>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title">
+                            <i class="fa-solid fa-comment-dots"></i>
+                            Шаблон приветствия
+                        </h3>
+
+                        <div class="form-field full-width">
+                            <label>Текст первого сообщения</label>
+                            <textarea
+                                v-model="guestsForm.welcome_message"
+                                rows="4"
+                                placeholder="Привет, {name}! Рады тебя видеть."
+                            ></textarea>
+                            <span class="field-hint">
+                    Используйте <code>{name}</code> как плейсхолдер, который будет заменен на выбранное имя (например, "Хитрый Енот"). Поддерживается HTML (например, &lt;b&gt;).
+                </span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="save-button" :disabled="isSectionSaving('guests')">
+                        <i v-if="isSectionSaving('guests')" class="fa-solid fa-spinner fa-spin"></i>
+                        <i v-else class="fa-solid fa-check"></i>
+                        <span>{{ isSectionSaving('guests') ? 'Сохранение...' : 'Сохранить настройки гостей' }}</span>
+                    </button>
+                </form>
+            </div>
+
         </div>
     </div>
 </template>
@@ -1172,7 +1228,8 @@ export default {
                 {key: 'calculators', title: 'Калькуляторы', icon: 'fa-solid fa-calculator', section: 'calculators'},
                 {key: 'games', title: 'Бонус-игры', icon: 'fa-solid fa-dice', section: 'games'},
                 {key: 'main_menu', title: 'Пункты главного меню', icon: 'fa-solid fa-bars', section: 'main-menu'},
-                // 🆕 CRM вкладка удалена
+                {key: 'guests', title: 'Гости', icon: 'fa-solid fa-user-astronaut', section: 'guests'},
+
             ],
             pwaSubTabs: [
                 {key: 'general', title: 'Основное', icon: 'fa-solid fa-info-circle'},
@@ -1184,7 +1241,11 @@ export default {
 
             pwaForm: { name: null, short_name: null, description: null, theme_color: '#ff8a00', background_color: '#ffffff', orientation: 'portrait', display: 'standalone', lang: 'ru', categories: ['shopping', 'food', 'business'], icons: { icon_192: null, icon_512: null, icon_192_maskable: null, icon_512_maskable: null }, screenshots: { mobile: null, desktop: null }, shortcuts: { menu: {enabled: true, name: 'Меню', short_name: 'Меню', url: '/pwa/#/menu', icon: null}, cart: {enabled: true, name: 'Корзина', short_name: 'Корзина', url: '/pwa/#/cart', icon: null}, cashback: {enabled: true, name: 'Кэшбэк', short_name: 'Кэшбэк', url: '/pwa/#/cashback', icon: null}, wheel: { enabled: true, name: 'Колесо', short_name: 'Колесо', url: '/pwa/#/wheel-classic', icon: null } } },
             iconPreviews: {}, screenshotPreviews: {}, shortcutIconPreviews: {},
-
+            guestsForm: {
+                // Будет заполняться строкой, разделенной \n, для удобства в textarea
+                identities: '',
+                welcome_message: 'Приветствуем вас в системе, <b>{name}</b>! 🐾\nРады видеть вас среди наших гостей.'
+            },
             companyForm: { id: null, title: null, description: null, phones: ['+7'], email: null, links: {vk: null, inst: null, map_link: null, site: null}, schedule: [ {day: 'Понедельник', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Вторник', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Среда', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Четверг', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Пятница', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Суббота', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'}, {day: 'Воскресенье', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной'} ] },
 
             // 🆕 Обновленная структура shopForm
@@ -1231,6 +1292,12 @@ export default {
     },
 
     methods: {
+
+        // 🆕 Подсчет количества непустых строк для информативности
+        countLines(text) {
+            if (!text) return 0;
+            return text.split('\n').filter(line => line.trim().length > 0).length;
+        },
         changeActiveTab(index) {
             this.activeTab = index;
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1327,6 +1394,16 @@ export default {
                 if (this.mainMenuForm[key].img) this.mainMenuPreviews[key] = this.mainMenuForm[key].img;
             });
 
+            // 🆕 Инициализация формы гостей
+            const guestsSettings = settings.guests || {};
+            if (Array.isArray(guestsSettings.identities)) {
+                // Превращаем массив обратно в строку с переносами для textarea
+                this.guestsForm.identities = guestsSettings.identities.join('\n');
+            }
+            if (guestsSettings.welcome_message) {
+                this.guestsForm.welcome_message = guestsSettings.welcome_message;
+            }
+
             try {
                 const response = await axios.get('/admin/tenant-settings/pwa');
                 const pwaData = response.data.settings || {};
@@ -1338,7 +1415,45 @@ export default {
         },
 
         formatDate(date) { return new Date(date).toLocaleDateString('ru-RU'); },
+        async saveGuests() {
+            try {
+                // Превращаем текст из textarea обратно в массив, убирая пустые строки
+                const identitiesArray = this.guestsForm.identities
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0);
 
+                const payload = {
+                    guests: {
+                        identities: identitiesArray,
+                        welcome_message: this.guestsForm.welcome_message
+                    }
+                };
+
+                // Вызовите здесь ваш метод сохранения из useTenantSettings
+                // Например: await this.saveGuestsSettings(payload);
+                // Или универсальный, если он есть: await this.saveSettings(payload);
+
+                // Временная заглушка для демонстрации (замените на реальный вызов API):
+                await axios.post('/admin/tenant-settings/save', payload);
+
+                this.$notify?.({
+                    title: 'Успешно',
+                    text: 'Настройки имен гостей сохранены',
+                    type: 'success'
+                });
+
+                // Сброс флага изменений, если используете такую систему
+                // this.clearDirty('guests');
+            } catch (e) {
+                console.error('Ошибка сохранения настроек гостей:', e);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: e.response?.data?.message || 'Не удалось сохранить настройки',
+                    type: 'error'
+                });
+            }
+        },
         normalizeTelegramLink() {
             const link = this.shopForm.manager.social_link;
             if (!link || link.includes('https://t.me') || link.includes('https://vk.com')) return;
@@ -2874,5 +2989,10 @@ $warning: #f59e0b;
         opacity: 0.6;
         cursor: not-allowed;
     }
+}
+
+.monospace-textarea {
+    font-family: 'Courier New', Courier, monospace;
+    line-height: 1.4;
 }
 </style>

@@ -14,11 +14,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TenantUserResolver
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response) $next
-     */
     public function handle(Request $request, Closure $next): Response
     {
         $tenant = $request->tenant;
@@ -51,43 +46,24 @@ class TenantUserResolver
                 'name' => 'guest',
             ]);
 
-            // 🆕 1. БОЛЬШОЙ МАССИВ КРАСИВЫХ И ГРАМОТНЫХ СОЧЕТАНИЙ
-            $identities = [
-                // 🦊 Лесные и милые
-                'Хитрый Енот', 'Сонный Медведь', 'Мудрая Сова', 'Пятнистый Олень',
-                'Колючий Ёж', 'Ласковый Бобёр', 'Любопытный Кот', 'Верный Пёс',
-                'Шустрый Заяц', 'Полосатый Барсук', 'Пушистая Белка', 'Тихий Волк',
-                'Игривый Лисёнок', 'Заботливый Сурок', 'Весёлый Бурундук',
+            // 🆕 1. Получаем дефолтные значения из конфига
+            $defaultIdentities = config('guests.default_identities', []);
+            $defaultWelcomeMessage = config('guests.default_welcome_message', 'Добро пожаловать!');
 
-                // 🦅 Птицы и небо
-                'Гордый Орёл', 'Пёстрый Попугай', 'Грациозный Лебедь', 'Быстрый Сокол',
-                'Яркий Фламинго', 'Загадочный Ворон', 'Нежный Голубь', 'Громкий Дятел',
-                'Свободный Альбатрос', 'Зоркий Ястреб', 'Певчий Соловей',
+            // 🆕 2. Получаем кастомные настройки тенанта (если они есть)
+            $settings = $tenant->settings ?? [];
+            $guestSettings = $settings['guests'] ?? [];
 
-                // 🐟 Вода и глубины
-                'Шустрый Карась', 'Мудрый Дельфин', 'Полосатый Скат', 'Гигантский Кит',
-                'Хитрая Щука', 'Панцирный Краб', 'Переливчатая Рыбка', 'Быстрая Акула',
-                'Спокойный Карп', 'Речной Выдра', 'Морской Конёк',
+            // Если в БД задан непустой массив, используем его. Иначе берем из конфига.
+            $identities = $guestSettings['identities'] ?? null;
+            if (!is_array($identities) || count($identities) === 0) {
+                $identities = $defaultIdentities;
+            }
 
-                // 🌴 Экзотика и джунгли
-                'Ловкий Шимпанзе', 'Грациозная Пантера', 'Высокий Жираф', 'Сонная Панда',
-                'Игривый Кенгуру', 'Пятнистый Гепард', 'Медлительный Ленивец', 'Яркий Хамелеон',
-                'Могучий Слон', 'Полосатый Тигр', 'Грозный Носорог',
-
-                // 🦕 Немного фантазии и атмосферы
-                'Космический Кот', 'Пещерный Медведь', 'Лесной Дух', 'Речной Страж',
-                'Горный Козёл', 'Степной Орлан', 'Домашний Дракон', 'Ночной Странник',
-                'Сказочный Единорог', 'Хранитель Леса', 'Ветреный Странник'
-            ];
-
-            // 🆕 2. ВЫБИРАЕМ СЛУЧАЙНОЕ СОЧЕТАНИЕ
+            // 🆕 3. Выбираем случайное имя и формируем полное имя
             $randomIdentity = $identities[array_rand($identities)];
-
-            // Формируем имя. Вариант "Гость • Хитрый Енот" выглядит очень стильно в интерфейсе.
-            // Если хотите строго как в примере, замените на: 'Гость ' . $randomIdentity
             $guestName = 'Гость • ' . $randomIdentity;
 
-            // Создаем нового гостя
             $user = TenantUser::query()->create([
                 'tenant_id' => $tenant->id,
                 'name'      => $guestName,
@@ -101,14 +77,16 @@ class TenantUserResolver
                 'title'          => "Сообщение от администрации"
             ]);
 
-            // 🆕 3. ПЕРСОНАЛИЗИРОВАННОЕ ПРИВЕТСТВИЕ
-            // Разбиваем имя, чтобы обратиться к "зверю" напрямую (убираем "Гость • ")
+            // 🆕 4. Формируем приветствие (кастомное из БД или дефолтное из конфига)
             $animalName = str_replace('Гость • ', '', $guestName);
+            $welcomeTemplate = $guestSettings['welcome_message'] ?? $defaultWelcomeMessage;
 
-            $message = TenantMessage::query()->create([
+            $welcomeMessage = str_replace('{name}', $animalName, $welcomeTemplate);
+
+            TenantMessage::query()->create([
                 'tenant_id' => $tenant->id,
                 'dialog_id' => $dialog->id,
-                'message'   => "Приветствуем вас в системе, <b>{$animalName}</b>! 🐾\nРады видеть вас среди наших гостей."
+                'message'   => $welcomeMessage
             ]);
 
             $user->roles()->syncWithoutDetaching([
@@ -117,14 +95,11 @@ class TenantUserResolver
                 ]
             ]);
 
-            // сохраняем в сессию
             $request->session()->put('user_uuid', $user->uuid);
         }
 
-        // авторизуем гостя на время сессии
         Auth::guard('tenant')->login($user);
 
         return $next($request);
     }
-
 }

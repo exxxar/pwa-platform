@@ -25,70 +25,144 @@ class PaymentService
     }
 
     /**
-     * 🆕 Единый источник конфигурации для любого банка
-     */
-    private function getPaymentConfig(string $bankKey): array
-    {
-        $tenant = app('tenant');
-        $config = $tenant->settings['sbp'] ?? [];
-        $bankConfig = $config[$bankKey] ?? [];
-
-        return match ($bankKey) {
-            'vtb' => [
-                'terminal_key' => $bankConfig['terminal_key'] ?? env('VTB_MERCHANT_ID'),
-                'terminal_password' => $bankConfig['terminal_password'] ?? env('VTB_API_KEY'),
-                'tax' => $bankConfig['tax'] ?? env('VTB_TAXATION', 'osn'),
-                'vat' => $bankConfig['vat'] ?? env('VTB_VAT', 'vat20'),
-                'url' => $bankConfig['api_url'] ?? 'https://api.vtb.ru/acquiring/v1/',
-            ],
-            'yandex' => [
-                'terminal_key' => $bankConfig['terminal_key'] ?? env('YOOKASSA_SHOP_ID'),
-                'terminal_password' => $bankConfig['terminal_password'] ?? env('YOOKASSA_SECRET_KEY'),
-                'tax' => $bankConfig['tax'] ?? env('YOOKASSA_TAXATION', 'osn'),
-                'vat' => $bankConfig['vat'] ?? env('YOOKASSA_VAT', 'vat20'),
-                'url' => $bankConfig['api_url'] ?? 'https://api.yookassa.ru/v3/',
-            ],
-            'psb' => [
-                'terminal_key' => $bankConfig['terminal_key'] ?? env('PSB_MERCHANT_ID'),
-                'terminal_password' => $bankConfig['terminal_password'] ?? env('PSB_SECRET_KEY'),
-                'tax' => $bankConfig['tax'] ?? env('PSB_TAXATION', 'osn'),
-                'vat' => $bankConfig['vat'] ?? env('PSB_VAT', 'vat20'),
-                'url' => $bankConfig['api_url'] ?? 'https://pg.bspb.ru/psb-rest-acquiring/v2/',
-            ],
-            'sber' => [
-                'terminal_key' => $bankConfig['terminal_key'] ?? env('SBER_API_LOGIN'),
-                'terminal_password' => $bankConfig['terminal_password'] ?? env('SBER_API_PASSWORD'),
-                'tax' => $bankConfig['tax'] ?? env('SBER_TAXATION', 'osn'),
-                'vat' => $bankConfig['vat'] ?? env('SBER_VAT', 'vat20'),
-                'url' => $bankConfig['api_url'] ?? 'https://securepayments.sberbank.ru/api/v2/',
-            ],
-            default => [ // Т-Банк по умолчанию
-                'terminal_key' => $bankConfig['terminal_key'] ?? env('TINKOFF_TERMINAL_KEY'),
-                'terminal_password' => $bankConfig['terminal_password'] ?? env('TINKOFF_TERMINAL_PASSWORD'),
-                'tax' => $bankConfig['tax'] ?? env('TINKOFF_PAYMENT_TAX', 'osn'),
-                'vat' => $bankConfig['vat'] ?? env('TINKOFF_PAYMENT_VAT', 'vat20'),
-                'url' => $bankConfig['api_url'] ?? config('sbp.payments.tinkoff.url', 'https://securepay.tinkoff.ru/v2/'),
-            ]
-        };
-    }
-
-    /**
      * 🆕 Получает конфигурацию текущего выбранного банка тенантом
      */
     private function getCurrentBankConfig(): array
     {
         $tenant = app('tenant');
-        $selectedBank = $tenant->settings['sbp']['selected_sbp_bank'] ?? 'tinkoff';
-        $config = $this->getPaymentConfig($selectedBank);
-        $config['bank_key'] = $selectedBank;
-        return $config;
+        $shopSettings = $tenant->settings['shop'] ?? [];
+        $sbpBanks = $shopSettings['sbp_banks'] ?? [];
+
+        // Находим первый включенный банк. Если ни один не включен, берем 'tinkoff' как дефолт
+        $selectedBank = 'tinkoff';
+        foreach ($sbpBanks as $key => $bank) {
+            if (!empty($bank['enabled'])) {
+                $selectedBank = $key;
+                break;
+            }
+        }
+
+        return $this->getPaymentConfig($selectedBank);
     }
 
     /**
-     * 🆕 Фабрика платежных шлюзов (устраняет огромные if/else блоки)
+     * 🆕 Нормализует номер телефона к формату, который принимают банки
+     * Убирает все символы, кроме цифр. Если пусто - возвращает дефолтный валидный номер.
+     */
+    private function normalizePhone(?string $phone): string
+    {
+        if (empty($phone)) {
+            return '70000000000'; // Дефолтный валидный номер, если телефон не указан
+        }
+
+        // Убираем всё, кроме цифр
+        $digits = preg_replace('/\D/', '', $phone);
+
+        // Если после очистки осталось 10 цифр (без кода страны), добавляем 7
+        if (strlen($digits) === 10) {
+            $digits = '7' . $digits;
+        }
+
+        // Если после очистки осталось 11 цифр и начинается с 8, заменяем на 7
+        if (strlen($digits) === 11 && $digits[0] === '8') {
+            $digits = '7' . substr($digits, 1);
+        }
+
+        // Если все еще пусто или невалидно - возвращаем дефолт
+        if (strlen($digits) < 10 || strlen($digits) > 18) {
+            return '70000000000';
+        }
+
+        return $digits;
+    }
+    /**
+     * 🆕 Единый источник конфигурации для любого банка
+     *
+     * ИСПРАВЛЕНО: Теперь $bankConfig — опциональный параметр.
+     * Если он не передан, метод сам подтянет настройки из БД тенанта.
+     * Это позволяет использовать метод и в testSbpPayment($bankKey), и в getCurrentBankConfig().
+     *
+     * @param string $bankKey Ключ банка (tinkoff, sber, vtb, psb, yandex)
+     * @param array $bankConfig Опциональные настройки. Если пусты — возьмутся из settings.shop.sbp_banks
+     */
+    private function getPaymentConfig(string $bankKey, array $bankConfig = []): array
+    {
+        // 🆕 Если конфиг не передан — подтягиваем его из настроек тенанта
+        if (empty($bankConfig)) {
+            $tenant = app('tenant');
+            $shopSettings = $tenant->settings ?? [];
+            $sbpBanks = $shopSettings['sbp_banks'] ?? [];
+
+
+            // Пробуем новый формат (из админки)
+            $bankConfig = $sbpBanks[$bankKey] ?? [];
+
+            // Fallback на старый формат (для обратной совместимости)
+            if (empty($bankConfig)) {
+                $legacySbp = $tenant->settings['sbp'] ?? [];
+                $bankConfig = $legacySbp[$bankKey] ?? [];
+            }
+        }
+
+
+
+        $baseConfig = match ($bankKey) {
+            'vtb' => [
+                'terminal_key' => (string) ($bankConfig['terminal_key'] ?? env('VTB_MERCHANT_ID', '')),
+                'terminal_password' => (string) ($bankConfig['terminal_password'] ?? env('VTB_API_KEY', '')),
+                'tax' => $bankConfig['tax'] ?? env('VTB_TAXATION', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('VTB_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? 'https://api.vtb.ru/acquiring/v1/',
+            ],
+            'yandex' => [
+                'terminal_key' => (string) ($bankConfig['terminal_key'] ?? env('YOOKASSA_SHOP_ID', '')),
+                'terminal_password' => (string) ($bankConfig['terminal_password'] ?? env('YOOKASSA_SECRET_KEY', '')),
+                'tax' => $bankConfig['tax'] ?? env('YOOKASSA_TAXATION', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('YOOKASSA_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? 'https://api.yookassa.ru/v3/',
+            ],
+            'psb' => [
+                'terminal_key' => (string) ($bankConfig['terminal_key'] ?? env('PSB_MERCHANT_ID', '')),
+                'terminal_password' => (string) ($bankConfig['terminal_password'] ?? env('PSB_SECRET_KEY', '')),
+                'tax' => $bankConfig['tax'] ?? env('PSB_TAXATION', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('PSB_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? 'https://pg.bspb.ru/psb-rest-acquiring/v2/',
+            ],
+            'sber' => [
+                'terminal_key' => (string) ($bankConfig['terminal_key'] ?? env('SBER_API_LOGIN', '')),
+                'terminal_password' => (string) ($bankConfig['terminal_password'] ?? env('SBER_API_PASSWORD', '')),
+                'tax' => $bankConfig['tax'] ?? env('SBER_TAXATION', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('SBER_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? 'https://securepayments.sberbank.ru/api/v2/',
+            ],
+            default => [ // Т-Банк по умолчанию
+                'terminal_key' => (string) ($bankConfig['terminal_key'] ?? env('TINKOFF_TERMINAL_KEY', '')),
+                'terminal_password' => (string) ($bankConfig['terminal_password'] ?? env('TINKOFF_TERMINAL_PASSWORD', '')),
+                'tax' => $bankConfig['tax'] ?? env('TINKOFF_PAYMENT_TAX', 'osn'),
+                'vat' => $bankConfig['vat'] ?? env('TINKOFF_PAYMENT_VAT', 'vat20'),
+                'url' => $bankConfig['api_url'] ?? config('sbp.payments.tinkoff.url', 'https://securepay.tinkoff.ru/v2/'),
+            ]
+        };
+
+
+        // 🛡 ГАРАНТИРОВАННО добавляем идентификатор банка в конфигурацию
+        $baseConfig['bank_key'] = $bankKey;
+
+        return $baseConfig;
+    }
+
+    /**
+     * 🆕 Фабрика платежных шлюзов
      */
     private function getPaymentGateway(string $bankKey, array $config): object
     {
+        if (empty($config['terminal_key']) || empty($config['terminal_password'])) {
+            throw new \Symfony\Component\HttpKernel\Exception\HttpException(
+                500,
+                "Не настроены платежные реквизиты для банка: {$bankKey}. Проверьте настройки магазина в админ-панели или переменные окружения (.env)."
+            );
+        }
+
         $namespace = 'App\\Services\\Banking\\';
 
         $className = match ($bankKey) {
@@ -339,6 +413,137 @@ class PaymentService
         }
     }
 
+    /**
+     * 🆕 Генерация ссылки на оплату СБП для заказа из магазина (FoodShop Checkout)
+     *
+     * @param Order $order Модель оформленного заказа
+     * @param string $crmMessage Текст сообщения для CRM (передается из BasketService)
+     * @return array Массив с данными для фронтенда (url, payment_id, order_id)
+     * @throws HttpException
+     */
+    public function sbpForShop(Order $order, string $crmMessage): array
+    {
+        $tenant = app('tenant');
+        // Пытаемся получить пользователя из auth, либо из данных заказа (на случай API-вызовов)
+        $tenantUser = Auth::guard('tenant')->user() ?? \App\Models\Tenant\TenantUser::find($order->tenant_user_id);
+
+        if (!$tenant || !$tenantUser) {
+            Log::error('[PaymentService] sbpForShop: Пользователь или тенант не найдены', ['order_id' => $order->id]);
+            throw new HttpException(404, "Пользователь или тенант не найдены!");
+        }
+
+        // 1. Получаем конфигурацию и шлюз текущего выбранного банка
+        $config = $this->getCurrentBankConfig();
+        $paymentGateway = $this->getPaymentGateway($config['bank_key'], $config);
+
+        // 2. Формируем состав заказа для чека (items)
+        $items = [];
+        $productDetails = $order->product_details ?? [];
+        $tmpOrderProductInfo = []; // Для отправки в CRM
+
+        foreach ($productDetails as $detail) {
+            if (isset($detail['products']) && is_array($detail['products'])) {
+                foreach ($detail['products'] as $product) {
+                    $items[] = [
+                        'Name' => $product['name'] ?? $product['title'] ?? 'Товар',
+                        'Quantity' => $product['count'] ?? 1,
+                        'Price' => $product['price'] ?? 0,
+                        'NDS' => $config['vat'], // Берем НДС из настроек банка
+                    ];
+                    $tmpOrderProductInfo[] = $product;
+                }
+            }
+        }
+
+        // Fallback, если товары по какой-то причине не распарсились
+        if (empty($items)) {
+            $items[] = [
+                'Name' => "Заказ #{$order->id}",
+                'Quantity' => $order->product_count ?? 1,
+                'Price' => $order->summary_price,
+                'NDS' => $config['vat'],
+            ];
+        }
+
+        // 3. Формируем payload для платежного шлюза
+        $payment = [
+            'OrderId' => (string) $order->id,
+            'Amount' => (float) $order->summary_price, // Сумма уже с учетом кэшбэка (из BasketService)
+            'Language' => 'ru',
+            'Description' => "Оплата заказа #{$order->id} в " . ($tenant->title ?? $tenant->name ?? 'Магазине'),
+            'Email' => $tenantUser->email ?? '',
+            'Phone' => $this->normalizePhone($order->receiver_phone ?? $tenantUser->phone ?? ''),
+            'Name' => $order->receiver_name ?? $tenantUser->name ?? 'Клиент',
+            'Taxation' => $config['tax'],
+            'CustomerKey' => (string) $tenantUser->id,
+            // Умный ReturnUrl: возвращаем пользователя в чат с его заказом или на главную PWA
+            'ReturnUrl' => "https://" . ($tenant->slug ?? 'app') . ".mypwa.ru/pwa/#/chat/" . $order->id,
+        ];
+
+        // 4. Запрашиваем ссылку на оплату у банка
+        $paymentURL = $paymentGateway->paymentURL($payment, $items);
+
+        if (!$paymentURL) {
+            $error = $paymentGateway->getError() ?: 'Неизвестная ошибка банка';
+            Log::error('[PaymentService] Ошибка генерации ссылки СБП', [
+                'order_id' => $order->id,
+                'bank' => $config['bank_key'],
+                'error' => $error
+            ]);
+            throw new HttpException(500, "Ошибка формирования ссылки на оплату: {$error}");
+        }
+
+        $payment_id = $paymentGateway->payment_id ?? Str::uuid()->toString();
+
+        // 5. Создаем запись о ожидающей транзакции (если сервис доступен)
+        if (class_exists(\App\Services\TransactionService::class)) {
+            \App\Services\TransactionService::call()->createPending(
+                tenantId: $tenant->id,
+                tenantUserId: $tenantUser->id,
+                orderId: $order->id,
+                externalPaymentId: $payment_id,
+                amount: $order->summary_price,
+                metaData: [
+                    'bank_key' => $config['bank_key'],
+                    'terminal_key_masked' => substr($config['terminal_key'], 0, 4) . '***',
+                    'source' => 'foodshop_checkout'
+                ],
+                provider: $config['bank_key']
+            );
+        }
+
+        // 6. Уведомляем пользователя в боте/чате
+        $this->notifyUser($tenantUser, "💳 <b>Ссылка на оплату заказа №{$order->id}</b>\n\nСумма к оплате: <b>{$order->summary_price} руб.</b>\n\nПерейдите по ссылке или отсканируйте QR-код для оплаты:\n<code>{$paymentURL}</code>", [
+            'type' => 'payment_link',
+            'url' => $paymentURL,
+            'order_id' => $order->id
+        ]);
+
+        // 7. Отправляем данные в Kanban CRM
+        $this->sendToKanbanCrm(
+            $order,
+            $tenantUser,
+            $tmpOrderProductInfo,
+            $order->summary_price, // summaryPrice
+            0,                      // cashback (уже вычтен из summary_price)
+            $order->product_count,
+            0,                      // summaryDiscount
+            $order->delivery_price ?? 0,
+            $order->delivery_range ?? 0,
+            false,                  // needPickup (упрощенно, CRM покажет адрес из delivery_note)
+            'SBP_' . strtoupper($config['bank_key'])
+        );
+
+        // 8. Возвращаем данные для фронтенда (CartPage.vue ожидает именно такую структуру)
+        return [
+            'url' => $paymentURL,
+            'payment_id' => $payment_id,
+            'order_id' => $order->id,
+            'bank' => $config['bank_key'],
+            'amount' => $order->summary_price,
+        ];
+    }
+
     // ==========================================
     // 🆕 3. ОСНОВНАЯ ЛОГИКА ОПЛАТЫ
     // ==========================================
@@ -418,6 +623,7 @@ class PaymentService
 
     /**
      * Формирует тестовую ссылку на оплату (100 руб) с переданными настройками
+     * ИСПРАВЛЕНО: Теперь корректно использует $bankConfig, переданный с фронта
      */
     public function testSbpPayment(array $bankConfig, string $bankKey): array
     {
@@ -428,8 +634,23 @@ class PaymentService
             throw new HttpException(404, "Пользователь или тенант не найдены!");
         }
 
-        // 🆕 Используем фабрику вместо дублирующегося кода
-        $config = $this->getPaymentConfig($bankKey);
+        // 🆕 ЛОГИРОВАНИЕ: Проверяем, что приходит с фронта
+        Log::info('[TestSBP] Получен конфиг с фронта:', [
+            'bank_key' => $bankKey,
+            'terminal_key' => substr($bankConfig['terminal_key'] ?? '', 0, 10) . '...',
+            'has_password' => !empty($bankConfig['terminal_password']),
+            'full_config' => $bankConfig
+        ]);
+
+        // 🆕 ИСПРАВЛЕНО: Передаем $bankConfig вторым аргументом!
+        $config = $this->getPaymentConfig($bankKey, $bankConfig);
+
+        // 🆕 Дополнительная проверка: если ключи все еще пустые после merge
+        if (empty($config['terminal_key']) || empty($config['terminal_password'])) {
+            Log::error('[TestSBP] Ключи пусты после getPaymentConfig', ['config' => $config]);
+            throw new HttpException(400, "Ключ терминала или пароль пусты. Проверьте заполненность полей в админке.");
+        }
+
         $paymentGateway = $this->getPaymentGateway($bankKey, $config);
 
         $order = Order::query()->create([
@@ -458,7 +679,7 @@ class PaymentService
             'Language' => 'ru',
             'Description' => "Тестовая проверка интеграции ({$bankKey})",
             'Email' => $tenantUser->email ?? 'test@test.com',
-            'Phone' => $order->receiver_phone,
+            'Phone' =>  $this->normalizePhone($order->receiver_phone),
             'Name' => $order->receiver_name,
             'Taxation' => $config['tax'],
             'CustomerKey' => $tenantUser->id,
@@ -523,7 +744,7 @@ class PaymentService
             'Language' => 'ru',
             'Description' => "Оплата услуг сервиса",
             'Email' => $tenantUser->email ?? '',
-            'Phone' => $tenantUser->phone ?? '',
+            'Phone' => $this->normalizePhone($tenantUser->phone ?? ''),
             'Name' => $tenantUser->name ?? 'Клиент',
             'Taxation' => $config['tax'],
             'CustomerKey' => $tenantUser->id,
@@ -623,7 +844,7 @@ class PaymentService
             'Language' => 'ru',
             'Description' => "Оплата за обслуживание столика №{$table->number}",
             'Email' => $tenantUser->email ?? '',
-            'Phone' => $order->receiver_phone,
+            'Phone' => $this->normalizePhone($order->receiver_phone),
             'Name' => $order->receiver_name,
             'Taxation' => $config['tax'],
             'CustomerKey' => $tenantUser->id,
@@ -723,7 +944,7 @@ class PaymentService
             'Language' => 'ru',
             'Description' => $data["description"] ?? "Оплата услуг сервиса",
             'Email' => $data["email"] ?? $tenantUser->email ?? '',
-            'Phone' => $data["phone"] ?? $tenantUser->phone ?? '',
+            'Phone' => $this->normalizePhone($data["phone"] ?? $tenantUser->phone),
             'Name' => $data["name"] ?? $tenantUser->name ?? 'Клиент',
             'Taxation' => $config['tax'],
             'CustomerKey' => $tenantUser->id,

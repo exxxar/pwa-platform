@@ -454,16 +454,16 @@ export default {
         },
 
         // Лимит кэшбэка
+        // 🆕 ИСПРАВЛЕНО: путь к cashback
         cashbackLimit() {
             if (!this.modelValue?.use_cashback) return 0;
-
             const self = window.TenantUser;
             const maxUserCashback = self?.cashBack?.amount || 0;
-            const botCashbackPercent = this.settings?.max_cashback_use_percent || 0;
+            const botCashbackPercent = this.settings.cashback?.max_cashback_use_percent ?? this.settings.max_cashback_use_percent ?? 0;
             const cashBackAmount = (this.cartTotalPrice * (botCashbackPercent / 100));
-
             return Math.min(cashBackAmount, maxUserCashback);
         },
+
 
         // Общая скидка
         totalDiscount() {
@@ -472,9 +472,10 @@ export default {
 
         // Бесплатная доставка
         isFreeDelivery() {
-            return this.settings?.free_shipping_starts_from > 0
-                && this.cartTotalPrice >= this.settings.free_shipping_starts_from;
+            const freeFrom = this.settings.shop?.free_shipping_starts_from ?? this.settings.free_shipping_starts_from ?? 0;
+            return freeFrom > 0 && this.cartTotalPrice >= freeFrom;
         },
+
 
         // Финальная цена
         finallyPrice() {

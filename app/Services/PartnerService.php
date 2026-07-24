@@ -32,75 +32,110 @@ class PartnerService
 
     public function togglePartnerInFavorites($id): array
     {
-        $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
+
+        // Если пользователя нет, возвращаем пустой массив (или кидаем исключение, зависит от твоей логики)
+        if (!$tenantUser) {
+            return [];
+        }
 
         $config = $tenantUser->meta ?? [];
 
-        if (in_array($id, $config["fav_partners"] ?? [])) {
-            $config["fav_partners"] = array_values(array_diff($config["fav_partners"], [$id]));
-        } else {
+        // 1. Приводим входящий ID к строке для гарантированного совпадения
+        $id = (string) $id;
 
-            if (isset($config["fav_partners"]))
-                $config["fav_partners"][] = $id;
-            else
-                $config["fav_partners"] = [$id];
+        // 2. Получаем текущие избранные, гарантируем, что это коллекция строк
+        $favPartners = collect($config['fav_partners'] ?? [])
+            ->map(fn($item) => (string) $item);
+
+        // 3. Проверяем наличие и добавляем/удаляем
+        if ($favPartners->contains($id)) {
+            // Удаляем и переиндексируем массив (чтобы не было дырок в ключах [0 => 1, 2 => 3])
+            $favPartners = $favPartners->reject(fn($item) => $item === $id)
+                ->values()
+                ->toArray();
+        } else {
+            // Добавляем и переиндексируем
+            $favPartners = $favPartners->push($id)
+                ->values()
+                ->toArray();
         }
 
+        // 4. Сохраняем
+        $config['fav_partners'] = $favPartners;
         $tenantUser->meta = $config;
         $tenantUser->save();
 
-        return $config["fav_partners"];
+        return $config['fav_partners'];
     }
 
-
-    public function list(array $data = null, $isForApi = false): PartnerCollection
+    /**
+     * Получение списка партнеров с фильтрацией и агрегацией
+     *
+     * @param array|null $data Параметры фильтрации (tag, tags, per_page и т.д.)
+     * @param bool $isForApi Флаг API-запроса
+     * @return PartnerCollection
+     * @throws HttpException
+     */
+    public function list(?array $data = [], bool $isForApi = false): PartnerCollection
     {
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
-        if (!$isForApi && is_null($tenantUser)) {
-            throw new HttpException(404, "Бот и пользователь не найден!");
+        // 1. Валидация доступа
+        if (!$isForApi && !$tenantUser) {
+            throw new HttpException(404, "Бот и пользователь не найдены!");
         }
 
-        $config = $tenantUser->meta ?? [];
-        $favPartners = !$isForApi ? ($config["fav_partners"] ?? []) : [];
+        // 2. Извлечение избранных партнеров (только для не-API запросов, если нужно)
+        $favPartners = !$isForApi && $tenantUser ? ($tenantUser->meta['fav_partners'] ?? []) : [];
 
-        $partnersQuery = Partner::query()
-            ->where("tenant_id", $tenant->id);
+        // 3. Базовый запрос с использованием скоупов модели
+        $query = Partner::query()
+            ->where('tenant_id', $tenant->id)
+            ->active(); // 🆕 Используем скоуп active() из модели
 
-        // 🆕 Считаем количество активных товаров каждого партнёра
-        // через подзапрос к таблице products по tenant_partner_id
-        $partnersQuery->withCount([
-            'partnerProducts as products_count' => function ($query) {
-                $query->where('products.is_active', true)
-                    ->where(function ($q) {
-                        $q->whereNull('products.in_stop_list')
-                            ->orWhere('products.in_stop_list', false);
-                    });
-            }
-        ]);
+        // 4. 🆕 Фильтрация по тегам
+        if (!empty($data['tag'])) {
+            $query->whereTag($data['tag']);
+        } elseif (!empty($data['tags']) && is_array($data['tags'])) {
+            $query->whereTags($data['tags']);
+        }
 
-        // 🆕 Общая сумма товаров (для статистики)
-        $partnersQuery->withSum([
-            'partnerProducts as products_sum' => function ($query) {
-                $query->where('products.is_active', true)
-                    ->where(function ($q) {
-                        $q->whereNull('products.in_stop_list')
-                            ->orWhere('products.in_stop_list', false);
-                    });
-            }
-        ], 'price');
+        // 5. 🆕 DRY: Выносим повторяющееся условие активных товаров в переменную
+        $activeProductsCondition = function ($q) {
+            $q->where('is_active', true)
+                ->where(function ($subQuery) {
+                    $subQuery->whereNull('in_stop_list')
+                        ->orWhere('in_stop_list', false);
+                });
+        };
 
-        // Сортировка
+        // 6. Агрегация данных (количество и сумма)
+        $query->withCount([
+            'partnerProducts as products_count' => $activeProductsCondition
+        ])
+            ->withSum([
+                'partnerProducts as products_sum' => $activeProductsCondition
+            ], 'price');
+
+        // 7. 🆕 Умная и безопасная сортировка
         if (!empty($favPartners)) {
-            $ids = implode(',', $favPartners);
-            $partnersQuery->orderByRaw("FIELD(id, $ids) desc");
-        } else {
-            $partnersQuery->orderBy("order_position", "DESC");
+            // Защита от SQL-инъекций: приводим все ID к целым числам
+            $safeIds = implode(',', array_map('intval', $favPartners));
+
+            // Сортируем так, чтобы избранные были вверху (FIELD возвращает 0, если ID нет в списке)
+            $query->orderByRaw("FIELD(id, {$safeIds}) DESC");
         }
 
-        $partners = $partnersQuery->get();
+        // Вторичная сортировка всегда применяется (даже если есть избранные)
+        $query->orderBy('order_position', 'DESC')
+            ->orderBy('id', 'DESC'); // Дополнительная стабилизация сортировки
+
+        // 8. Выполнение запроса
+        // Примечание: если нужна пагинация, замените ->get() на ->paginate($data['per_page'] ?? 15)
+        // и измените возвращаемый тип на \Illuminate\Pagination\LengthAwarePaginator
+        $partners = $query->get();
 
         return new PartnerCollection($partners);
     }
@@ -182,6 +217,7 @@ class PartnerService
                 'extra_charge' => 0,
                 'config' => [],
                 'legal_info' => [],
+                'tags' => [],
             ]);
 
         return new PartnerResource($partner);
@@ -242,6 +278,7 @@ class PartnerService
                 'is_active' => ($data["is_active"] ?? false) == "true",
                 'extra_charge' => $data["extra_charge"] ?? $partner->extra_charge ?? 0,
                 'config' => isset($data["config"]) ? json_decode($data["config"] ?? '[]') : $partner->config,
+                'tags' => isset($data["tags"]) ? $data["tags"] ?? [] : $partner->tags,
                 'legal_info' => isset($data["legal_info"]) ? json_decode($data["legal_info"] ?? '[]') : $partner->legal_info,
             ]);
 

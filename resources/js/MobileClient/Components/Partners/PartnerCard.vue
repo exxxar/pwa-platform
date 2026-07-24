@@ -168,7 +168,7 @@ export default {
 
 .partner-card.view-grid .card-image-wrapper {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 9 / 9;
     min-height: auto;
 }
 
@@ -404,7 +404,7 @@ export default {
    ========================================== */
 @media (max-width: 576px) {
     .partner-card:not(.view-grid) .card-image-wrapper {
-        width: 100px;
+        width: 145px;
         min-height: 120px;
     }
 

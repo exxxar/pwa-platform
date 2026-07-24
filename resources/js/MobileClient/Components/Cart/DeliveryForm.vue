@@ -7,50 +7,26 @@
         <template v-if="mode === 1">
             <div class="form-section">
                 <div class="form-field">
-                    <div class="field-icon">
-                        <i class="fa-solid fa-user"></i>
-                    </div>
+                    <div class="field-icon"><i class="fa-solid fa-user"></i></div>
                     <div class="field-content">
                         <label>ФИО <span class="required">*</span></label>
-                        <input
-                            type="text"
-                            v-model="deliveryForm.name"
-                            placeholder="Иванов Иван Иванович"
-                            required
-                            class="form-input"
-                        >
+                        <input type="text" v-model="deliveryForm.name" placeholder="Иванов Иван Иванович" required class="form-input">
                     </div>
                 </div>
 
                 <div class="form-field">
-                    <div class="field-icon">
-                        <i class="fa-solid fa-phone"></i>
-                    </div>
+                    <div class="field-icon"><i class="fa-solid fa-phone"></i></div>
                     <div class="field-content">
                         <label>Телефон <span class="required">*</span></label>
-                        <input
-                            type="tel"
-                            v-model="deliveryForm.phone"
-                            placeholder="+7 (999) 123-45-67"
-                            required
-                            class="form-input"
-                            @input="formatPhone"
-                        >
+                        <input type="tel" v-model="deliveryForm.phone" placeholder="+7 (999) 123-45-67" required class="form-input" @input="formatPhone">
                     </div>
                 </div>
 
                 <div class="form-field textarea-field">
-                    <div class="field-icon">
-                        <i class="fa-solid fa-message"></i>
-                    </div>
+                    <div class="field-icon"><i class="fa-solid fa-message"></i></div>
                     <div class="field-content">
                         <label>Комментарий</label>
-                        <textarea
-                            v-model="deliveryForm.info"
-                            placeholder="Дополнительная информация для сотрудника..."
-                            rows="4"
-                            class="form-input form-textarea"
-                        ></textarea>
+                        <textarea v-model="deliveryForm.info" placeholder="Дополнительная информация для сотрудника..." rows="4" class="form-input form-textarea"></textarea>
                     </div>
                 </div>
             </div>
@@ -66,35 +42,18 @@
                 <div class="section-label">Контактные данные</div>
 
                 <div class="form-field">
-                    <div class="field-icon">
-                        <i class="fa-solid fa-user"></i>
-                    </div>
+                    <div class="field-icon"><i class="fa-solid fa-user"></i></div>
                     <div class="field-content">
                         <label>ФИО <span class="required">*</span></label>
-                        <input
-                            type="text"
-                            v-model="deliveryForm.name"
-                            placeholder="Иванов Иван Иванович"
-                            required
-                            class="form-input"
-                        >
+                        <input type="text" v-model="deliveryForm.name" placeholder="Иванов Иван Иванович" required class="form-input">
                     </div>
                 </div>
 
                 <div class="form-field">
-                    <div class="field-icon">
-                        <i class="fa-solid fa-phone"></i>
-                    </div>
+                    <div class="field-icon"><i class="fa-solid fa-phone"></i></div>
                     <div class="field-content">
                         <label>Телефон <span class="required">*</span></label>
-                        <input
-                            type="tel"
-                            v-model="deliveryForm.phone"
-                            placeholder="+7 (999) 123-45-67"
-                            required
-                            class="form-input"
-                            @input="formatPhone"
-                        >
+                        <input type="tel" v-model="deliveryForm.phone" placeholder="+7 (999) 123-45-67" required class="form-input" @input="formatPhone">
                     </div>
                 </div>
             </div>
@@ -103,14 +62,12 @@
             <!-- ДОСТАВКА -->
             <!-- ========================================== -->
             <template v-if="!deliveryForm.need_pickup">
-                <div class="form-section ">
+                <div class="form-section">
                     <div class="section-label">Адрес доставки</div>
-
                     <AddressList
                         v-model:address="deliveryForm.address"
                         v-model:location_id="deliveryForm.location_id"
                     />
-
                     <slot name="loadingDeliveryData"></slot>
                 </div>
 
@@ -119,24 +76,14 @@
                     <div class="section-label">Когда приготовить?</div>
 
                     <div class="time-selector">
-                        <button
-                            type="button"
-                            class="time-option"
-                            :class="{ 'active': deliveryForm.when_ready }"
-                            @click="deliveryForm.when_ready = true"
-                        >
+                        <button type="button" class="time-option" :class="{ 'active': deliveryForm.when_ready }" @click="deliveryForm.when_ready = true">
                             <i class="fa-solid fa-stopwatch"></i>
                             <div class="time-info">
                                 <div class="time-title">По готовности</div>
                                 <div class="time-desc">Как можно быстрее</div>
                             </div>
                         </button>
-                        <button
-                            type="button"
-                            class="time-option"
-                            :class="{ 'active': !deliveryForm.when_ready }"
-                            @click="deliveryForm.when_ready = false"
-                        >
+                        <button type="button" class="time-option" :class="{ 'active': !deliveryForm.when_ready }" @click="deliveryForm.when_ready = false">
                             <i class="fa-regular fa-clock"></i>
                             <div class="time-info">
                                 <div class="time-title">К указанному времени</div>
@@ -146,17 +93,10 @@
                     </div>
 
                     <div v-if="!deliveryForm.when_ready" class="form-field mt-3">
-                        <div class="field-icon">
-                            <i class="fa-solid fa-calendar-check"></i>
-                        </div>
+                        <div class="field-icon"><i class="fa-solid fa-calendar-check"></i></div>
                         <div class="field-content">
                             <label>Время доставки <span class="required">*</span></label>
-                            <input
-                                type="datetime-local"
-                                v-model="deliveryForm.time"
-                                required
-                                class="form-input"
-                            >
+                            <input type="datetime-local" v-model="deliveryForm.time" required class="form-input">
                         </div>
                     </div>
                 </div>
@@ -169,22 +109,19 @@
                 <div class="form-section">
                     <div class="section-label">Номер столика</div>
 
-                    <!-- Переключатель способа выбора -->
-                    <div v-if="settings.need_table_list" class="table-select-toggle">
+                    <!-- 🆕 ИСПРАВЛЕНО: Путь к настройкам столиков (settings.tables) -->
+                    <div v-if="settings.tables?.need_table_list" class="table-select-toggle">
                         <label class="toggle-label">
-                            <input
-                                type="checkbox"
-                                v-model="needSelectTableByNumber"
-                                class="toggle-input"
-                            >
+                            <input type="checkbox" v-model="needSelectTableByNumber" class="toggle-input">
                             <span class="toggle-text">Выбрать из списка</span>
                         </label>
                     </div>
 
                     <!-- Список номеров -->
                     <div v-if="needSelectTableByNumber" class="table-numbers-grid">
+                        <!-- 🆕 ИСПРАВЛЕНО: Безопасный парсинг max_tables -->
                         <button
-                            v-for="num in parseInt(settings.max_tables) || 10"
+                            v-for="num in (parseInt(settings.tables?.max_tables) || 10)"
                             :key="num"
                             type="button"
                             class="table-number-btn"
@@ -197,19 +134,10 @@
 
                     <!-- Ручной ввод -->
                     <div v-else-if="deliveryForm.pick_up_type == 0" class="form-field">
-                        <div class="field-icon">
-                            <i class="fa-solid fa-utensils"></i>
-                        </div>
+                        <div class="field-icon"><i class="fa-solid fa-utensils"></i></div>
                         <div class="field-content">
                             <label>Номер столика</label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="200"
-                                v-model.number="deliveryForm.table_number"
-                                placeholder="Например: 5"
-                                class="form-input"
-                            >
+                            <input type="number" min="1" max="200" v-model.number="deliveryForm.table_number" placeholder="Например: 5" class="form-input">
                         </div>
                     </div>
                 </div>
@@ -219,16 +147,12 @@
             <div class="form-section">
                 <div class="section-label">Комментарий</div>
                 <div class="form-field textarea-field">
-                    <div class="field-icon">
-                        <i class="fa-solid fa-message"></i>
-                    </div>
+                    <div class="field-icon"><i class="fa-solid fa-message"></i></div>
                     <div class="field-content">
                         <label>{{ deliveryForm.need_pickup ? 'Для сотрудника' : 'Для курьера' }}</label>
                         <textarea
                             v-model="deliveryForm.info"
-                            :placeholder="deliveryForm.need_pickup
-                                ? 'Например: позвоните за 5 минут до готовности'
-                                : 'Например: код домофона 1234, 3 этаж'"
+                            :placeholder="deliveryForm.need_pickup ? 'Например: позвоните за 5 минут до готовности' : 'Например: код домофона 1234, 3 этаж'"
                             rows="3"
                             class="form-input form-textarea"
                         ></textarea>
@@ -244,21 +168,11 @@
                     <div class="section-label">Ограничения по здоровью</div>
 
                     <div class="health-toggle">
-                        <button
-                            type="button"
-                            class="health-option"
-                            :class="{ 'active': !deliveryForm.has_disability }"
-                            @click="deliveryForm.has_disability = false"
-                        >
+                        <button type="button" class="health-option" :class="{ 'active': !deliveryForm.has_disability }" @click="deliveryForm.has_disability = false">
                             <i class="fa-regular fa-heart"></i>
                             <span>Нет ограничений</span>
                         </button>
-                        <button
-                            type="button"
-                            class="health-option"
-                            :class="{ 'active': deliveryForm.has_disability }"
-                            @click="deliveryForm.has_disability = true"
-                        >
+                        <button type="button" class="health-option" :class="{ 'active': deliveryForm.has_disability }" @click="deliveryForm.has_disability = true">
                             <i class="fa-solid fa-house-medical-flag"></i>
                             <span>Есть ограничения</span>
                         </button>
@@ -271,40 +185,23 @@
                                 v-for="disability in disabilitiesOptions"
                                 :key="disability.value"
                                 class="disability-item"
-                                :class="{ 'active': deliveryForm.disabilities.includes(disability.value) }"
+                                :class="{ 'active': deliveryForm.disabilities?.includes(disability.value) }"
                             >
-                                <div class="disability-icon">
-                                    <i :class="disability.icon"></i>
-                                </div>
+                                <div class="disability-icon"><i :class="disability.icon"></i></div>
                                 <div class="disability-info">
                                     <div class="disability-title">{{ disability.title }}</div>
                                 </div>
-                                <input
-                                    type="checkbox"
-                                    :value="disability.value"
-                                    v-model="deliveryForm.disabilities"
-                                    class="disability-checkbox"
-                                >
-                                <div class="disability-check">
-                                    <i class="fa-solid fa-check"></i>
-                                </div>
+                                <input type="checkbox" :value="disability.value" v-model="deliveryForm.disabilities" class="disability-checkbox">
+                                <div class="disability-check"><i class="fa-solid fa-check"></i></div>
                             </label>
 
                             <!-- Поле для аллергии -->
                             <transition name="slide-down">
-                                <div v-if="deliveryForm.disabilities.includes('пищевая аллергия')" class="form-field mt-3">
-                                    <div class="field-icon">
-                                        <i class="fa-solid fa-triangle-exclamation"></i>
-                                    </div>
+                                <div v-if="deliveryForm.disabilities?.includes('пищевая аллергия')" class="form-field mt-3">
+                                    <div class="field-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
                                     <div class="field-content">
                                         <label>На что аллергия <span class="required">*</span></label>
-                                        <input
-                                            type="text"
-                                            v-model="deliveryForm.allergy"
-                                            placeholder="Например: орехи, лактоза"
-                                            required
-                                            class="form-input"
-                                        >
+                                        <input type="text" v-model="deliveryForm.allergy" placeholder="Например: орехи, лактоза" required class="form-input">
                                     </div>
                                 </div>
                             </transition>
@@ -314,7 +211,6 @@
             </template>
 
         </template>
-
     </div>
 </template>
 
@@ -323,22 +219,11 @@ import AddressList from "@/MobileClient/Components/Locations/AddressList.vue";
 
 export default {
     name: "DeliveryForm",
-
-    components: {
-        AddressList,
-    },
-
+    components: { AddressList },
     props: {
-        modelValue: {
-            type: Object,
-            required: true,
-        },
-        mode: {
-            type: Number,
-            default: 0,
-        },
+        modelValue: { type: Object, required: true },
+        mode: { type: Number, default: 0 },
     },
-
     emits: ['update:modelValue'],
 
     data() {
@@ -358,7 +243,6 @@ export default {
     watch: {
         deliveryForm: {
             handler(newValue) {
-                // Сохранение в localStorage
                 this.saveToLocalStorage(newValue);
                 this.$emit('update:modelValue', newValue);
             },
@@ -369,16 +253,13 @@ export default {
                 this.deliveryForm = newValue;
             },
             deep: true,
+            immediate: true, // 🆕 Добавлено, чтобы сразу загрузить данные при монтировании
         },
     },
 
     computed: {
-        tenant() {
-            return window.Tenant || null;
-        },
-        settings() {
-            return this.tenant?.settings || {};
-        },
+        tenant() { return window.Tenant || null; },
+        settings() { return this.tenant?.settings || {}; },
     },
 
     mounted() {
@@ -387,7 +268,6 @@ export default {
     },
 
     methods: {
-        // Форматирование телефона
         formatPhone() {
             let value = this.deliveryForm.phone.replace(/\D/g, '');
 
@@ -404,14 +284,9 @@ export default {
             this.deliveryForm.phone = formatted;
         },
 
-        // Сохранение в localStorage
         saveToLocalStorage(form) {
             if (!form) return;
-
-            const fields = [
-                'name', 'phone', 'address', 'city', 'street',
-                'building', 'flat_number', 'entrance_number',
-            ];
+            const fields = ['name', 'phone', 'address', 'city', 'street', 'building', 'flat_number', 'entrance_number'];
 
             fields.forEach(field => {
                 if (form[field] !== undefined) {
@@ -426,16 +301,15 @@ export default {
             }
         },
 
-        // Загрузка из localStorage
         loadFromLocalStorage() {
-            const fields = [
-                'name', 'phone', 'address', 'city', 'street',
-                'building', 'flat_number', 'entrance_number',
-            ];
+            if (!this.deliveryForm) return;
+
+            const fields = ['name', 'phone', 'address', 'city', 'street', 'building', 'flat_number', 'entrance_number'];
 
             fields.forEach(field => {
                 const saved = localStorage.getItem(`mypwa_delivery_${field}`);
-                if (saved !== null && this.deliveryForm[field] === null) {
+                // 🆕 ИСПРАВЛЕНО: Более надежная проверка на отсутствие значения
+                if (saved !== null && !this.deliveryForm[field]) {
                     this.deliveryForm[field] = saved;
                 }
             });
@@ -443,19 +317,19 @@ export default {
             const disabilities = localStorage.getItem('mypwa_delivery_disabilities');
             if (disabilities) {
                 try {
-                    this.deliveryForm.disabilities = JSON.parse(disabilities);
-                    if (this.deliveryForm.disabilities.length > 0) {
+                    const parsed = JSON.parse(disabilities);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        this.deliveryForm.disabilities = parsed;
                         this.deliveryForm.has_disability = true;
                     }
                 } catch (e) {
-                    console.error('Ошибка загрузки ограничений:', e);
+                    console.error('Ошибка загрузки ограничений из localStorage:', e);
                 }
             }
         },
     },
 };
 </script>
-
 <style scoped>
 .delivery-form {
     display: flex;

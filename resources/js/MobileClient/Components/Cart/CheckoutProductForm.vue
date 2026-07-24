@@ -211,28 +211,23 @@ export default {
 
         cashbackLimit() {
             if (!this.deliveryForm?.use_cashback) return 0;
-
             const self = window.TenantUser;
             const maxUserCashback = self?.cashBack?.amount || 0;
-            const botCashbackPercent = this.settings?.max_cashback_use_percent || 0;
+            const botCashbackPercent = this.settings.cashback?.max_cashback_use_percent ?? this.settings.max_cashback_use_percent ?? 0;
             const cashBackAmount = (this.cartTotalPrice * (botCashbackPercent / 100));
-
             return Math.min(cashBackAmount, maxUserCashback);
         },
 
+        // 🆕 ИСПРАВЛЕНО: учет вложенности settings.shop
         validSumText() {
-            const minPrice = this.settings.min_price || 0;
-            const currentPrice = this.deliveryForm?.use_cashback
-                ? this.cartTotalPrice - this.cashbackLimit
-                : this.cartTotalPrice;
+            const minPrice = this.settings.shop?.min_price ?? this.settings.min_price ?? 0;
+            const currentPrice = this.deliveryForm?.use_cashback ? this.cartTotalPrice - this.cashbackLimit : this.cartTotalPrice;
             return `${this.formatPrice(currentPrice)} из ${this.formatPrice(minPrice)}`;
         },
 
         sumIsValid() {
-            const minPrice = this.settings.min_price || 0;
-            const currentPrice = this.deliveryForm?.use_cashback
-                ? this.cartTotalPrice - this.cashbackLimit
-                : this.cartTotalPrice;
+            const minPrice = this.settings.shop?.min_price ?? this.settings.min_price ?? 0;
+            const currentPrice = this.deliveryForm?.use_cashback ? this.cartTotalPrice - this.cashbackLimit : this.cartTotalPrice;
             return currentPrice >= minPrice;
         },
 

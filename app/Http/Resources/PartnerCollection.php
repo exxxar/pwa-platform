@@ -20,6 +20,7 @@ class PartnerCollection extends ResourceCollection
                     'title' => $partner->title,
                     'name' => $partner->title, // для совместимости
                     'description' => $partner->description,
+                    'tags' => $partner->tags ?? [],
                     'image' => $partner->image,
                     'is_active' => $partner->is_active,
                     'extra_charge' => $partner->extra_charge,

@@ -1,129 +1,102 @@
 <template>
     <div v-if="deliveryForm" class="payment-section">
-
-        <!-- Способы оплаты -->
         <div class="payment-methods">
             <div class="methods-label">Выберите способ оплаты</div>
 
             <div class="methods-list">
-                <!-- СБП -->
+                <!-- 🆕 СБП: проверяем, включен ли хоть один банк -->
                 <button
-                    v-if="settings.features?.can_use_sbp"
+                    v-if="isSbpEnabled"
                     type="button"
                     class="method-card"
                     :class="{ 'active': deliveryForm.payment_type === 4 }"
                     @click="deliveryForm.payment_type = 4"
                 >
                     <div class="method-icon sbp-icon">
-                        <img src="/images/СБП_логотип.svg" alt="СБП">
+                        <img src="/images/sbp.png" alt="СБП">
                     </div>
                     <div class="method-info">
                         <div class="method-title">Система быстрых платежей</div>
                         <div class="method-desc">Мгновенный перевод по QR-коду</div>
                     </div>
-                    <div class="method-check">
-                        <i class="fa-solid fa-check"></i>
-                    </div>
+                    <div class="method-check"><i class="fa-solid fa-check"></i></div>
                 </button>
 
-                <!-- Онлайн картой -->
+                <!-- 🆕 Онлайн картой: исправлен путь к настройке -->
                 <button
-                    v-if="settings.features?.can_use_card && settings.payment_token"
+                    v-if="settings.can_use_card && settings.payment_token"
                     type="button"
                     class="method-card"
                     :class="{ 'active': deliveryForm.payment_type === 0 }"
                     @click="deliveryForm.payment_type = 0"
                 >
-                    <div class="method-icon online-icon">
-                        <i class="fa-solid fa-credit-card"></i>
-                    </div>
+                    <div class="method-icon online-icon"><i class="fa-solid fa-credit-card"></i></div>
                     <div class="method-info">
                         <div class="method-title">Онлайн картой</div>
                         <div class="method-desc">Безопасная оплата на сайте</div>
                     </div>
-                    <div class="method-check">
-                        <i class="fa-solid fa-check"></i>
-                    </div>
+                    <div class="method-check"><i class="fa-solid fa-check"></i></div>
                 </button>
 
                 <!-- Картой в заведении -->
                 <button
-                    v-if="deliveryForm.pick_up_type == 0 && settings.features?.can_use_cash"
+                    v-if="deliveryForm.pick_up_type == 0 && settings.can_use_card"
                     type="button"
                     class="method-card"
                     :class="{ 'active': deliveryForm.payment_type === 1 }"
                     @click="deliveryForm.payment_type = 1"
                 >
-                    <div class="method-icon card-icon">
-                        <i class="fa-regular fa-credit-card"></i>
-                    </div>
+                    <div class="method-icon card-icon"><i class="fa-regular fa-credit-card"></i></div>
                     <div class="method-info">
                         <div class="method-title">Картой в заведении</div>
                         <div class="method-desc">Оплата при получении</div>
                     </div>
-                    <div class="method-check">
-                        <i class="fa-solid fa-check"></i>
-                    </div>
+                    <div class="method-check"><i class="fa-solid fa-check"></i></div>
                 </button>
 
-                <!-- Переводом -->
+                <!-- 🆕 Переводом и Наличными: исправлен путь к can_use_cash -->
                 <button
-                    v-if="settings.features?.can_use_cash"
+                    v-if="settings.can_use_cash"
                     type="button"
                     class="method-card"
                     :class="{ 'active': deliveryForm.payment_type === 2 }"
                     @click="deliveryForm.payment_type = 2"
                 >
-                    <div class="method-icon transfer-icon">
-                        <i class="fa-solid fa-building-columns"></i>
-                    </div>
+                    <div class="method-icon transfer-icon"><i class="fa-solid fa-building-columns"></i></div>
                     <div class="method-info">
                         <div class="method-title">Переводом</div>
                         <div class="method-desc">По реквизитам или QR-коду</div>
                     </div>
-                    <div class="method-check">
-                        <i class="fa-solid fa-check"></i>
-                    </div>
+                    <div class="method-check"><i class="fa-solid fa-check"></i></div>
                 </button>
 
-                <!-- Наличными -->
                 <button
-                    v-if="settings.features?.can_use_cash"
+                    v-if="settings.can_use_cash"
                     type="button"
                     class="method-card"
                     :class="{ 'active': deliveryForm.payment_type === 3 }"
                     @click="deliveryForm.payment_type = 3"
                 >
-                    <div class="method-icon cash-icon">
-                        <i class="fa-solid fa-money-bill-wave"></i>
-                    </div>
+                    <div class="method-icon cash-icon"><i class="fa-solid fa-money-bill-wave"></i></div>
                     <div class="method-info">
                         <div class="method-title">Наличными</div>
                         <div class="method-desc">Оплата наличными курьеру</div>
                     </div>
-                    <div class="method-check">
-                        <i class="fa-solid fa-check"></i>
-                    </div>
+                    <div class="method-check"><i class="fa-solid fa-check"></i></div>
                 </button>
             </div>
         </div>
 
-        <!-- Бонусы -->
-        <div v-if="settings.features?.need_bonuses_section && cashbackLimit > 0" class="bonuses-section">
-            <div class="bonuses-label">
-                <i class="fa-solid fa-gift"></i>
-                <span>Бонусы</span>
-            </div>
-
+        <!-- 🆕 Бонусы: исправлен путь к need_bonuses_section -->
+        <div v-if="settings.need_bonuses_section && cashbackLimit > 0" class="bonuses-section">
+            <div class="bonuses-label"><i class="fa-solid fa-gift"></i><span>Бонусы</span></div>
             <button
                 type="button"
                 class="bonuses-card"
                 :class="{ 'active': deliveryForm.use_cashback }"
                 @click="deliveryForm.use_cashback = !deliveryForm.use_cashback"
             >
-                <div class="bonuses-icon">
-                    <i class="fa-solid fa-coins"></i>
-                </div>
+                <div class="bonuses-icon"><i class="fa-solid fa-coins"></i></div>
                 <div class="bonuses-info">
                     <div class="bonuses-title">Списать бонусы</div>
                     <div class="bonuses-desc">Доступно {{ formatPrice(cashbackLimit) }}</div>
@@ -135,83 +108,55 @@
                 </div>
             </button>
         </div>
-
     </div>
 </template>
 
 <script>
 export default {
     name: "PaymentTypes",
-
-    props: {
-        modelValue: {
-            type: Object,
-            required: true,
-        },
-    },
-
+    props: { modelValue: { type: Object, required: true } },
     emits: ['update:modelValue'],
 
-    data() {
-        return {
-            deliveryForm: null,
-        };
-    },
+    data() { return { deliveryForm: null }; },
 
     watch: {
-        deliveryForm: {
-            handler(newValue) {
-                this.$emit('update:modelValue', newValue);
-            },
-            deep: true,
-        },
-        modelValue: {
-            handler(newValue) {
-                this.deliveryForm = newValue;
-            },
-            deep: true,
-        },
+        deliveryForm: { handler(newValue) { this.$emit('update:modelValue', newValue); }, deep: true },
+        modelValue: { handler(newValue) { this.deliveryForm = newValue; }, deep: true },
     },
 
     computed: {
-        tenant() {
-            return window.Tenant || null;
+        tenant() { return window.Tenant || null; },
+        settings() { return this.tenant?.settings || {}; },
+
+        // 🆕 НОВОЕ: Динамическая проверка, включен ли хоть один СБП банк
+        isSbpEnabled() {
+            const banks = this.settings.sbp_banks || {};
+            return Object.values(banks).some(bank => bank.enabled);
         },
 
-        settings() {
-            return this.tenant?.settings || {};
-        },
-
+        // 🆕 ИСПРАВЛЕНО: правильный путь к cashback.max_cashback_use_percent
         cashbackLimit() {
-            if (!this.deliveryForm?.use_cashback && !this.settings?.features?.need_bonuses_section) return 0;
-
+            if (!this.deliveryForm?.use_cashback || !this.settings.need_bonuses_section) return 0;
             const self = window.TenantUser;
             const cartTotalPrice = window.basketStore?.cartTotalPrice || 0;
             const maxUserCashback = self?.cashBack?.amount || 0;
-            const botCashbackPercent = this.settings?.max_cashback_use_percent || 0;
+            const botCashbackPercent = this.settings.cashback?.max_cashback_use_percent ?? this.settings.max_cashback_use_percent ?? 0;
             const cashBackAmount = (cartTotalPrice * (botCashbackPercent / 100));
-
             return Math.min(cashBackAmount, maxUserCashback);
         },
     },
 
     mounted() {
         this.deliveryForm = this.modelValue;
-
-        // Если доступна СБП — выбираем её по умолчанию
-        if (this.settings.features?.can_use_sbp) {
+        // 🆕 Если СБП включен, выбираем его по умолчанию
+        if (this.isSbpEnabled) {
             this.deliveryForm.payment_type = 4;
         }
     },
 
     methods: {
         formatPrice(price) {
-            return new Intl.NumberFormat('ru-RU', {
-                style: 'currency',
-                currency: 'RUB',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-            }).format(price || 0);
+            return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 }).format(price || 0);
         },
     },
 };

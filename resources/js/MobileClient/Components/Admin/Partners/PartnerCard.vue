@@ -23,6 +23,20 @@
                 </span>
             </div>
 
+            <!-- 🆕 Блок тегов (максимум 2 + счетчик остальных) -->
+            <div class="partner-tags" v-if="Array.isArray(partner.tags) && partner.tags.length > 0">
+                <span
+                    v-for="(tag, index) in partner.tags.slice(0, 2)"
+                    :key="index"
+                    class="partner-tag"
+                >
+                    {{ tag }}
+                </span>
+                <span v-if="partner.tags.length > 2" class="partner-tag tag-more">
+                    +{{ partner.tags.length - 2 }}
+                </span>
+            </div>
+
             <div class="partner-meta">
                 <span class="meta-item">
                     <i class="fa-solid fa-cube"></i>
@@ -248,7 +262,7 @@ $admin-info: #0ea5e9;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 4px;
+    margin-bottom: 6px; // 🆕 Чуть увеличили отступ для тегов
 }
 
 .partner-title {
@@ -276,8 +290,33 @@ $admin-info: #0ea5e9;
     position: absolute;
     top: -9px;
     left: 10px;
+}
 
+/* 🆕 Стили для тегов в карточке */
+.partner-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
 
+.partner-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    background: rgba($admin-primary, 0.08);
+    color: $admin-primary;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+
+    &.tag-more {
+        background: rgba($admin-text-muted, 0.1);
+        color: $admin-text-muted;
+        font-weight: 500;
+    }
 }
 
 .partner-meta {
@@ -361,7 +400,7 @@ $admin-info: #0ea5e9;
 
 .bottom-sheet-content {
     width: 100%;
-    max-width: 500px; /* Ограничение ширины для десктопа */
+    max-width: 500px;
     background: $admin-card-bg;
     border-radius: 24px 24px 0 0;
     padding: 8px 20px 0;
@@ -533,6 +572,11 @@ $admin-info: #0ea5e9;
     .partner-meta {
         gap: 8px;
         font-size: 0.7rem;
+    }
+
+    .partner-tag {
+        font-size: 0.65rem;
+        padding: 2px 6px;
     }
 }
 </style>
