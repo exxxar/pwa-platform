@@ -198,6 +198,7 @@ $routes = function () {
             // Основные настройки
             Route::put('/basic', [TenantSettingsController::class, 'updateBasic']);
             Route::put('/shop', [TenantSettingsController::class, 'updateShop']);
+            Route::put('/guests', [TenantSettingsController::class, 'updateGuests']);
             Route::put('/main-menu', [TenantSettingsController::class, 'updateMainMenu']);
             Route::put('/cashback', [TenantSettingsController::class, 'updateCashback']);
             Route::put('/interactive', [TenantSettingsController::class, 'updateInteractive']);

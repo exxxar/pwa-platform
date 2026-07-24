@@ -206,6 +206,17 @@ class TenantSettingsController extends Controller
         return response()->json(['success' => true, 'message' => 'Главное меню обновлено']);
     }
 
+    public function updateGuests(Request $request)
+    {
+        $tenant = $this->getTenant();
+
+        // dd($validated['main_menu_items']);
+
+        $this->mergeIntoMeta($tenant, ['guests' => $request['guests']]);
+
+        return response()->json(['success' => true, 'message' => 'Главное меню обновлено']);
+    }
+
     /**
      * 2. Обновление настроек магазина
      */
