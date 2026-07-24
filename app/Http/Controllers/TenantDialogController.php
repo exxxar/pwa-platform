@@ -55,7 +55,7 @@ class TenantDialogController extends Controller
     /**
      * Сообщения диалога
      */
-    public function messages(Request $request, $dialogId)
+    public function messages(Request $request, $tenant, $dialogId)
     {
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
