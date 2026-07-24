@@ -435,9 +435,11 @@ class BasketService
         $hasPartners = $config["partners"]["is_active"] ?? false;
 
 
-        $botIds = $hasPartners
+        $ids = $hasPartners
             ? [$tenant->id, ...$tenant->partners()->get()->pluck("tenant_partner_id")]
             : [$tenant->id];
+
+
 
         $productId = $data["product_id"] ?? null;
         $productCount = $data["count"] ?? 1;
@@ -445,7 +447,7 @@ class BasketService
 
         $product = Product::query()
             ->withTrashed()
-            ->whereIn("tenant_id", $botIds)
+            ->whereIn("tenant_id", $ids)
             ->where("id", $productId)
             ->first();
 
@@ -547,9 +549,14 @@ class BasketService
             if (!is_null($tableWithClient)) {
                 $productInBasket->table_id = $tableWithClient->id;
             }
+
+
+            $productInBasket->tenant_partner_id = $product->tenant_id == $tenant->id ? null : $product->tenant_id;
             $productInBasket->count += $productCount;
             $productInBasket->save();
         }
+
+
     }
 
     /**

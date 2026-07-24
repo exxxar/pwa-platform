@@ -20,7 +20,7 @@ class Basket extends Model
         'params',
         'table_id',
         'table_approved_at',
-        'bot_partner_id',
+        'tenant_partner_id',
     ];
 
     protected $casts = [
@@ -60,7 +60,7 @@ class Basket extends Model
         return $this->belongsTo(Table::class);
     }*/
 
-  /*  public function partner()
+   /* public function partner()
     {
         return $this->belongsTo(Partner::class, 'tenant_partner_id');
     }*/

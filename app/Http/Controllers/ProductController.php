@@ -109,101 +109,106 @@ class ProductController extends Controller
      */
     public function getDeliveryPriceNew(Request $request): \Illuminate\Http\JsonResponse
     {
-
-        $request->validate([
-            "address" => "required",
-            "lat" => "required",
-            "lng" => "required",
+        // 1. Валидация и получение данных
+        $validated = $request->validate([
+            "address" => "required|string",
+            "lat"     => "required|numeric",
+            "lng"     => "required|numeric",
         ]);
-
 
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
-
         $config = $tenant->settings ?? [];
 
-        Log::info(print_r($config, true));
-        $basketIds = Basket::query()
-            ->where("tenant_user_id", $tenantUser->id)
-            ->where("tenant_id", $tenant->id)
-            ->whereNull("ordered_at")
-            ->get()
-            ->pluck("tenant_partner_id");
-
-        $partners = Tenant::query()
-            ->whereIn('id', $basketIds)
-            ->distinct('id')
-            ->get();
-
-        $partners = [...$partners, $tenant];
-
-        if (empty($config))
+        if (empty($config)) {
             return response()->json([
+                "message" => "Конфигурация доставки не найдена",
                 "distance" => 0,
                 "price" => 0,
                 "address" => null,
                 "config" => []
-            ], 404);
-
-
-        $sumDistance = 0;
-        $sumPrice = 0;
-
-        $partnerBoxConfig = [];
-
-        $address = $request->address;
-
-        $lat = $request->lat ?? 0;
-        $lng = $request->lng ?? 0;
-
-        $price_per_km = $config["price_per_km"] ?? 100;
-        $min_base_delivery_price = $config["min_base_delivery_price"] ?? 100;
-
-        $isPartnersActive = $config["partners"]["is_active"] ?? false;
-
-        $isPartnersDisplaySelf = $config["partners"]["display_self"] ?? false;
-
-
-        foreach ($partners as $partner) {
-            if ($isPartnersActive && !$isPartnersDisplaySelf
-                && $partner->id == $tenant->id
-            )
-                continue;
-
-
-            $partnerBoxConfig[$partner->uuid] = (object)[
-                "id" => $partner->id,
-                "price" => 0,
-                "title" => $partner->name ?? $partner->slug ?? '-',
-                "distance" => 0,
-                "address" => $address,
-                "shop_coords" => $partner->settings["shop_coords"] ?? null,
-                "client_coords" => $lat . ", " . $lng,
-            ];
-
-            $tmpDistance = GEOService::call()
-                ->getDistance($lat, $lng);
-
-            Log::info(print_r($tmpDistance, true));
-
-            $distance = floatval(round($tmpDistance / 1000 ?? 0, 2));
-
-            $partnerBoxConfig[$partner->uuid]->distance = $distance;
-            $partnerBoxConfig[$partner->uuid]->price = round($min_base_delivery_price + $distance * $price_per_km, 2);
-
-            $sumDistance += $partnerBoxConfig[$partner->uuid]->distance;
-            $sumPrice += $partnerBoxConfig[$partner->uuid]->price;
-
+            ], 400); // 400 Bad Request логичнее, чем 404
         }
 
+        // 2. Оптимизированный запрос ID тенантов из корзины
+        // ВАЖНО: Убедитесь, что здесь используется правильное имя колонки.
+        // Если вы исправили FK, как в прошлом вопросе, это должно быть 'tenant_id', а не 'tenant_partner_id'
+        $basketTenantIds = Basket::query()
+            ->where("tenant_user_id", $tenantUser->id)
+            ->where("tenant_id", $tenant->id)
+            ->whereNull("ordered_at")
+            ->pluck('tenant_partner_id') // Сразу получаем массив ID, не загружая модели в память
+            ->unique()
+            ->toArray();
+
+        // 3. Получение партнеров (магазинов)
+        $partners = [];
+        if (!empty($basketTenantIds)) {
+            $partners = Tenant::query()
+                ->whereIn('id', $basketTenantIds)
+                ->get()
+                ->keyBy('id'); // Ключируем по ID для быстрого доступа и исключения дублей
+        }
+
+        // Добавляем главного тенанта, если его еще нет в списке
+        if (!isset($partners[$tenant->id])) {
+            $partners[$tenant->id] = $tenant;
+        }
+
+        $clientLat = (float) $validated['lat'];
+        $clientLng = (float) $validated['lng'];
+        $address = $validated['address'];
+
+        $pricePerKm = (float) ($config["price_per_km"] ?? 100);
+        $minBaseDeliveryPrice = (float) ($config["min_base_delivery_price"] ?? 100);
+
+        $isPartnersActive = (bool) ($config["partners"]["is_active"] ?? false);
+        $isPartnersDisplaySelf = (bool) ($config["partners"]["display_self"] ?? false);
+
+        $sumDistance = 0.0;
+        $sumPrice = 0.0;
+        $partnerBoxConfig = [];
+
+        // 4. Расчет для каждого партнера
+        foreach ($partners as $partner) {
+            // Пропускаем главного тенанта, если настроено не отображать его как партнера
+            if ($isPartnersActive && !$isPartnersDisplaySelf && $partner->id === $tenant->id) {
+                continue;
+            }
+
+            $shopCoords = $partner->settings["shop_coords"] ?? null;
+
+            // Считаем расстояние, передавая координаты конкретного магазина
+            $distanceInMeters = GEOService::call()->getDistance($clientLat, $clientLng, $shopCoords);
+            $distanceInKm = round($distanceInMeters / 1000, 2);
+
+            // Если расстояние 0 (нет координат), цена равна базовой, иначе базовая + км * цена_за_км
+            $deliveryPrice = round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
+
+            $partnerUuid = $partner->uuid ?? 'partner_' . $partner->id;
+
+            $partnerBoxConfig[$partnerUuid] = [
+                "id"          => $partner->id,
+                "price"       => $deliveryPrice,
+                "title"       => $partner->name ?? $partner->slug ?? 'Неизвестный магазин',
+                "distance"    => $distanceInKm,
+                "address"     => $address,
+                "shop_coords" => $shopCoords,
+                "client_coords" => $clientLat . ", " . $clientLng,
+            ];
+
+            $sumDistance += $distanceInKm;
+            $sumPrice += $deliveryPrice;
+        }
+
+
         return response()->json([
-            "distance" => $sumDistance,
-            "price" => $sumPrice,
-            "address" => $address,
-            "config" => $partnerBoxConfig,
+            "distance" => round($sumDistance, 2),
+            "price"    => round($sumPrice, 2),
+            "address"  => $address,
+            "config"   => $partnerBoxConfig,
         ]);
     }
-
 
     /**
      * @throws ValidationException

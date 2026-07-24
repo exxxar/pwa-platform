@@ -42,11 +42,11 @@ class PartnerService
         $config = $tenantUser->meta ?? [];
 
         // 1. Приводим входящий ID к строке для гарантированного совпадения
-        $id = (string) $id;
+        $id = (string)$id;
 
         // 2. Получаем текущие избранные, гарантируем, что это коллекция строк
         $favPartners = collect($config['fav_partners'] ?? [])
-            ->map(fn($item) => (string) $item);
+            ->map(fn($item) => (string)$item);
 
         // 3. Проверяем наличие и добавляем/удаляем
         if ($favPartners->contains($id)) {
@@ -92,15 +92,14 @@ class PartnerService
 
         // 3. Базовый запрос с использованием скоупов модели
         $query = Partner::query()
-
             ->where('tenant_id', $tenant->id)
             ->active(); // 🆕 Используем скоуп active() из модели
 
         // 4. 🆕 Фильтрация по тегам
         if (!empty($data['tag'])) {
-            $query->whereTag($data['tag']);
+            $query =   $query->whereTag($data['tag']);
         } elseif (!empty($data['tags']) && is_array($data['tags'])) {
-            $query->whereTags($data['tags']);
+            $query =  $query->whereTags($data['tags']);
         }
 
         // 5. 🆕 DRY: Выносим повторяющееся условие активных товаров в переменную
@@ -113,7 +112,7 @@ class PartnerService
         };
 
         // 6. Агрегация данных (количество и сумма)
-        $query->withCount([
+        $query = $query->withCount([
             'partnerProducts as products_count' => $activeProductsCondition
         ])
             ->withSum([
@@ -126,12 +125,12 @@ class PartnerService
             $safeIds = implode(',', array_map('intval', $favPartners));
 
             // Сортируем так, чтобы избранные были вверху (FIELD возвращает 0, если ID нет в списке)
-            $query->orderByRaw("FIELD(id, {$safeIds}) DESC");
+            $query =   $query->orderByRaw("FIELD(id, {$safeIds}) DESC");
         }
 
         // Вторичная сортировка всегда применяется (даже если есть избранные)
-        $query->orderBy('order_position', 'DESC')
-            ->orderBy('id', 'DESC'); // Дополнительная стабилизация сортировки
+        $query =  $query->orderBy('id', 'DESC')
+            ->orderBy('order_position', 'DESC'); // Дополнительная стабилизация сортировки
 
         // 8. Выполнение запроса
         // Примечание: если нужна пагинация, замените ->get() на ->paginate($data['per_page'] ?? 15)
@@ -247,18 +246,18 @@ class PartnerService
 
         // 🆕 1. Гибкая валидация (учитываем, что FormData шлет строки)
         $rules = [
-            'id'                => 'required|integer|exists:partners,id',
+            'id' => 'required|integer|exists:partners,id',
             'tenant_partner_id' => 'required|integer|exists:tenants,id',
-            'title'             => 'required|string|max:255',
-            'description'       => 'nullable|string',
-            'order_position'    => 'nullable|integer|min:0',
-            'is_active'         => 'nullable', // Придет как строка "true" или "false"
-            'extra_charge'      => 'nullable|numeric|min:0',
-            'config'            => 'nullable', // Придет как JSON-строка
-            'legal_info'        => 'nullable', // Придет как JSON-строка
-            'tags'              => 'nullable', // Придет как массив (tags[]) или JSON-строка
-            'address'           => 'nullable|string|max:255',
-            'shop_coords'       => 'nullable|string|max:50',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'order_position' => 'nullable|integer|min:0',
+            'is_active' => 'nullable', // Придет как строка "true" или "false"
+            'extra_charge' => 'nullable|numeric|min:0',
+            'config' => 'nullable', // Придет как JSON-строка
+            'legal_info' => 'nullable', // Придет как JSON-строка
+            'tags' => 'nullable', // Придет как массив (tags[]) или JSON-строка
+            'address' => 'nullable|string|max:255',
+            'shop_coords' => 'nullable|string|max:50',
         ];
 
         $validator = Validator::make($data, $rules);
@@ -321,15 +320,15 @@ class PartnerService
 
         // 🆕 5. Обновление модели Partner (Laravel сам сделает json_encode для кастов 'array')
         $partner->update([
-            'title'          => $validated['title'],
-            'description'    => $validated['description'] ?? null,
-            'image'          => $imageName,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'image' => $imageName,
             'order_position' => $validated['order_position'] ?? 0,
-            'is_active'      => $isActive,
-            'extra_charge'   => $validated['extra_charge'] ?? 0,
-            'config'         => $config,
-            'legal_info'     => $legalInfo,
-            'tags'           => $tags,
+            'is_active' => $isActive,
+            'extra_charge' => $validated['extra_charge'] ?? 0,
+            'config' => $config,
+            'legal_info' => $legalInfo,
+            'tags' => $tags,
         ]);
 
         // 🆕 6. Обновление настроек связанного Tenant (Адрес и Координаты)
@@ -477,7 +476,7 @@ class PartnerService
         if ($validator->fails())
             throw new ValidationException($validator);
 
-     //   $isActive = ($data["is_active"] ?? false) == "true";;
+        //   $isActive = ($data["is_active"] ?? false) == "true";;
         $partnerId = $data["id"];
 
         $partner = Partner::query()
@@ -560,7 +559,6 @@ class PartnerService
 
         $tenant->meta = $meta;
         $tenant->save();
-
 
 
         // 🆕 При отключении программы — деактивируем партнёров

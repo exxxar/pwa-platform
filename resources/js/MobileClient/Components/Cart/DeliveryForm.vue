@@ -64,10 +64,7 @@
             <template v-if="!deliveryForm.need_pickup">
                 <div class="form-section">
                     <div class="section-label">Адрес доставки</div>
-                    <AddressList
-                        v-model:address="deliveryForm.address"
-                        v-model:location_id="deliveryForm.location_id"
-                    />
+                    <AddressList v-model="deliveryForm.selectedAddress" />
                     <slot name="loadingDeliveryData"></slot>
                 </div>
 
@@ -241,6 +238,7 @@ export default {
     },
 
     watch: {
+        // 1. Отправляем изменения родителю и сохраняем в LocalStorage
         deliveryForm: {
             handler(newValue) {
                 this.saveToLocalStorage(newValue);
@@ -248,13 +246,47 @@ export default {
             },
             deep: true,
         },
+
+        // 2. Получаем изменения от родителя
         modelValue: {
             handler(newValue) {
-                this.deliveryForm = newValue;
+                if (this.deliveryForm !== newValue) {
+                    this.deliveryForm = newValue;
+                }
             },
             deep: true,
-            immediate: true, // 🆕 Добавлено, чтобы сразу загрузить данные при монтировании
+            immediate: true, // Инициализирует deliveryForm сразу при создании
         },
+
+        // 🌟 3. ВАЖНО: Синхронизация объекта адреса с плоскими полями формы
+        // Когда AddressList возвращает объект { id, address, lat, lng },
+        // мы копируем эти данные в корень deliveryForm (location_id, address, lat),
+        // чтобы API при оформлении заказа получал их в ожидаемом формате.
+        'deliveryForm.selectedAddress': {
+            handler(newAddr) {
+                if (!this.deliveryForm) return;
+
+                this.deliveryForm.location_id = newAddr?.id || null;
+                this.deliveryForm.address = newAddr?.address || '';
+                this.deliveryForm.city = newAddr?.city || '';
+                this.deliveryForm.lat = newAddr?.lat || null;
+                this.deliveryForm.lng = newAddr?.lng || null;
+            },
+            deep: true,
+        },
+
+        // 🌟 4. Сброс адреса при выборе "Самовывоза"
+        'deliveryForm.need_pickup': {
+            handler(isPickup) {
+                if (isPickup && this.deliveryForm) {
+                    this.deliveryForm.selectedAddress = null;
+                    this.deliveryForm.location_id = null;
+                    this.deliveryForm.address = '';
+                    this.deliveryForm.lat = null;
+                    this.deliveryForm.lng = null;
+                }
+            }
+        }
     },
 
     computed: {
@@ -263,12 +295,13 @@ export default {
     },
 
     mounted() {
-        this.deliveryForm = this.modelValue;
+        // Инициализация уже произошла в watch (immediate: true)
         this.loadFromLocalStorage();
     },
 
     methods: {
         formatPhone() {
+            if (!this.deliveryForm?.phone) return;
             let value = this.deliveryForm.phone.replace(/\D/g, '');
 
             if (value.startsWith('8')) value = '7' + value.slice(1);
@@ -294,6 +327,13 @@ export default {
                 }
             });
 
+            // Сохраняем именно ID выбранного адреса
+            if (form.selectedAddress?.id) {
+                localStorage.setItem('mypwa_delivery_location_id', form.selectedAddress.id);
+            } else {
+                localStorage.removeItem('mypwa_delivery_location_id');
+            }
+
             if (form.disabilities?.length > 0) {
                 localStorage.setItem('mypwa_delivery_disabilities', JSON.stringify(form.disabilities));
             } else {
@@ -308,11 +348,24 @@ export default {
 
             fields.forEach(field => {
                 const saved = localStorage.getItem(`mypwa_delivery_${field}`);
-                // 🆕 ИСПРАВЛЕНО: Более надежная проверка на отсутствие значения
-                if (saved !== null && !this.deliveryForm[field]) {
+                if (saved !== null && saved !== '' && !this.deliveryForm[field]) {
                     this.deliveryForm[field] = saved;
                 }
             });
+
+            // 🌟 Восстановление выбранного адреса из списка
+            const savedLocationId = localStorage.getItem('mypwa_delivery_location_id');
+            if (savedLocationId && !this.deliveryForm.selectedAddress) {
+                const tenantUser = window.TenantUser || {};
+                const addresses = tenantUser.addresses || [];
+
+                // Ищем адрес в списке пользователя по сохраненному ID
+                const foundAddress = addresses.find(a => a.id == savedLocationId);
+                if (foundAddress) {
+                    // Подставляем объект. Сработает вотчер (пункт 3) и заполнит location_id, address и т.д.
+                    this.deliveryForm.selectedAddress = foundAddress;
+                }
+            }
 
             const disabilities = localStorage.getItem('mypwa_delivery_disabilities');
             if (disabilities) {

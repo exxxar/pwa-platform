@@ -613,11 +613,7 @@
 
                     <div class="form-section">
                         <h3 class="section-title"><i class="fa-solid fa-truck"></i> Доставка</h3>
-                        <!-- 🆕 Адрес перенесен сюда -->
-                        <div class="form-field full-width" style="margin-bottom: 16px;">
-                            <label><i class="fa-solid fa-location-dot"></i> Адрес заведения (для доставки)</label>
-                            <input type="text" v-model="shopForm.address" maxlength="255" placeholder="г. Москва, ул. Примерная, д. 1">
-                        </div>
+
 
                         <div class="form-grid">
                             <div class="form-field">
@@ -656,6 +652,13 @@
                                     <label>Бесплатная доставка от, ₽</label>
                                     <input type="number" v-model="shopForm.free_shipping_starts_from" min="0">
                                 </div>
+
+                                <!-- 🆕 Адрес перенесен сюда -->
+                                <div class="form-field full-width" >
+                                    <label><i class="fa-solid fa-location-dot"></i> Адрес заведения (для доставки)</label>
+                                    <input type="text" v-model="shopForm.address" maxlength="255" placeholder="г. Москва, ул. Примерная, д. 1">
+                                </div>
+
                                 <div class="form-field full-width">
                                     <label>Координаты заведения (из Яндекс.Карт)</label>
                                     <input type="text" v-model="shopForm.shop_coords" placeholder="00.000000, 00.000000">

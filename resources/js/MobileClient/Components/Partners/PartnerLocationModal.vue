@@ -183,11 +183,13 @@ export default {
         },
         parsedLat() {
             const coords = this.rawCoords.split(',');
-            return parseFloat(coords[1]) || 0;
+            console.log("parsedLat",coords )
+            return parseFloat(coords[0]) || 0;
         },
         parsedLng() {
             const coords = this.rawCoords.split(',');
-            return parseFloat(coords[0]) || 0;
+            console.log("parsedLng",coords )
+            return parseFloat(coords[1]) || 0;
         },
         isValidCoords() {
             return this.parsedLat !== 0 && this.parsedLng !== 0;
@@ -293,7 +295,7 @@ export default {
             // 🆕 Примерный расчет времени доставки (средняя скорость 30 км/ч в городе)
             const speedKmh = 30;
             const timeHours = distance / speedKmh;
-            this.estimatedDeliveryTime = Math.round(timeHours * 60); // в минутах
+            this.estimatedDeliveryTime = Math.round(timeHours * 60) + 10; // в минутах
 
             /*
              * 💡 ЕСЛИ НУЖНО ПОЛУЧИТЬ ЦЕНУ ДОСТАВКИ ЧЕРЕЗ API:

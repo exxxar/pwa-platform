@@ -151,7 +151,85 @@
 
         </div>
 
-    </form>
+        <!-- ========================================== -->
+        <!-- МОДАЛКА: ДЕТАЛИ РАСЧЕТА ДОСТАВКИ -->
+        <!-- ========================================== -->
+        <div
+            class="modal fade"
+            id="deliveryPriceModal"
+            tabindex="-1"
+            aria-hidden="true"
+        >
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-bottom-sheet">
+                <div class="modal-content">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title d-flex align-items-center">
+                            <i class="fa-solid fa-receipt text-primary me-2"></i>
+                            Детали расчета доставки
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body pt-3">
+                        <!-- Если данных нет -->
+                        <div v-if="!deliveryForm?.delivery_details || Object.keys(deliveryForm.delivery_details).length === 0" class="text-center py-4 text-muted">
+                            <i class="fa-solid fa-circle-info fa-2x mb-3 opacity-50"></i>
+                            <p class="mb-0">Детали расчета пока недоступны</p>
+                            <small>Стоимость будет рассчитана при оформлении</small>
+                        </div>
+
+                        <!-- Список магазинов/партнеров -->
+                        <div v-else class="delivery-details-list">
+                            <!-- Используем Object.values для итерации по объекту config -->
+                            <div
+                                v-for="(detail, uuid) in deliveryForm.delivery_details"
+                                :key="uuid"
+                                class="detail-item-card"
+                            >
+                                <div class="detail-header">
+                                    <div class="detail-icon">
+                                        <i class="fa-solid fa-store"></i>
+                                    </div>
+                                    <div class="detail-title">{{ detail.title || 'Магазин' }}</div>
+                                </div>
+
+                                <div class="detail-body">
+                                    <div class="detail-row">
+                                        <span class="detail-label">
+                                            <i class="fa-solid fa-route text-muted me-1"></i>
+                                            Расстояние
+                                        </span>
+                                        <span class="detail-value">{{ Number(detail.distance).toFixed(2) }} км</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">
+                                            <i class="fa-solid fa-ruble-sign text-muted me-1"></i>
+                                            Стоимость доставки
+                                        </span>
+                                        <span class="detail-value price-highlight">{{ formatPrice(detail.price) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ИТОГО -->
+                            <div class="detail-total-card mt-3">
+                                <div class="total-row">
+                                    <span class="total-label">Общее расстояние</span>
+                                    <span class="total-value">{{ Number(deliveryForm.distance).toFixed(2) }} км</span>
+                                </div>
+                                <div class="total-divider"></div>
+                                <div class="total-row main-total">
+                                    <span class="total-label">Итого к оплате за доставку</span>
+                                    <span class="total-value text-primary">{{ formatPrice(deliveryForm.delivery_price) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </form> <!-- Закрывающий тег формы -->
 </template>
 
 <script>
@@ -193,6 +271,7 @@ export default {
             needRequestDeliveryPrice: true,
             errorDeliveryPriceMessage: null,
             deliveryPriceModal: null,
+            lastRequestedCoords:'',
         };
     },
 
@@ -281,14 +360,9 @@ export default {
             this.spentTime = event.detail;
         });
 
-        window.addEventListener('change-delivery-address', (event) => {
-            const { address, lng, lat } = event.detail;
-            this.getDeliveryPriceDataNew(address, lat, lng);
-            this.$notify?.({
-                title: 'Поиск адреса',
-                text: `${address} (${lat}, ${lng})`,
-            });
-        });
+        this.lastRequestedCoords = '';
+
+        window.addEventListener('change-delivery-address', this.handleAddressChange);
 
         this.deliveryPriceRequestStep = this.deliveryForm.need_pickup
             ? 1
@@ -302,6 +376,26 @@ export default {
     },
 
     methods: {
+        handleAddressChange(event) {
+
+
+            const { address, lng, lat, city, location_id } = event.detail;
+            const currentCoords = `${location_id}`;
+            console.log("coords", this.lastRequestedCoords, currentCoords)
+            // Если координаты те же самые, что и в последнем запросе — игнорируем
+            if (this.lastRequestedCoords === currentCoords) {
+                return;
+            }
+
+            this.lastRequestedCoords = currentCoords;
+
+
+            this.getDeliveryPriceDataNew(address, lat, lng);
+            this.$notify?.({
+                title: 'Поиск адреса',
+                text: `${address} (${lat}, ${lng})`,
+            });
+        },
         goToProductCart() {
             document.dispatchEvent(new Event('switch-to-cart'));
         },
@@ -327,7 +421,10 @@ export default {
                 this.deliveryForm.address = resp.address || null;
                 this.deliveryForm.delivery_price = resp.price || 0;
                 this.deliveryForm.distance = resp.distance || 0;
-                this.deliveryForm.delivery_details = resp.config || [];
+
+                // 🆕 ИСПРАВЛЕНО: config это объект, поэтому fallback должен быть {}, а не []
+                this.deliveryForm.delivery_details = resp.config || {};
+
                 this.needRequestDeliveryPrice = true;
                 this.deliveryPriceRequestStep = 1;
 
@@ -340,6 +437,7 @@ export default {
                 console.error('Ошибка расчёта доставки:', error);
                 this.deliveryForm.delivery_price = 0;
                 this.deliveryForm.distance = 0;
+                this.deliveryForm.delivery_details = {}; // 🆕 Сбрасываем в пустой объект
                 this.needRequestDeliveryPrice = true;
                 this.deliveryPriceRequestStep = 1;
                 this.errorDeliveryPriceMessage = 'Цена будет рассчитана курьером при доставке';
@@ -750,5 +848,192 @@ export default {
         font-size: 0.95rem;
         padding: 14px 20px;
     }
+}
+
+/* ==========================================
+   МОДАЛКА: НИЖНЯЯ ШТОРКА (BOTTOM SHEET)
+   ========================================== */
+.modal-bottom-sheet .modal-dialog {
+    margin: 0;
+    max-width: 100%;
+    height: auto;
+    max-height: 85vh; /* Не на весь экран, оставляем верх видимым */
+    display: flex;
+    align-items: flex-end; /* Прижимаем к низу экрана */
+}
+
+.modal-bottom-sheet .modal-content {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    border: none;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15);
+    position: relative;
+}
+
+/* Декоративная полоска сверху для ощущения "шторки" */
+.modal-bottom-sheet .modal-content::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: var(--bs-border-color);
+    border-radius: 2px;
+    margin: 12px auto 0;
+}
+
+.modal-bottom-sheet .modal-header {
+    padding: 16px 24px 8px;
+}
+
+.modal-bottom-sheet .modal-body {
+    padding: 16px 24px 32px;
+}
+
+/* ==========================================
+   КАРТОЧКИ ДЕТАЛЕЙ ДОСТАВКИ
+   ========================================== */
+.delivery-details-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-item-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: transform 0.2s ease;
+}
+
+.detail-item-card:hover {
+    border-color: rgba(var(--bs-primary-rgb), 0.3);
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--bs-border-color);
+}
+
+.detail-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.detail-title {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--bs-body-color);
+}
+
+.detail-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.detail-label {
+    color: var(--bs-secondary-color);
+    display: flex;
+    align-items: center;
+}
+
+.detail-value {
+    font-weight: 600;
+    color: var(--bs-body-color);
+}
+
+.detail-value.price-highlight {
+    color: var(--bs-primary);
+    font-size: 1.05rem;
+}
+
+/* ==========================================
+   БЛОК "ИТОГО"
+   ========================================== */
+.detail-total-card {
+    background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 0.05) 0%, rgba(var(--bs-primary-rgb), 0.02) 100%);
+    border: 1px solid rgba(var(--bs-primary-rgb), 0.2);
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+}
+
+.total-label {
+    color: var(--bs-secondary-color);
+}
+
+.total-value {
+    font-weight: 700;
+    color: var(--bs-body-color);
+}
+
+.total-divider {
+    height: 1px;
+    background: rgba(var(--bs-primary-rgb), 0.2);
+    margin: 12px 0;
+}
+
+.main-total .total-label {
+    font-weight: 600;
+    color: var(--bs-body-color);
+    font-size: 1rem;
+}
+
+.main-total .total-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
+/* Делаем карточку кликабельной визуально */
+.delivery-info-card {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.delivery-info-card:hover {
+    border-color: var(--bs-primary);
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.delivery-info-hint {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--bs-border-color);
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--bs-primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 </style>

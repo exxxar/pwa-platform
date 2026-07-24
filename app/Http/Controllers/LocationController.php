@@ -63,7 +63,7 @@ class LocationController extends Controller
     /**
      * Удаление
      */
-    public function destroy($tenant, $id)
+    public function destroy($id, $tenant)
     {
 
         $tenant = app('tenant');

@@ -1,9 +1,6 @@
 <template>
     <div class="address-list-container mb-3">
-
-        <!-- ========================================== -->
-        <!-- HEADER -->
-        <!-- ========================================== -->
+        <!-- HEADER (без изменений) -->
         <div class="address-header">
             <div class="header-content">
                 <div class="header-icon">
@@ -28,56 +25,43 @@
                 >
                     <i class="fa-solid fa-chevron-down"></i>
                 </button>
-                <button
-                    type="button"
-                    class="add-btn"
-                    @click="openForm"
-                >
+                <button type="button" class="add-btn" @click="openForm">
                     <i class="fa-solid fa-plus"></i>
                     <span>Добавить</span>
                 </button>
             </div>
         </div>
 
-        <!-- ========================================== -->
         <!-- СПИСОК АДРЕСОВ -->
-        <!-- ========================================== -->
         <div class="addresses-wrapper">
-
-            <!-- Пустое состояние -->
             <div v-if="displayedAddresses.length === 0" class="empty-state">
                 <div class="empty-icon">
                     <i class="fa-solid fa-map-location-dot"></i>
                 </div>
                 <p class="empty-text">Нет сохранённых адресов</p>
-                <button
-                    type="button"
-                    class="empty-btn" @click="openForm">
+                <button type="button" class="empty-btn" @click="openForm">
                     <i class="fa-solid fa-plus me-2"></i>
                     Добавить первый адрес
                 </button>
             </div>
 
-            <!-- Карточки адресов -->
             <transition-group name="list" tag="div" class="addresses-list">
                 <div
                     v-for="item in displayedAddresses"
                     :key="item.id"
                     class="address-card"
                     :class="{
-                        'is-selected': location_id == item.id,
+                        'is-selected': modelValue?.id === item.id,
                         'is-default': item.is_default
                     }"
                     @click="selectAddress(item)"
                 >
-                    <!-- Индикатор выбора -->
                     <div class="address-radio">
                         <div class="radio-outer">
                             <div class="radio-inner"></div>
                         </div>
                     </div>
 
-                    <!-- Контент -->
                     <div class="address-content">
                         <div class="address-title-row">
                             <h6 class="address-title">{{ item.title }}</h6>
@@ -88,7 +72,6 @@
                         </div>
                         <p class="address-text">{{ item.address }}</p>
 
-                        <!-- Дополнительные детали (при раскрытии) -->
                         <transition name="slide-down">
                             <div v-if="isExpanded" class="address-details">
                                 <div v-if="item.city" class="detail-item">
@@ -103,7 +86,6 @@
                         </transition>
                     </div>
 
-                    <!-- Действия (при раскрытии) -->
                     <transition name="fade">
                         <div v-if="isExpanded" class="address-actions">
                             <button
@@ -127,79 +109,39 @@
                     </transition>
                 </div>
             </transition-group>
-
         </div>
 
-        <!-- ========================================== -->
-        <!-- МОДАЛКА: ФОРМА АДРЕСА -->
-        <!-- ========================================== -->
-        <div
-            class="modal fade"
-            ref="modal"
-            tabindex="-1"
-            aria-hidden="true"
-        >
+        <!-- МОДАЛКИ (без изменений в структуре) -->
+        <div class="modal fade" ref="modal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content address-modal">
                     <div class="modal-header">
-                        <div class="modal-icon">
-                            <i class="fa-solid fa-location-dot"></i>
-                        </div>
+                        <div class="modal-icon"><i class="fa-solid fa-location-dot"></i></div>
                         <div class="flex-grow-1 ms-3">
                             <h5 class="modal-title">Новый адрес</h5>
                             <small class="text-muted">Добавьте адрес доставки</small>
                         </div>
-                        <button
-                            type="button"
-                            class="close-btn"
-                            @click="onClose"
-                        >
+                        <button type="button" class="close-btn" @click="onClose">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
                     <div class="modal-body">
-                        <AddressForm
-                            @close="onClose"
-                            @saved="onSaved"
-                        />
+                        <AddressForm @close="onClose" @saved="onSaved" />
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- МОДАЛКА: ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ -->
-        <!-- ========================================== -->
-        <div
-            class="modal fade"
-            ref="removeModal"
-            tabindex="-1"
-            aria-hidden="true"
-        >
+        <div class="modal fade" ref="removeModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-sm">
                 <div class="modal-content confirm-modal">
                     <div class="modal-body text-center py-4">
-                        <div class="confirm-icon">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </div>
+                        <div class="confirm-icon"><i class="fa-solid fa-trash-can"></i></div>
                         <h5 class="confirm-title">Удалить адрес?</h5>
-                        <p class="confirm-text">
-                            Это действие нельзя будет отменить
-                        </p>
+                        <p class="confirm-text">Это действие нельзя будет отменить</p>
                         <div class="confirm-actions">
-                            <button
-                                type="button"
-                                class="confirm-btn cancel"
-                                data-bs-dismiss="modal"
-                            >
-                                Отмена
-                            </button>
-                            <button
-                                type="button"
-                                class="confirm-btn delete"
-                                @click="confirmRemove"
-                                :disabled="isRemoving"
-                            >
+                            <button type="button" class="confirm-btn cancel" data-bs-dismiss="modal">Отмена</button>
+                            <button type="button" class="confirm-btn delete" @click="confirmRemove" :disabled="isRemoving">
                                 <span v-if="isRemoving" class="spinner-border spinner-border-sm me-2"></span>
                                 <i v-else class="fa-solid fa-trash-can me-2"></i>
                                 Удалить
@@ -209,7 +151,6 @@
                 </div>
             </div>
         </div>
-
     </div>
 </template>
 
@@ -219,23 +160,18 @@ import { useAddressesStore } from "@/MobileClient/stores/Shop/addresses.js";
 
 export default {
     name: "AddressList",
+    components: { AddressForm },
 
-    components: {
-        AddressForm
-    },
-
+    // 1. ЗАМЕНЯЕМ ДВА ПРОПСА НА ОДИН СТАНДАРТНЫЙ modelValue
     props: {
-        address: {
-            type: String,
-            default: '',
-        },
-        location_id: {
-            type: [String, Number],
-            default: '',
-        },
+        modelValue: {
+            type: Object,
+            default: null
+        }
     },
 
-    emits: ['update:location_id', 'update:address'],
+    // 2. ОСТАВЛЯЕМ ТОЛЬКО ОДИН EMIT
+    emits: ['update:modelValue'],
 
     setup() {
         const store = useAddressesStore();
@@ -258,20 +194,15 @@ export default {
             return window.TenantUser || null;
         },
 
-        settings() {
-            return this.self?.settings || {};
-        },
-
         displayedAddresses() {
             if (this.isExpanded) return this.addresses;
 
-            // Если выбран конкретный адрес — показываем его
-            if (this.location_id) {
-                const selected = this.addresses.find(a => a.id == this.location_id);
+            // 3. ПРОВЕРЯЕМ ЧЕРЕЗ modelValue?.id
+            if (this.modelValue?.id) {
+                const selected = this.addresses.find(a => a.id === this.modelValue.id);
                 if (selected) return [selected];
             }
 
-            // Иначе показываем основной или первый
             const defaultAddr = this.addresses.find(a => a.is_default);
             return defaultAddr ? [defaultAddr] : this.addresses.slice(0, 1);
         },
@@ -279,15 +210,10 @@ export default {
 
     mounted() {
         this.addresses = this.self?.addresses || [];
-
         this.$nextTick(() => {
             if (typeof bootstrap !== 'undefined') {
-                if (this.$refs.modal) {
-                    this.modalInstance = new bootstrap.Modal(this.$refs.modal);
-                }
-                if (this.$refs.removeModal) {
-                    this.removeModalInstance = new bootstrap.Modal(this.$refs.removeModal);
-                }
+                if (this.$refs.modal) this.modalInstance = new bootstrap.Modal(this.$refs.modal);
+                if (this.$refs.removeModal) this.removeModalInstance = new bootstrap.Modal(this.$refs.removeModal);
             }
         });
     },
@@ -299,17 +225,21 @@ export default {
 
     methods: {
         selectAddress(item) {
+            if (this.modelValue?.id === item.id) {
+                return;
+            }
+
+            this.$emit('update:modelValue', item);
+
             window.dispatchEvent(new CustomEvent('change-delivery-address', {
                 detail: {
                     address: item.address,
                     lng: item.lng,
                     lat: item.lat,
                     city: item.city,
+                    location_id: item.id,
                 },
             }));
-
-            this.$emit('update:address', item.address);
-            this.$emit('update:location_id', item.id);
         },
 
         toggle() {
@@ -326,8 +256,19 @@ export default {
 
         async onSaved() {
             this.modalInstance?.hide();
-            // Обновляем список адресов
-            this.addresses = this.store.getAddresses || [];
+
+            // 🛠 ИСПРАВЛЕНИЕ: Берем свежие данные из стора, но с надежным фоллбэком
+            const freshAddresses = this.store.getAddresses;
+            if (freshAddresses && freshAddresses.length > 0) {
+                this.addresses = freshAddresses;
+                // Синхронизируем с глобальным объектом
+                if (this.self) this.self.addresses = freshAddresses;
+            }
+
+            if (this.modelValue?.id) {
+                const updated = this.addresses.find(a => a.id === this.modelValue.id);
+                if (updated) this.$emit('update:modelValue', updated);
+            }
         },
 
         remove(id) {
@@ -337,25 +278,30 @@ export default {
 
         async confirmRemove() {
             if (!this.addressToRemove) return;
-
             this.isRemoving = true;
             try {
                 await this.store.removeAddress({ id: this.addressToRemove });
-                this.addresses = this.store.getAddresses || [];
+
+                // 🛠 ГЛАВНОЕ ИСПРАВЛЕНИЕ:
+                // Вместо слепого доверия к store.getAddresses, мы просто фильтруем
+                // локальный массив. Это гарантирует, что UI обновится мгновенно.
+                this.addresses = this.addresses.filter(addr => addr.id !== this.addressToRemove);
+
+                // Синхронизируем изменения с глобальным объектом пользователя
+                if (this.self && this.self.addresses) {
+                    this.self.addresses = this.addresses;
+                }
+
                 this.removeModalInstance?.hide();
 
-                this.$notify?.({
-                    title: 'Адрес',
-                    text: 'Адрес успешно удалён',
-                    type: 'success',
-                });
+                if (this.modelValue?.id === this.addressToRemove) {
+                    this.$emit('update:modelValue', null);
+                }
+
+                this.$notify?.({ title: 'Адрес', text: 'Адрес успешно удалён', type: 'success' });
             } catch (error) {
                 console.error('Ошибка удаления адреса:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось удалить адрес',
-                    type: 'error',
-                });
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось удалить адрес', type: 'error' });
             } finally {
                 this.isRemoving = false;
                 this.addressToRemove = null;
@@ -365,15 +311,20 @@ export default {
         async setDefault(item) {
             try {
                 await this.store.setDefaultAddress({ id: item.id });
-                this.addresses = this.store.getAddresses || [];
 
-                this.$notify?.({
-                    title: 'Адрес',
-                    text: 'Адрес установлен как основной',
-                    type: 'success',
-                });
+                // 🛠 ИСПРАВЛЕНИЕ: Обновляем локальный массив, помечая новый адрес как дефолтный
+                this.addresses = this.addresses.map(addr => ({
+                    ...addr,
+                    is_default: addr.id === item.id
+                }));
+
+                // Синхронизируем с глобальным объектом
+                if (this.self) this.self.addresses = this.addresses;
+
+                this.$notify?.({ title: 'Адрес', text: 'Адрес установлен как основной', type: 'success' });
             } catch (error) {
                 console.error('Ошибка установки основного адреса:', error);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось обновить адрес', type: 'error' });
             }
         },
 
@@ -388,6 +339,8 @@ export default {
     },
 };
 </script>
+
+
 
 <style scoped>
 .address-list-container {
