@@ -529,26 +529,24 @@ trait BasketHelper
     }
 
     /**
-     * 🆕 Обновляет профиль пользователя данными из чекаута, если они были введены впервые
+     * 🆕 Обновляет профиль пользователя данными из чекаута, если они были введены впервые.
+     * Адрес и город исключены, так как они уже сохранены в БД или относятся к конкретному заказу.
      */
     private function updateUserProfileFromCheckout(array $checkoutData): void
     {
         $user = $this->tenantUser;
         $isUpdated = false;
 
-        // Поля, которые мы хотим обогатить из данных чекаута
+        // Обновляем только базовые контактные данные, которые точно есть в tenant_users
         $fieldsToSync = [
-            'name'    => $checkoutData['name'] ?? null,
-            'phone'   => $checkoutData['phone'] ?? null,
-            'email'   => $checkoutData['email'] ?? null,
-            'address' => $checkoutData['address'] ?? $checkoutData['delivery_note'] ?? null,
-            'city'    => $checkoutData['city'] ?? null,
+            'name'  => $checkoutData['name'] ?? null,
+            'phone' => $checkoutData['phone'] ?? null,
+            'email' => $checkoutData['email'] ?? null,
         ];
 
         foreach ($fieldsToSync as $field => $value) {
             if (!empty($value)) {
-                // Для телефона обновляем всегда, если он пришел (телефон — ключевой идентификатор)
-                // Для остальных полей обновляем, только если они сейчас пустые
+                // Телефон обновляем всегда (ключевой идентификатор), остальные — только если пустые
                 if ($field === 'phone' || empty($user->$field)) {
                     $user->$field = $value;
                     $isUpdated = true;
@@ -556,14 +554,14 @@ trait BasketHelper
             }
         }
 
-        // Сохраняем флаг, что профиль был авто-заполнен при заказе
-        $meta = $user->meta ?? [];
+        // Сохраняем изменения и флаг авто-заполнения
         if ($isUpdated) {
+            $meta = $user->meta ?? [];
             $meta['profile_auto_filled_at'] = now()->toIso8601String();
             $user->meta = $meta;
             $user->save();
 
-            Log::info("[Checkout] Профиль пользователя #{$user->id} обновлен данными из заказа.");
+            Log::info("[Checkout] Контактные данные пользователя #{$user->id} обновлены из заказа.");
         }
     }
 
