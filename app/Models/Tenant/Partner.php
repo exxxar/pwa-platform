@@ -93,13 +93,12 @@ class Partner extends Model
     {
         return Attribute::make(
             get: function () {
-               /* $settings = $this->settings; // Использует аксессор выше
+                $settings = $this->settings; // Использует аксессор выше
 
                 return $settings['company']['address']
                     ?? $settings['shop']['address']
                     ?? $settings['address']
-                    ?? null;*/
-                return "г. Донецк, ул. Аретам, 2б";
+                    ?? null;
             }
         );
     }
@@ -111,12 +110,11 @@ class Partner extends Model
     {
         return Attribute::make(
             get: function () {
-               /* $settings = $this->settings;
+                $settings = $this->settings;
 
                 return $settings['shop']['shop_coords']
                     ?? $settings['shop_coords']
-                    ?? '0,0';*/
-                return "31.4455223, 45.0033244";
+                    ?? '0,0';
             }
         );
     }
