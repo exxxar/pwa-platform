@@ -23,10 +23,7 @@
             <!-- МОИ БРОНИ -->
             <!-- ========================================== -->
             <div v-if="myBookings.length > 0" class="my-bookings-section">
-                <button
-                    class="bookings-toggle"
-                    @click="showMyBookings = !showMyBookings"
-                >
+                <button class="bookings-toggle" @click="showMyBookings = !showMyBookings">
                     <div class="toggle-content">
                         <div class="toggle-icon">
                             <i class="fa-solid fa-ticket"></i>
@@ -41,11 +38,7 @@
 
                 <transition name="slide-down">
                     <div v-if="showMyBookings" class="bookings-list">
-                        <div
-                            v-for="booking in myBookings"
-                            :key="booking.id"
-                            class="booking-card"
-                        >
+                        <div v-for="booking in myBookings" :key="booking.id" class="booking-card">
                             <div class="booking-header">
                                 <div class="booking-number">
                                     <span class="booking-label">Столик</span>
@@ -73,10 +66,7 @@
                                 <span>{{ booking.booked_info.description }}</span>
                             </div>
 
-                            <button
-                                class="cancel-booking-btn"
-                                @click="openRemoveModal(booking)"
-                            >
+                            <button class="cancel-booking-btn" @click="openRemoveModal(booking)">
                                 <i class="fa-solid fa-xmark"></i>
                                 <span>Отменить бронь</span>
                             </button>
@@ -86,7 +76,7 @@
             </div>
 
             <!-- ========================================== -->
-            <!-- СТОЛИКИ НА ВЫБОР -->
+            <!-- СТОЛИКИ НА ВЫБОР (CSS-ОТРИСОВКА) -->
             <!-- ========================================== -->
             <div v-if="sortedSelectedTables.length > 0" class="tables-section">
                 <div class="section-header">
@@ -110,24 +100,34 @@
                         class="table-card"
                         @click="openModal(table)"
                     >
-                        <div class="table-image-wrapper">
-                            <img
-                                :src="'/images/shop/tables/' + table.image"
-                                :alt="'Столик №' + table.number"
-                                class="table-image"
-                            >
-                            <div class="table-number-badge">
-                                №{{ table.number }}
+                        <!-- НОВАЯ CSS-ОТРИСОВКА СТОЛИКА -->
+                        <div class="table-visual-wrapper">
+                            <div class="css-table" :class="`shape-${getTableConfig(table).shape}`">
+                                <!-- Стулья и диваны -->
+                                <div
+                                    v-for="(seat, index) in getTableConfig(table).seats"
+                                    :key="index"
+                                    class="seat"
+                                    :class="[`type-${seat.type}`, `pos-${seat.pos}`]"
+                                ></div>
+
+                                <!-- Столешница -->
+                                <div class="table-top">
+                                    <span class="table-number">{{ table.number }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Бейдж вместимости -->
+                            <div class="table-capacity-badge">
+                                <i class="fa-solid fa-user-group"></i> {{ table.seats }}
                             </div>
                         </div>
+
                         <div class="table-info">
                             <div class="table-name">Столик №{{ table.number }}</div>
-                            <div class="table-description">{{ table.description || 'Свободен' }}</div>
-                            <div class="table-seats">
-                                <i class="fa-solid fa-user-group"></i>
-                                <span>{{ table.seats || 2 }} мест</span>
-                            </div>
+                            <div class="table-description">{{ table.description || 'Стандартный столик' }}</div>
                         </div>
+
                         <div class="table-action">
                             <i class="fa-solid fa-calendar-plus"></i>
                         </div>
@@ -162,12 +162,7 @@
         <!-- ========================================== -->
         <!-- МОДАЛКА: БРОНИРОВАНИЕ -->
         <!-- ========================================== -->
-        <div
-            class="modal fade"
-            id="bookingModal"
-            tabindex="-1"
-            aria-hidden="true"
-        >
+        <div class="modal fade" id="bookingModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content booking-modal">
                     <div class="modal-header">
@@ -180,11 +175,7 @@
                                 Столик №{{ selectedTable.number }}
                             </small>
                         </div>
-                        <button
-                            type="button"
-                            class="btn-close"
-                            data-bs-dismiss="modal"
-                        ></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <BookingForm
@@ -201,12 +192,7 @@
         <!-- ========================================== -->
         <!-- МОДАЛКА: ОТМЕНА БРОНИ -->
         <!-- ========================================== -->
-        <div
-            class="modal fade"
-            id="removeBookingModal"
-            tabindex="-1"
-            aria-hidden="true"
-        >
+        <div class="modal fade" id="removeBookingModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content remove-modal">
                     <div class="modal-header">
@@ -217,11 +203,7 @@
                             <h5 class="modal-title">Отмена брони</h5>
                             <small class="text-muted">Это действие нельзя отменить</small>
                         </div>
-                        <button
-                            type="button"
-                            class="btn-close"
-                            data-bs-dismiss="modal"
-                        ></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <div v-if="selectedTable" class="remove-info">
@@ -234,19 +216,10 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button
-                            type="button"
-                            class="btn-cancel"
-                            data-bs-dismiss="modal"
-                        >
+                        <button type="button" class="btn-cancel" data-bs-dismiss="modal">
                             Нет, оставить
                         </button>
-                        <button
-                            type="button"
-                            class="btn-confirm"
-                            @click="cancelBookingTable"
-                            :disabled="isCancelling"
-                        >
+                        <button type="button" class="btn-confirm" @click="cancelBookingTable" :disabled="isCancelling">
                             <span v-if="isCancelling" class="spinner-border spinner-border-sm me-2"></span>
                             <i v-else class="fa-solid fa-trash me-2"></i>
                             Да, отменить
@@ -291,10 +264,6 @@ export default {
             return window.Tenant || null;
         },
 
-        self() {
-            return window.TenantUser || null;
-        },
-
         sortedSelectedTables() {
             const tables = this.tenant?.settings?.tables_variants || [];
             return [...tables].sort((a, b) => (a.seats || 0) - (b.seats || 0));
@@ -312,7 +281,65 @@ export default {
     },
 
     methods: {
-        // Инициализация модалок
+        // ==========================================
+        // НОВЫЙ МЕТОД: Конфигурация CSS-столика
+        // ==========================================
+        getTableConfig(table) {
+            const seats = table.seats || 2;
+            // Эвристика: если в описании есть "диван", используем диванную конфигурацию
+            const hasSofa = table.description?.toLowerCase().includes('диван') || table.type === 'sofa';
+
+            let shape = 'round';
+            let seatsConfig = [];
+
+            if (seats <= 2) {
+                shape = 'round';
+                seatsConfig = [
+                    { type: 'chair', pos: 'left' },
+                    { type: 'chair', pos: 'right' }
+                ];
+            } else if (seats === 4) {
+                shape = hasSofa ? 'rect' : 'square';
+                if (hasSofa) {
+                    seatsConfig = [
+                        { type: 'sofa', pos: 'top' },
+                        { type: 'chair', pos: 'bottom' },
+                        { type: 'chair', pos: 'left' },
+                        { type: 'chair', pos: 'right' }
+                    ];
+                } else {
+                    seatsConfig = [
+                        { type: 'chair', pos: 'top' },
+                        { type: 'chair', pos: 'bottom' },
+                        { type: 'chair', pos: 'left' },
+                        { type: 'chair', pos: 'right' }
+                    ];
+                }
+            } else if (seats >= 5) {
+                shape = hasSofa ? 'rect' : 'round';
+                if (hasSofa) {
+                    seatsConfig = [
+                        { type: 'sofa', pos: 'top' },
+                        { type: 'chair', pos: 'bottom-left' },
+                        { type: 'chair', pos: 'bottom-right' },
+                        { type: 'chair', pos: 'left' },
+                        { type: 'chair', pos: 'right' }
+                    ];
+                } else {
+                    seatsConfig = [
+                        { type: 'chair', pos: 'top' },
+                        { type: 'chair', pos: 'bottom' },
+                        { type: 'chair', pos: 'left' },
+                        { type: 'chair', pos: 'right' },
+                        { type: 'chair', pos: 'tl' },
+                        { type: 'chair', pos: 'br' }
+                    ].slice(0, seats);
+                }
+            }
+
+            return { shape, seats: seatsConfig };
+        },
+
         initModals() {
             this.$nextTick(() => {
                 if (typeof bootstrap !== 'undefined') {
@@ -322,7 +349,6 @@ export default {
             });
         },
 
-        // Загрузка моих броней
         async loadMyBookings() {
             try {
                 const resp = await this.tablesStore.myUpcomingBookings();
@@ -332,19 +358,16 @@ export default {
             }
         },
 
-        // Открытие модалки бронирования
         openModal(table) {
             this.selectedTable = table;
             this.bookingModal?.show();
         },
 
-        // Открытие модалки отмены
         openRemoveModal(booking) {
             this.selectedTable = booking;
             this.removeModal?.show();
         },
 
-        // Успешное бронирование
         onBookingSuccess() {
             this.bookingModal?.hide();
             this.loadMyBookings();
@@ -355,15 +378,12 @@ export default {
             });
         },
 
-        // Ошибка бронирования
         onBookingFailure() {
             this.bookingModal?.hide();
         },
 
-        // Отмена брони
         async cancelBookingTable() {
             if (!this.selectedTable) return;
-
             this.isCancelling = true;
 
             try {
@@ -379,7 +399,6 @@ export default {
                     text: 'Бронь успешно отменена',
                     type: 'success',
                 });
-
             } catch (error) {
                 console.error('Ошибка отмены брони:', error);
                 this.$notify?.({
@@ -392,12 +411,10 @@ export default {
             }
         },
 
-        // Переход к предзаказу
         goToTableMenu() {
             this.$router.push({ name: 'TableMenu' });
         },
 
-        // Форматирование даты
         formatDate(dateString) {
             if (!dateString) return '';
             const date = new Date(dateString);
@@ -407,7 +424,6 @@ export default {
             });
         },
 
-        // Склонение слов
         pluralize(count, one, two, five) {
             const n = Math.abs(count) % 100;
             const n1 = n % 10;
@@ -557,7 +573,6 @@ export default {
     transform: rotate(180deg);
 }
 
-/* Список броней */
 .bookings-list {
     margin-top: 12px;
     display: flex;
@@ -574,14 +589,8 @@ export default {
 }
 
 @keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .booking-header {
@@ -681,7 +690,6 @@ export default {
     color: white;
 }
 
-/* Анимация раскрытия */
 .slide-down-enter-active,
 .slide-down-leave-active {
     transition: all 0.3s ease;
@@ -701,7 +709,7 @@ export default {
 }
 
 /* ==========================================
-   СТОЛИКИ
+   СТОЛИКИ (CSS-ОТРИСОВКА)
    ========================================== */
 .tables-section {
     margin-top: 32px;
@@ -763,38 +771,188 @@ export default {
     box-shadow: 0 8px 24px rgba(var(--bs-primary-rgb), 0.15);
 }
 
-.table-image-wrapper {
+/* --- НОВЫЕ СТИЛИ ДЛЯ CSS-СТОЛИКОВ --- */
+.table-visual-wrapper {
     position: relative;
     width: 100%;
     aspect-ratio: 4/3;
+    background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 0.03) 0%, rgba(var(--bs-primary-rgb), 0.08) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     overflow: hidden;
-    background: var(--bs-secondary-bg);
 }
 
-.table-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.3s ease;
-}
-
-.table-card:hover .table-image {
-    transform: scale(1.05);
-}
-
-.table-number-badge {
+/* Сетка на фоне для эффекта "зала" */
+.table-visual-wrapper::before {
+    content: '';
     position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(var(--bs-primary-rgb), 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(var(--bs-primary-rgb), 0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.5;
+}
+
+.css-table {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+    z-index: 1;
+}
+
+.table-card:hover .css-table {
+    transform: scale(1.08);
+}
+
+/* Столешница */
+.table-top {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
+    box-shadow:
+        inset 0 2px 4px rgba(255, 255, 255, 0.3),
+        0 6px 16px rgba(var(--bs-primary-rgb), 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 800;
+    font-size: 1.1rem;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    z-index: 2;
+}
+
+.shape-round .table-top {
+    border-radius: 50%;
+}
+
+.shape-square .table-top {
+    border-radius: 12px;
+    width: 65px;
+    height: 65px;
+}
+
+.shape-rect .table-top {
+    border-radius: 14px;
+    width: 80px;
+    height: 55px;
+}
+
+/* Стулья и диваны */
+.seat {
+    position: absolute;
+    z-index: 1;
+    transition: all 0.3s ease;
+}
+
+/* Тип: Стул */
+.type-chair {
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    border-radius: 6px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Тип: Диван */
+.type-sofa {
+    background: linear-gradient(135deg, #8b6b9e 0%, #4a3550 100%);
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Позиции */
+.pos-top {
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 18px;
+}
+
+.pos-bottom {
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 24px;
+}
+
+.pos-bottom-left {
+    bottom: 2px;
+    left: 15%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 24px;
+}
+
+.pos-bottom-right {
+    bottom: 2px;
+    right: 15%;
+    transform: translateX(50%);
+    width: 24px;
+    height: 24px;
+}
+
+.pos-left {
+    left: -4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+}
+
+.pos-right {
+    right: -4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+}
+
+.pos-tl {
     top: 8px;
     left: 8px;
-    padding: 4px 10px;
-    background: var(--bs-primary);
-    color: white;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    width: 20px;
+    height: 20px;
 }
 
+.pos-br {
+    bottom: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+}
+
+/* Бейдж вместимости */
+.table-capacity-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 10px;
+    background: rgba(var(--bs-body-bg-rgb, 255, 255, 255), 0.9);
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--bs-primary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 3;
+}
+
+/* Информация под столиком */
 .table-info {
     padding: 12px;
 }
@@ -809,21 +967,11 @@ export default {
 .table-description {
     font-size: 0.8rem;
     color: var(--bs-secondary-color);
-    margin-bottom: 8px;
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-}
-
-.table-seats {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-    color: var(--bs-primary);
-    font-weight: 600;
 }
 
 .table-action {
@@ -842,6 +990,7 @@ export default {
     opacity: 0;
     transform: scale(0.8);
     transition: all 0.3s ease;
+    z-index: 3;
 }
 
 .table-card:hover .table-action {
@@ -980,7 +1129,6 @@ export default {
     padding: 20px;
 }
 
-/* Модалка отмены */
 .remove-info {
     text-align: center;
     padding: 20px 0;
@@ -1052,6 +1200,37 @@ export default {
     .tables-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 10px;
+    }
+
+    .css-table {
+        width: 100px;
+        height: 100px;
+    }
+
+    .table-top {
+        width: 50px;
+        height: 50px;
+        font-size: 0.9rem;
+    }
+
+    .shape-square .table-top {
+        width: 55px;
+        height: 55px;
+    }
+
+    .shape-rect .table-top {
+        width: 65px;
+        height: 45px;
+    }
+
+    .type-chair {
+        width: 20px;
+        height: 20px;
+    }
+
+    .pos-top {
+        width: 40px;
+        height: 16px;
     }
 
     .table-name {

@@ -28,6 +28,13 @@
                 </div>
             </div>
 
+
+            <button
+                v-if="partner.address||partner.shop_coords"
+                class="location-btn" @click.stop="$emit('show-location', partner)">
+                <i class="fa-solid fa-map-location-dot"></i>
+            </button>
+
             <!-- Кнопка избранного -->
             <button
                 class="favorite-btn"
@@ -36,21 +43,20 @@
             >
                 <i :class="isFavorite ? 'fa-solid fa-heart' : 'fa-regular fa-heart'"></i>
             </button>
+
+
         </div>
 
         <!-- Контент -->
         <div class="card-content">
             <div class="card-header">
-                <h6 class="card-title">{{ partner.name }}</h6>
+                <h6 class="card-title">{{ partner.title }}</h6>
                 <div v-if="partner.rating" class="card-rating">
                     <i class="fa-solid fa-star"></i>
                     <span>{{ partner.rating.toFixed(1) }}</span>
                 </div>
             </div>
 
-            <p v-if="partner.title" class="card-title">
-                {{ partner.title }}
-            </p>
             <p v-if="partner.description" class="card-description">
                 {{ partner.description }}
             </p>
@@ -69,6 +75,8 @@
                     <i class="fa-solid fa-percent"></i>
                     <span>+{{ partner.extra_charge }}%</span>
                 </div>
+
+
             </div>
 
             <!-- Кнопка действия -->
@@ -428,5 +436,29 @@ export default {
     .meta-item {
         font-size: 0.7rem;
     }
+}
+
+.location-btn {
+    position: absolute;
+    top: 8px;
+    right: 46px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border: none;
+    color: #F44336;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.location-btn:hover {
+    background: #FF6B35;
+    color: white;
 }
 </style>

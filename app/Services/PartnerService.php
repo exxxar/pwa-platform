@@ -92,6 +92,7 @@ class PartnerService
 
         // 3. Базовый запрос с использованием скоупов модели
         $query = Partner::query()
+
             ->where('tenant_id', $tenant->id)
             ->active(); // 🆕 Используем скоуп active() из модели
 

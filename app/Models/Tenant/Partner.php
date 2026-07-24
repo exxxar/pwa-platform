@@ -2,8 +2,10 @@
 
 namespace App\Models\Tenant;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB; // 🆕 Добавляем Query Builder
 
 class Partner extends Model
 {
@@ -30,6 +32,12 @@ class Partner extends Model
         'tags' => 'array',
     ];
 
+    // 🆕 Добавляем виртуальные атрибуты
+    protected $appends = [
+        'address',
+        'shop_coords',
+    ];
+
     /*
     |--------------------------------------------------------------------------
     | Relations
@@ -48,7 +56,74 @@ class Partner extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Scopes (удобно)
+    | Accessors (Обход рекурсии через DB::table)
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * 🆕 Получаем настройки из связанного Tenant БЕЗ использования Eloquent-связи
+     * Это предотвращает бесконечный цикл загрузки связей.
+     */
+    protected function settings(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if (!$this->tenant_partner_id) return [];
+
+                // 🆕 Простой кэш в рамках жизненного цикла запроса
+                static $cache = [];
+
+                if (isset($cache[$this->tenant_partner_id])) {
+                    return $cache[$this->tenant_partner_id];
+                }
+
+                $rawMeta = DB::table('tenants')->where('id', $this->tenant_partner_id)->value('meta');
+                $meta = is_string($rawMeta) ? json_decode($rawMeta, true) : ($rawMeta ?: []);
+
+                $cache[$this->tenant_partner_id] = $meta;
+                return $meta;
+            }
+        );
+    }
+
+    /**
+     * 🆕 Удобный аксессор для адреса
+     */
+    protected function address(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+               /* $settings = $this->settings; // Использует аксессор выше
+
+                return $settings['company']['address']
+                    ?? $settings['shop']['address']
+                    ?? $settings['address']
+                    ?? null;*/
+                return "г. Донецк, ул. Аретам, 2б";
+            }
+        );
+    }
+
+    /**
+     * 🆕 Удобный аксессор для координат
+     */
+    protected function shopCoords(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+               /* $settings = $this->settings;
+
+                return $settings['shop']['shop_coords']
+                    ?? $settings['shop_coords']
+                    ?? '0,0';*/
+                return "31.4455223, 45.0033244";
+            }
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scopes
     |--------------------------------------------------------------------------
     */
 
@@ -62,19 +137,11 @@ class Partner extends Model
         return $query->orderBy('order_position');
     }
 
-    /**
-     * 🆕 Фильтрация по одному тегу
-     * Использование: Partner::whereTag('доставка')->get();
-     */
     public function scopeWhereTag($query, string $tag)
     {
         return $query->whereJsonContains('tags', $tag);
     }
 
-    /**
-     * 🆕 Фильтрация по нескольким тегам (логика ИЛИ: партнер имеет хотя бы один из тегов)
-     * Использование: Partner::whereTags(['еда', 'напитки'])->get();
-     */
     public function scopeWhereTags($query, array $tags)
     {
         return $query->where(function ($q) use ($tags) {
@@ -84,28 +151,13 @@ class Partner extends Model
         });
     }
 
-    /**
-     * 🆕 Отношение к товарам партнёра через tenant_partner_id
-     * HasMany: Partner -> Tenant (по tenant_partner_id) -> Products
-     */
     public function partnerProducts(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(
-            Product::class,      // целевая модель
-            'tenant_id',         // FK в products
-            'tenant_partner_id'  // FK в partners
-        );
+        return $this->hasMany(Product::class, 'tenant_id', 'tenant_partner_id');
     }
 
-    /**
-     * 🆕 Отношение к активным категориям партнёра
-     */
     public function partnerCategories(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(
-            Category::class,
-            'tenant_id',
-            'tenant_partner_id'
-        );
+        return $this->hasMany(Category::class, 'tenant_id', 'tenant_partner_id');
     }
 }
