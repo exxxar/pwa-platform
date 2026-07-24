@@ -1435,7 +1435,7 @@ export default {
                 // Или универсальный, если он есть: await this.saveSettings(payload);
 
                 // Временная заглушка для демонстрации (замените на реальный вызов API):
-                await axios.post('/admin/tenant-settings/guests', payload);
+                await axios.put('/admin/tenant-settings/guests', payload);
 
                 this.$notify?.({
                     title: 'Успешно',
