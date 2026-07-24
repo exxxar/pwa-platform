@@ -54,7 +54,7 @@
         <!-- ========================================== -->
         <!-- СТАТИСТИКА -->
         <!-- ========================================== -->
-        <div v-if="categories.length > 0" class="stats-bar">
+        <div v-if="categories.length > 0 && !isDataLoading" class="stats-bar">
             <div class="stat-item">
                 <i class="fa-solid fa-folder"></i>
                 <span>{{ categories.length }} категорий</span>
@@ -72,7 +72,8 @@
         <!-- ========================================== -->
         <!-- ЗАГРУЗКА (SKELETON) -->
         <!-- ========================================== -->
-        <div v-if="load_content && categories.length === 0" class="skeleton-list">
+        <!-- 🆕 Показываем скелетон, если идет загрузка (от родителя или из стора) и категорий еще нет -->
+        <div v-if="isDataLoading && categories.length === 0" class="skeleton-list">
             <div v-for="i in 3" :key="i" class="skeleton-card">
                 <div class="skeleton-icon shimmer"></div>
                 <div class="skeleton-content">
@@ -159,8 +160,6 @@
                                             </label>
                                         </div>
                                     </div>
-
-
                                 </div>
                             </div>
 
@@ -169,9 +168,9 @@
                                 v-if="category.products_count > category.products.length"
                                 class="btn-load-more"
                                 @click="loadMore(category.id, category.products.length)"
-                                :disabled="load_content"
+                                :disabled="isDataLoading"
                             >
-                                <span v-if="!load_content">
+                                <span v-if="!isDataLoading">
                                     <i class="fa-solid fa-plus"></i>
                                     Загрузить ещё ({{ category.products_count - category.products.length }})
                                 </span>
@@ -194,7 +193,7 @@
         <!-- ========================================== -->
         <!-- ПУСТОЕ СОСТОЯНИЕ -->
         <!-- ========================================== -->
-        <div v-else-if="!load_content" class="empty-state">
+        <div v-else-if="!isDataLoading" class="empty-state">
             <div class="empty-icon">
                 <i class="fa-solid fa-box-open"></i>
             </div>
@@ -206,7 +205,8 @@
 </template>
 
 <script>
-import { usePartners } from '@/MobileClient/Composables/usePartners.js'
+// 🆕 Импортируем стор напрямую для реактивного получения данных
+import { usePartnersStore } from '@/MobileClient/stores/Shop/partners.js';
 
 export default {
     name: 'PartnerProductList',
@@ -216,176 +216,201 @@ export default {
             type: Object,
             required: true,
         },
+        // 🆕 Получаем флаг загрузки от родительского компонента
+        isLoading: {
+            type: Boolean,
+            default: false
+        }
     },
 
-    setup() {
-        const partners = usePartners()
+    setup(props) {
+        const partnerStore = usePartnersStore();
+
+        // 🆕 Реактивно получаем данные конкретного партнера из стора
+        const partnerData = computed(() => {
+            return partnerStore.getPartnerProducts(props.partner.id);
+        });
+
         return {
-            // 🆕 Явно деструктурируем нужные методы
-            loadProductsByCategory: partners.loadProductsByCategory,
-            loadMoreProductsByCategory: partners.loadMoreProductsByCategory,
-            changePartnerProductStatus: partners.changePartnerProductStatus,
-        }
+            partnerData,
+            // Методы действия берем из стора
+            loadProductsByCategory: partnerStore.loadProductsByCategory,
+            loadMoreProductsByCategory: partnerStore.loadMoreProductsByCategory,
+            changePartnerProductStatus: partnerStore.changePartnerProductStatus,
+        };
     },
 
     data() {
         return {
-            load_content: false,
-            categories: [],
             extra_charge: 0,
             need_product_config: false,
             expandedCategories: [],
-        }
+        };
     },
 
     computed: {
+        // 🆕 Объединяем флаг загрузки от родителя и внутренний флаг стора
+        isDataLoading() {
+            return this.isLoading || this.partnerData.loading;
+        },
+
+        // 🆕 Берем категории реактивно из стора, а не храним локально в data()
+        categories() {
+            return this.partnerData.categories || [];
+        },
+
         excludes() {
-            return this.partner.config?.excludes || []
+            return this.partner.config?.excludes || [];
         },
 
         totalProductsCount() {
-            return this.categories.reduce((sum, cat) => sum + (cat.products_count || 0), 0)
+            return this.categories.reduce((sum, cat) => sum + (cat.products_count || 0), 0);
         },
 
         excludedCount() {
-            return this.excludes.length
+            return this.excludes.length;
         },
     },
 
     mounted() {
-        this.extra_charge = this.partner.extra_charge || 0
-        this.loadProducts()
+        this.extra_charge = this.partner.extra_charge || 0;
+        this.need_product_config = this.partner.need_product_config || false;
+
+        // 🆕 УМНАЯ ЗАГРУЗКА:
+        // Загружаем данные только если:
+        // 1. Категорий еще нет в сторе
+        // 2. Родительский компонент НЕ занимается загрузкой прямо сейчас (isLoading)
+        // 3. Стор НЕ занимается загрузкой прямо сейчас (partnerData.loading)
+        if (this.categories.length === 0 && !this.isLoading && !this.partnerData.loading) {
+            this.loadProducts();
+        } else if (this.categories.length > 0 && this.expandedCategories.length === 0) {
+            // Если данные уже были в кэше стора, сразу раскрываем первую категорию
+            this.expandedCategories.push(this.categories[0].id);
+        }
     },
 
     methods: {
         async loadProducts() {
-            this.load_content = true
             try {
                 const resp = await this.loadProductsByCategory({
                     partner_id: this.partner.id || null,
-                })
-                this.categories = resp.data || []
+                });
 
-                console.log("data", this.categories)
-
-                if (this.categories.length > 0) {
-                    this.expandedCategories.push(this.categories[0].id)
+                // Раскрываем первую категорию после успешной загрузки
+                if (this.categories.length > 0 && this.expandedCategories.length === 0) {
+                    this.expandedCategories.push(this.categories[0].id);
                 }
             } catch (err) {
-                console.error('Ошибка загрузки товаров:', err)
+                console.error('Ошибка загрузки товаров:', err);
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Не удалось загрузить товары',
                     type: 'error',
-                })
-            } finally {
-                this.load_content = false
+                });
             }
         },
 
         async loadMore(catId, offset) {
-            this.load_content = true
             try {
                 const resp = await this.loadMoreProductsByCategory({
-                    partner_id: this.partner?.bot_partner_id || null,
+                    partner_id: this.partner?.bot_partner_id || this.partner.id || null,
                     category_id: catId,
                     offset: offset,
-                })
+                });
 
-                const count = resp?.length || 0
+                const count = resp?.length || 0;
                 if (count === 0) {
-                    const category = this.categories.find(c => c.id === catId)
+                    const category = this.categories.find(c => c.id === catId);
                     if (category) {
-                        category.products_count = offset
+                        category.products_count = offset;
                     }
-                    return
+                    return;
                 }
 
-                const category = this.categories.find(c => c.id === catId)
+                const category = this.categories.find(c => c.id === catId);
                 if (category) {
-                    category.products.push(...resp)
+                    category.products.push(...resp);
                 }
             } catch (err) {
-                console.error('Ошибка загрузки:', err)
+                console.error('Ошибка дозагрузки:', err);
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Не удалось загрузить товары',
                     type: 'error',
-                })
-            } finally {
-                this.load_content = false
+                });
             }
         },
 
         toggleCategory(catId) {
-            const index = this.expandedCategories.indexOf(catId)
+            const index = this.expandedCategories.indexOf(catId);
             if (index === -1) {
-                this.expandedCategories.push(catId)
+                this.expandedCategories.push(catId);
             } else {
-                this.expandedCategories.splice(index, 1)
+                this.expandedCategories.splice(index, 1);
             }
         },
 
         isProductExcluded(productId) {
-            return this.excludes.includes(productId)
+            return this.excludes.includes(productId);
         },
 
         getCategoryExcludedCount(category) {
-            return category.products.filter(p => this.isProductExcluded(p.id)).length
+            return category.products.filter(p => this.isProductExcluded(p.id)).length;
         },
 
         async changeStatus(productId, status) {
-            const excludes = this.partner.config?.excludes || []
-            const index = excludes.indexOf(productId)
+            const excludes = this.partner.config?.excludes || [];
+            const index = excludes.indexOf(productId);
 
             if (index === -1) {
-                excludes.push(productId)
+                excludes.push(productId);
             } else {
-                excludes.splice(index, 1)
+                excludes.splice(index, 1);
             }
 
             if (!this.partner.config) {
-                this.partner.config = { excludes: [] }
+                this.partner.config = { excludes: [] };
             }
-            this.partner.config.excludes = excludes
+            this.partner.config.excludes = excludes;
 
             try {
                 await this.changePartnerProductStatus({
                     product_id: productId,
                     partner_id: this.partner.id,
                     status: status,
-                })
+                });
 
                 this.$notify?.({
                     title: 'Успех',
                     text: status === 0 ? 'Товар отображается' : 'Товар скрыт',
                     type: 'success',
-                })
+                });
             } catch (err) {
+                // Откат при ошибке
                 if (index === -1) {
-                    excludes.splice(excludes.indexOf(productId), 1)
+                    excludes.splice(excludes.indexOf(productId), 1);
                 } else {
-                    excludes.push(productId)
+                    excludes.push(productId);
                 }
 
-                console.error('Ошибка изменения статуса:', err)
+                console.error('Ошибка изменения статуса:', err);
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Не удалось изменить статус',
                     type: 'error',
-                })
+                });
             }
         },
 
         async saveExtraCharge() {
             // TODO: Реализовать сохранение наценки через API
-            console.log('Save extra charge:', this.extra_charge)
+            console.log('Save extra charge:', this.extra_charge);
         },
 
         calculatePriceWithCharge(price) {
-            const basePrice = parseFloat(price) || 0
-            const charge = parseFloat(this.extra_charge) || 0
-            return basePrice + (basePrice * charge / 100)
+            const basePrice = parseFloat(price) || 0;
+            const charge = parseFloat(this.extra_charge) || 0;
+            return basePrice + (basePrice * charge / 100);
         },
 
         formatPrice(price) {
@@ -394,10 +419,10 @@ export default {
                 currency: 'RUB',
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0,
-            }).format(price || 0)
+            }).format(price || 0);
         },
     },
-}
+};
 </script>
 
 <style lang="scss" scoped>

@@ -225,7 +225,7 @@
                 <div class="d-flex align-items-center justify-content-between mb-3 mt-4">
                     <AppDivider
                         icon="fa-solid fa-screwdriver-wrench"
-                        text="Панель администратора"
+                        text="Админка"
                         class="flex-grow-1 m-0"
                     />
 

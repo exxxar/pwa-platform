@@ -227,63 +227,142 @@ class PartnerService
     /**
      * @throws ValidationException
      */
+    /**
+     * Обновление данных партнёра и его настроек (адрес, координаты)
+     *
+     * @param array $data
+     * @param \Illuminate\Http\UploadedFile|null $file
+     * @return \App\Http\Resources\PartnerResource
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
+     */
     public function update(array $data, $file = null): PartnerResource
     {
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
-        $validator = Validator::make($data, [
-            'id' => "required",
-            'tenant_partner_id' => "required",
-            'title' => "",
-            'description' => "",
-            'order_position' => "",
-            'image' => "",
-            'is_active' => "",
-            'extra_charge' => "",
-            'config' => "",
-            'legal_info' => "",
-        ]);
-
-        if ($validator->fails())
-            throw new ValidationException($validator);
-
-        $botPartner = Tenant::query()
-            ->where("id", $data["tenant_partner_id"])
-            ->first();
-
-        if (is_null($botPartner))
-            throw new HttpException(404, "Бот-партнер не найден в системе!");
-
-        $partner = Partner::query()
-            ->where("id", $data["id"])
-            ->first();
-
-        if (is_null($partner))
-            throw new HttpException(403, "Данные боты уже являются партнерами!");
-
-        if ($file) {
-            $slug = $botPartner->slug;
-            $ext = $file->getClientOriginalExtension();
-            $imageName = Str::uuid() . "." . $ext;
-            $file->storeAs("/public/companies/$slug/$imageName");
-            $data['image'] = "/storage/companies/$slug/$imageName";
+        if (!$tenantUser) {
+            throw new HttpException(401, 'Пользователь не авторизован');
         }
 
-        $partner->update(
-            [
-                'title' => $data["title"] ?? $partner->title,
-                'description' => $data["description"] ?? $partner->description,
-                'image' => $data["image"] ?? $partner->image,
-                'order_position' => $data["order_position"] ?? 0,
-                'is_active' => ($data["is_active"] ?? false) == "true",
-                'extra_charge' => $data["extra_charge"] ?? $partner->extra_charge ?? 0,
-                'config' => isset($data["config"]) ? json_decode($data["config"] ?? '[]') : $partner->config,
-                'tags' => isset($data["tags"]) ? $data["tags"] ?? [] : $partner->tags,
-                'legal_info' => isset($data["legal_info"]) ? json_decode($data["legal_info"] ?? '[]') : $partner->legal_info,
-            ]);
+        // 🆕 1. Гибкая валидация (учитываем, что FormData шлет строки)
+        $rules = [
+            'id'                => 'required|integer|exists:partners,id',
+            'tenant_partner_id' => 'required|integer|exists:tenants,id',
+            'title'             => 'required|string|max:255',
+            'description'       => 'nullable|string',
+            'order_position'    => 'nullable|integer|min:0',
+            'is_active'         => 'nullable', // Придет как строка "true" или "false"
+            'extra_charge'      => 'nullable|numeric|min:0',
+            'config'            => 'nullable', // Придет как JSON-строка
+            'legal_info'        => 'nullable', // Придет как JSON-строка
+            'tags'              => 'nullable', // Придет как массив (tags[]) или JSON-строка
+            'address'           => 'nullable|string|max:255',
+            'shop_coords'       => 'nullable|string|max:50',
+        ];
 
-        return new PartnerResource($partner);
+        $validator = Validator::make($data, $rules);
+
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
+        }
+
+        $validated = $validator->validated();
+
+        // 🆕 2. Безопасный поиск моделей
+        $partnerTenant = Tenant::findOrFail($validated['tenant_partner_id']);
+
+        $partner = Partner::query()
+            ->where('id', $validated['id'])
+            ->where('tenant_id', $tenant->id) // 🔒 Защита от обновления чужих записей
+            ->firstOrFail();
+
+        // 🆕 3. Современная работа с файлами + удаление старого
+        $imageName = $partner->image;
+
+        if ($file) {
+            if ($partner->image && Str::contains($partner->image, '/storage/companies/')) {
+                $oldPath = str_replace('/storage/', 'public/', $partner->image);
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($oldPath);
+            }
+
+            $ext = $file->getClientOriginalExtension() ?: 'jpg';
+            $newFileName = 'companies/' . $partnerTenant->slug . '/' . Str::uuid() . '.' . $ext;
+
+            $file->storeAs('public', $newFileName);
+            $imageName = '/storage/' . $newFileName;
+        }
+
+        // 🆕 4. Нормализация типов данных из FormData
+        $isActive = filter_var($validated['is_active'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        $config = $validated['config'] ?? null;
+        if (is_string($config)) {
+            $config = json_decode($config, true) ?? [];
+        } elseif (!is_array($config)) {
+            $config = [];
+        }
+
+        $legalInfo = $validated['legal_info'] ?? null;
+        if (is_string($legalInfo)) {
+            $legalInfo = json_decode($legalInfo, true) ?? [];
+        } elseif (!is_array($legalInfo)) {
+            $legalInfo = [];
+        }
+
+        $tags = $validated['tags'] ?? [];
+        if (is_string($tags)) {
+            // Если пришло как JSON-строка
+            $tags = json_decode($tags, true) ?? [];
+        } elseif (!is_array($tags)) {
+            // Если пришло как что-то некорректное
+            $tags = [];
+        }
+
+        // 🆕 5. Обновление модели Partner (Laravel сам сделает json_encode для кастов 'array')
+        $partner->update([
+            'title'          => $validated['title'],
+            'description'    => $validated['description'] ?? null,
+            'image'          => $imageName,
+            'order_position' => $validated['order_position'] ?? 0,
+            'is_active'      => $isActive,
+            'extra_charge'   => $validated['extra_charge'] ?? 0,
+            'config'         => $config,
+            'legal_info'     => $legalInfo,
+            'tags'           => $tags,
+        ]);
+
+        // 🆕 6. Обновление настроек связанного Tenant (Адрес и Координаты)
+        $tenantSettingsToUpdate = [];
+
+        if (array_key_exists('address', $validated)) {
+            $tenantSettingsToUpdate['address'] = $validated['address'];
+        }
+
+        if (array_key_exists('shop_coords', $validated)) {
+            $tenantSettingsToUpdate['shop_coords'] = $validated['shop_coords'];
+        }
+
+        if (!empty($tenantSettingsToUpdate)) {
+            $this->mergeIntoMeta($partnerTenant, $tenantSettingsToUpdate);
+        }
+
+        return new PartnerResource($partner->fresh());
+    }
+
+    /**
+     * Ваш хелпер для безопасного обновления meta
+     */
+    protected function mergeIntoMeta(Tenant $tenant, array $newData): void
+    {
+        $meta = $tenant->meta ?? [];
+
+        if (is_string($meta)) {
+            $meta = json_decode($meta, true) ?? [];
+        }
+
+        $meta = array_replace_recursive($meta, $newData);
+        $tenant->update(['meta' => $meta]);
     }
 
     /**
@@ -443,6 +522,9 @@ class PartnerService
         $allowedFields = [
             'is_active' => 'sometimes|boolean',
             'display_self' => 'sometimes|boolean',
+
+            'address' => 'nullable|string|max:255',
+            'shop_coords' => 'nullable|string|max:50',
             // Можно добавить в будущем:
             // 'commission_rate' => 'sometimes|numeric|min:0|max:100',
             // 'auto_approve' => 'sometimes|boolean',

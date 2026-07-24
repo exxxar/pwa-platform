@@ -213,6 +213,7 @@
                         <PartnerProductList
                             v-if="selected"
                             :partner="selected"
+                            :is-loading="isProductsLoading"
                         />
                     </div>
                 </div>
@@ -282,12 +283,14 @@ export default {
         return {
             searchQuery: '',
             activeFilter: 'all',
-            activeTag: null, // 🆕 Активный тег для фильтрации
+            activeTag: null,
             selected: null,
             showConfigModal: false,
             showProductsModal: false,
             showRemoveModal: false,
             isRemoving: false,
+
+            isProductsLoading: false,
         }
     },
 
@@ -315,10 +318,8 @@ export default {
             ]
         },
 
-        // 🆕 Получить все уникальные теги с подсчетом количества партнеров
         availableTagsWithCount() {
             const tagCounts = {}
-
             this.partners.forEach(partner => {
                 if (Array.isArray(partner.tags)) {
                     partner.tags.forEach(tag => {
@@ -326,8 +327,6 @@ export default {
                     })
                 }
             })
-
-            // Преобразуем в массив и сортируем по популярности
             return Object.entries(tagCounts)
                 .map(([tag, count]) => ({ tag, count }))
                 .sort((a, b) => b.count - a.count)
@@ -336,21 +335,18 @@ export default {
         filteredPartners() {
             let result = [...this.partners]
 
-            // 🆕 Фильтр по тегу
             if (this.activeTag) {
                 result = result.filter(p =>
                     Array.isArray(p.tags) && p.tags.includes(this.activeTag)
                 )
             }
 
-            // Фильтр по статусу
             if (this.activeFilter === 'active') {
                 result = result.filter(p => p.is_active)
             } else if (this.activeFilter === 'inactive') {
                 result = result.filter(p => !p.is_active)
             }
 
-            // Поиск
             if (this.searchQuery) {
                 const query = this.searchQuery.toLowerCase()
                 result = result.filter(p =>
@@ -401,6 +397,7 @@ export default {
 
         async handleToggleActive(partner) {
             try {
+                // Отличный паттерн: нет лишнего loadPartners(), полагаемся на обновление стора
                 await this.toggleActive(partner.id)
                 this.$notify?.({
                     title: 'Успех',
@@ -419,7 +416,7 @@ export default {
         resetFilters() {
             this.searchQuery = ''
             this.activeFilter = 'all'
-            this.activeTag = null // 🆕 Сбрасываем и тег
+            this.activeTag = null
         },
 
         // ==========================================
@@ -440,7 +437,11 @@ export default {
 
         onConfigSuccess() {
             this.closeConfigModal()
-            this.loadPartners()
+
+            // 🆕 УДАЛЕНО: this.loadPartners()
+            // Предполагается, что ConfigPartnerForm внутри себя уже вызвал API обновления,
+            // и composable/store уже обновили объект партнера в локальном массиве this.partners.
+
             this.$notify?.({
                 title: 'Успех',
                 text: 'Партнёр обновлён',
@@ -448,16 +449,43 @@ export default {
             })
         },
 
-        selectPartnerForProductObserve(partner) {
-            this.selected = partner
-            this.showProductsModal = true
-            document.body.style.overflow = 'hidden'
+        async selectPartnerForProductObserve(partner) {
+            this.selected = partner;
+            this.showProductsModal = true;
+            document.body.style.overflow = 'hidden';
+
+            // 🆕 Проверяем, есть ли уже загруженные товары для этого партнера в сторе
+            // (предполагаем, что usePartners предоставляет доступ к store или геттеру)
+            const partnerId = String(partner.id);
+
+            // Если вы используете Pinia store напрямую в комposable, доступ может выглядеть так:
+            // const existingData = this.$pinia.state.value.partners.partnerProducts[partnerId];
+            // Или через геттер комposable, если он там есть: this.getPartnerProducts(partnerId)
+
+            // Для надежности, мы можем просто проверить флаг или вызвать загрузку,
+            // если в сторе реализована защита от повторных запросов (что мы сделаем в Шаге 3)
+
+            this.isProductsLoading = true;
+            try {
+                // Вызываем метод из composable usePartners
+                await this.loadProductsByCategory({ partner_id: partner.id });
+            } catch (error) {
+                console.error('Ошибка загрузки товаров партнера:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось загрузить товары',
+                    type: 'error'
+                });
+            } finally {
+                this.isProductsLoading = false;
+            }
         },
 
         closeProductsModal() {
-            this.showProductsModal = false
-            this.selected = null
-            document.body.style.overflow = ''
+            this.showProductsModal = false;
+            this.selected = null;
+            this.isProductsLoading = false; // 🆕 Сбрасываем состояние при закрытии
+            document.body.style.overflow = '';
         },
 
         selectPartnerForRemove(partner) {
@@ -472,12 +500,16 @@ export default {
             document.body.style.overflow = ''
         },
 
-        async removePartner() {
+        // 🆕 ПЕРЕИМЕНОВАНО: было removePartner, стало confirmRemovePartner
+        // Это предотвращает конфликт имен с функцией из usePartners()
+        async confirmRemovePartner() {
             if (!this.selected) return
 
             this.isRemoving = true
 
             try {
+                // Теперь это корректно вызовет функцию removePartner из composable usePartners,
+                // так как имя метода компонента больше не перекрывает её.
                 await this.removePartner(this.selected.id)
 
                 this.$notify?.({
@@ -487,7 +519,9 @@ export default {
                 })
 
                 this.closeRemoveModal()
-                await this.loadPartners()
+
+                // 🆕 УДАЛЕНО: await this.loadPartners()
+                // Composable уже должен был удалить партнера из локального массива this.partners.
             } catch (err) {
                 this.$notify?.({
                     title: 'Ошибка',

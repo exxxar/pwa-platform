@@ -600,29 +600,34 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Загрузка товаров партнёра по категориям
          */
-        async loadProductsByCategory(payload = {partner_id: null}) {
+        async loadProductsByCategory(payload = { partner_id: null }) {
             if (!payload.partner_id) {
                 throw new Error('partner_id is required');
             }
 
             const partnerId = String(payload.partner_id);
 
-            // Инициализируем состояние для этого партнёра
+            // 🆕 ОПТИМИЗАЦИЯ: Если товары уже загружены и не пусты, не делаем запрос к серверу
+            if (this.partnerProducts[partnerId] && this.partnerProducts[partnerId].categories.length > 0) {
+                return { data: this.partnerProducts[partnerId].categories, cached: true };
+            }
+
+            // Инициализируем состояние
             if (!this.partnerProducts[partnerId]) {
-                this.partnerProducts[partnerId] = {categories: [], loading: false};
+                this.partnerProducts[partnerId] = { categories: [], loading: false };
             }
 
             this.partnerProducts[partnerId].loading = true;
 
             try {
                 const response = await axios.get(`${BASE}/products-by-category`, {
-                    params: {partner_id: payload.partner_id},
+                    params: { partner_id: payload.partner_id },
                 });
 
                 const categories = response.data?.data || response.data || [];
                 this.partnerProducts[partnerId].categories = categories;
 
-                return {data: categories};
+                return { data: categories };
             } catch (err) {
                 console.error('[Partners] Ошибка загрузки товаров партнёра:', err);
                 throw err;

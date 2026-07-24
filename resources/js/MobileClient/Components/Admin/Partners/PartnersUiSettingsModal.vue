@@ -25,7 +25,6 @@
                     <!-- 1. HERO СЕКЦИЯ -->
                     <div class="settings-card">
                         <h4 class="card-title"><i class="fa-solid fa-image"></i> Главный экран</h4>
-
                         <div class="form-grid">
                             <div class="form-group full-width">
                                 <label>Заголовок</label>
@@ -40,19 +39,12 @@
                                 <input v-model="uiForm.hero.search_placeholder" type="text" class="form-input" placeholder="Поиск блюд и заведений">
                             </div>
                         </div>
-
-
-
                         <div class="images-grid">
                             <div v-for="(img, index) in ['bg_image_1', 'bg_image_2', 'bg_image_3', 'bg_image_4']" :key="img" class="image-upload-box">
                                 <label class="image-label">Картинка {{ index + 1 }}</label>
                                 <div class="image-preview" :style="{ backgroundImage: imagePreviews[img] ? `url(${imagePreviews[img]})` : 'none' }">
-                                    <div v-if="!imagePreviews[img]" class="image-placeholder">
-                                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                                    </div>
-                                    <button v-else class="remove-image" @click.prevent="removeImage(img)" type="button">
-                                        <i class="fa-solid fa-xmark"></i>
-                                    </button>
+                                    <div v-if="!imagePreviews[img]" class="image-placeholder"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                                    <button v-else class="remove-image" @click.prevent="removeImage(img)" type="button"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
                                 <input type="file" accept="image/*" @change="(e) => handleImageUpload(e, img)" class="file-input" hidden :ref="'file_' + img">
                                 <button class="upload-btn" @click.prevent="triggerFileInput(img)">Выбрать</button>
@@ -60,43 +52,29 @@
                         </div>
                     </div>
 
-                    <!-- 2. КАТЕГОРИИ БЛЮД (бывшие кухни) -->
+                    <!-- 2. КАТЕГОРИИ МЕНЮ (с эмодзи) -->
                     <div class="settings-card">
                         <div class="card-header-row">
-                            <h4 class="card-title"><i class="fa-solid fa-utensils"></i> Категории блюд</h4>
-                            <button class="add-btn" @click="addItem('cuisines')">
-                                <i class="fa-solid fa-plus"></i>
-                            </button>
+                            <h4 class="card-title"><i class="fa-solid fa-layer-group"></i> Категории меню</h4>
+                            <button class="add-btn" @click="addItem('categories')"><i class="fa-solid fa-plus"></i></button>
                         </div>
 
-                        <!--  Поле для настройки заголовка секции -->
                         <div class="title-input-row">
                             <label>Заголовок секции на странице</label>
-                            <input
-                                v-model="uiForm.cuisines_title"
-                                type="text"
-                                class="form-input title-input"
-                                placeholder="Популярные кухни"
-                            >
+                            <input v-model="uiForm.categories_title" type="text" class="form-input title-input" placeholder="Популярные категории">
                         </div>
 
-                        <div class="items-grid">
-                            <div v-for="(item, index) in uiForm.cuisines" :key="item.id || index" class="category-card">
-                                <div class="category-image-wrapper">
-                                    <img v-if="getImagePreview('cuisine', item.id)" :src="getImagePreview('cuisine', item.id)" class="category-img">
-                                    <div v-else class="category-placeholder">
-                                        <i class="fa-solid fa-image"></i>
-                                    </div>
-                                    <label class="category-upload-overlay">
-                                        <i class="fa-solid fa-camera"></i>
-                                        <input type="file" accept="image/*" @change="(e) => handleItemImageUpload(e, 'cuisine', item.id)" hidden>
-                                    </label>
+                        <div class="categories-grid">
+                            <div v-for="(item, index) in uiForm.categories" :key="item.id || index" class="category-card">
+                                <div class="category-emoji-display">
+                                    {{ item.icon || '🍽️' }}
                                 </div>
                                 <div class="category-info">
-                                    <input v-model="item.name" type="text" class="form-input" placeholder="Название категории">
-                                    <input v-model="item.slug" type="text" class="form-input" placeholder="Slug">
+                                    <input v-model="item.icon" type="text" class="form-input" placeholder="Эмодзи (🍕)" maxlength="4">
+                                    <input v-model="item.name" type="text" class="form-input" placeholder="Название (Пицца)">
+                                    <input v-model="item.slug" type="text" class="form-input" placeholder="Slug (pizza)">
                                 </div>
-                                <button class="remove-category-btn" @click="removeItem('cuisines', index)">
+                                <button class="remove-category-btn" @click="removeItem('categories', index)">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                             </div>
@@ -107,27 +85,19 @@
                     <div class="settings-card">
                         <div class="card-header-row">
                             <h4 class="card-title"><i class="fa-solid fa-star"></i> Преимущества</h4>
-                            <button class="add-btn" @click="addItem('services')">
-                                <i class="fa-solid fa-plus"></i>
-                            </button>
+                            <button class="add-btn" @click="addItem('services')"><i class="fa-solid fa-plus"></i></button>
                         </div>
-
                         <div class="items-grid">
                             <div v-for="(item, index) in uiForm.services" :key="item.id || index" class="service-card">
                                 <div class="service-icon-wrapper" :class="{ 'has-icon': item.icon }">
-                                    <i v-if="item.icon" :class="item.icon"></i>
-                                    <span v-else>?</span>
+                                    <i v-if="item.icon" :class="item.icon"></i><span v-else>?</span>
                                 </div>
                                 <div class="service-info">
                                     <input v-model="item.label" type="text" class="form-input" placeholder="Текст преимущества">
                                 </div>
                                 <div class="service-actions">
-                                    <button class="icon-picker-btn" @click="openIconPicker(index)">
-                                        <i class="fa-solid fa-icons"></i>
-                                    </button>
-                                    <button class="remove-service-btn" @click="removeItem('services', index)">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
+                                    <button class="icon-picker-btn" @click="openIconPicker(index)"><i class="fa-solid fa-icons"></i></button>
+                                    <button class="remove-service-btn" @click="removeItem('services', index)"><i class="fa-solid fa-trash"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -137,23 +107,16 @@
                     <div class="settings-card">
                         <div class="card-header-row">
                             <h4 class="card-title"><i class="fa-solid fa-tags"></i> Фильтры</h4>
-                            <button class="add-btn" @click="addItem('filters')">
-                                <i class="fa-solid fa-plus"></i>
-                            </button>
+                            <button class="add-btn" @click="addItem('filters')"><i class="fa-solid fa-plus"></i></button>
                         </div>
-
                         <div class="filters-grid">
                             <div v-for="(item, index) in uiForm.filters" :key="item.id || index" class="filter-tag">
-                                <div class="filter-icon">
-                                    <i class="fa-solid fa-tag"></i>
-                                </div>
+                                <div class="filter-icon"><i class="fa-solid fa-tag"></i></div>
                                 <div class="filter-inputs">
                                     <input v-model="item.name" type="text" class="form-input" placeholder="Название">
                                     <input v-model="item.slug" type="text" class="form-input" placeholder="Slug">
                                 </div>
-                                <button class="remove-filter-btn" @click="removeItem('filters', index)">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
+                                <button class="remove-filter-btn" @click="removeItem('filters', index)"><i class="fa-solid fa-xmark"></i></button>
                             </div>
                         </div>
                     </div>
@@ -174,7 +137,7 @@
         </div>
     </transition>
 
-    <!-- Модалка выбора иконки -->
+    <!-- Модалка выбора иконки FontAwesome (для сервисов) -->
     <transition name="modal-fade">
         <div v-if="showIconPicker" class="icon-picker-overlay" @click.self="closeIconPicker">
             <div class="icon-picker-modal">
@@ -187,13 +150,7 @@
                     <input v-model="iconSearchQuery" type="text" placeholder="Поиск..." class="form-input">
                 </div>
                 <div class="icons-grid">
-                    <button
-                        v-for="icon in filteredIcons"
-                        :key="icon"
-                        class="icon-option"
-                        :class="{ 'selected': currentEditingService && currentEditingService.icon === icon }"
-                        @click="selectIcon(icon)"
-                    >
+                    <button v-for="icon in filteredIcons" :key="icon" class="icon-option" :class="{ 'selected': currentEditingService && currentEditingService.icon === icon }" @click="selectIcon(icon)">
                         <i :class="icon"></i>
                     </button>
                 </div>
@@ -205,14 +162,7 @@
 <script>
 export default {
     name: 'PartnersUiSettingsModal',
-
-    props: {
-        modelValue: {
-            type: Boolean,
-            default: false
-        }
-    },
-
+    props: { modelValue: { type: Boolean, default: false } },
     emits: ['update:modelValue', 'saved'],
 
     data() {
@@ -222,7 +172,6 @@ export default {
             iconSearchQuery: '',
             currentEditingServiceIndex: null,
             imagePreviews: {},
-            itemImagePreviews: {},
 
             availableIcons: [
                 'fa-solid fa-bolt', 'fa-solid fa-bag-shopping', 'fa-solid fa-shield-halved',
@@ -230,10 +179,8 @@ export default {
                 'fa-solid fa-star', 'fa-solid fa-heart', 'fa-solid fa-thumbs-up',
                 'fa-solid fa-certificate', 'fa-solid fa-gem', 'fa-solid fa-crown',
                 'fa-solid fa-leaf', 'fa-solid fa-fire', 'fa-solid fa-mug-hot',
-                'fa-solid fa-burger', 'fa-solid fa-pizza-slice', 'fa-solid fa-ice-cream',
-                'fa-solid fa-location-dot', 'fa-solid fa-phone', 'fa-solid fa-envelope',
-                'fa-solid fa-gift', 'fa-solid fa-percent', 'fa-solid fa-wallet',
-                'fa-solid fa-award', 'fa-solid fa-check-double', 'fa-solid fa-users'
+                'fa-solid fa-location-dot', 'fa-solid fa-phone', 'fa-solid fa-gift',
+                'fa-solid fa-percent', 'fa-solid fa-wallet', 'fa-solid fa-award'
             ],
 
             uiForm: {
@@ -243,10 +190,26 @@ export default {
                     search_placeholder: 'Поиск блюд и заведений',
                     bg_image_1: '', bg_image_2: '', bg_image_3: '', bg_image_4: ''
                 },
-                cuisines_title: 'Популярные кухни',
-                cuisines: [
-                    { id: 1, name: 'Итальянская', slug: 'italian', image: '' },
-                    { id: 2, name: 'Японская', slug: 'japanese', image: '' }
+                categories_title: 'Популярные категории',
+                categories: [
+                    { id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza' },
+                    { id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers' },
+                    { id: 3, name: 'Шаурма', icon: '🌯', slug: 'shawarma' },
+                    { id: 4, name: 'Суши и роллы', icon: '🍣', slug: 'sushi' },
+                    { id: 5, name: 'Шашлык', icon: '🍖', slug: 'shashlik' },
+                    { id: 6, name: 'Хинкали', icon: '🥟', slug: 'khinkali' },
+                    { id: 7, name: 'Хачапури', icon: '🫓', slug: 'khachapuri' },
+                    { id: 8, name: 'Лапша / Wok', icon: '🍜', slug: 'wok' },
+                    { id: 9, name: 'Паста', icon: '🍝', slug: 'pasta' },
+                    { id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner' },
+                    { id: 11, name: 'Тако и буррито', icon: '🌮', slug: 'taco' },
+                    { id: 12, name: 'Пельмени и вареники', icon: '🥟', slug: 'dumplings' },
+                    { id: 13, name: 'Обеды', icon: '🍱', slug: 'lunch' },
+                    { id: 14, name: 'Морепродукты', icon: '🦞', slug: 'seafood' },
+                    { id: 15, name: 'Закуски', icon: '🍟', slug: 'snacks' },
+                    { id: 16, name: 'Пивные закуски', icon: '🍺', slug: 'beer_snacks' },
+                    { id: 17, name: 'Салаты', icon: '🥗', slug: 'salads' },
+                    { id: 18, name: 'ПП', icon: '🥑', slug: 'pp' }
                 ],
                 services: [
                     { id: 1, label: 'Быстрая доставка', icon: 'fa-solid fa-bolt' },
@@ -263,17 +226,13 @@ export default {
     },
 
     computed: {
-        tenant() {
-            return window.Tenant;
-        },
+        tenant() { return window.Tenant; },
         filteredIcons() {
             if (!this.iconSearchQuery) return this.availableIcons;
-            const query = this.iconSearchQuery.toLowerCase();
-            return this.availableIcons.filter(icon => icon.includes(query));
+            return this.availableIcons.filter(icon => icon.includes(this.iconSearchQuery.toLowerCase()));
         },
         currentEditingService() {
-            if (this.currentEditingServiceIndex === null) return null;
-            return this.uiForm.services[this.currentEditingServiceIndex];
+            return this.currentEditingServiceIndex !== null ? this.uiForm.services[this.currentEditingServiceIndex] : null;
         }
     },
 
@@ -289,20 +248,21 @@ export default {
     },
 
     methods: {
-        closeModal() {
-            this.$emit('update:modelValue', false);
-        },
+        closeModal() { this.$emit('update:modelValue', false); },
 
         loadSettings() {
             const settings = this.tenant?.settings?.partners?.ui || {};
             if (settings.hero) this.uiForm.hero = { ...this.uiForm.hero, ...settings.hero };
-            if (settings.cuisines) this.uiForm.cuisines = JSON.parse(JSON.stringify(settings.cuisines));
+            // Поддержка старого названия 'cuisines' для обратной совместимости
+            if (settings.categories) this.uiForm.categories = JSON.parse(JSON.stringify(settings.categories));
+            else if (settings.cuisines) this.uiForm.categories = JSON.parse(JSON.stringify(settings.cuisines));
+
             if (settings.services) this.uiForm.services = JSON.parse(JSON.stringify(settings.services));
             if (settings.filters) this.uiForm.filters = JSON.parse(JSON.stringify(settings.filters));
+            if (settings.categories_title) this.uiForm.categories_title = settings.categories_title;
+            else if (settings.cuisines_title) this.uiForm.categories_title = settings.cuisines_title;
 
             this.imagePreviews = {};
-            this.itemImagePreviews = {};
-
             if (this.uiForm.hero.bg_image_1) this.imagePreviews.bg_image_1 = this.uiForm.hero.bg_image_1;
             if (this.uiForm.hero.bg_image_2) this.imagePreviews.bg_image_2 = this.uiForm.hero.bg_image_2;
             if (this.uiForm.hero.bg_image_3) this.imagePreviews.bg_image_3 = this.uiForm.hero.bg_image_3;
@@ -312,7 +272,8 @@ export default {
         async saveSettings() {
             this.isSaving = true;
             try {
-                await new Promise(resolve => setTimeout(resolve, 800));
+                // TODO: Заменить на реальный API запрос
+                await new Promise(resolve => setTimeout(resolve, 600));
 
                 if (!this.tenant.settings.partners) this.tenant.settings.partners = {};
                 this.tenant.settings.partners.ui = JSON.parse(JSON.stringify(this.uiForm));
@@ -321,7 +282,6 @@ export default {
                 this.$emit('saved', this.uiForm);
                 this.closeModal();
             } catch (error) {
-                console.error(error);
                 this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
             } finally {
                 this.isSaving = false;
@@ -330,19 +290,15 @@ export default {
 
         addItem(collection) {
             const newItem = { id: Date.now() };
-            if (collection === 'cuisines') Object.assign(newItem, { name: '', slug: '', image: '' });
+            if (collection === 'categories') Object.assign(newItem, { name: '', icon: '', slug: '' });
             if (collection === 'services') Object.assign(newItem, { label: '', icon: '' });
             if (collection === 'filters') Object.assign(newItem, { name: '', slug: '' });
             this.uiForm[collection].push(newItem);
         },
 
-        removeItem(collection, index) {
-            this.uiForm[collection].splice(index, 1);
-        },
+        removeItem(collection, index) { this.uiForm[collection].splice(index, 1); },
 
-        triggerFileInput(key) {
-            this.$refs['file_' + key][0].click();
-        },
+        triggerFileInput(key) { this.$refs['file_' + key][0].click(); },
 
         handleImageUpload(event, key) {
             const file = event.target.files[0];
@@ -357,21 +313,6 @@ export default {
             this.uiForm.hero[key] = '';
         },
 
-        getImagePreview(type, id) {
-            return this.itemImagePreviews[`${type}_${id}`];
-        },
-
-        handleItemImageUpload(event, type, id) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const key = `${type}_${id}`;
-            this.itemImagePreviews[key] = URL.createObjectURL(file);
-            const collection = type === 'cuisine' ? 'cuisines' : type;
-            const item = this.uiForm[collection].find(i => i.id === id);
-            if (item) item.image = file;
-            event.target.value = '';
-        },
-
         openIconPicker(index) {
             this.currentEditingServiceIndex = index;
             this.iconSearchQuery = '';
@@ -384,16 +325,12 @@ export default {
         },
 
         selectIcon(iconClass) {
-            if (this.currentEditingService) {
-                this.currentEditingService.icon = iconClass;
-            }
+            if (this.currentEditingService) this.currentEditingService.icon = iconClass;
             this.closeIconPicker();
         }
     },
 
-    beforeUnmount() {
-        document.body.style.overflow = '';
-    }
+    beforeUnmount() { document.body.style.overflow = ''; }
 };
 </script>
 
@@ -687,9 +624,12 @@ label {
     background: white;
     border: 1px solid $admin-border;
     border-radius: 12px;
-    overflow: hidden;
+    padding: 12px;
     transition: all 0.2s;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 
     &:hover {
         border-color: $admin-primary;
@@ -1062,30 +1002,6 @@ label {
             width: 40px;
             height: 40px;
         }
-    }
-}
-
-// 🆕 Поле заголовка секции
-.title-input-row {
-    margin-bottom: 16px;
-    padding-bottom: 16px;
-    border-bottom: 1px dashed $admin-border;
-
-    label {
-        display: block;
-        margin-bottom: 6px;
-    }
-}
-
-.title-input {
-    font-weight: 600;
-    font-size: 1rem;
-    background: white;
-    border-color: rgba($admin-primary, 0.3);
-
-    &:focus {
-        border-color: $admin-primary;
-        background: rgba($admin-primary, 0.02);
     }
 }
 </style>

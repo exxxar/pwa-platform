@@ -27,6 +27,8 @@ class PartnerCollection extends ResourceCollection
                     'order_position' => $partner->order_position,
                     'config' => $partner->config,
                     'legal_info' => $partner->legal_info,
+                    'address' => $partner->address,
+                    'shop_coords' => $partner->shop_coords,
 
                     // 🆕 Новые поля статистики
                     'products_count' => $partner->products_count ?? 0,

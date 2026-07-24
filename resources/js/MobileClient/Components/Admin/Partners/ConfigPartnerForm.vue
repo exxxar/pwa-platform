@@ -98,6 +98,53 @@
             </div>
         </div>
 
+        <!-- 🆕 Адрес и расположение -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="fa-solid fa-map-location-dot"></i>
+                Адрес и расположение
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="partner-address">
+                    <i class="fa-solid fa-location-dot"></i>
+                    Физический адрес
+                </label>
+                <input
+                    id="partner-address"
+                    type="text"
+                    v-model="form.address"
+                    class="form-input"
+                    placeholder="г. Москва, ул. Примерная, д. 1, офис 10"
+                    :disabled="isLoading"
+                >
+                <span class="form-hint">Этот адрес будет отображаться в карточке партнера и в модалке расположения</span>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="partner-coords">
+                    <i class="fa-solid fa-crosshairs"></i>
+                    Координаты заведения
+                </label>
+                <div class="input-with-suffix">
+                    <input
+                        id="partner-coords"
+                        type="text"
+                        v-model="form.shop_coords"
+                        class="form-input"
+                        placeholder="55.7558, 37.6173"
+                        :disabled="isLoading"
+                    >
+                </div>
+                <span class="form-hint">
+                    Формат: <code>широта, долгота</code>.
+                    <a href="https://yandex.ru/maps" target="_blank" class="hint-link">
+                        <i class="fa-solid fa-external-link-alt"></i> Узнать координаты на Яндекс.Картах
+                    </a>
+                </span>
+            </div>
+        </div>
+
         <!-- 🆕 ТЕГИ -->
         <div class="form-section">
             <div class="section-title">
@@ -303,6 +350,8 @@ export default {
                 is_active: true,
                 extra_charge: 0,
                 demo_mode: true,
+                address: '',
+                shop_coords: '',
                 config: {
                     excludes: [],
                     bg_color: 'transparent',
@@ -312,8 +361,14 @@ export default {
     },
 
     computed: {
-        bot() {
-            return window.currentBot || null
+        tenant() {
+            return window.Tenant || null;
+        },
+        self() {
+            return window.TenantUser || null;
+        },
+        settings() {
+            return this.tenant?.settings || null;
         },
 
         isValid() {
@@ -322,8 +377,8 @@ export default {
 
         previewImage() {
             if (this.preview) return this.preview
-            if (this.form.image && this.bot?.id) {
-                return `/images-by-bot-id/${this.bot.id}/${this.form.image}`
+            if (this.form.image) {
+                return this.form.image
             }
             return null
         }

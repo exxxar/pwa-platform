@@ -1,0 +1,1 @@
+import e from"./WheelOfFortuneClassic-5f241278.js";import{_ as t,r,o as s,c as n}from"./app-99d504b4.js";import"./basket-8107ab0e.js";import"./SimpleProductList-5c1c3aab.js";import"./products-fc1032dc.js";const c={components:{WheelOfFortuneClassic:e}};function p(a,i,l,m,_,f){const o=r("WheelOfFortuneClassic");return s(),n(o)}const $=t(c,[["render",p]]);export{$ as default};

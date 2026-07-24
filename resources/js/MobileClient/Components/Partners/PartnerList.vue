@@ -311,7 +311,7 @@
                     <!-- В блоке BOTTOM SHEET MODAL: ВСЕ КАТЕГОРИИ -->
                     <div class="cuisine-modal-grid">
                         <div
-                            v-for="cuisine in dynamicCuisines"
+                            v-for="cuisine in dynamicCategories"
                             :key="cuisine.id"
                             class="cuisine-modal-card"
                             :class="{ 'active': selectedCuisine === cuisine.slug }"
@@ -391,14 +391,34 @@ export default {
         uiSettings() {
             return window.Tenant?.settings?.partners?.ui || {};
         },
-        dynamicCuisines() {
-            if (this.uiSettings.cuisines && this.uiSettings.cuisines.length > 0) {
-                return this.uiSettings.cuisines;
+
+
+        // 🆕 Динамические категории (вместо кухонь)
+        dynamicCategories() {
+            const settings = this.uiSettings.categories || this.uiSettings.cuisines; // обратная совместимость
+            if (settings && settings.length > 0) {
+                return settings;
             }
+            // Fallback список, если в настройках пусто
             return [
-                {id: 1, name: 'Итальянская', slug: 'italian', image: this.getDefaultImage('pizza')},
-                {id: 2, name: 'Японская', slug: 'japanese', image: this.getDefaultImage('sushi')},
-                {id: 3, name: 'Американская', slug: 'american', image: this.getDefaultImage('burger')}
+                { id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza' },
+                { id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers' },
+                { id: 3, name: 'Шаурма', icon: '🌯', slug: 'shawarma' },
+                { id: 4, name: 'Суши и роллы', icon: '🍣', slug: 'sushi' },
+                { id: 5, name: 'Шашлык', icon: '🍖', slug: 'shashlik' },
+                { id: 6, name: 'Хинкали', icon: '🥟', slug: 'khinkali' },
+                { id: 7, name: 'Хачапури', icon: '🫓', slug: 'khachapuri' },
+                { id: 8, name: 'Лапша / Wok', icon: '🍜', slug: 'wok' },
+                { id: 9, name: 'Паста', icon: '🍝', slug: 'pasta' },
+                { id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner' },
+                { id: 11, name: 'Тако и буррито', icon: '🌮', slug: 'taco' },
+                { id: 12, name: 'Пельмени и вареники', icon: '🥟', slug: 'dumplings' },
+                { id: 13, name: 'Обеды', icon: '🍱', slug: 'lunch' },
+                { id: 14, name: 'Морепродукты', icon: '🦞', slug: 'seafood' },
+                { id: 15, name: 'Закуски', icon: '🍟', slug: 'snacks' },
+                { id: 16, name: 'Пивные закуски', icon: '🍺', slug: 'beer_snacks' },
+                { id: 17, name: 'Салаты', icon: '🥗', slug: 'salads' },
+                { id: 18, name: 'ПП', icon: '🥑', slug: 'pp' }
             ];
         },
 
@@ -437,10 +457,7 @@ export default {
         },
 
 
-        // Для совместимости со старым названием в шаблоне (если используется где-то еще)
-        dynamicCategories() {
-            return this.dynamicCuisines.map(c => ({...c, icon: '🍽️'}));
-        },
+
 
         // 🆕 Динамические сервисы
         dynamicServices() {
@@ -599,7 +616,8 @@ export default {
         }
 
         this.loadInitialData();
-        if (this.loadOrders) this.loadOrders({page: 0, size: 20});
+        if (this.loadOrders)
+            this.loadOrders({page: 0, size: 20});
     },
 
     methods: {
@@ -1991,7 +2009,7 @@ export default {
         width: 160px;
         height: 260px;
         right: -20px;
-        opacity: 0.8;
+        opacity: 0.6;
     }
 
     .food-image-1 {
