@@ -14,6 +14,7 @@ use App\Models\Tenant\Basket;
 use App\Models\Tenant\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -121,6 +122,7 @@ class ProductController extends Controller
 
         $config = $tenant->settings ?? [];
 
+        Log::info(print_r($config, true));
         $basketIds = Basket::query()
             ->where("tenant_user_id", $tenantUser->id)
             ->where("tenant_id", $tenant->id)
