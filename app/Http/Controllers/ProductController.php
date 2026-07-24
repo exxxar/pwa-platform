@@ -156,8 +156,8 @@ class ProductController extends Controller
         $lat = $request->lat ?? 0;
         $lng = $request->lng ?? 0;
 
-        $price_per_km = $config["delivery"]["price_per_km"] ?? 100;
-        $min_base_delivery_price = $config["delivery"]["min_base_delivery_price"] ?? 100;
+        $price_per_km = $config["price_per_km"] ?? 100;
+        $min_base_delivery_price = $config["min_base_delivery_price"] ?? 100;
 
         $isPartnersActive = $config["partners"]["is_active"] ?? false;
 
@@ -183,6 +183,8 @@ class ProductController extends Controller
 
             $tmpDistance = GEOService::call()
                 ->getDistance($lat, $lng);
+
+            Log::info(print_r($tmpDistance, true));
 
             $distance = floatval(round($tmpDistance / 1000 ?? 0, 2));
 
