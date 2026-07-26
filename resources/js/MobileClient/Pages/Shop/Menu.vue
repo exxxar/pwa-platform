@@ -496,7 +496,7 @@ export default {
                 profile: { route: 'Profile', defaultTitle: 'Профиль', defaultImg: '/images/shop/profile.png', order: 3 },
                 booking: { route: 'TableBooking', defaultTitle: 'Бронь столика', defaultImg: '/images/shop/tables.png', order: 4, condition: 'can_use_booking' },
                 history: { route: 'Orders', defaultTitle: 'История', defaultImg: '/images/shop/history.png', order: 5 },
-                chat: { route: 'Chat', defaultTitle: 'Чат', defaultImg: '/images/shop/chat.png', order: 6 },
+                chat: { route: 'ChatList', defaultTitle: 'Чат', defaultImg: '/images/shop/chat.png', order: 6 },
                 events: { route: 'WheelClassic', defaultTitle: 'Розыгрыши', defaultImg: '/images/shop/events.png', order: 7 },
                 about: { route: 'Contacts', defaultTitle: 'Контакты', defaultImg: '/images/shop/contacts.png', order: 8 },
                 referral: { route: 'ReferralsPage', defaultTitle: 'Реферальная программа', defaultImg: '/images/shop/referral.png', order: 9 },
