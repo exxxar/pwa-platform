@@ -132,4 +132,53 @@ class AchievementAdminController extends Controller
             abort(403, 'Доступ запрещен');
         }
     }
+
+    /**
+     * Забрать награду за одно достижение
+     */
+    public function claim(Request $request, int $achievementId)
+    {
+        $userId = $request->user()->id; // Или auth()->id()
+
+        $userAchievement = UserAchievement::where('tenant_user_id', $userId)
+            ->where('achievement_id', $achievementId)
+            ->first();
+
+        if (!$userAchievement) {
+            return response()->json(['success' => false, 'message' => 'Достижение не найдено'], 404);
+        }
+
+        $result = $this->achievementService->giveReward($userAchievement);
+
+        if (!$result['success']) {
+            return response()->json($result, 400);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Забрать все доступные награды разом
+     */
+    public function claimAll(Request $request)
+    {
+        $userId = $request->user()->id;
+
+        $unclaimedAchievements = UserAchievement::where('tenant_user_id', $userId)
+            ->where('reward_claimed', 0)
+            ->get();
+
+        $results = [];
+
+        foreach ($unclaimedAchievements as $userAchievement) {
+            $results[] = $this->achievementService->giveReward($userAchievement);
+        }
+
+        return response()->json([
+            'success' => true,
+            'results' => $results,
+            'count' => count($results),
+        ]);
+    }
+
 }

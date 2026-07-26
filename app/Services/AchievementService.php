@@ -57,8 +57,16 @@ class AchievementService
     /**
      * Выдача награды за достижение
      */
-    public function giveReward(UserAchievement $userAchievement): void
+    public function giveReward(UserAchievement $userAchievement): array
     {
+        // Защита от повторного получения
+        if ($userAchievement->reward_claimed) {
+            return [
+                'success' => false,
+                'message' => 'Награда уже получена',
+            ];
+        }
+
         $achievement = $userAchievement->achievement;
         $user = $userAchievement->user;
 
@@ -79,6 +87,20 @@ class AchievementService
                 // PromoCode::create([...]);
                 break;
         }
+
+        // Помечаем, что награда забрана
+        $userAchievement->update([
+            'reward_claimed' => 1,
+            // 'reward_claimed_at' => now(), // Раскомментируйте, если добавите это поле в БД
+        ]);
+
+        return [
+            'success' => true,
+            'reward' => [
+                'type' => $achievement->reward_type,
+                'value' => $achievement->reward_value,
+            ],
+        ];
     }
 
     /**

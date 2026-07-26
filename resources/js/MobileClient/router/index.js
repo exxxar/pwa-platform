@@ -21,7 +21,8 @@ const Profile = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Pro
 const Orders = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Orders.vue'));
 const Cashback = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/CashBack.vue'));
 const CashbackShop = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/CashbackShop.vue'));
-const Chat = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Chat.vue'));
+const ChatRoom = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Chat.vue'));
+const ChatList = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/DialogList.vue'));
 const PromoCode = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/PromoCode.vue'));
 const Achievements = defineAsyncComponent(() => import('@/MobileClient/Pages/AchievementsPage.vue'));
 const ShopCart = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/ShopCart.vue'));
@@ -67,6 +68,10 @@ const AdminBroadcastCreate = defineAsyncComponent(() => import('@/MobileClient/P
 const TapLinkAdmin = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/TapLinkAdmin.vue'));
 const AdminRoles = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/AdminRoles.vue'));
 const TransactionsAdmin = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/TransactionsAdmin.vue')); // Укажите ваш реальный путь
+const AdminTablesManager = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/Tables/TablesManager.vue')); // Укажите ваш реальный путь
+const AdminTableDetails = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/Tables/Table.vue')); // Укажите ваш реальный путь
+const AdminTableSettings = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/Tables/TableSettings.vue')); // Укажите ваш реальный путь
+const WheelAdmin = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/WheelAdmin.vue')); // Укажите ваш реальный путь
 
 // --- Юридические страницы и 404 ---
 const PrivacyPolicy = defineAsyncComponent(() => import('@/MobileClient/Pages/PrivacyPolicy.vue'));
@@ -110,7 +115,18 @@ const routes = [
     { path: '/cashback-shop', name: 'CashbackShop', component: CashbackShop, meta: { auth: true, hideBottomMenu: true } },
     { path: '/promo', name: 'PromoCode', component: PromoCode, meta: { auth: true } },
     { path: '/achievements', name: 'Achievements', component: Achievements, meta: { auth: true, title: 'Мои достижения' } },
-    { path: '/chat', name: 'Chat', component: Chat, meta: { auth: true, hideBottomMenu: true, hideFooter: true } },
+    {
+        path: '/chat',
+        name: 'ChatList',
+        component: ChatList,
+        meta: { auth: true }
+    },
+    {
+        path: '/chat/:id',
+        name: 'ChatRoom',
+        component: ChatRoom,
+        meta: { auth: true, hideBottomMenu: true, hideFooter: true }
+    },
     { path: '/cart', name: 'Cart', component: ShopCart, meta: { hideBottomMenu: true } },
     { path: '/grocery-order', name: 'GroceryOrder', component: GroceryOrder, meta: { auth: true, hideBottomMenu: true, title: 'Заказ продуктов' } },
     { path: '/calculator', name: 'Calculator', component: CalculatorPage, meta: { auth: true, hideBottomMenu: true, title: 'Калькулятор стоимости' } },
@@ -156,6 +172,25 @@ const routes = [
             requiresAuth: true,
             isAdmin: true // Или ваша проверка на роль админа
         }
+    },
+    {
+        path: '/admin/wheel', name: 'WheelAdmin',component: WheelAdmin,
+        meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
+
+    },
+    {
+        path: '/admin/tables', name: 'AdminTablesManager',component: AdminTablesManager,
+       meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
+
+    },
+    {
+        path: '/admin/table-settings', name: 'AdminTableSettings',component: AdminTableSettings,
+          meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
+
+    },
+    {
+        path: '/admin/tables/:tableId', name: 'AdminTableDetails', component: AdminTableDetails,
+       meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
     },
 
     {
@@ -271,6 +306,14 @@ router.beforeEach((to, from, next) => {
             console.warn(`[Router Guard] Доступ запрещен: нет разрешения '${to.meta.permission}'`)
             return next({ name: 'Menu' })
         }
+    }
+
+    if (to.name === 'ChatRoom' && from.name === 'ChatList') {
+        to.meta.transition = 'slide-left'; // Заходим в чат
+    } else if (to.name === 'ChatList' && from.name === 'ChatRoom') {
+        to.meta.transition = 'slide-right'; // Возвращаемся в список
+    } else {
+        to.meta.transition = 'fade'; // Остальные переходы
     }
 
     // Все проверки пройдены

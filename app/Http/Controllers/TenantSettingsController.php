@@ -218,6 +218,37 @@ class TenantSettingsController extends Controller
     }
 
     /**
+     * Обновление настроек Колеса Фортуны
+     */
+    public function updateWheel(Request $request)
+    {
+        $tenant = $this->getTenant();
+
+        $validated = $request->validate([
+            'wheel.can_play' => 'boolean',
+            'wheel.interval' => 'required|integer|in:1,7,30',
+            'wheel.before_script' => 'nullable|string|in:null,auth_1,marketplace_1,review_1', // 🆕
+            'wheel.after_script' => 'nullable|string|in:null,auth_1,marketplace_1,review_1',  // 🆕
+            'wheel.rules' => 'nullable|string|max:4000',
+            'wheel.win_message' => 'nullable|string|max:4000',
+            'wheel.items' => 'required|array|min:3|max:10',
+            'wheel.items.*.id' => 'required|integer',
+            'wheel.items.*.value' => 'required|string|max:10',
+            'wheel.items.*.bgColor' => 'required|string',
+            'wheel.items.*.color' => 'required|string',
+            'wheel.items.*.description' => 'required|string|max:255',
+            'wheel.items.*.mark' => 'nullable|string|max:255',
+        ]);
+
+        $this->mergeIntoMeta($tenant, ['wheel' => $validated['wheel']]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Настройки колеса фортуны успешно сохранены!'
+        ]);
+    }
+
+    /**
      * 2. Обновление настроек магазина
      */
     public function updateShop(Request $request)

@@ -424,7 +424,6 @@ class PaymentService
     public function sbpForShop(Order $order, string $crmMessage): array
     {
         $tenant = app('tenant');
-        // Пытаемся получить пользователя из auth, либо из данных заказа (на случай API-вызовов)
         $tenantUser = Auth::guard('tenant')->user() ?? \App\Models\Tenant\TenantUser::find($order->tenant_user_id);
 
         if (!$tenant || !$tenantUser) {
@@ -436,39 +435,62 @@ class PaymentService
         $config = $this->getCurrentBankConfig();
         $paymentGateway = $this->getPaymentGateway($config['bank_key'], $config);
 
-        // 2. Формируем состав заказа для чека (items)
         $items = [];
         $productDetails = $order->product_details ?? [];
-        $tmpOrderProductInfo = []; // Для отправки в CRM
+        $tmpOrderProductInfo = [];
 
+        // 🆕 Счетчик суммы чека для гарантии совпадения с Amount
+        $receiptTotal = 0.0;
+
+        // 2. Формируем состав товаров для чека
         foreach ($productDetails as $detail) {
             if (isset($detail['products']) && is_array($detail['products'])) {
                 foreach ($detail['products'] as $product) {
+                    $price = (float)($product['price'] ?? 0);
+                    $count = (float)($product['count'] ?? 1);
+
                     $items[] = [
                         'Name' => $product['name'] ?? $product['title'] ?? 'Товар',
-                        'Quantity' => $product['count'] ?? 1,
-                        'Price' => $product['price'] ?? 0,
-                        'NDS' => $config['vat'], // Берем НДС из настроек банка
+                        'Quantity' => $count,
+                        'Price' => $price,
+                        'NDS' => $config['vat'],
                     ];
                     $tmpOrderProductInfo[] = $product;
+                    $receiptTotal += ($price * $count);
                 }
             }
         }
 
+        // 3. 🆕 КРИТИЧЕСКИ ВАЖНО: Добавляем доставку в чек как отдельную позицию!
+        $deliveryPrice = (float)($order->delivery_price ?? 0);
+        if ($deliveryPrice > 0) {
+            $items[] = [
+                'Name' => 'Доставка',
+                'Quantity' => 1.0,
+                'Price' => $deliveryPrice,
+                'NDS' => $config['vat'],
+            ];
+            $receiptTotal += $deliveryPrice;
+        }
+
         // Fallback, если товары по какой-то причине не распарсились
         if (empty($items)) {
+            $fallbackPrice = (float)$order->summary_price + $deliveryPrice;
             $items[] = [
                 'Name' => "Заказ #{$order->id}",
                 'Quantity' => $order->product_count ?? 1,
-                'Price' => $order->summary_price,
+                'Price' => $fallbackPrice,
                 'NDS' => $config['vat'],
             ];
+            $receiptTotal = $fallbackPrice;
         }
 
-        // 3. Формируем payload для платежного шлюза
+        // 4. 🆕 ИТОГОВАЯ СУММА К ОПЛАТЕ (Товары + Доставка)
+        $totalAmount = $receiptTotal;
+
         $payment = [
             'OrderId' => (string) $order->id,
-            'Amount' => (float) $order->summary_price, // Сумма уже с учетом кэшбэка (из BasketService)
+            'Amount' => $totalAmount, // 🆕 Исправлено: передаем полную сумму
             'Language' => 'ru',
             'Description' => "Оплата заказа #{$order->id} в " . ($tenant->title ?? $tenant->name ?? 'Магазине'),
             'Email' => $tenantUser->email ?? '',
@@ -476,11 +498,10 @@ class PaymentService
             'Name' => $order->receiver_name ?? $tenantUser->name ?? 'Клиент',
             'Taxation' => $config['tax'],
             'CustomerKey' => (string) $tenantUser->id,
-            // Умный ReturnUrl: возвращаем пользователя в чат с его заказом или на главную PWA
             'ReturnUrl' => "https://" . ($tenant->slug ?? 'app') . ".mypwa.ru/pwa/#/chat/" . $order->id,
         ];
 
-        // 4. Запрашиваем ссылку на оплату у банка
+        // 5. Запрашиваем ссылку на оплату у банка
         $paymentURL = $paymentGateway->paymentURL($payment, $items);
 
         if (!$paymentURL) {
@@ -488,59 +509,63 @@ class PaymentService
             Log::error('[PaymentService] Ошибка генерации ссылки СБП', [
                 'order_id' => $order->id,
                 'bank' => $config['bank_key'],
-                'error' => $error
+                'error' => $error,
+                'payload_amount' => $totalAmount,
+                'receipt_total' => $receiptTotal
             ]);
             throw new HttpException(500, "Ошибка формирования ссылки на оплату: {$error}");
         }
 
         $payment_id = $paymentGateway->payment_id ?? Str::uuid()->toString();
 
-        // 5. Создаем запись о ожидающей транзакции (если сервис доступен)
+        // 6. Создаем запись о ожидающей транзакции
         if (class_exists(\App\Services\TransactionService::class)) {
             \App\Services\TransactionService::call()->createPending(
                 tenantId: $tenant->id,
                 tenantUserId: $tenantUser->id,
                 orderId: $order->id,
                 externalPaymentId: $payment_id,
-                amount: $order->summary_price,
+                amount: $totalAmount, // 🆕 Исправлено: сохраняем полную сумму
                 metaData: [
                     'bank_key' => $config['bank_key'],
                     'terminal_key_masked' => substr($config['terminal_key'], 0, 4) . '***',
-                    'source' => 'foodshop_checkout'
+                    'source' => 'foodshop_checkout',
+                    'includes_delivery' => $deliveryPrice > 0
                 ],
                 provider: $config['bank_key']
             );
         }
 
-        // 6. Уведомляем пользователя в боте/чате
-        $this->notifyUser($tenantUser, "💳 <b>Ссылка на оплату заказа №{$order->id}</b>\n\nСумма к оплате: <b>{$order->summary_price} руб.</b>\n\nПерейдите по ссылке или отсканируйте QR-код для оплаты:\n<code>{$paymentURL}</code>", [
+        // 7. Уведомляем пользователя в боте/чате
+        $displayTotal = number_format($totalAmount, 2, '.', ' ');
+        $this->notifyUser($tenantUser, "💳 <b>Ссылка на оплату заказа №{$order->id}</b>\n\nСумма к оплате: <b>{$displayTotal} руб.</b>\n\nПерейдите по ссылке или отсканируйте QR-код для оплаты:\n<code>{$paymentURL}</code>", [
             'type' => 'payment_link',
             'url' => $paymentURL,
             'order_id' => $order->id
         ]);
 
-        // 7. Отправляем данные в Kanban CRM
+        // 8. Отправляем данные в Kanban CRM
         $this->sendToKanbanCrm(
             $order,
             $tenantUser,
             $tmpOrderProductInfo,
-            $order->summary_price, // summaryPrice
-            0,                      // cashback (уже вычтен из summary_price)
+            $order->summary_price, // summaryPrice (без доставки, как было)
+            0,                      // cashback
             $order->product_count,
             0,                      // summaryDiscount
-            $order->delivery_price ?? 0,
+            $deliveryPrice,         // 🆕 deliveryPrice (теперь корректный)
             $order->delivery_range ?? 0,
-            false,                  // needPickup (упрощенно, CRM покажет адрес из delivery_note)
+            false,
             'SBP_' . strtoupper($config['bank_key'])
         );
 
-        // 8. Возвращаем данные для фронтенда (CartPage.vue ожидает именно такую структуру)
+        // 9. Возвращаем данные для фронтенда
         return [
             'url' => $paymentURL,
             'payment_id' => $payment_id,
             'order_id' => $order->id,
             'bank' => $config['bank_key'],
-            'amount' => $order->summary_price,
+            'amount' => $totalAmount, // 🆕 Исправлено: возвращаем полную сумму
         ];
     }
 

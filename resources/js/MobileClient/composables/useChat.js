@@ -80,12 +80,15 @@ export function useChat() {
         }
     };
 
-    const openDialog = async (dialogId) => {
+
+
+    const openDialog = async (id) => {
         try {
-            return await store.openDialog(dialogId);
+            // Просто делегируем всю умную логику в store
+            return await store.openDialog(id);
         } catch (error) {
-            console.error('Ошибка открытия диалога:', error);
-            throw error;
+            console.error('Ошибка открытия диалога в useChat:', error);
+            throw error; // Пробрасываем ошибку, чтобы watch в Chat.vue её поймал
         }
     };
 
@@ -170,22 +173,20 @@ export function useChat() {
     // СООБЩЕНИЯ
     // ==========================================
 
-    const sendMessage = async (messageText, attachments = []) => {
-        if (!store.currentDialog) {
-            throw new Error('Нет активного диалога');
+    const sendMessage = async (dialogId, payload) => {
+        if (!dialogId) {
+            throw new Error('Не указан ID диалога');
         }
 
         try {
-            return await store.sendMessage(
-                store.currentDialog.id,
-                messageText,
-                attachments
-            );
+            // Передаем dialogId и payload (объект) напрямую в store, как мы и договорились
+            return await store.sendMessage(dialogId, payload);
         } catch (error) {
             console.error('Ошибка отправки сообщения:', error);
             throw error;
         }
     };
+
 
     const loadOlderMessages = async () => {
         if (!store.currentDialog) return [];
@@ -197,6 +198,7 @@ export function useChat() {
             return [];
         }
     };
+
 
     return {
         // Состояние

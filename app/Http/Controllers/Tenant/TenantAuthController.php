@@ -11,6 +11,7 @@ use App\Services\ChatService;
 use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -90,7 +91,7 @@ class TenantAuthController extends Controller
 
 
         // Пытаемся авторизовать через guard 'tenant'
-        if (Auth::guard('tenant')->attempt($credentials)) {
+        if (Auth::guard('tenant')->attempt($credentials, true)) {
             // Защита от фиксации сессии
             $request->session()->regenerate();
 
@@ -201,12 +202,12 @@ class TenantAuthController extends Controller
 
 
     public function handler(
-        $tenant,
+        Request $request, // 🆕 Добавляем Request
+                $tenant,
         ChatService $chatService,
         BasketService $basketService,
         ProductService $productService
-    )
-    {
+    ) {
         if (empty($tenant) || !preg_match('/^[a-zA-Z0-9_-]+$/', $tenant)) {
             return redirect()->route('public.landing');
         }
@@ -219,6 +220,19 @@ class TenantAuthController extends Controller
 
         Session::put("tenant", $tenantModel);
 
+        // 🆕 1. ПЕРЕХВАТ РЕФЕРАЛЬНОГО КОДА
+        $refCode = $request->query('ref');
+        $hasPendingReferral = false;
+
+        if ($refCode) {
+            // Сохраняем в сессию, чтобы использовать при реальной авторизации/создании
+            Session::put('pending_referral_code', $refCode);
+            $hasPendingReferral = true;
+
+            // Опционально: очищаем URL от ?ref=..., чтобы ссылка выглядела аккуратно при шеринге
+            // Но для Inertia лучше просто оставить как есть, фронтенд сам разберется.
+        }
+
         $rawDisabled = $tenantModel->settings["is_disabled"] ?? false;
 
         $isDisabled = match (true) {
@@ -230,14 +244,11 @@ class TenantAuthController extends Controller
 
         $tenantUser = Auth::guard('tenant')->user();
 
-        // 🆕 Проверяем, является ли пользователь администратором или суперадмином
-        // (Используем аксессор role_names, который мы добавляли в модель TenantUser)
         $isAdmin = $tenantUser && (
                 in_array('super_admin', $tenantUser->role_names ?? []) ||
                 in_array('admin', $tenantUser->role_names ?? [])
             );
 
-        // 🆕 Предзагрузка данных для мгновенного отображения
         $initialData = $this->loadInitialData(
             $tenantModel,
             $tenantUser,
@@ -248,20 +259,22 @@ class TenantAuthController extends Controller
 
         Inertia::setRootView("mobile");
 
-        // 🆕 Показываем страницу обслуживания ТОЛЬКО если магазин выключен И пользователь НЕ админ
         if ($isDisabled && !$isAdmin) {
             return Inertia::render('Public/MaintenancePage', [
                 'tenant' => $tenantModel,
                 'tenant_user' => $tenantUser,
                 'initial_data' => $initialData,
+                'has_pending_referral' => $hasPendingReferral, // 🆕 Передаем во фронтенд
+                'referral_code' => $refCode, // 🆕 Передаем сам код
             ]);
         }
 
-        // В противном случае (магазин включен ИЛИ пользователь админ) показываем основное приложение
         return Inertia::render('MobileMain', [
             'tenant' => $tenantModel,
             'tenant_user' => $tenantUser,
             'initial_data' => $initialData,
+            'has_pending_referral' => $hasPendingReferral, // 🆕 Передаем во фронтенд
+            'referral_code' => $refCode, // 🆕 Передаем сам код
         ]);
     }
 

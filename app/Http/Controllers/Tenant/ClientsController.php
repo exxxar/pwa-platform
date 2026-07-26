@@ -38,7 +38,7 @@ class ClientsController extends Controller
     /**
      * 🆕 Получить историю сообщений
      */
-    public function messages(int $userId, Request $request)
+    public function messages( Request $request, $tenant,int $userId )
     {
         $tenant = app('tenant');
 

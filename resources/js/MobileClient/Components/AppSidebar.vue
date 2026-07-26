@@ -321,7 +321,7 @@ export default {
                     defaultIcon: 'fa-solid fa-user',
                 },
                 chat: {
-                    route: 'Chat',
+                    route: 'ChatList',
                     defaultTitle: 'Сообщения',
                     defaultIcon: 'fa-solid fa-comments',
                     badge: () => this.totalUnread,

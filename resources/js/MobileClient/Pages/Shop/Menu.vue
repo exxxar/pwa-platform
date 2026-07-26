@@ -47,9 +47,12 @@
             </div>
         </div>
 
-        <!-- Stories -->
-        <div v-if="storiesStore.stories?.length" class="px-2 mt-3">
-            <StoryList :stories="storiesStore.stories"/>
+        <div v-if="storiesStore.stories?.length || isAdmin" class="px-2 mt-3">
+            <StoryList
+                :stories="storiesStore.stories"
+                :is-admin="isAdmin"
+                @create-story="showCreateStoryModal = true"
+            />
         </div>
 
         <StoreStatusBanner
@@ -57,7 +60,7 @@
             :schedule="tenant?.settings?.company?.schedule"
         />
 
-        <div class="container px-2">
+        <div class="container py-2 px-2">
 
 
             <!-- 🆕 Красивая плашка "Магазин выключен" (только для админа) -->
@@ -318,7 +321,16 @@
                 </div>
             </div>
         </div>
+
+        <!-- 🆕 Модалка создания истории (только для админа) -->
+        <StoryCreateModal
+            v-if="showCreateStoryModal"
+            @close="showCreateStoryModal = false"
+            @saved="showCreateStoryModal = false"
+        />
     </div>
+
+
 </template>
 
 <script>
@@ -337,6 +349,7 @@ import AppDivider from "@/MobileClient/Components/AppDivider.vue";
 
 import OrderPeriscope from "@/MobileClient/Components/Shop/OrderPeriscope.vue";
 import { usePermissions } from '@/MobileClient/Composables/usePermissions.js';
+import StoryCreateModal from '@/MobileClient/Components/Shop/Stories/StoryCreateModal.vue'; // 🆕
 
 export default {
     name: "HomePage",
@@ -344,6 +357,7 @@ export default {
     components: {
         AppDivider,
         ThemeToggle,
+        StoryCreateModal,
         OrderPeriscope,
         ThemeColorPicker,
         ThemeSchemePicker,
@@ -375,9 +389,9 @@ export default {
             showThemeSettings: false,
             adminViewMode: localStorage.getItem('adminViewMode') || 'list',
             disabledModal: null,
-
+            showCreateStoryModal: false,
             carouselConfig: {
-                itemsToShow: 1.5,
+                itemsToShow: 2.5,
                 wrapAround: true,
                 snapAlign: 'start',
             },
@@ -408,10 +422,70 @@ export default {
         disabledText() {
             return this.settings?.disabled_text || this.script_data?.disabled_text || 'Сервис временно недоступен';
         },
+        // ✅ Логика работы: Открыт, если НЕ отключен И (нет расписания ИЛИ сейчас время работы)
         isWork() {
-            if (!this.settings?.schedule) return true;
-            if (!window.isCorrectSchedule?.(this.settings.schedule)) return false;
-            return this.settings?.is_work ?? true;
+            const settings = this.settings;
+            if (!settings) return true; // Нет настроек = работаем
+
+            // 1. Если магазин принудительно выключен админом или скриптом — он закрыт.
+            if (this.isDisabled) {
+                return false;
+            }
+
+            const schedule = settings.schedule;
+
+            // 2. Если расписания нет или оно пустое, а принудительного отключения нет — работаем.
+            if (!Array.isArray(schedule) || schedule.length === 0) {
+                return true;
+            }
+
+            // 3. Проверка текущего времени по расписанию
+            try {
+                const now = new Date();
+                const jsDay = now.getDay(); // 0 = Вс, 1 = Пн, ..., 6 = Сб
+
+                // Адаптация под бэкенд, где массив обычно начинается с Понедельника (0 = Пн, 6 = Вс)
+                const currentDayIndex = (jsDay + 6) % 7;
+
+                const todaySchedule = schedule[currentDayIndex];
+
+                // Если данных на сегодня нет, не блокируем магазин
+                if (!todaySchedule || typeof todaySchedule !== 'object') {
+                    return true;
+                }
+
+                // Если сегодня официально выходной
+                if (todaySchedule.closed === true || todaySchedule.closed === 1 || todaySchedule.closed === "1") {
+                    return false;
+                }
+
+                // Если указаны часы работы, проверяем текущее время
+                if (todaySchedule.start_at && todaySchedule.end_at) {
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                    const [startH, startM] = String(todaySchedule.start_at).split(':').map(Number);
+                    const [endH, endM] = String(todaySchedule.end_at).split(':').map(Number);
+
+                    const startMinutes = startH * 60 + startM;
+                    const endMinutes = endH * 60 + endM;
+
+                    // Обработка ночных смен (например, работает с 22:00 до 04:00)
+                    if (endMinutes < startMinutes) {
+                        return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+                    }
+
+                    // Обработка обычных дневных смен
+                    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+                }
+
+                // Если closed !== true, но время не указано, считаем что работаем
+                return true;
+
+            } catch (e) {
+                console.error('Ошибка при проверке времени работы:', e);
+                // В случае любой непредвиденной ошибки безопаснее показать "Открыто"
+                return true;
+            }
         },
         menuItems() {
             const mainMenuSettings = this.settings?.main_menu_items || {};
@@ -476,8 +550,10 @@ export default {
 
                 { key: 'mailing', route: 'AdminBroadcastsPage', text: 'Рассылки', desc: 'Уведомления и акции', icon: 'fa-solid fa-envelope', permission: 'manage_broadcasts' },
                 { key: 'stories', route: 'AdminStories', text: 'Истории', desc: 'Управление сторис', icon: 'fa-solid fa-circle-play', permission: 'manage_stories' },
-                { key: 'tables', route: 'TablesManager', text: 'Столики', desc: 'Бронирование и схема', icon: 'fa-solid fa-chair', permission: 'manage_tables', condition: 'need_table_list' },
+                { key: 'tables', route: 'AdminTablesManager', text: 'Столики', desc: 'Бронирование и схема', icon: 'fa-solid fa-chair', permission: 'manage_tables',
+                    },
                 { key: 'promo', route: 'AdminPromoCodes', text: 'Промокоды', desc: 'Скидки и бонусы', icon: 'fa-solid fa-tags', permission: 'manage_promos' },
+                { key: 'wheel', route: 'WheelAdmin', text: 'Колесо фортуны', desc: 'Розыгрыш призов', icon: 'fa-solid fa-dharmachakra', permission: 'manage_settings' },
                 { key: 'crm', route: 'AdminKanban', text: 'CRM', desc: 'Воронка и сделки', icon: 'fa-solid fa-address-book', permission: 'manage_crm' },
                 { key: 'statistic', route: 'AdminStatistic', text: 'Статистика', desc: 'Аналитика и отчеты', icon: 'fa-solid fa-chart-line', permission: 'view_statistics' },
                 { key: 'landing', route: 'AdminShopLanding', text: 'Лендинг', desc: 'Настройка посадочной страницы', icon: 'fa-solid fa-laptop-code', permission: 'manage_landing' },
@@ -508,7 +584,7 @@ export default {
             const baseItems = [
                 { key: 'wheel_of_fortune_btn', img: 'fortune.png', text: 'Колесо фортуны', route: 'WheelClassic' },
                 { key: 'coffee_bonus_btn', img: 'coffee.png', text: 'Больше кофе', route: 'Coffee' },
-                { key: 'social_quest_btn', img: 'social-quest.png', text: 'Квесты', route: 'Quests' },
+                { key: 'social_quest_btn', img: 'social-quest.png', text: 'Квесты', route: 'GamesCatalog' },
             ];
 
             return this.applyMenuSettings(baseItems, {
@@ -1447,5 +1523,58 @@ export default {
     display: -webkit-box;
     -webkit-line-clamp: 2; /* Ограничиваем описание 2 строками */
     -webkit-box-orient: vertical;
+}
+
+/* ==========================================
+   АДАПТИВ БОНУСОВ ДЛЯ БОЛЬШИХ ЭКРАНОВ
+   ========================================== */
+@media (min-width: 992px) {
+    /* 1. Центрируем и ограничиваем заголовок секции */
+    .section-header {
+        max-width: 1000px;
+        margin: 32px auto 20px auto; /* Чуть больше воздуха сверху */
+        padding: 0 16px;
+    }
+
+    /* 2. Ограничиваем карусель, убираем отрицательные отступы */
+    .bonus-carousel {
+        margin: 0 auto !important;
+        max-width: 1000px;
+        padding: 0 16px;
+    }
+
+    /* 3. Делаем сами карточки компактными и пропорциональными */
+    .bonus-card {
+        max-width: 380px; /* Оптимальная ширина для десктопной карточки */
+        margin: 0 auto;   /* Центрируем карточку внутри её слайда */
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    }
+
+    /* Усиливаем hover-эффект для десктопа (мышь vs палец) */
+    .bonus-card:hover:not(:disabled) {
+        transform: translateY(-6px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+        border-color: var(--bs-primary);
+    }
+
+    /* 4. Корректируем пропорции изображения */
+    .bonus-image-wrapper {
+        aspect-ratio: 4/3; /* Более классическая "карточная" пропорция вместо 16/10 */
+    }
+
+    /* 5. Добавляем воздуха внутрь карточки */
+    .bonus-info {
+        padding: 16px;
+    }
+
+    .bonus-title {
+        font-size: 1rem;
+        margin-bottom: 12px;
+        line-height: 1.3;
+    }
+
+    .bonus-action {
+        font-size: 0.8rem;
+    }
 }
 </style>

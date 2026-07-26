@@ -391,7 +391,16 @@ export default {
         uiSettings() {
             return window.Tenant?.settings?.partners?.ui || {};
         },
-
+        dynamicCuisines() {
+            if (this.uiSettings.cuisines && this.uiSettings.cuisines.length > 0) {
+                return this.uiSettings.cuisines;
+            }
+            return [
+                {id: 1, name: 'Итальянская', slug: 'italian', image: this.getDefaultImage('pizza')},
+                {id: 2, name: 'Японская', slug: 'japanese', image: this.getDefaultImage('sushi')},
+                {id: 3, name: 'Американская', slug: 'american', image: this.getDefaultImage('burger')}
+            ];
+        },
 
         // 🆕 Динамические категории (вместо кухонь)
         dynamicCategories() {

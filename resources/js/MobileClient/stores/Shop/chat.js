@@ -220,34 +220,7 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /**
-         * Открыть диалог
-         */
-        async openDialog(dialogId) {
-            const dialog = this.getDialogById(dialogId);
-            if (!dialog) {
-                console.warn(`[Chat Store] Диалог #${dialogId} не найден`);
-                return null;
-            }
 
-            this.currentDialog = dialog;
-            this.messages = [];
-            this.messagesPage = 1;
-            this.hasMoreMessages = true;
-
-            try {
-                await this.loadMessages(dialogId);
-
-                if (dialog.unread_count > 0) {
-                    this.markDialogAsRead(dialogId);
-                }
-
-                return dialog;
-            } catch (error) {
-                console.error('[Chat Store] Ошибка открытия диалога:', error);
-                throw error;
-            }
-        },
 
         /**
          * Закрыть текущий диалог
@@ -467,6 +440,49 @@ export const useChatStore = defineStore('chat', {
         /**
          * Загрузка сообщений
          */
+        /**
+         * Открыть диалог
+         */
+        async openDialog(dialogId) {
+            // 1. Пытаемся найти в локальном кэше
+            let dialog = this.getDialogById(dialogId);
+
+            // 2. 🚀 ЗАПАСНОЙ ВАРИАНТ: Если диалога нет в кэше (например, прямой переход по ссылке),
+            // создаем временный объект, чтобы хотя бы загрузить сообщения.
+            if (!dialog) {
+                console.warn(`[Chat Store] Диалог #${dialogId} не найден в кэше. Создаем временный объект.`);
+                dialog = {
+                    id: dialogId,
+                    interlocutor: { name: 'Загрузка...' },
+                    unread_count: 0
+                };
+                // Добавляем в начало списка, чтобы он не терялся
+                this.dialogs.unshift(dialog);
+            }
+
+            this.currentDialog = dialog;
+            this.messages = [];
+            this.messagesPage = 1;
+            this.hasMoreMessages = true;
+
+            try {
+                // 3. Загружаем сообщения (это сработает, даже если диалог был "временным")
+                await this.loadMessages(dialogId);
+
+                if (dialog.unread_count > 0) {
+                    this.markDialogAsRead(dialogId);
+                }
+
+                return dialog;
+            } catch (error) {
+                console.error('[Chat Store] Ошибка открытия диалога:', error);
+                throw error;
+            }
+        },
+
+        /**
+         * Загрузка сообщений
+         */
         async loadMessages(dialogId, page = 1) {
             this.isMessagesLoading = true;
 
@@ -475,12 +491,27 @@ export const useChatStore = defineStore('chat', {
                     params: { page, per_page: 20 }
                 });
 
-                const data = response.data?.data || response.data || [];
-                const messages = Array.isArray(data) ? data : [];
+                // 🛠️ ОТЛАДКА: Смотрим в консоль, что именно присылает бэкенд
+                console.log(`[Chat Store] Сырые данные сообщений (стр. ${page}):`, response.data);
+
+                // 🚀 ГИБКОЕ ИЗВЛЕЧЕНИЕ МАССИВА (под разные форматы ответа Laravel)
+                let rawData = response.data?.data || response.data || [];
+
+                // Если это Laravel Paginator, данные лежат в rawData.data
+                if (rawData.data && Array.isArray(rawData.data)) {
+                    rawData = rawData.data;
+                }
+                // Если бэкенд возвращает { messages: [...] }
+                else if (rawData.messages && Array.isArray(rawData.messages)) {
+                    rawData = rawData.messages;
+                }
+
+                const messages = Array.isArray(rawData) ? rawData : [];
 
                 if (page === 1) {
                     this.messages = messages;
                 } else {
+                    // При подгрузке старых сообщений добавляем их В НАЧАЛО массива
                     this.messages = [...messages, ...this.messages];
                 }
 
@@ -514,58 +545,37 @@ export const useChatStore = defineStore('chat', {
         /**
          * Отправка сообщения
          */
-        async sendMessage(dialogId, messageText, attachments = []) {
-            if (!messageText?.trim() && attachments.length === 0) {
-                throw new Error('Сообщение не может быть пустым');
+        // В файле useChat.js или chat.js
+
+        // В файле @/MobileClient/Composables/useChat.js (или chat.js)
+
+        async  sendMessage(dialogId, payload) {
+            // 🛡️ Безопасная деструктуризация с дефолтными значениями
+            const { text = '', attachments = [] } = payload || {};
+
+            const formData = new FormData();
+            formData.append('dialog_id', dialogId);
+
+            if (text) {
+                formData.append('text', text);
+                formData.append('message', text); // На случай, если бэкенд ждет 'message'
             }
 
-            const tempMessage = {
-                id: `temp-${Date.now()}`,
-                text: messageText,
-                message: messageText,
-                attachments,
-                sender_id: 'me',
-                is_mine: true,
-                created_at: new Date().toISOString(),
-                status: 'sending',
-                temp: true,
-            };
-
-            this.messages.push(tempMessage);
-            this.isSending = true;
+            // 🛡️ ГАРАНТИРОВАННАЯ ПРОВЕРКА: вызываем forEach ТОЛЬКО если это массив и он не пуст
+            if (Array.isArray(attachments) && attachments.length > 0) {
+                attachments.forEach((file, index) => {
+                    // Laravel корректно примет такой формат как массив файлов
+                    formData.append(`attachments[${index}]`, file);
+                });
+            }
 
             try {
-                const response = await axios.post(`${BASE}/${dialogId}/messages`, {
-                    message: messageText,
-                    text: messageText,
-                    attachments,
-                    dialog_id: dialogId,
-                });
-
-                const serverMessage = response.data?.data || response.data;
-
-                const index = this.messages.findIndex(m => m.id === tempMessage.id);
-                if (index !== -1) {
-                    this.messages[index] = { ...serverMessage, status: 'sent' };
-                }
-
-                const dialog = this.getDialogById(dialogId);
-                if (dialog) {
-                    dialog.last_message = messageText;
-                    dialog.last_message_at = serverMessage.created_at || new Date().toISOString();
-                }
-
-                return serverMessage;
+                // Axios автоматически установит 'multipart/form-data' при передаче FormData
+                const response = await axios.post(`/dialogs/${dialogId}/messages`, formData);
+                return response.data;
             } catch (error) {
-                const index = this.messages.findIndex(m => m.id === tempMessage.id);
-                if (index !== -1) {
-                    this.messages[index].status = 'error';
-                    this.messages[index].error = error.response?.data?.message || 'Ошибка отправки';
-                }
-                console.error('[Chat Store] Ошибка отправки:', error);
+                console.error('[Chat Store] Ошибка отправки сообщения:', error);
                 throw error;
-            } finally {
-                this.isSending = false;
             }
         },
 

@@ -32,6 +32,25 @@ class ReferralController extends Controller
     }
 
     /**
+     * Получить реферальную ссылку пользователя
+     */
+    public function link(Request $request)
+    {
+        $user = Auth::user(); // или $request->user() в зависимости от вашей аутентификации
+
+        // Формируем ссылку. Замените 'domain.com' на ваш реальный домен или используйте url()
+        // Предполагаем, что регистрация принимает параметр ?ref={user_id}
+        $referralLink = url('/register?ref=' . $user->id);
+
+        return response()->json([
+            'link' => $referralLink,
+        ]);
+    }
+
+
+
+
+    /**
      * 🆕 Получить историю наград
      */
     public function rewards(Request $request)
@@ -44,31 +63,7 @@ class ReferralController extends Controller
         ]);
     }
 
-    /**
-     * 🆕 Получить реферальную ссылку
-     */
-    public function link()
-    {
-        $user = Auth::guard('tenant')->user();
 
-        // Генерируем код, если его нет
-        if (!$user->referral_code) {
-            $user->update([
-                'referral_code' => \App\Models\Tenant\TenantUser::generateReferralCode(),
-            ]);
-        }
-
-        return response()->json([
-            'data' => [
-                'code' => $user->referral_code,
-                'link' => $user->referral_link,
-                'stats' => [
-                    'referrals_count' => $user->referrals_count,
-                    'total_earnings' => $user->total_referral_earnings,
-                ],
-            ],
-        ]);
-    }
 
     // ==========================================
     // ДРУЗЬЯ

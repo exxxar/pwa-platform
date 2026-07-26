@@ -55,7 +55,7 @@ class TenantDialogController extends Controller
     /**
      * Сообщения диалога
      */
-    public function messages(Request $request, $tenant, $dialogId)
+    public function messages(Request $request,  $dialogId)
     {
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
@@ -109,28 +109,56 @@ class TenantDialogController extends Controller
             ->first();
 
         if (!$dialog) {
-            return response()->json([
-                'message' => 'Диалог не найден',
-            ], 404);
+            return response()->json(['message' => 'Диалог не найден'], 404);
         }
 
-        $request->validate([
-            'message' => 'required|string|max:5000',
-            'meta' => 'nullable|array',
+        // 🛠️ ИСПРАВЛЕНИЕ 1: Убрали dialog_id из валидации (он уже есть в URL),
+        // или изменили exists на tenant_dialogs, если оставляете.
+        $validated = $request->validate([
+            'text'      => 'nullable|string|max:2000',
+            'message'   => 'nullable|string|max:2000',
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'nullable|file|mimes:jpeg,png,jpg,gif,webm,mp3,mp4,pdf,doc,docx|max:10240',
         ]);
 
+        // 🛠️ ИСПРАВЛЕНИЕ 2: Берем текст из любого поля (text или message)
+        $textContent = $request->input('text') ?: $request->input('message', '');
+        $attachmentUrls = [];
+
+        // 🛠️ ИСПРАВЛЕНИЕ 3: Реальное сохранение файлов
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                // Генерируем уникальное имя файла
+                $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+
+                // Сохраняем в public disk (storage/app/public/messages/attachments)
+                $path = $file->storeAs('public/messages/attachments', $filename);
+
+                // Генерируем публичную ссылку для фронтенда
+                $attachmentUrls[] = asset('storage/messages/attachments/' . $filename);
+            }
+        }
+
+        // 🛠️ ИСПРАВЛЕНИЕ 4: Сохраняем ссылки в meta (или в отдельную колонку attachments, если она есть)
         $message = TenantMessage::create([
             'tenant_id' => $tenant->id,
             'dialog_id' => $dialog->id,
-            'message' => $request->input('message'),
-            'meta' => $request->input('meta', []),
+            'sender_id' => $user->id, // Рекомендуется добавить, если есть такое поле
+            'message' => $textContent,
+            'meta' => [
+                'attachments' => $attachmentUrls,
+                'has_voice' => !empty($attachmentUrls) && str_contains($attachmentUrls[0], 'webm'), // Флаг для фронтенда
+            ],
             'is_read' => false,
         ]);
 
         // Обновляем время последнего сообщения
         $dialog->update(['last_message_at' => now()]);
 
-        return response()->json($message, 201);
+        return response()->json([
+            'success' => true,
+            'data' => $message
+        ], 201);
     }
 
     /**

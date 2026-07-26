@@ -1161,6 +1161,7 @@ trait BasketHelper
             'payment_type' => $paymentType,
             'status' => $order->status,
             'payment_data' => $paymentData,
+            'delivery_price' => $deliveryPrice,
             'message' => 'Заказ успешно оформлен',
         ];
     }

@@ -24,6 +24,7 @@ class TenantUser extends Authenticatable
         'phone',
         'sex',
         'password',
+        'remember_token',
         'birthday',
         'city',
         'country',
@@ -70,7 +71,8 @@ class TenantUser extends Authenticatable
         'settings',
         'cashback_balance',
         'cashback_subs',
-        'referral_link'
+        'referral_link',
+        'wheel_wins'
 
     ];
 
@@ -92,6 +94,14 @@ class TenantUser extends Authenticatable
             get: fn() => $this->roles->flatMap->permissions->pluck('name')->unique()->values()->toArray()
         );
     }
+
+    protected function wheelWins(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => $this->meta['wheel_wins'] ?? []
+        );
+    }
+
     /**
      * Только активные пользователи
      */

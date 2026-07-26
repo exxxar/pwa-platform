@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useTablesStore } from '@/stores/tables.js';
+import { useTablesStore } from '@/MobileClient/stores/Shop/tables.js';
 
 /**
  * Composable для работы со столами и бронированиями

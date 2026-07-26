@@ -8,7 +8,7 @@
                 <div class="hero-icon">
                     <i class="fa-solid fa-location-dot"></i>
                 </div>
-                <h2 class="hero-title">{{ tenant.settings.address || 'Наш адрес' }}</h2>
+                <h2 class="hero-title">{{ address }}</h2>
                 <p class="hero-subtitle">Мы всегда рады видеть вас!</p>
 
                 <!-- Кнопки действий -->
@@ -49,8 +49,14 @@
                     </div>
                 </div>
 
-                <div v-if="mapLink" class="map-wrapper">
-                    <div class="map-container" v-html="tenant.settings.links.map_link"></div>
+                <!-- 🆕 Динамическая Яндекс.Карта -->
+                <div v-if="mapWidgetUrl" class="map-wrapper">
+                    <iframe
+                        :src="mapWidgetUrl"
+                        class="map-container"
+                        frameborder="0"
+                        allowfullscreen="true"
+                    ></iframe>
                     <a
                         :href="mapLink"
                         target="_blank"
@@ -61,11 +67,13 @@
                         <i class="fa-solid fa-up-right-from-square"></i>
                     </a>
                 </div>
+
+                <!-- Заглушка, если нет ни координат, ни адреса -->
                 <div v-else class="empty-map">
                     <div class="empty-icon">
                         <i class="fa-solid fa-map"></i>
                     </div>
-                    <p class="empty-text">Карта скоро будет добавлена</p>
+                    <p class="empty-text">Адрес или координаты не указаны в настройках</p>
                 </div>
             </div>
 
@@ -79,7 +87,6 @@
                         <h6 class="section-title">Контактная информация</h6>
                         <p class="section-subtitle">Свяжитесь с нами удобным способом</p>
                     </div>
-                    <!-- Кнопка редактирования для админа -->
                     <button
                         v-if="isAdmin"
                         class="edit-btn"
@@ -92,11 +99,8 @@
                 </div>
 
                 <div class="contacts-grid">
-                    <!-- Телефон -->
                     <a v-if="phone" :href="'tel:' + phone" class="contact-card">
-                        <div class="contact-icon phone">
-                            <i class="fa-solid fa-phone"></i>
-                        </div>
+                        <div class="contact-icon phone"><i class="fa-solid fa-phone"></i></div>
                         <div class="contact-info">
                             <span class="contact-label">Телефон</span>
                             <span class="contact-value">{{ phone }}</span>
@@ -104,23 +108,17 @@
                         <i class="fa-solid fa-chevron-right contact-arrow"></i>
                     </a>
 
-                    <!-- Email -->
-                    <a v-if="tenant.settings.email" :href="'mailto:' + tenant.settings.email" class="contact-card">
-                        <div class="contact-icon email">
-                            <i class="fa-solid fa-envelope"></i>
-                        </div>
+                    <a v-if="email" :href="'mailto:' + email" class="contact-card">
+                        <div class="contact-icon email"><i class="fa-solid fa-envelope"></i></div>
                         <div class="contact-info">
                             <span class="contact-label">Электронная почта</span>
-                            <span class="contact-value">{{ tenant.settings.email }}</span>
+                            <span class="contact-value">{{ email }}</span>
                         </div>
                         <i class="fa-solid fa-chevron-right contact-arrow"></i>
                     </a>
 
-                    <!-- Сайт -->
                     <a v-if="links.site" :href="links.site" target="_blank" rel="noopener noreferrer" class="contact-card">
-                        <div class="contact-icon site">
-                            <i class="fa-solid fa-globe"></i>
-                        </div>
+                        <div class="contact-icon site"><i class="fa-solid fa-globe"></i></div>
                         <div class="contact-info">
                             <span class="contact-label">Сайт</span>
                             <span class="contact-value">{{ links.site }}</span>
@@ -128,11 +126,8 @@
                         <i class="fa-solid fa-chevron-right contact-arrow"></i>
                     </a>
 
-                    <!-- Instagram -->
                     <a v-if="links.inst" :href="'https://instagram.com/' + links.inst" target="_blank" rel="noopener noreferrer" class="contact-card">
-                        <div class="contact-icon instagram">
-                            <i class="fa-brands fa-instagram"></i>
-                        </div>
+                        <div class="contact-icon instagram"><i class="fa-brands fa-instagram"></i></div>
                         <div class="contact-info">
                             <span class="contact-label">Instagram</span>
                             <span class="contact-value">@{{ links.inst }}</span>
@@ -140,11 +135,8 @@
                         <i class="fa-solid fa-chevron-right contact-arrow"></i>
                     </a>
 
-                    <!-- VK -->
                     <a v-if="links.vk" :href="'https://vk.com/' + links.vk" target="_blank" rel="noopener noreferrer" class="contact-card">
-                        <div class="contact-icon vk">
-                            <i class="fa-brands fa-vk"></i>
-                        </div>
+                        <div class="contact-icon vk"><i class="fa-brands fa-vk"></i></div>
                         <div class="contact-info">
                             <span class="contact-label">ВКонтакте</span>
                             <span class="contact-value">{{ links.vk }}</span>
@@ -153,26 +145,13 @@
                     </a>
                 </div>
 
-                <!-- Соцсети (компактный блок) -->
                 <div v-if="links.inst || links.vk" class="social-block mt-3">
                     <div class="social-label">Мы в соцсетях</div>
                     <div class="social-buttons">
-                        <a
-                            v-if="links.inst"
-                            :href="'https://instagram.com/' + links.inst"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="social-btn instagram"
-                        >
+                        <a v-if="links.inst" :href="'https://instagram.com/' + links.inst" target="_blank" rel="noopener noreferrer" class="social-btn instagram">
                             <i class="fa-brands fa-instagram"></i>
                         </a>
-                        <a
-                            v-if="links.vk"
-                            :href="'https://vk.com/' + links.vk"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="social-btn vk"
-                        >
+                        <a v-if="links.vk" :href="'https://vk.com/' + links.vk" target="_blank" rel="noopener noreferrer" class="social-btn vk">
                             <i class="fa-brands fa-vk"></i>
                         </a>
                     </div>
@@ -189,7 +168,6 @@
                         <h6 class="section-title">График работы</h6>
                         <p class="section-subtitle">Время приёма заказов</p>
                     </div>
-                    <!-- Кнопка редактирования для админа -->
                     <button
                         v-if="isAdmin"
                         class="edit-btn"
@@ -210,10 +188,13 @@
                         </span>
                     </div>
 
+                    <!-- 🆕 Компонент расписания -->
                     <ScheduleList
-                        v-if="isCorrectSchedule"
-                        :schedule="tenant.settings.schedule"
+                        v-if="hasSchedule"
+                        :schedule="schedule"
                     />
+
+                    <!-- Заглушка, если расписания нет -->
                     <div v-else class="empty-schedule">
                         <i class="fa-solid fa-calendar-xmark"></i>
                         <p>График работы ещё не составлен</p>
@@ -227,7 +208,7 @@
                     <i class="fa-solid fa-phone"></i>
                     <span>Позвонить</span>
                 </a>
-                <a v-if="tenant.settings.email" :href="'mailto:' + tenant.settings.email" class="quick-action-btn email">
+                <a v-if="email" :href="'mailto:' + email" class="quick-action-btn email">
                     <i class="fa-solid fa-envelope"></i>
                     <span>Написать</span>
                 </a>
@@ -264,19 +245,27 @@ export default {
         },
 
         settings() {
-            return this.tenant?.settings || null;
+            return this.tenant?.settings || {};
         },
 
         isAdmin() {
             return this.self?.is_admin === true || this.self?.role === 'admin';
         },
 
+        address() {
+            return this.settings.shop?.address || this.settings.address || 'Наш адрес';
+        },
+
         phone() {
-            return this.tenant?.settings?.phones?.[0] || null;
+            return this.settings.company?.phones?.[0] || this.settings.phones?.[0] || null;
+        },
+
+        email() {
+            return this.settings.company?.email || this.settings.email || null;
         },
 
         links() {
-            const links = this.tenant?.settings?.links || {};
+            const links = this.settings.company?.links || this.settings.links || {};
             return {
                 inst: links.inst || null,
                 vk: links.vk || null,
@@ -285,21 +274,78 @@ export default {
             };
         },
 
-        mapLink() {
-            return this.links.map_link;
+        // 🆕 Получаем расписание из настроек (с фоллбэком)
+        schedule() {
+            return this.settings.company?.schedule || this.settings.schedule || [];
+        },
+
+        // 🆕 Надежная проверка: является ли расписание массивом и есть ли в нем элементы
+        hasSchedule() {
+            return Array.isArray(this.schedule) && this.schedule.length > 0;
         },
 
         isCorrectSchedule() {
             if (typeof window.isCorrectSchedule !== 'function') return false;
-            return window.isCorrectSchedule(this.tenant?.settings?.schedule);
+            return window.isCorrectSchedule(this.schedule);
         },
 
         isWorkingNow() {
-            return this.tenant?.settings?.is_work ?? false;
+            return !this.settings.is_disabled;
         },
+
+        // 🆕 УМНАЯ ГЕНЕРАЦИЯ ССЫЛКИ ДЛЯ ВИДЖЕТА ЯНДЕКС.КАРТ
+        mapWidgetUrl() {
+            // 1. Приоритет: Координаты (ожидаем формат "широта, долгота", как копирует Яндекс)
+            const coordsRaw = this.settings.shop?.shop_coords || this.settings.shop_coords;
+            if (coordsRaw && typeof coordsRaw === 'string' && coordsRaw.includes(',')) {
+                const parts = coordsRaw.split(',').map(p => p.trim());
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    const lat = parts[0];
+                    const lng = parts[1];
+                    // Яндекс виджет требует параметр ll в формате "долгота,широта" (lng,lat)
+                    // pt добавляет красную метку (pm2rdm) на карту
+                    return `https://yandex.ru/map-widget/v1/?ll=${lng},${lat}&z=16&l=map&pt=${lng},${lat},pm2rdm`;
+                }
+            }
+
+            // 2. Резерв: Текстовый адрес
+            const addr = this.settings.shop?.address || this.settings.address || this.tenant?.name;
+            if (addr) {
+                return `https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(addr)}&z=16&l=map`;
+            }
+
+            return null;
+        },
+
+        // 🆕 УМНАЯ ССЫЛКА ДЛЯ КНОПКИ "ПОСТРОИТЬ МАРШРУТ"
+        mapLink() {
+            // Если админ задал свою кастомную ссылку вручную, используем её
+            if (this.links.map_link) return this.links.map_link;
+
+            // Иначе генерируем ссылку на построение маршрута в Яндекс.Картах
+            const coordsRaw = this.settings.shop?.shop_coords || this.settings.shop_coords;
+            if (coordsRaw && typeof coordsRaw === 'string' && coordsRaw.includes(',')) {
+                const parts = coordsRaw.split(',').map(p => p.trim());
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    const lat = parts[0];
+                    const lng = parts[1];
+                    // rtext=~ означает "маршрут до указанной точки", rtt=auto - на автомобиле
+                    return `https://yandex.ru/maps/?rtext=~${lat},${lng}&rtt=auto`;
+                }
+            }
+
+            const addr = this.settings.shop?.address || this.settings.address || this.tenant?.name;
+            if (addr) {
+                return `https://yandex.ru/maps/?rtext=~${encodeURIComponent(addr)}&rtt=auto`;
+            }
+
+            return null;
+        }
     },
 };
 </script>
+
+
 
 <style scoped>
 .contacts-page {

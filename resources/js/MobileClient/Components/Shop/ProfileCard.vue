@@ -501,6 +501,14 @@ export default {
             },
 
             modals: {},
+
+            // 🆕 Данные для реферальной системы
+            referralLink: '',
+            referralStats: {
+                active_count: 0,
+                total_rewards: 0
+            },
+            isCopying: false,
         };
     },
 
@@ -530,6 +538,7 @@ export default {
     mounted() {
         this.initModals();
         this.prefillEditForms();
+        this.fetchReferralData(); // 🆕 Загружаем реферальные данные при монтировании
     },
 
     beforeUnmount() {
@@ -542,6 +551,62 @@ export default {
     },
 
     methods: {
+
+        async fetchReferralData() {
+            try {
+                // Запрашиваем ссылку и статистику параллельно
+                const [linkRes, statsRes] = await Promise.all([
+                    axios.get('/referrals/link').catch(() => null),
+                    axios.get('/referrals/tree').catch(() => null)
+                ]);
+
+                if (linkRes?.data?.link) {
+                    this.referralLink = linkRes.data.link;
+                }
+
+                if (statsRes?.data) {
+                    this.referralStats = {
+                        active_count: statsRes.data.active_count || 0,
+                        total_rewards: statsRes.data.total_rewards || 0
+                    };
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки реферальных данных:', error);
+            }
+        },
+
+        async copyReferralLink() {
+            if (!this.referralLink) return;
+            this.isCopying = true;
+            try {
+                await navigator.clipboard.writeText(this.referralLink);
+                this.showNotification('success', 'Ссылка скопирована в буфер обмена!', 'fa-solid fa-check-circle');
+            } catch (err) {
+                // Фоллбэк для старых браузеров
+                const textArea = document.createElement("textarea");
+                textArea.value = this.referralLink;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textArea);
+                this.showNotification('success', 'Ссылка скопирована!', 'fa-solid fa-check-circle');
+            } finally {
+                setTimeout(() => { this.isCopying = false; }, 1000);
+            }
+        },
+
+        shareReferralLink() {
+            if (navigator.share && this.referralLink) {
+                navigator.share({
+                    title: 'Присоединяйся!',
+                    text: 'Зарегистрируйся по моей ссылке и получи бонусы!',
+                    url: this.referralLink
+                }).catch(console.error);
+            } else {
+                this.copyReferralLink();
+            }
+        },
+
         goToAchievements(){
             this.$router.push({ name: 'Achievements' })
         },
@@ -1146,6 +1211,20 @@ export default {
     .stats-grid { gap: 4px; }
     .stat-value { font-size: 1.1rem; }
     .code-input { font-size: 1.5rem; letter-spacing: 6px; }
+}
+/* 🆕 Стили для реферального блока */
+.referral-card {
+    border: 1px solid rgba(var(--bs-primary-rgb), 0.2);
+    background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 0.03) 0%, rgba(var(--bs-primary-rgb), 0.08) 100%);
+}
+.referral-card .input-group input {
+    border-right: none;
+    font-size: 0.9rem;
+    color: var(--bs-body-color);
+}
+.referral-card .input-group .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
 }
 </style>
 

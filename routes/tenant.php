@@ -28,6 +28,7 @@ use App\Http\Controllers\Tenant\TenantPwaController;
 use App\Http\Controllers\Tenant\TenantSocialAuthController;
 use App\Http\Controllers\Tenant\TenantTapLinkController;
 use App\Http\Controllers\Tenant\WebhookReceiverController;
+use App\Http\Controllers\Tenant\WheelController;
 use App\Http\Controllers\TenantDialogController;
 use App\Http\Controllers\TenantSettingsController;
 use App\Models\Tenant\Tenant;
@@ -142,6 +143,15 @@ $routes = function () {
         Route::delete('/clear', [FavoriteController::class, 'clear']);
     });
 
+
+
+    Route::prefix("wheel")->group(function () {
+        Route::get('/data', [WheelController::class, 'getData']);
+        Route::post('/record-attempt', [WheelController::class, 'recordAttempt']);
+        Route::post('/win', [WheelController::class, 'saveWin']);
+        Route::get('/history', [WheelController::class, 'getHistory']);
+    });
+
     Route::prefix('admin')->group(function () {
 
         Route::get('/transactions', [TransactionAdminController::class, 'index'])
@@ -150,6 +160,8 @@ $routes = function () {
         Route::prefix('achievements')->group(function () {
             Route::get('/data', [AchievementAdminController::class, 'index']);
             Route::post('/', [AchievementAdminController::class, 'store']);
+            Route::post('/claim/{achievementId}', [AchievementController::class, 'claim']);
+            Route::post('/claim-all', [AchievementController::class, 'claimAll']);
             Route::put('/{achievement}', [AchievementAdminController::class, 'update']);
             Route::post('/{achievement}/toggle', [AchievementAdminController::class, 'toggle']);
             Route::delete('/{achievement}', [AchievementAdminController::class, 'destroy']);
@@ -190,6 +202,8 @@ $routes = function () {
             Route::post('/{id}/toggle-active', [PromoCodeController::class, 'toggleActive']);
         });
 
+
+
         Route::prefix("tenant-settings")->group(function () {
 
             // ==========================================
@@ -198,6 +212,7 @@ $routes = function () {
             // Основные настройки
             Route::put('/basic', [TenantSettingsController::class, 'updateBasic']);
             Route::put('/shop', [TenantSettingsController::class, 'updateShop']);
+            Route::put('/wheel', [TenantSettingsController::class, 'updateWheel']);
             Route::put('/guests', [TenantSettingsController::class, 'updateGuests']);
             Route::put('/main-menu', [TenantSettingsController::class, 'updateMainMenu']);
             Route::put('/cashback', [TenantSettingsController::class, 'updateCashback']);

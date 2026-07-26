@@ -30,6 +30,8 @@ export const useAchievementsStore = defineStore('achievements', {
 
         // Время последней синхронизации
         lastSyncAt: null,
+
+
     }),
 
     // ==========================================
@@ -186,6 +188,7 @@ export const useAchievementsStore = defineStore('achievements', {
                 this.isLoading = false;
             }
         },
+
 
         /**
          * Загрузка только статистики

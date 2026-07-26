@@ -1,31 +1,18 @@
 <template>
     <div class="wheel-page">
-
-        <!-- ========================================== -->
         <!-- ЗАГРУЗКА -->
-        <!-- ========================================== -->
         <div v-if="!wheelDataLoaded" class="loading-state">
             <div class="loading-content">
-                <div class="loading-icon">
-                    <i class="fa-solid fa-dharmachakra"></i>
-                </div>
+                <div class="loading-icon"><i class="fa-solid fa-dharmachakra"></i></div>
                 <h5 class="loading-title">Подготавливаем колесо...</h5>
-                <p class="loading-text">
-                    {{ loadError ? 'Ошибка загрузки. Попробуйте обновить страницу.' : 'Загружаем призы и настройки' }}
-                </p>
+                <p class="loading-text">{{ loadError ? 'Ошибка загрузки. Попробуйте обновить страницу.' : 'Загружаем призы и настройки' }}</p>
                 <div v-if="!loadError" class="loading-spinner"></div>
-                <button v-else class="retry-btn" @click="reloadPage">
-                    <i class="fa-solid fa-rotate-right me-2"></i>
-                    Обновить страницу
-                </button>
+                <button v-else class="retry-btn" @click="reloadPage"><i class="fa-solid fa-rotate-right me-2"></i> Обновить страницу</button>
             </div>
         </div>
 
-        <!-- ========================================== -->
         <!-- ОСНОВНОЙ КОНТЕНТ -->
-        <!-- ========================================== -->
         <template v-else>
-
             <!-- HERO СЕКЦИЯ -->
             <div class="wheel-hero">
                 <div class="hero-background"></div>
@@ -34,9 +21,7 @@
                 </div>
                 <div class="hero-content">
                     <div class="hero-icon-wrapper">
-                        <div class="hero-icon">
-                            <i class="fa-solid fa-dharmachakra"></i>
-                        </div>
+                        <div class="hero-icon"><i class="fa-solid fa-dharmachakra"></i></div>
                         <div class="hero-sparkle sparkle-1">✨</div>
                         <div class="hero-sparkle sparkle-2">✨</div>
                         <div class="hero-sparkle sparkle-3">✨</div>
@@ -44,57 +29,29 @@
                     <h1 class="hero-title">Колесо Фортуны</h1>
                     <p class="hero-subtitle">Испытай удачу и выиграй призы!</p>
 
-                    <!-- Счётчик попыток в hero -->
                     <div v-if="action" class="hero-attempts">
                         <div class="attempts-info">
                             <span class="attempts-current">{{ action.current_attempts || 0 }}</span>
                             <span class="attempts-divider">/</span>
                             <span class="attempts-max">{{ action.max_attempts || 1 }}</span>
                         </div>
-                        <div class="attempts-label">
-                            {{ canPlay ? 'попыток осталось' : 'попыток использовано' }}
-                        </div>
+                        <div class="attempts-label">{{ canPlay ? 'попыток осталось' : 'попыток использовано' }}</div>
                         <div class="attempts-bar">
-                            <div
-                                class="attempts-fill"
-                                :class="{ 'is-empty': !canPlay }"
-                                :style="{ width: attemptsPercent + '%' }"
-                            ></div>
+                            <div class="attempts-fill" :class="{ 'is-empty': !canPlay }" :style="{ width: attemptsPercent + '%' }"></div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="wheel-content">
-
-                <!-- Кнопка редактора (для админов) -->
-                <button
-                    type="button"
-                    class="editor-toggle"
-                    @click="tab = tab === 'main' ? 'config' : 'main'"
-                >
-                    <i :class="tab === 'config' ? 'fa-solid fa-dharmachakra' : 'fa-solid fa-pen-to-square'"></i>
-                    <span>{{ tab === 'config' ? 'Вернуться к игре' : 'Редактор скрипта' }}</span>
-                </button>
-
-                <!-- ========================================== -->
-                <!-- ВКЛАДКА: ГЛАВНАЯ -->
-                <!-- ========================================== -->
                 <template v-if="tab === 'main'">
-
                     <!-- ШАГ 0: Предварительные формы -->
                     <template v-if="step === 0">
                         <div class="pre-form-section">
                             <div class="section-header">
-                                <div class="section-icon">
-                                    <i class="fa-solid fa-clipboard-list"></i>
-                                </div>
-                                <div>
-                                    <h6 class="section-title">Перед игрой</h6>
-                                    <p class="section-subtitle">Заполните форму, чтобы получить попытку</p>
-                                </div>
+                                <div class="section-icon"><i class="fa-solid fa-clipboard-list"></i></div>
+                                <div><h6 class="section-title">Перед игрой</h6><p class="section-subtitle">Заполните форму, чтобы получить попытку</p></div>
                             </div>
-
                             <div class="pre-form-card">
                                 <WheelMarketPlaceForm v-if="before_script === 'marketplace_1'" @callback="formCallback" />
                                 <WheelAuthForm v-if="before_script === 'auth_1'" @callback="formCallback" />
@@ -105,92 +62,35 @@
 
                     <!-- ШАГ 1: Игра -->
                     <template v-if="step === 1">
-
                         <!-- Правила -->
                         <div v-if="rules" class="rules-section">
                             <button class="rules-toggle" @click="showRules = !showRules">
                                 <div class="rules-toggle-content">
-                                    <div class="rules-icon">
-                                        <i class="fa-solid fa-scroll"></i>
-                                    </div>
-                                    <div class="rules-info">
-                                        <span class="rules-title">Правила игры</span>
-                                        <span class="rules-hint">Нажмите, чтобы прочитать</span>
-                                    </div>
+                                    <div class="rules-icon"><i class="fa-solid fa-scroll"></i></div>
+                                    <div class="rules-info"><span class="rules-title">Правила игры</span><span class="rules-hint">Нажмите, чтобы прочитать</span></div>
                                 </div>
                                 <i class="fa-solid fa-chevron-down rules-arrow" :class="{ 'rotated': showRules }"></i>
                             </button>
                             <transition name="slide-down">
-                                <div v-if="showRules" class="rules-content">
-                                    <div class="rules-text" v-text="rules"></div>
-                                </div>
+                                <div v-if="showRules" class="rules-content"><div class="rules-text" v-text="rules"></div></div>
                             </transition>
                         </div>
 
                         <!-- Статус попыток -->
                         <div class="attempts-section">
                             <div v-if="canPlay" class="attempts-card ready">
-                                <div class="attempts-card-icon">
-                                    <i class="fa-solid fa-ticket"></i>
-                                </div>
+                                <div class="attempts-card-icon"><i class="fa-solid fa-ticket"></i></div>
                                 <div class="attempts-card-info">
                                     <div class="attempts-card-title">У вас есть попытки!</div>
-                                    <div class="attempts-card-subtitle">
-                                        Осталось <strong>{{ action.max_attempts - action.current_attempts }}</strong>
-                                        {{ pluralize(action.max_attempts - action.current_attempts, 'попытка', 'попытки', 'попыток') }}
-                                    </div>
+                                    <div class="attempts-card-subtitle">Осталось <strong>{{ action.max_attempts - action.current_attempts }}</strong> {{ pluralize(action.max_attempts - action.current_attempts, 'попытка', 'попытки', 'попыток') }}</div>
                                 </div>
-                                <div class="attempts-card-badge">
-                                    {{ action.max_attempts - action.current_attempts }}
-                                </div>
+                                <div class="attempts-card-badge">{{ action.max_attempts - action.current_attempts }}</div>
                             </div>
                             <div v-else class="attempts-card exhausted">
-                                <div class="attempts-card-icon">
-                                    <i class="fa-solid fa-ban"></i>
-                                </div>
+                                <div class="attempts-card-icon"><i class="fa-solid fa-ban"></i></div>
                                 <div class="attempts-card-info">
                                     <div class="attempts-card-title">Попытки закончились</div>
                                     <div class="attempts-card-subtitle">Вы израсходовали все попытки</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Последний результат -->
-                        <div v-if="sortedActionData.length > 0" class="last-result-section">
-                            <div class="section-header">
-                                <div class="section-icon result-icon">
-                                    <i class="fa-solid fa-trophy"></i>
-                                </div>
-                                <div>
-                                    <h6 class="section-title">Последний результат</h6>
-                                    <p class="section-subtitle">Ваш последний розыгрыш</p>
-                                </div>
-                            </div>
-
-                            <div class="result-card">
-                                <div class="result-header">
-                                    <div class="result-prize">
-                                        <i class="fa-solid fa-gift"></i>
-                                        <span>{{ sortedActionData[0].description || 'Приз' }}</span>
-                                    </div>
-                                    <div class="result-date">
-                                        <i class="fa-solid fa-calendar"></i>
-                                        <span>{{ formatDate(sortedActionData[0].played_at) }}</span>
-                                    </div>
-                                </div>
-                                <div class="result-details">
-                                    <div class="result-detail">
-                                        <i class="fa-solid fa-user"></i>
-                                        <span>{{ sortedActionData[0].name || 'Не указано' }}</span>
-                                    </div>
-                                    <div class="result-detail">
-                                        <i class="fa-solid fa-phone"></i>
-                                        <span>{{ sortedActionData[0].phone || 'Не указано' }}</span>
-                                    </div>
-                                </div>
-                                <div v-if="script_data?.callback_message" class="result-hint">
-                                    <i class="fa-solid fa-circle-info"></i>
-                                    <span v-text="script_data.callback_message"></span>
                                 </div>
                             </div>
                         </div>
@@ -199,25 +99,14 @@
                         <div class="prizes-section">
                             <button class="prizes-toggle" @click="showPrizes = !showPrizes">
                                 <div class="prizes-toggle-content">
-                                    <div class="prizes-icon">
-                                        <i class="fa-solid fa-gifts"></i>
-                                    </div>
-                                    <div class="prizes-info">
-                                        <span class="prizes-title">Список призов</span>
-                                        <span class="prizes-hint">{{ items.length }} {{ pluralize(items.length, 'приз', 'приза', 'призов') }}</span>
-                                    </div>
+                                    <div class="prizes-icon"><i class="fa-solid fa-gifts"></i></div>
+                                    <div class="prizes-info"><span class="prizes-title">Список призов</span><span class="prizes-hint">{{ items.length }} {{ pluralize(items.length, 'приз', 'приза', 'призов') }}</span></div>
                                 </div>
                                 <i class="fa-solid fa-chevron-down prizes-arrow" :class="{ 'rotated': showPrizes }"></i>
                             </button>
                             <transition name="slide-down">
                                 <div v-if="showPrizes" class="prizes-grid">
-                                    <div
-                                        v-for="(item, index) in items"
-                                        :key="item.id || index"
-                                        class="prize-card"
-                                        :class="{ 'selected': selectedPrize?.id === item.id }"
-                                        @click="selectPrize(index)"
-                                    >
+                                    <div v-for="(item, index) in items" :key="item.id || index" class="prize-card" :class="{ 'selected': selectedPrize?.id === item.id }" @click="selectPrize(index)">
                                         <div class="prize-emoji">{{ item.value }}</div>
                                         <div class="prize-name">{{ item.description }}</div>
                                     </div>
@@ -225,40 +114,29 @@
                             </transition>
                         </div>
 
+
                         <!-- КОЛЕСО -->
                         <div class="wheel-section">
                             <div class="wheel-wrapper">
                                 <div class="wheel-decoration decoration-1"></div>
                                 <div class="wheel-decoration decoration-2"></div>
 
-                                <div class="wheel-container">
-                                    <FortuneWheel
-                                        :gift="gift"
-                                        :imgParams="logo"
-                                        @done="done"
+                                <!-- 🛡️ БЕЗОПАСНЫЙ РЕНДЕР: показываем колесо только если есть минимум 3 сектора -->
+                                <div class="wheel-container" v-if="items.length >= 3">
+                                    <WheelOfFortuneShopVariant
                                         ref="wheel"
-                                        v-model="items"
+                                        :model-value="items"
+                                        :can-play="canPlay"
+                                        :interval="1"
+                                        @win="handleWheelWin"
+                                        @request-spin="handleSpinRequest"
                                     />
                                 </div>
-
-                                <!-- Кнопка запуска -->
-                                <button
-                                    v-if="canPlay"
-                                    type="button"
-                                    class="spin-btn"
-                                    :class="{ 'is-spinning': started }"
-                                    :disabled="started"
-                                    @click="launchWheel"
-                                >
-                                    <div class="spin-btn-content">
-                                        <i class="fa-solid fa-play"></i>
-                                        <span>{{ started ? 'Крутится...' : 'Крутить!' }}</span>
-                                    </div>
-                                </button>
-                                <div v-else class="spin-disabled">
-                                    <i class="fa-solid fa-lock"></i>
-                                    <span>Нет доступных попыток</span>
+                                <div v-else class="text-center p-4 text-muted">
+                                    <i class="fa-solid fa-circle-notch fa-spin fa-2x mb-2"></i>
+                                    <p>Загрузка колеса...</p>
                                 </div>
+
                             </div>
                         </div>
 
@@ -266,115 +144,130 @@
                         <transition name="win-popup">
                             <div v-if="winForm.win" class="win-section">
                                 <div class="win-card">
-                                    <div class="win-confetti">
-                                        <span v-for="i in 30" :key="i" class="confetti-piece" :style="confettiStyle(i)"></span>
-                                    </div>
-                                    <div class="win-icon">
-                                        <i class="fa-solid fa-trophy"></i>
-                                    </div>
+                                    <div class="win-confetti"><span v-for="i in 30" :key="i" class="confetti-piece" :style="confettiStyle(i)"></span></div>
+                                    <div class="win-icon"><i class="fa-solid fa-trophy"></i></div>
                                     <h4 class="win-title">Поздравляем!</h4>
                                     <p class="win-subtitle">Вы выиграли приз</p>
                                     <div class="win-prize-name">{{ winForm.win.description || 'Приз' }}</div>
-                                    <div class="win-prize-id">#{{ winForm.win.id }}</div>
+
+                                    <!-- 🆕 КНОПКА ЗАКРЫТИЯ ОКНА ВЫИГРЫША -->
+                                    <button class="btn-claim-prize" @click="closeWinPopup">
+                                        <i class="fa-solid fa-check me-2"></i> Отлично, забрать!
+                                    </button>
                                 </div>
                             </div>
                         </transition>
 
-                        <!-- История розыгрышей -->
-                        <div v-if="sortedActionData.length > 0" class="history-section">
+                        <!-- История -->
+                        <div v-if="displayHistory.length > 0" class="history-section">
                             <div class="section-header">
-                                <div class="section-icon history-icon">
-                                    <i class="fa-solid fa-clock-rotate-left"></i>
-                                </div>
+                                <div class="section-icon history-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
                                 <div>
                                     <h6 class="section-title">История розыгрышей</h6>
-                                    <p class="section-subtitle">
-                                        {{ sortedActionData.length }}
-                                        {{ pluralize(sortedActionData.length, 'розыгрыш', 'розыгрыша', 'розыгрышей') }}
-                                    </p>
+                                    <p class="section-subtitle">{{ displayHistory.length }} {{ pluralize(displayHistory.length, 'розыгрыш', 'розыгрыша', 'розыгрышей') }}</p>
                                 </div>
                             </div>
-
                             <div class="history-list">
-                                <div
-                                    v-for="item in sortedActionData"
-                                    :key="item.id"
-                                    class="history-card"
-                                >
+                                <div v-for="(item, index) in displayHistory" :key="index" class="history-card">
                                     <div class="history-date">
                                         <i class="fa-solid fa-calendar"></i>
-                                        <span>{{ formatDate(item.played_at) }}</span>
+                                        <span>{{ formatDate(item.won_at) }}</span>
                                     </div>
                                     <div class="history-prize">
                                         <i class="fa-solid fa-gift"></i>
                                         <span>{{ item.description || 'Приз' }}</span>
                                     </div>
                                     <div class="history-details">
-                                        <div class="history-detail">
-                                            <i class="fa-solid fa-user"></i>
-                                            <span>{{ item.name || 'Не указано' }}</span>
+                                        <div class="history-detail" v-if="item.mark">
+                                            <i class="fa-solid fa-location-dot"></i>
+                                            <span>{{ item.mark }}</span>
                                         </div>
-                                        <div class="history-detail">
+                                        <div class="history-detail" v-if="item.form_data && item.form_data.phone">
                                             <i class="fa-solid fa-phone"></i>
-                                            <span>{{ item.phone || 'Не указано' }}</span>
+                                            <span>{{ item.form_data.phone }}</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
+                        <!-- Заглушка, если история пуста -->
+                        <div v-else-if="wheelDataLoaded && step === 1" class="history-section">
+                            <div class="text-center p-4 text-muted border rounded bg-light">
+                                <i class="fa-solid fa-receipt fa-2x mb-2"></i>
+                                <p class="mb-0">Вы еще не выигрывали призы. Испытайте удачу!</p>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- ШАГ 2: Действие после выигрыша (если настроено в админке) -->
+                    <template v-if="step === 2">
+                        <div class="pre-form-section">
+                            <div class="section-header">
+                                <div class="section-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                    <i class="fa-solid fa-clipboard-check"></i>
+                                </div>
+                                <div>
+                                    <h6 class="section-title">Получение приза</h6>
+                                    <p class="section-subtitle">Заполните форму, чтобы забрать свой выигрыш</p>
+                                </div>
+                            </div>
+                            <div class="pre-form-card">
+                                <WheelMarketPlaceForm v-if="afterScript === 'marketplace_1'" @callback="formCallback" />
+                                <WheelAuthForm v-if="afterScript === 'auth_1'" @callback="formCallback" />
+                                <WheelReviewForm v-if="afterScript === 'review_1'" @callback="formCallback" />
+                            </div>
+                        </div>
                     </template>
                 </template>
 
-                <!-- ========================================== -->
-                <!-- ВКЛАДКА: РЕДАКТОР -->
-                <!-- ========================================== -->
+                <!-- ВКЛАДКА: РЕДАКТОР (для админов, если нужно прямо из клиента) -->
                 <template v-if="tab === 'config'">
                     <div class="config-section">
                         <div class="section-header">
-                            <div class="section-icon config-icon">
-                                <i class="fa-solid fa-code"></i>
-                            </div>
-                            <div>
-                                <h6 class="section-title">Редактор скрипта</h6>
-                                <p class="section-subtitle">Настройка логики игры</p>
-                            </div>
+                            <div class="section-icon config-icon"><i class="fa-solid fa-code"></i></div>
+                            <div><h6 class="section-title">Редактор скрипта</h6><p class="section-subtitle">Настройка логики игры</p></div>
                         </div>
-                        <WheelCustomScriptEditor v-if="script_data" v-model="script_data" />
+                        <WheelOfFortuneShopVariant
+                            ref="previewWheel"
+                            :model-value="items"
+                            @win="handleWheelWin"
+                            @request-spin="handleSpinRequest"
+                            :interval="1"
+                        />
                     </div>
                 </template>
-
             </div>
         </template>
     </div>
 </template>
-
 <script>
-import { FortuneWheel } from 'vue3-fortune-wheel';
+
 import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
 import WheelCustomScriptEditor from '@/MobileClient/Components/Games/WheelOfFortune/WheelScriptEditor.vue';
 import WheelMarketPlaceForm from '@/MobileClient/Components/Games/WheelOfFortune/WheelMarketPlaceForm.vue';
 import WheelReviewForm from '@/MobileClient/Components/Games/WheelOfFortune/WheelReviewForm.vue';
 import WheelAuthForm from '@/MobileClient/Components/Games/WheelOfFortune/WheelAuthForm.vue';
+import WheelOfFortuneShopVariant from '@/MobileClient/Components/Games/WheelOfFortuneShopVariant.vue';
 
 export default {
     name: "WheelOfFortune",
-
     components: {
-        FortuneWheel,
+        WheelOfFortuneShopVariant,
         WheelCustomScriptEditor,
         WheelMarketPlaceForm,
         WheelReviewForm,
-        WheelAuthForm,
+        WheelAuthForm
     },
-
     setup() {
-        const basketStore = useBasketStore();
-        return { basketStore };
+        return { basketStore: useBasketStore() };
     },
 
     data() {
         return {
+
+            userWheelWins: [],
+
             tab: 'main',
             step: 1,
             started: false,
@@ -389,91 +282,207 @@ export default {
             wheelDataLoaded: false,
             loadError: false,
             winForm: { win: null },
-            gift: 0,
-            logo: {
-                src: '/wheel.png',
-                width: 120,
-                height: 120,
-            },
+            gift: 1, // 🆕 Должно быть числом (индекс), а не 0
+
+            logo: { src: '/wheel-center.png', width: 120, height: 120 },
             smiles: ['💙', '💜', '💚', '💰', '👑', '🍩', '⚽', '🦖', '🌺', '🌷', '🐾', '⏳', '💊', '💡', '🚀', '⭐', '💎', '☘', '🏆', '🎁'],
-            items: [],
+
+            // 🛡️ КРИТИЧЕСКИ ВАЖНО: Инициализируем дефолтными данными, чтобы массив НИКОГДА не был пустым при маунте
+            items: [
+                { id: 1, value: "🎁", bgColor: "#c0392b", color: "#ffffff", description: 'Секретный приз', mark: 'в заведении' },
+                { id: 2, value: "☕", bgColor: "#ffffff", color: "#c0392b", description: 'Бесплатный кофе', mark: 'в заведении' },
+                { id: 3, value: "🍕", bgColor: "#f1c40f", color: "#ffffff", description: 'Пицца в подарок', mark: 'на доставке' },
+            ],
         };
     },
 
     computed: {
-        self() {
-            return window.TenantUser || null;
-        },
 
+        // 🆕 Надежное вычисление истории (берет из action.data, который приходит с сервера)
+        displayHistory() {
+            const history = this.action?.data || this.userWheelWins || [];
+            return [...history].sort((a, b) => {
+                return new Date(b.won_at || b.played_at || 0) - new Date(a.won_at || a.played_at || 0);
+            });
+        },
+        self() { return window.TenantUser || null; },
         sortedActionData() {
             if (!this.action?.data?.length) return [];
             return [...this.action.data].sort((a, b) => new Date(b.played_at) - new Date(a.played_at));
         },
-
         canPlay() {
-            if (!this.action) return false;
-            return this.action.current_attempts < this.action.max_attempts;
+            return this.action ? this.action.current_attempts < this.action.max_attempts : false;
         },
-
         attemptsPercent() {
             if (!this.action) return 0;
-            const max = this.action.max_attempts || 1;
-            const current = this.action.current_attempts || 0;
-            return (current / max) * 100;
+            return ((this.action.current_attempts || 0) / (this.action.max_attempts || 1)) * 100;
         },
     },
 
     async mounted() {
         try {
-            await this.loadServiceData();
-            await this.prepareUserData();
-            this.step = this.beforeScript != null ? 0 : 1;
+            await this.prepareUserData(); // Теперь этот метод делает всё: и настройки, и попытки
+
+            this.step = this.beforeScript ? 0 : 1;
             this.wheelDataLoaded = true;
         } catch (error) {
-            console.error('Ошибка загрузки данных:', error);
+            console.error('Ошибка загрузки данных колеса:', error);
             this.loadError = true;
-            this.$notify?.({
-                title: 'Колесо фортуны',
-                text: 'Ошибка загрузки данных',
-                type: 'error',
-            });
         }
     },
 
+
     methods: {
-        reloadPage() {
-            window.location.reload();
+        // 🛡️ ОБРАБОТКА ЗАПРОСА НА ВРАЩЕНИЕ (Перехватывает клик по кнопке из дочернего компонента)
+        async handleSpinRequest() {
+            if (!this.canPlay || this.items.length < 3) return;
+
+            try {
+                console.log('[Wheel] Отправляем запрос на фиксацию попытки...');
+
+                // 1. Фиксируем попытку на сервере
+                const response = await axios.post('/wheel/record-attempt');
+                console.log('[Wheel] Ответ record-attempt:', response.data);
+
+                if (!response.data.success) {
+                    this.$notify?.({
+                        title: 'Внимание',
+                        text: response.data.message || 'Попытки закончились',
+                        type: 'warning'
+                    });
+                    await this.prepareUserData();
+                    return;
+                }
+
+                // 2. Сервер разрешил! Обновляем локальные данные
+                await this.prepareUserData();
+
+                // 3. Даём команду дочернему компоненту НАЧАТЬ ВРАЩЕНИЕ
+                this.$nextTick(() => {
+                    if (this.$refs.wheel && typeof this.$refs.wheel.startActualSpin === 'function') {
+                        this.$refs.wheel.startActualSpin();
+                    } else {
+                        console.warn("[Wheel] Метод startActualSpin не найден в дочернем компоненте");
+                    }
+                });
+
+            } catch (error) {
+                console.error('[Wheel] Ошибка фиксации попытки:', error);
+
+                if (error.response?.status === 403) {
+                    this.$notify?.({
+                        title: 'Внимание',
+                        text: error.response.data?.message || 'Попытки на сегодня закончились',
+                        type: 'warning'
+                    });
+                    await this.prepareUserData();
+                } else {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: 'Не удалось запустить колесо. Попробуйте позже.',
+                        type: 'error'
+                    });
+                }
+            }
+        },
+        // 🛡️ БЕЗОПАСНЫЙ ЗАПУСК КОЛЕСА С ПРОВЕРКОЙ НА СЕРВЕРЕ
+        async launchWheel() {
+            if (!this.canPlay || this.items.length < 3) {
+                console.warn('[Wheel] Попытки закончились или колесо не настроено', {
+                    canPlay: this.canPlay,
+                    itemsLength: this.items.length,
+                    action: this.action
+                });
+                return;
+            }
+
+            try {
+                console.log('[Wheel] Отправляем запрос на фиксацию попытки...');
+
+                // 1. Фиксируем попытку на сервере
+                const response = await axios.post('/wheel/record-attempt');
+                console.log('[Wheel] Ответ record-attempt:', response.data);
+
+                if (!response.data.success) {
+                    this.$notify?.({
+                        title: 'Внимание',
+                        text: response.data.message || 'Попытки закончились',
+                        type: 'warning'
+                    });
+                    await this.prepareUserData(); // Обновляем данные
+                    return;
+                }
+
+                // 2. 🆕 КРИТИЧЕСКИ ВАЖНО: Обновляем данные с сервера (теперь без кэша)
+                await this.prepareUserData();
+
+                // 3. Запускаем анимацию
+                this.started = true;
+                this.$nextTick(() => {
+                    if (this.$refs.wheel && typeof this.$refs.wheel.launchWheel === 'function') {
+                        this.$refs.wheel.launchWheel();
+                    } else {
+                        console.warn("[Wheel] Реф колеса не найден");
+                        this.started = false;
+                    }
+                });
+
+            } catch (error) {
+                console.error('[Wheel] Ошибка фиксации попытки:', error);
+
+                if (error.response?.status === 403) {
+                    this.$notify?.({
+                        title: 'Внимание',
+                        text: error.response.data?.message || 'Попытки на сегодня закончились',
+                        type: 'warning'
+                    });
+                    await this.prepareUserData();
+                    return;
+                }
+
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось запустить колесо. Попробуйте позже.',
+                    type: 'error'
+                });
+            }
+        },
+        // 🆕 Метод для ручного закрытия окна выигрыша
+        closeWinPopup() {
+            this.winForm.win = null;
+        },
+        async loadUserHistory() {
+            try {
+                const response = await axios.get('/wheel/history');
+                if (response.data.success) {
+                    this.userWheelWins = response.data.data || [];
+                }
+            } catch (error) {
+                console.warn('Не удалось загрузить историю выигрышей', error);
+                this.userWheelWins = [];
+            }
         },
 
-        // Стиль для частиц в hero
+        reloadPage() { window.location.reload(); },
+
         particleStyle(i) {
-            const size = Math.random() * 8 + 4;
-            const left = Math.random() * 100;
-            const delay = Math.random() * 5;
-            const duration = Math.random() * 10 + 10;
             return {
-                width: `${size}px`,
-                height: `${size}px`,
-                left: `${left}%`,
-                animationDelay: `${delay}s`,
-                animationDuration: `${duration}s`,
+                width: `${Math.random() * 8 + 4}px`,
+                height: `${Math.random() * 8 + 4}px`,
+                left: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 5}s`,
+                animationDuration: `${Math.random() * 10 + 10}s`
             };
         },
 
-        // Стиль для конфетти при выигрыше
         confettiStyle(i) {
             const colors = ['#ff6b6b', '#feca57', '#48dbfb', '#ff9ff3', '#54a0ff', '#5f27cd'];
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const left = Math.random() * 100;
-            const delay = Math.random() * 2;
-            const duration = Math.random() * 2 + 2;
-            const rotation = Math.random() * 360;
             return {
-                background: color,
-                left: `${left}%`,
-                animationDelay: `${delay}s`,
-                animationDuration: `${duration}s`,
-                transform: `rotate(${rotation}deg)`,
+                background: colors[Math.floor(Math.random() * colors.length)],
+                left: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 2}s`,
+                animationDuration: `${Math.random() * 2 + 2}s`,
+                transform: `rotate(${Math.random() * 360}deg)`
             };
         },
 
@@ -487,137 +496,183 @@ export default {
             return array;
         },
 
-        launchWheel() {
-            if (!this.canPlay) {
-                this.$notify?.({
-                    title: 'Колесо фортуны',
-                    text: 'Вы израсходовали все попытки!',
-                    type: 'error',
-                });
-                return;
+        // 🛡️ БЕЗОПАСНЫЙ ЗАПУСК КОЛЕСА С ПРОВЕРКОЙ НА СЕРВЕРЕ
+        async prepareUserData() {
+            try {
+                // 🆕 Добавляем уникальный timestamp, чтобы браузер НЕ кэшировал этот GET-запрос
+                const response = await axios.get('/wheel/data?t=' + Date.now());
+
+                console.log('[Wheel] Данные с сервера:', response.data);
+                console.log('[Wheel] current_attempts:', response.data.action?.current_attempts);
+                console.log('[Wheel] max_attempts:', response.data.action?.max_attempts);
+
+                this.scriptData = response.data;
+                this.rules = response.data.rules || null;
+                this.beforeScript = response.data.before_script || null;
+                this.afterScript = response.data.after_script || null;
+
+                // 🆕 Явное создание НОВОГО объекта для гарантированной реактивности Vue 2/3
+                this.action = {
+                    current_attempts: response.data.action?.current_attempts ?? 0,
+                    max_attempts: response.data.action?.max_attempts ?? 1,
+                    data: response.data.action?.data || []
+                };
+
+                this.userWheelWins = this.action.data;
+
+                console.log('[Wheel] Локальный action после обновления:', this.action);
+                console.log('[Wheel] canPlay будет:', this.canPlay);
+
+                if (response.data.items && response.data.items.length >= 3) {
+                    this.items = response.data.items.map((item, index) => ({
+                        id: item.id || index + 1,
+                        value: item.value || this.smiles[Math.floor(Math.random() * this.smiles.length)],
+                        bgColor: item.bgColor || (index % 2 === 0 ? '#c0392b' : '#ffffff'),
+                        color: item.color || '#ffffff',
+                        description: item.description || `Приз #${index + 1}`,
+                        mark: item.mark || 'в заведении'
+                    }));
+                }
+
+            } catch (error) {
+                console.warn('[Wheel] Не удалось загрузить данные:', error);
+                this.action = { current_attempts: 0, max_attempts: 1, data: [] };
+                this.userWheelWins = [];
             }
-            this.gift = Math.floor(Math.random() * this.items.length) + 1;
-            this.started = true;
-            this.$refs.wheel.spin();
+        },
+
+        // 🆕 Обработка выигрыша, пришедшего от дочернего компонента
+        handleWheelWin(winData) {
+            this.winForm.win = winData.win;
+            this.started = false; // Разблокируем состояние кнопки
+
+            // Если выпал приз (а не "Попробуй еще"), сохраняем его в профиль
+            // (Вы можете добавить условие, если у вас есть сектор "Пусто" с id = 0 или null)
+            if (this.winForm.win && this.winForm.win.id > 0) {
+                if (this.afterScript) {
+                    this.step = 2; // Переходим к форме после игры
+                } else {
+                    this.submit(); // Сразу сохраняем на сервер
+                }
+            } else {
+                this.$notify?.({
+                    title: 'Увы!',
+                    text: 'В этот раз не повезло. Попробуйте в следующий раз!',
+                    type: 'info'
+                });
+                this.winForm.win = null; // Сбрасываем, чтобы не показывать окно выигрыша
+            }
         },
 
         formCallback(e) {
-            this.step = 1;
             this.winForm = { ...this.winForm, ...e };
+
+            if (this.step === 0) {
+                this.step = 1;
+            } else if (this.step === 2) {
+                this.submit();
+            }
+        },
+
+
+        async submit() {
+            if (!this.winForm.win) return;
+
+            const payload = {
+                prize_id: this.winForm.win.id,
+                description: this.winForm.win.description,
+                mark: this.winForm.win.mark || 'в заведении',
+                form_data: { ...this.winForm }
+            };
+
+            delete payload.form_data.win;
+
+            try {
+                const response = await axios.post('/wheel/win', payload);
+
+                if (response.data.success) {
+                    this.$notify?.({
+                        title: 'Успех',
+                        text: 'Ваш выигрыш успешно сохранен в профиль!',
+                        type: 'success'
+                    });
+
+                    // 🛑 УДАЛИТЕ ЭТУ СТРОКУ: this.winForm.win = null;
+                    // Пусть окно висит, пока пользователь не нажмет "Забрать"
+
+                    // Обновляем счетчик попыток и историю
+                    await this.prepareUserData();
+                }
+            } catch (error) {
+                console.error('Ошибка сохранения выигрыша:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось сохранить результат.',
+                    type: 'error'
+                });
+            }
         },
 
         done(r) {
             this.winForm.win = r;
-            this.$notify?.({
-                title: 'Колесо фортуны',
-                text: 'Поздравляем! Вы выиграли!',
-                type: 'success',
-            });
             this.action.current_attempts++;
             this.started = false;
 
-            this.$nextTick(() => {
-                const resultEl = document.querySelector('.win-section');
-                if (resultEl) {
-                    resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-                setTimeout(() => this.submit(), 2500);
-            });
+            if (this.afterScript) {
+                this.step = 2;
+            } else {
+                this.submit();
+            }
         },
 
-        async prepareUserData() {
-            const response = await this.basketStore.wheelOfFortuneCustomPrepare();
-            this.action = response.action;
-        },
+
 
         selectPrize(index) {
             this.selectedPrize = this.items[index];
         },
 
+        // 🛡️ БЕЗОПАСНАЯ ЗАГРУЗКА ДАННЫХ
         async loadServiceData() {
-            const response = await this.basketStore.wheelOfFortuneCustomLoadData();
-            this.scriptData = response;
-            this.rules = response.rules;
-            this.afterScript = response.after_script || null;
-            this.beforeScript = response.before_script || null;
+            const tenantSettings = window.Tenant?.settings || {};
+            const wheelSettings = tenantSettings.wheel || {};
 
-            const wheels = this.shuffle(response.wheels);
-            const getRandomInt = (min, max) => Math.floor(Math.random() * (Math.floor(max) - Math.ceil(min) + 1)) + Math.ceil(min);
+            this.scriptData = wheelSettings;
+            this.rules = wheelSettings.rules || null;
+            this.beforeScript = wheelSettings.before_script || null;
+            this.afterScript = wheelSettings.after_script || null;
 
-            this.items = [];
-            const tmpValues = [];
+            // 🆕 Проверяем, есть ли валидные данные от админа
+            if (wheelSettings.items && Array.isArray(wheelSettings.items) && wheelSettings.items.length >= 3) {
+                const wheels = this.shuffle(wheelSettings.items);
 
-            wheels.forEach((item, index) => {
-                let value;
-                let success = false;
-                while (!success) {
-                    value = this.smiles[getRandomInt(0, this.smiles.length - 1)];
-                    if (!tmpValues.includes(value)) {
-                        tmpValues.push(value);
-                        success = true;
-                    }
-                }
-                this.items.push({
-                    id: index + 1,
-                    value: item.smile ?? value,
-                    bgColor: item.bg_color ?? (index % 2 === 0 ? '#9a1717' : '#ffffff'),
-                    color: '#9a1717',
-                    description: item.value,
-                });
-            });
-        },
-
-        async submit() {
-            const data = new FormData();
-            Object.keys(this.winForm).forEach(key => {
-                const item = this.winForm[key] ?? '';
-                if (typeof item === 'object' && item !== null) {
-                    data.append(key, JSON.stringify(item));
-                } else {
-                    data.append(key, item);
-                }
-            });
-            data.set('file_1', this.winForm.file_1);
-            data.set('file_2', this.winForm.file_2);
-            data.append('description', this.winForm.win?.description || 'Без описания');
-
-            try {
-                await this.basketStore.wheelOfFortuneCustomWin({ winForm: data });
-
-                this.$notify?.({
-                    title: 'Колесо фортуны',
-                    text: 'Вы выиграли приз ' + (this.winForm.win?.description || 'Что-то интересное...'),
-                    type: 'success',
-                });
-
-                this.winForm.win = null;
-                await this.prepareUserData();
-
-            } catch (error) {
-                console.error('Ошибка сохранения результата:', error);
-                this.$notify?.({
-                    title: 'Колесо фортуны',
-                    text: 'Ошибка сохранения результата',
-                    type: 'error',
-                });
+                this.items = wheels.map((item, index) => ({
+                    id: item.id || index + 1,
+                    value: item.value || this.smiles[Math.floor(Math.random() * this.smiles.length)],
+                    bgColor: item.bgColor || (index % 2 === 0 ? '#c0392b' : '#ffffff'),
+                    color: item.color || '#ffffff',
+                    description: item.description || `Приз #${index + 1}`,
+                    mark: item.mark || 'в заведении'
+                }));
+            } else {
+                console.warn("Настройки колеса не найдены или некорректны. Используются значения по умолчанию.");
+                // Мы НЕ перезаписываем this.items, оставляем те 3 дефолтных, что объявлены в data()
             }
         },
 
+
         formatDate(dateString) {
             if (!dateString) return '';
-            const date = new Date(dateString);
-            return date.toLocaleDateString('ru-RU', {
+            return new Date(dateString).toLocaleDateString('ru-RU', {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
                 hour: '2-digit',
-                minute: '2-digit',
+                minute: '2-digit'
             });
         },
 
         pluralize(count, one, two, five) {
-            const n = Math.abs(count) % 100;
-            const n1 = n % 10;
+            const n = Math.abs(count) % 100, n1 = n % 10;
             if (n > 10 && n < 20) return five;
             if (n1 > 1 && n1 < 5) return two;
             if (n1 === 1) return one;
@@ -626,6 +681,8 @@ export default {
     },
 };
 </script>
+
+
 
 <style scoped>
 .wheel-page {
@@ -1687,5 +1744,35 @@ export default {
     .history-details {
         grid-template-columns: 1fr;
     }
+}
+
+/* ==========================================
+   КНОПКА ЗАБРАТЬ ПРИЗ
+   ========================================== */
+.btn-claim-prize {
+    margin-top: 24px;
+    padding: 14px 32px;
+    background: white;
+    color: #c0392b;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-claim-prize:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    background: #f8fafc;
+}
+
+.btn-claim-prize:active {
+    transform: translateY(0);
 }
 </style>

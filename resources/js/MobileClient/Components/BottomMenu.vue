@@ -79,7 +79,7 @@ export default {
                     hasItems: () => !this.isEmpty,
                 },
                 {
-                    route: 'Chat',
+                    route: 'ChatList',
                     label: 'Чат',
                     icon: 'fa-regular fa-comments',
                     badge: () => this.totalUnread,
@@ -126,6 +126,15 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
     padding: 8px;
     background: transparent;
     pointer-events: none;
+
+    // 📱 АДАПТИВ: на планшетах и десктопах меню центрируется и не растягивается
+    @media (min-width: 768px) {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        max-width: 600px; // Оптимальная ширина для 5 элементов (можно изменить на 500px или 700px по вкусу)
+        width: 100%;
+    }
 }
 
 .bottom-nav .container-fluid {
@@ -138,6 +147,7 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    width: 100%; // Гарантируем, что внутренний контейнер занимает всю доступную ширину родителя
 }
 
 // ==========================================
