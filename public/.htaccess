@@ -20,3 +20,14 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# ==========================================
+# 🌐 CORS HEADERS FOR STATIC ASSETS (Vite, Fonts, Images)
+# ==========================================
+<IfModule mod_headers.c>
+    # Разрешаем загрузку этих типов файлов с любого поддомена *.mypwa.ru
+    <FilesMatch "\.(js|css|json|webmanifest|woff2?|ttf|eot|svg|png|jpe?g|gif|ico)$">
+        Header set Access-Control-Allow-Origin "*"
+        Header set Access-Control-Allow-Methods "GET, OPTIONS"
+    </FilesMatch>
+</IfModule>
