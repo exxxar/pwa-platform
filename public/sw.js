@@ -43,7 +43,7 @@ async function preloadManifestImages() {
         const tenantSlug = pathParts[2] || 'default'; // /pwa/{tenant}/sw.js
 
         // Загружаем манифест
-        const manifestUrl = `/pwa/${tenantSlug}/manifest.json`;
+        const manifestUrl = `/manifest.json`;
         const response = await fetch(manifestUrl, {
             cache: 'no-cache'
         });

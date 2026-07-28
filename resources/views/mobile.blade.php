@@ -10,6 +10,7 @@
 
     <!-- 2. Разрешает запуск в полноэкранном режиме (как нативное приложение) -->
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
 
     <!-- 3. Стиль строки состояния (status bar).
          Варианты: default (серый), black (черный), black-translucent (прозрачный, контент заходит под челку) -->
@@ -32,7 +33,6 @@
 
     <meta name="theme-color" content="{{ $tenant->theme_color ?? '#fff' }}">
 
-    <link rel="stylesheet" id="theme" href="/themes/theme6.bootstrap.min.css">
     <script>
         window.Tenant = @json($tenant);
         @if (auth('tenant')->user())

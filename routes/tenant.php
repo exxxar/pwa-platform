@@ -76,11 +76,11 @@ $routes = function () {
         $agent = new Agent();
 
         if ($agent->isMobile()) {
-            return redirect()->to('/pwa', 301, [], false);
+            // Используем абсолютный редирект на /pwa
+            return redirect('/pwa', 301);
         }
 
         return view("landing");
-      //  return redirect()->to('/shop', 301, [], false);
     })->name("home");
 
     Route::get('/shop/{any?}', [TenantAuthController::class, 'handlerShopLanding'])

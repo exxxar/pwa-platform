@@ -137,39 +137,76 @@
             </div>
         </div>
 
-        <!-- PWA установка -->
-        <div class="modal fade" id="installPwaModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="fa-solid fa-download me-2"></i>Установить приложение
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <!-- 🚀 MODERN PWA INSTALLATION MODAL -->
+        <transition name="modal-fade">
+            <div v-if="showPwaModal" class="pwa-modal-overlay" @click.self="showPwaModal = false">
+                <div class="pwa-modal-container">
+
+                    <!-- Декоративное свечение -->
+                    <div class="pwa-modal-glow"></div>
+
+                    <!-- Шапка -->
+                    <div class="pwa-modal-header">
+                        <div class="pwa-icon-wrapper">
+                            <i class="fa-solid fa-mobile-screen-button"></i>
+                        </div>
+                        <h3 class="pwa-title">Установите приложение</h3>
+                        <p class="pwa-subtitle">Получите мгновенный доступ к {{ tenant?.name || 'магазину' }} прямо с рабочего стола вашего устройства</p>
                     </div>
-                    <div class="modal-body">
-                        <p>Вы можете установить Kanban как приложение и запускать его прямо с рабочего стола.</p>
+
+                    <!-- Тело: Инструкции в зависимости от ОС -->
+                    <div class="pwa-modal-body">
+
+                        <!-- Для iOS -->
+                        <div v-if="isIOS" class="pwa-instruction-card ios-card">
+                            <div class="instruction-step">
+                                <span class="step-number">1</span>
+                                <div class="step-content">
+                                    <span>Нажмите кнопку</span>
+                                    <span class="ios-share-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                                        Поделиться
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="instruction-step">
+                                <span class="step-number">2</span>
+                                <div class="step-content">
+                                    <span>Выберите</span>
+                                    <span class="ios-action-text">«На экран «Домой»»</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Для Android / Desktop -->
+                        <div v-else class="pwa-instruction-card desktop-card">
+                            <p>Нажмите кнопку ниже, чтобы добавить ярлык приложения на главный экран или рабочий стол.</p>
+                            <div class="browser-hints">
+                                <span class="hint-badge"><i class="fa-brands fa-chrome"></i> Chrome</span>
+                                <span class="hint-badge"><i class="fa-brands fa-safari"></i> Safari</span>
+                                <span class="hint-badge"><i class="fa-brands fa-edge"></i> Edge</span>
+                            </div>
+                        </div>
+
                     </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" data-bs-dismiss="modal">Позже</button>
-                        <button class="btn btn-primary" @click="installPWA">
-                            <i class="fa-solid fa-download me-2"></i>Установить
+
+                    <!-- Подвал с действиями -->
+                    <div class="pwa-modal-footer">
+                        <button class="pwa-btn-secondary" @click="showPwaModal = false">
+                            Позже
+                        </button>
+                        <button v-if="!isIOS && deferredPrompt" class="pwa-btn-primary" @click="installPWA">
+                            <i class="fa-solid fa-download"></i>
+                            Установить
+                        </button>
+                        <button v-else-if="isIOS" class="pwa-btn-primary" @click="showPwaModal = false">
+                            Понятно
                         </button>
                     </div>
+
                 </div>
             </div>
-        </div>
-
-        <!-- Кастомная подсказка для iOS (скрыта по умолчанию) -->
-        <div id="ios-install-prompt" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 20px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 9999; text-align: center;">
-            <p style="margin: 0 0 10px 0; font-size: 14px; color: #333;">
-                Установите приложение для удобного доступа:<br>
-                Нажмите <strong>Поделиться</strong>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-                → <strong>На экран «Домой»</strong>
-            </p>
-            <button onclick="document.getElementById('ios-install-prompt').style.display='none'" style="background: #007aff; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;">Понятно</button>
-        </div>
+        </transition>
     </div>
 </template>
 
@@ -218,6 +255,10 @@ export default {
             cashback: 0,
             themeObserver: null,
             isLoading: false,
+
+            showPwaModal: false,
+            deferredPrompt: null,
+            isIOS: false,
         };
     },
 
@@ -299,6 +340,8 @@ export default {
         this.loadCashback();
         this.applyCurrentTheme();
         this.watchThemeChanges();
+        this.checkPWA(); // 🆕 Инициализация логики PWA
+
 
         this.$router.beforeEach((to, from, next) => {
             this.isLoading = true;
@@ -320,6 +363,59 @@ export default {
     },
 
     methods: {
+
+        checkPWA() {
+            // 1. Определяем iOS
+            this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+            // 2. Слушаем событие установки для Android/Desktop
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault(); // Отменяем стандартное поведение браузера
+                this.deferredPrompt = e; // Сохраняем событие для использования позже
+
+                // Раскомментируйте строку ниже, если хотите показывать модалку автоматически через 3 секунды
+                // setTimeout(() => { this.showPwaModal = true; }, 3000);
+            });
+
+            // 3. Отслеживаем успешную установку
+            window.addEventListener('appinstalled', () => {
+                this.deferredPrompt = null;
+                this.showPwaModal = false;
+                this.$notify?.({ title: 'Успех', text: 'Приложение успешно установлено!', type: 'success' });
+            });
+        },
+
+        // 🆕 Метод для ручного открытия модалки (можно вызвать из любого места)
+        openPwaModal() {
+            this.showPwaModal = true;
+        },
+
+        // 🆕 Логика установки
+        async installPWA() {
+            if (this.isIOS) {
+                this.showPwaModal = false;
+                return;
+            }
+
+            if (this.deferredPrompt) {
+                // Показываем нативный диалог установки браузера
+                this.deferredPrompt.prompt();
+
+                // Ждем выбора пользователя
+                const { outcome } = await this.deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    console.log('Пользователь принял установку PWA');
+                } else {
+                    console.log('Пользователь отклонил установку PWA');
+                }
+
+                this.deferredPrompt = null;
+            } else {
+                console.warn('Установка PWA недоступна в этом браузере');
+            }
+
+            this.showPwaModal = false;
+        },
         // 🆕 Форматирование числа кэшбэка (например: "1 250")
         formatCashback(amount) {
             return new Intl.NumberFormat('ru-RU').format(amount || 0);
@@ -662,5 +758,239 @@ export default {
 /* Основной контент */
 .app-content {
     min-height: calc(100vh - 60px);
+}
+
+
+/* ==========================================
+   🚀 MODERN PWA INSTALLATION MODAL
+   ========================================== */
+.pwa-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.pwa-modal-container {
+    position: relative;
+    background: var(--bs-body-bg, #ffffff);
+    width: 100%;
+    max-width: 420px;
+    border-radius: 24px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pwa-modal-glow {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at center, rgba(var(--bs-primary-rgb, 13, 110, 253), 0.08) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+.pwa-modal-header {
+    padding: 32px 24px 16px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+}
+
+.pwa-icon-wrapper {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    background: linear-gradient(135deg, var(--bs-primary, #0d6efd) 0%, var(--bs-primary-hover, #0b5ed7) 100%);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.8rem;
+    box-shadow: 0 8px 24px rgba(var(--bs-primary-rgb, 13, 110, 253), 0.3);
+}
+
+.pwa-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--bs-body-color);
+    margin: 0 0 8px;
+}
+
+.pwa-subtitle {
+    font-size: 0.9rem;
+    color: var(--bs-secondary-color);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.pwa-modal-body {
+    padding: 0 24px 24px;
+    position: relative;
+    z-index: 1;
+}
+
+.pwa-instruction-card {
+    background: var(--bs-secondary-bg, #f8f9fa);
+    border: 1px solid var(--bs-border-color, #e9ecef);
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.instruction-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.instruction-step:last-child {
+    margin-bottom: 0;
+}
+
+.step-number {
+    width: 24px;
+    height: 24px;
+    background: var(--bs-primary, #0d6efd);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.9rem;
+    color: var(--bs-body-color);
+}
+
+.ios-share-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--bs-primary, #007aff);
+    background: rgba(var(--bs-primary-rgb, 0, 122, 255), 0.1);
+    padding: 4px 10px;
+    border-radius: 8px;
+    width: fit-content;
+    margin-top: 4px;
+}
+
+.ios-action-text {
+    font-weight: 600;
+    color: var(--bs-body-color);
+    margin-top: 4px;
+}
+
+.desktop-card {
+    text-align: center;
+}
+
+.desktop-card p {
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+    color: var(--bs-secondary-color);
+}
+
+.browser-hints {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.hint-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: white;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--bs-body-color);
+}
+
+.pwa-modal-footer {
+    padding: 16px 24px 24px;
+    display: flex;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+}
+
+.pwa-btn-secondary, .pwa-btn-primary {
+    flex: 1;
+    padding: 14px;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.pwa-btn-secondary {
+    background: var(--bs-secondary-bg, #f8f9fa);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+}
+
+.pwa-btn-secondary:hover {
+    background: var(--bs-border-color);
+}
+
+.pwa-btn-primary {
+    background: linear-gradient(135deg, var(--bs-primary, #0d6efd) 0%, var(--bs-primary-hover, #0b5ed7) 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb, 13, 110, 253), 0.3);
+}
+
+.pwa-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(var(--bs-primary-rgb, 13, 110, 253), 0.4);
+}
+
+.pwa-btn-primary:active {
+    transform: translateY(0);
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-fade-enter-active, .modal-fade-leave-active {
+    transition: opacity 0.3s ease;
+}
+.modal-fade-enter-from, .modal-fade-leave-to {
+    opacity: 0;
 }
 </style>
