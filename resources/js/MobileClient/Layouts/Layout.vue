@@ -192,14 +192,14 @@
 
                     <!-- Подвал с действиями -->
                     <div class="pwa-modal-footer">
-                        <button class="pwa-btn-secondary" @click="showPwaModal = false">
+                        <button class="pwa-btn-secondary" @click="hidePwaPrompt">
                             Позже
                         </button>
                         <button v-if="!isIOS && deferredPrompt" class="pwa-btn-primary" @click="installPWA">
                             <i class="fa-solid fa-download"></i>
                             Установить
                         </button>
-                        <button v-else-if="isIOS" class="pwa-btn-primary" @click="showPwaModal = false">
+                        <button v-else-if="isIOS" class="pwa-btn-primary" @click="hidePwaPrompt">
                             Понятно
                         </button>
                     </div>
@@ -256,6 +256,7 @@ export default {
             themeObserver: null,
             isLoading: false,
 
+            // 🆕 PWA State
             showPwaModal: false,
             deferredPrompt: null,
             isIOS: false,
@@ -340,8 +341,7 @@ export default {
         this.loadCashback();
         this.applyCurrentTheme();
         this.watchThemeChanges();
-        this.checkPWA(); // 🆕 Инициализация логики PWA
-
+        this.initPWA(); // 🆕 Инициализируем логику PWA
 
         this.$router.beforeEach((to, from, next) => {
             this.isLoading = true;
@@ -364,36 +364,43 @@ export default {
 
     methods: {
 
-        checkPWA() {
+        // 🆕 Полная инициализация PWA
+        initPWA() {
             // 1. Определяем iOS
             this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isStandalone = window.navigator.standalone === true;
 
-            // 2. Слушаем событие установки для Android/Desktop
+            // 2. Если это iOS, не в режиме приложения, и пользователь не скрывал подсказку
+            if (this.isIOS && !isStandalone && !localStorage.getItem('ios_prompt_hidden')) {
+                // Показываем модалку с небольшой задержкой, чтобы не мешать первой отрисовке
+                setTimeout(() => {
+                    this.showPwaModal = true;
+                }, 1500);
+            }
+
+            // 3. Слушаем событие установки для Android/Desktop
             window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault(); // Отменяем стандартное поведение браузера
-                this.deferredPrompt = e; // Сохраняем событие для использования позже
+                e.preventDefault(); // Отменяем стандартный баннер браузера
+                this.deferredPrompt = e; // Сохраняем событие
 
-                // Раскомментируйте строку ниже, если хотите показывать модалку автоматически через 3 секунды
-                // setTimeout(() => { this.showPwaModal = true; }, 3000);
+                // Показываем нашу красивую модалку
+                this.showPwaModal = true;
             });
 
-            // 3. Отслеживаем успешную установку
+            // 4. Отслеживаем успешную установку
             window.addEventListener('appinstalled', () => {
                 this.deferredPrompt = null;
                 this.showPwaModal = false;
+                localStorage.setItem('ios_prompt_hidden', 'true'); // На всякий случай
                 this.$notify?.({ title: 'Успех', text: 'Приложение успешно установлено!', type: 'success' });
             });
         },
 
-        // 🆕 Метод для ручного открытия модалки (можно вызвать из любого места)
-        openPwaModal() {
-            this.showPwaModal = true;
-        },
-
-        // 🆕 Логика установки
+        // 🆕 Логика кнопки "Установить"
         async installPWA() {
             if (this.isIOS) {
-                this.showPwaModal = false;
+                // Для iOS мы просто закрываем модалку, пользователь должен сделать это вручную
+                this.hidePwaPrompt();
                 return;
             }
 
@@ -416,6 +423,13 @@ export default {
 
             this.showPwaModal = false;
         },
+
+        // 🆕 Логика кнопки "Позже" / "Понятно"
+        hidePwaPrompt() {
+            this.showPwaModal = false;
+            // Запоминаем, что пользователь не хочет видеть подсказку (для iOS)
+            localStorage.setItem('ios_prompt_hidden', 'true');
+        },
         // 🆕 Форматирование числа кэшбэка (например: "1 250")
         formatCashback(amount) {
             return new Intl.NumberFormat('ru-RU').format(amount || 0);
@@ -434,13 +448,7 @@ export default {
             }
         },
 
-        installPWA() {
-            if (typeof window.installPWA === 'function') {
-                window.installPWA();
-            } else {
-                console.warn('PWA installation not available');
-            }
-        },
+
 
         toggleSidebar() {
             this.chat.fetchUnreadCount();
