@@ -311,7 +311,7 @@
                     <!-- В блоке BOTTOM SHEET MODAL: ВСЕ КАТЕГОРИИ -->
                     <div class="cuisine-modal-grid">
                         <div
-                            v-for="cuisine in dynamicCategories"
+                            v-for="cuisine in dynamicCuisines"
                             :key="cuisine.id"
                             class="cuisine-modal-card"
                             :class="{ 'active': selectedCuisine === cuisine.slug }"
