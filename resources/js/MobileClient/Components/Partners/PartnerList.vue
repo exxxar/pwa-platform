@@ -439,10 +439,9 @@ export default {
                 subtitle: hero.subtitle || 'Доставка из кафе и ресторанов быстро и удобно',
                 searchPlaceholder: hero.search_placeholder || 'Поиск блюд и заведений',
                 backgroundImage: hero.backgroundImage || null,
-                backgroundColor: 'linear-gradient(160deg, #FFF8F0 0%, #FFE8D6 40%, #FFD4B8 100%)'
+                backgroundColor: 'linear-gradient(165deg, rgba(255, 248, 240, 0.95) 0%, rgba(255, 179, 138, 0.85) 30%, rgba(255, 140, 97, 0.75) 60%, rgba(118, 75, 162, 0.65) 100%)'
             };
         },
-
         // 🆕 Динамические картинки Hero
         dynamicHeroImages() {
             const hero = this.uiSettings.hero || {};
@@ -2018,7 +2017,7 @@ export default {
         width: 160px;
         height: 260px;
         right: -20px;
-        opacity: 0.6;
+        opacity: 0.3;
     }
 
     .food-image-1 {
