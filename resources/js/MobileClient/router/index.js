@@ -180,17 +180,17 @@ const routes = [
     },
     {
         path: '/admin/tables', name: 'AdminTablesManager',component: AdminTablesManager,
-       meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
+        meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
 
     },
     {
         path: '/admin/table-settings', name: 'AdminTableSettings',component: AdminTableSettings,
-          meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
+        meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
 
     },
     {
         path: '/admin/tables/:tableId', name: 'AdminTableDetails', component: AdminTableDetails,
-       meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
+        meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
     },
 
     {
