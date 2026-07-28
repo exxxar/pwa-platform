@@ -3,7 +3,7 @@
 
         <!-- 1. ЗАГРУЗКА -->
         <div v-if="!isHydrated || isLoading" class="cart-loading">
-            <SkeletonLoader type="list" :count="5" />
+            <SkeletonLoader type="list" :count="5"/>
         </div>
 
         <!-- 2. УСПЕШНЫЙ ЗАКАЗ -->
@@ -139,7 +139,7 @@
                         @change-tab="changeTab"
                     >
                         <template #recommendation-list>
-                            <ProductRecommendationList />
+                            <ProductRecommendationList/>
                         </template>
                     </CartProductList>
                 </div>
@@ -152,12 +152,12 @@
                         @start-checkout="startCheckout"
                         @change-tab="changeTab"
                     />
-<!--                    <CheckoutNonFoodGoodsForm
-                        v-else
-                        v-model="deliveryForm"
-                        @start-checkout="startCheckout"
-                        @change-tab="changeTab"
-                    />-->
+                    <!--                    <CheckoutNonFoodGoodsForm
+                                            v-else
+                                            v-model="deliveryForm"
+                                            @start-checkout="startCheckout"
+                                            @change-tab="changeTab"
+                                        />-->
                 </div>
 
                 <!-- 🆕 ШАГ 2: ВЫБОР СПОСОБА ОПЛАТЫ + ИТОГ -->
@@ -170,14 +170,14 @@
                             </div>
 
 
-                                <!-- Здесь пользователь выбирает: СБП, Карта, Перевод, Наличные -->
-                                <PaymentTypes v-model="deliveryForm" />
+                            <!-- Здесь пользователь выбирает: СБП, Карта, Перевод, Наличные -->
+                            <PaymentTypes v-model="deliveryForm"/>
 
 
                         </div>
 
                         <div class="section-card mt-3">
-                            <Summary v-model="deliveryForm" />
+                            <Summary v-model="deliveryForm"/>
                         </div>
 
                         <button
@@ -220,7 +220,8 @@
                             <i v-if="actionButtonIcon" :class="actionButtonIcon"></i>
                             <span v-if="actionButtonImage">
                                 <span>{{ actionButtonText }}</span>
-                                <img :src="actionButtonImage" alt="СБП" class="tbank-logo" style="height: 20px; margin-left: 8px; vertical-align: middle;">
+                                <img :src="actionButtonImage" alt="СБП" class="tbank-logo"
+                                     style="height: 20px; margin-left: 8px; vertical-align: middle;">
                             </span>
                             <span v-else>{{ actionButtonText }}</span>
                         </template>
@@ -228,6 +229,8 @@
                 </div>
             </div>
         </template>
+
+
 
     </div>
 </template>
@@ -241,7 +244,7 @@ import ProductRecommendationList from "@/MobileClient/Components/Shop/ProductRec
 import Summary from "@/MobileClient/Components/Cart/Summary.vue";
 import PaymentTypes from "@/MobileClient/Components/Cart/PaymentTypes.vue";
 import SkeletonLoader from '@/MobileClient/Components/Common/SkeletonLoader.vue';
-import { useBasket } from '@/MobileClient/Composables/useBasket.js';
+import {useBasket} from '@/MobileClient/Composables/useBasket.js';
 
 export default {
     name: "CartPage",
@@ -258,21 +261,39 @@ export default {
     },
 
     props: {
-        type: { type: String, default: null },
+        type: {type: String, default: null},
     },
 
     setup() {
         const basket = useBasket();
-        if (!basket.isHydrated.value) {
+
+        // 1. Безопасная инициализация
+        if (!basket.isHydrated?.value) {
             basket.loadProductsInBasket();
         }
 
+        // 2. 🆕 КРИТИЧЕСКИ ВАЖНО: useBasket УЖЕ возвращает объект, состоящий из ref-ов.
+        // Мы НЕ используем toRefs. Мы просто деструктурируем их напрямую.
+        // Деструктуризация ref-ов сохраняет их реактивность!
+        const {
+            isHydrated,
+            isLoading,
+            cartTotalCount,
+            cartTotalPrice,
+            basket_items,
+            loadProductsInBasket // Возвращаем для возможного ручного обновления
+        } = basket;
+
         return {
-            basket_items: basket.basket_items,
-            isLoading: basket.isLoading,
-            isHydrated: basket.isHydrated,
-            cartTotalPrice: basket.cartTotalPrice,
-            cartTotalCount: basket.cartTotalCount,
+            // Возвращаем деструктурированные ref-и (они останутся реактивными в шаблоне)
+            isHydrated,
+            isLoading,
+            cartTotalCount,
+            cartTotalPrice,
+            basket_items,
+            loadProductsInBasket,
+
+            // Методы
             startCheckoutAction: basket.startCheckout,
             createCheckoutLink: basket.createCheckoutLink,
         };
@@ -282,7 +303,6 @@ export default {
         return {
             currentStep: 0,
             sending: false,
-
             orderJustPlaced: false,
             lastOrderId: null,
             lastOrderTotal: 0,
@@ -290,21 +310,40 @@ export default {
             autoCloseTimer: null,
             countdownTimer: null,
 
-            // 🆕 НОВЫЙ ПОРЯДОК ШАГОВ
             allSteps: [
-                { label: 'Корзина', title: 'Ваш заказ', subtitle: 'Проверьте товары перед оформлением', icon: 'fa-solid fa-cart-shopping' },
-                { label: 'Данные', title: 'Данные доставки', subtitle: 'Укажите адрес и контактные данные', icon: 'fa-solid fa-truck' },
-                { label: 'Оплата', title: 'Способ оплаты', subtitle: 'Выберите удобный способ оплаты', icon: 'fa-solid fa-credit-card' },
-                { label: 'Чек', title: 'Подтверждение оплаты', subtitle: 'Загрузите скриншот перевода', icon: 'fa-solid fa-receipt' },
+                {
+                    label: 'Корзина',
+                    title: 'Ваш заказ',
+                    subtitle: 'Проверьте товары перед оформлением',
+                    icon: 'fa-solid fa-cart-shopping'
+                },
+                {
+                    label: 'Данные',
+                    title: 'Данные доставки',
+                    subtitle: 'Укажите адрес и контактные данные',
+                    icon: 'fa-solid fa-truck'
+                },
+                {
+                    label: 'Оплата',
+                    title: 'Способ оплаты',
+                    subtitle: 'Выберите удобный способ оплаты',
+                    icon: 'fa-solid fa-credit-card'
+                },
+                {
+                    label: 'Чек',
+                    title: 'Подтверждение оплаты',
+                    subtitle: 'Загрузите скриншот перевода',
+                    icon: 'fa-solid fa-receipt'
+                },
             ],
 
             deliveryForm: {
                 name: null, phone: null, address: null, location_id: null, lng: null, lat: null,
-                discount: 0, cdek: { tariff: null, to: { region: null, city: null, office: null, address: null } },
+                discount: 0, cdek: {tariff: null, to: {region: null, city: null, office: null, address: null}},
                 city: null, street: null, building: null, flat_number: null, entrance_number: null,
                 floor_number: null, table_number: null, info: null, need_pickup: false, pick_up_type: 1,
                 has_disability: false, use_cashback: false, disabilities: [], money: null, cash: true,
-                payment_type: 2, // По умолчанию "Перевод", чтобы показать весь флоу
+                payment_type: 2,
                 persons: 1, time: null, when_ready: true, image: null, image_info: null,
                 delivery_price: 0, distance: 0, delivery_details: [], allergy: null, action_prize: null,
             },
@@ -314,15 +353,22 @@ export default {
     },
 
     computed: {
-        tenant() { return window.Tenant || null; },
-        settings() { return this.tenant?.settings || {}; },
-        totalToPay() { return (this.cartTotalPrice || 0) + (this.deliveryForm.delivery_price || 0); },
+        tenant() {
+            return window.Tenant || null;
+        },
+        settings() {
+            return this.tenant?.settings || {};
+        },
 
-        // 🆕 ДИНАМИЧЕСКИЙ СТЕППЕР: убираем шаг "Чек", если оплата НЕ перевод (2)
+        totalToPay() {
+            // 🆕 Защита от конкатенации строк
+            return Number(this.cartTotalPrice || 0) + Number(this.deliveryForm.delivery_price || 0);
+        },
+
         visibleSteps() {
             const steps = [...this.allSteps];
             if (this.deliveryForm.payment_type !== 2) {
-                steps.splice(3, 1); // Удаляем 4-й элемент (индекс 3)
+                steps.splice(3, 1);
             }
             return steps;
         },
@@ -373,18 +419,16 @@ export default {
         },
 
         isActionButtonEnabled() {
-            if (this.currentStepConfig?.label === 'Корзина') return this.cartTotalCount > 0;
+            if (this.currentStepConfig?.label === 'Корзина') return Number(this.cartTotalCount || 0) > 0;
             return true;
         },
     },
 
     watch: {
         currentStep() {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({top: 0, behavior: 'smooth'});
         },
 
-        // 🆕 ВАЖНО: Если пользователь на шаге "Чек" (3) и меняет тип оплаты на СБП/Карту,
-        // шаг "Чек" исчезает, и нас принудительно возвращает на шаг "Оплата" (2)
         'deliveryForm.payment_type'(newType) {
             if (newType !== 2 && this.currentStep === 3) {
                 this.currentStep = 2;
@@ -399,18 +443,25 @@ export default {
         },
 
         cartTotalCount(newCount, oldCount) {
-            if (!this.isHydrated) return;
-            if (newCount === 0 && oldCount > 0 && this.orderJustPlaced) {
+            // 🆕 Более надежная проверка, не зависящая от сломанного isHydrated
+            const currentCount = Number(newCount || 0);
+            const previousCount = Number(oldCount || 0);
+
+            if (currentCount === 0 && previousCount > 0 && this.orderJustPlaced) {
                 this.showOrderSuccess();
-            } else if (newCount === 0 && this.currentStep > 0 && !this.orderJustPlaced) {
+            } else if (currentCount === 0 && this.currentStep > 0 && !this.orderJustPlaced) {
                 this.currentStep = 0;
             }
         },
     },
 
     mounted() {
-        this._scrollToBasketHandler = () => { this.currentStep = 1; };
-        this._switchToCartHandler = () => { this.currentStep = 0; };
+        this._scrollToBasketHandler = () => {
+            this.currentStep = 1;
+        };
+        this._switchToCartHandler = () => {
+            this.currentStep = 0;
+        };
         window.addEventListener("scroll-to-basket", this._scrollToBasketHandler);
         document.addEventListener('switch-to-cart', this._switchToCartHandler);
     },
@@ -431,14 +482,14 @@ export default {
         },
 
         goToCatalog() {
-            this.$router.push({ name: 'Catalog' });
+            this.$router.push({name: 'Catalog'}).catch(() => {
+            });
         },
 
         selectPrize(item) {
             this.deliveryForm.action_prize = item;
         },
 
-        // 🆕 ЛОГИКА ПЕРЕХОДОВ МЕЖДУ ШАГАМИ
         handleActionClick() {
             const pt = this.deliveryForm.payment_type;
             const label = this.currentStepConfig?.label;
@@ -447,23 +498,18 @@ export default {
                 this.currentStep = 1;
                 return;
             }
-
             if (label === 'Данные') {
-                this.currentStep = 2; // Переход к выбору оплаты
+                this.currentStep = 2;
                 return;
             }
-
             if (label === 'Оплата') {
                 if (pt === 2) {
-                    // Если выбран перевод, идем на шаг загрузки чека
                     this.currentStep = 3;
                     return;
                 }
-                // Для СБП (4), Карты (0) или Наличных после звонка (3) сразу отправляем заказ
                 this.startCheckout();
                 return;
             }
-
             if (label === 'Чек') {
                 this.startCheckout();
                 return;
@@ -480,7 +526,7 @@ export default {
                 const item = this.deliveryForm[key];
                 if (item === null || item === undefined) {
                     data.append(key, '');
-                } else if (typeof item === 'object' && !(item instanceof File)) {
+                } else if (typeof item === 'object' && !(item instanceof File) && !(item instanceof Date)) {
                     data.append(key, JSON.stringify(item));
                 } else {
                     data.append(key, item);
@@ -497,17 +543,17 @@ export default {
                 data.delete("image");
             }
 
-            // 1. ОПЛАТА КАРТОЙ (Тип 0) - если у вас она идет через отдельный сервис до создания заказа
             if (this.deliveryForm.payment_type === 0 && this.settings.can_use_card) {
                 try {
                     this.sending = true;
-                    const response = await this.createCheckoutLink({ deliveryForm: data });
+                    const response = await this.createCheckoutLink({deliveryForm: data});
                     if (response?.url) {
                         window.location.href = response.url;
+                    } else {
+                        throw new Error('Не получен URL для оплаты');
                     }
                 } catch (error) {
-                    console.error('Ошибка создания ссылки на оплату:', error);
-                    this.$notify?.({ title: 'Ошибка', text: 'Не удалось создать ссылку на оплату', type: 'error' });
+                    this.handleCheckoutError(error);
                 } finally {
                     this.sending = false;
                 }
@@ -517,40 +563,41 @@ export default {
             this.sending = true;
 
             try {
-                // 2. ОСНОВНОЙ ВЫЗОВ ОФОРМЛЕНИЯ ЗАКАЗА
-                const response = await this.startCheckoutAction({ deliveryForm: data });
+                const response = await this.startCheckoutAction({deliveryForm: data});
 
                 if (response?.success) {
                     this.lastOrderId = response.order_id;
                     this.lastOrderTotal = response.summary_price;
 
-                    // 3. 🆕 ОБРАБОТКА СБП (Тип 4)
-                    // Бэкенд вернул payment_data с ссылкой на оплату
                     if (this.deliveryForm.payment_type === 4 && response.payment_data?.url) {
                         window.location.href = response.payment_data.url;
-                        return; // Прерываем, чтобы не показывать окно успеха, а сразу увести на шлюз
+                        return;
                     }
 
-                    // 4. ДЛЯ ОСТАЛЬНЫХ ТИПОВ (Чек, Наличные) показываем окно успеха
                     this.orderJustPlaced = true;
-
                     this.$notify?.({
                         title: 'Заказ оформлен',
                         text: response.message || 'Инструкция отправлена вам в бот!',
                         type: 'success',
                     });
                 } else {
-                    throw new Error(response?.message || 'Ошибка оформления заказа');
+                    throw new Error(response?.message || 'Сервер вернул успех: false');
                 }
             } catch (error) {
-                console.error('Ошибка оформления заказа:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: error.response?.data?.message || 'Не удалось оформить заказ. Попробуйте позже.',
-                    type: 'error',
-                });
+                this.handleCheckoutError(error);
             } finally {
                 this.sending = false;
+            }
+        },
+
+        handleCheckoutError(error) {
+            console.error('=== КРИТИЧЕСКАЯ ОШИБКА ОФОРМЛЕНИЯ ЗАКАЗА ===', error);
+            const errorMsg = error.response?.data?.message || error.message || 'Не удалось оформить заказ. Попробуйте позже.';
+
+            if (this.$notify) {
+                this.$notify({title: 'Ошибка', text: errorMsg, type: 'error', duration: 5000});
+            } else {
+                alert('Ошибка оформления заказа:\n\n' + errorMsg);
             }
         },
 
@@ -575,20 +622,30 @@ export default {
 
         goToOrderChat() {
             this.clearAutoCloseTimers();
-            this.$router.push({ name: 'Chat', params: { orderId: this.lastOrderId } })
-                .catch(() => this.$router.push({ name: 'Catalog' }));
+            this.$router.push({name: 'Chat', params: {orderId: this.lastOrderId}})
+                .catch(() => this.$router.push({name: 'Catalog'}));
             this.orderJustPlaced = false;
             this.lastOrderId = null;
             this.lastOrderTotal = 0;
         },
 
         clearAutoCloseTimers() {
-            if (this.autoCloseTimer) { clearTimeout(this.autoCloseTimer); this.autoCloseTimer = null; }
-            if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
+            if (this.autoCloseTimer) {
+                clearTimeout(this.autoCloseTimer);
+                this.autoCloseTimer = null;
+            }
+            if (this.countdownTimer) {
+                clearInterval(this.countdownTimer);
+                this.countdownTimer = null;
+            }
         },
 
         formatPrice(price) {
-            return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(price || 0);
+            return new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: 'RUB',
+                minimumFractionDigits: 2
+            }).format(Number(price || 0));
         },
     },
 };
@@ -642,8 +699,14 @@ $card-bg: #ffffff;
 }
 
 @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .empty-icon {
@@ -661,8 +724,12 @@ $card-bg: #ffffff;
 }
 
 @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
 }
 
 .empty-title {
@@ -1017,7 +1084,9 @@ $card-bg: #ffffff;
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 // ==========================================
@@ -1043,9 +1112,8 @@ $card-bg: #ffffff;
     background: var(--bs-body-bg, #ffffff);
     border-radius: 24px;
     overflow: hidden;
-    box-shadow:
-        0 20px 60px rgba(102, 126, 234, 0.25),
-        0 8px 24px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 20px 60px rgba(102, 126, 234, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
 // 🆕 Компактный декоративный фон
@@ -1063,9 +1131,8 @@ $card-bg: #ffffff;
     content: '';
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.15) 0%, transparent 40%),
-        radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 40%);
+    background: radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 40%);
     pointer-events: none;
 }
 
@@ -1096,8 +1163,12 @@ $card-bg: #ffffff;
 }
 
 @keyframes circleFloat {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(10px, -10px) scale(1.1); }
+    0%, 100% {
+        transform: translate(0, 0) scale(1);
+    }
+    50% {
+        transform: translate(10px, -10px) scale(1.1);
+    }
 }
 
 // Контент
@@ -1126,9 +1197,8 @@ $card-bg: #ffffff;
     align-items: center;
     justify-content: center;
     font-size: 1.8rem;
-    box-shadow:
-        0 6px 20px rgba(102, 126, 234, 0.5),
-        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
     animation: iconBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
     z-index: 2;
 }
@@ -1253,8 +1323,12 @@ $card-bg: #ffffff;
 }
 
 @keyframes subtitleFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 // 🆕 Компактная карточка информации
@@ -1406,8 +1480,12 @@ $card-bg: #ffffff;
 }
 
 @keyframes hintFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 // Анимации появления/исчезновения

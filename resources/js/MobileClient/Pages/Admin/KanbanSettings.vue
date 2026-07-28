@@ -15,6 +15,17 @@
                 <span class="status-dot"></span>
                 {{ settings.enabled ? 'Активно' : 'Отключено' }}
             </div>
+
+            <a
+                v-if="canOpenCrm"
+                :href="crmBoardUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn-crm-link"
+            >
+                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                <span>Открыть доску в CRM</span>
+            </a>
         </div>
 
         <!-- TOGGLE -->
@@ -132,7 +143,6 @@
                         <button class="btn-test-grid" @click="testGetMessages" :disabled="testing">
                             <i class="fa-solid fa-comments"></i> Сообщения задачи
                         </button>
-                        <!-- 🆕 НОВАЯ КНОПКА -->
                         <button class="btn-test-grid" @click="testGetBoardMessages" :disabled="testing">
                             <i class="fa-solid fa-layer-group"></i> Сообщения доски
                         </button>
@@ -156,7 +166,19 @@
         </Transition>
 
         <!-- FOOTER -->
-        <div class="settings-footer">
+        <div class="settings-footer" :class="{ 'has-crm-link': canOpenCrm }">
+            <!-- 🆕 КРАСИВАЯ КНОПКА ПЕРЕХОДА В CRM -->
+            <a
+                v-if="canOpenCrm"
+                :href="crmBoardUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn-crm-link"
+            >
+                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                <span>Открыть доску в CRM</span>
+            </a>
+
             <button class="btn-save" @click="save" :disabled="saving">
                 <span v-if="saving" class="btn-spinner"></span>
                 <i v-else class="fa-solid fa-floppy-disk"></i>
@@ -191,6 +213,18 @@ export default {
     computed: {
         isFormValid() {
             return this.settings.base_url && this.settings.token && this.settings.board_uuid
+        },
+        // 🆕 Проверяем, можно ли показать кнопку (включено и есть UUID)
+        canOpenCrm() {
+            return this.settings.enabled && this.settings.board_uuid && this.settings.board_uuid.length > 5;
+        },
+        // 🆕 Формируем правильную ссылку, очищая base_url от /api/v1
+        crmBoardUrl() {
+            if (!this.settings.board_uuid) return '#';
+            let baseUrl = this.settings.base_url || 'https://crm.mypwa.ru';
+            // Убираем /api/v1 (с возможным слэшем на конце) и любые trailing slashes
+            baseUrl = baseUrl.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
+            return `${baseUrl}/board/${this.settings.board_uuid}`;
         }
     },
     async mounted() {
@@ -201,10 +235,7 @@ export default {
             const tenant = window.Tenant || this.tenant;
             if (tenant?.settings?.kanban) {
                 this.settings = { ...this.settings, ...tenant.settings.kanban };
-               // console.log("settings pwa", this.settings)
             }
-
-
         },
         async save() {
             if (!this.isFormValid) {
@@ -222,7 +253,6 @@ export default {
             }
         },
 
-        // === MAIN TEST ===
         async testConnection() {
             this.testing = true;
             this.testResult = null;
@@ -236,7 +266,6 @@ export default {
             }
         },
 
-        // === ADVANCED TESTS ===
         async runAdvancedTest(endpoint, payload = {}) {
             this.testing = true;
             this.advancedTestResult = null;
@@ -261,17 +290,9 @@ export default {
             }
         },
 
-        async testCreateTask() {
-            await this.runAdvancedTest('/test-kanban/create-task');
-        },
-
-        async testCreateClient() {
-            await this.runAdvancedTest('/test-kanban/create-client');
-        },
-
-        async testGetTasks() {
-            await this.runAdvancedTest('/test-kanban/tasks');
-        },
+        async testCreateTask() { await this.runAdvancedTest('/test-kanban/create-task'); },
+        async testCreateClient() { await this.runAdvancedTest('/test-kanban/create-client'); },
+        async testGetTasks() { await this.runAdvancedTest('/test-kanban/tasks'); },
 
         async testSendMessage() {
             const taskId = prompt('Введите ID задачи (task_id), например: 123');
@@ -285,28 +306,19 @@ export default {
             await this.runAdvancedTest('/test-kanban/smart-send', payload);
         },
 
-
-        // ... существующие методы ...
-
         async testGetMessages() {
             const taskId = prompt('Введите ID задачи (task_id), например: 123');
             if (!taskId) return;
             await this.runAdvancedTest('/test-kanban/messages', { task_id: parseInt(taskId) });
         },
 
-// 🆕 НОВЫЙ МЕТОД
         async testGetBoardMessages() {
             const limit = prompt('Сколько последних сообщений показать? (по умолчанию 20)', '20');
-            if (limit === null) return; // Нажата отмена
-
-            await this.runAdvancedTest('/test-kanban/board-messages', {
-                limit: parseInt(limit) || 20
-            });
+            if (limit === null) return;
+            await this.runAdvancedTest('/test-kanban/board-messages', { limit: parseInt(limit) || 20 });
         },
 
-        async testCreateOrder() {
-            await this.runAdvancedTest('/test-kanban/create-order');
-        },
+        async testCreateOrder() { await this.runAdvancedTest('/test-kanban/create-order'); },
 
         showNotification(message, type) {
             this.$notify?.({ title: 'Настройка CRM', text: message, type: type });
@@ -669,9 +681,49 @@ export default {
     padding: 20px 24px;
     background: var(--bg-soft);
     border-top: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: center;
 }
-.btn-save {
+
+/* Если кнопки нет, кнопка сохранения занимает всю ширину */
+.settings-footer:not(.has-crm-link) .btn-save {
     width: 100%;
+}
+
+/* 🆕 СТИЛИ ДЛЯ КНОПКИ CRM */
+.btn-crm-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 20px;
+    background: white;
+    color: var(--primary);
+    border: 2px solid var(--primary);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.btn-crm-link:hover {
+    background: var(--primary);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+.btn-crm-link i {
+    font-size: 13px;
+    transition: transform 0.2s;
+}
+.btn-crm-link:hover i {
+    transform: translate(2px, -2px);
+}
+
+.btn-save {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -721,7 +773,16 @@ export default {
     .header-title { font-size: 17px; }
     .header-status { width: 100%; justify-content: center; }
     .settings-body { padding: 20px; }
-    .settings-footer { padding: 16px 20px; }
+    .settings-footer {
+        padding: 16px 20px;
+        flex-direction: column; /* На мобильных кнопки друг под другом */
+    }
+    .settings-footer:not(.has-crm-link) .btn-save {
+        width: 100%;
+    }
+    .btn-crm-link, .btn-save {
+        width: 100%; /* На мобильном кнопки на всю ширину */
+    }
     .tests-grid { grid-template-columns: 1fr; }
 }
 </style>

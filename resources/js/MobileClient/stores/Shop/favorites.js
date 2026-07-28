@@ -49,6 +49,32 @@ export const useFavoritesStore = defineStore('favorites', {
             }
         },
 
+        async loadPartnersFavorites() {
+            this.isLoading = true;
+            this.lastError = null;
+
+            try {
+                console.log('[FavoritesStore] GET', BASE);
+                const response = await axios.get(`${BASE}/fav-partners`);
+
+                console.log('[FavoritesStore] Response:', response.data);
+
+                const ids = response.data?.data?.ids || [];
+                this.favoriteIds = Array.isArray(ids) ? ids : [];
+                this.isHydrated = true;
+
+                console.log('[FavoritesStore] Loaded IDs:', this.favoriteIds);
+
+                return this.favoriteIds;
+            } catch (error) {
+                console.error('[FavoritesStore] Ошибка загрузки:', error);
+                this.lastError = error.response?.data?.message || 'Ошибка загрузки';
+                throw error;
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
         async loadFavoriteProducts() {
             if (this.favoriteIds.length === 0) {
                 this.favoriteProducts = [];

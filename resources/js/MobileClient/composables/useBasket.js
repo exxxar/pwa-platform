@@ -1,15 +1,19 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
 
 /**
- * Composable для работы с корзиной
+ * Composable для работы с корзиной.
+ * Оптимизирован: убрана лишняя реактивность и шаблонный код.
  */
 export function useBasket() {
     const store = useBasketStore();
 
-    // Реактивные ссылки на состояние
+    // ==========================================
+    // 1. ЕДИНАЯ ДЕСТРУКТУРИЗАЦИЯ (State + Getters)
+    // ==========================================
+    // Геттеры Pinia уже реактивны, берем их напрямую через storeToRefs
     const {
+        // Состояние
         basket_items,
         basket_items_paginate_object,
         isLoading,
@@ -19,198 +23,57 @@ export function useBasket() {
         lastError,
         errors,
         lastSyncAt,
+
+        // Геттеры (без лишних computed!)
+        cartTotalCount,
+        cartTotalPrice,
+        isEmpty,
+        inCart,
+        inCollectionCart,
+        getItemById,
+        getCollectionById,
     } = storeToRefs(store);
 
-    // Реактивные геттеры
-    const cartTotalCount = computed(() => store.cartTotalCount);
-    const cartTotalPrice = computed(() => store.cartTotalPrice);
-    const isEmpty = computed(() => store.isEmpty);
+    // ==========================================
+    // 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+    // ==========================================
+    const isProductLoading = (productId) => store.isProductLoading(productId);
 
-    /**
-     * Проверка, загружается ли товар
-     */
-    const isProductLoading = (productId) => {
-        return store.isProductLoading(productId);
+    // Фабрика для создания методов с защитой от двойного клика
+    const withLoadingGuard = (actionFn) => (productId) => {
+        if (isProductLoading(productId)) return Promise.resolve();
+        return actionFn(productId);
     };
 
-    /**
-     * Безопасное добавление товара
-     */
-    const addProduct = async (productId) => {
-        if (isProductLoading(productId)) return;
+    // ==========================================
+    // 3. МЕТОДЫ (Без избыточного try/catch)
+    // ==========================================
+    // Мы просто возвращаем Promise из стора.
+    // Обработкой ошибок (показом тостов) должен заниматься компонент или глобальный перехватчик.
 
-        try {
-            return await store.addProductToCart(productId);
-        } catch (error) {
-            console.error('Ошибка добавления товара:', error);
-            throw error;
-        }
-    };
+    // Товары (с защитой от спама кликами)
+    const addProduct = withLoadingGuard(store.addProductToCart);
+    const removeProduct = withLoadingGuard(store.removeProductFromCart);
+    const removeProductCompletely = withLoadingGuard(store.removeProduct);
+    const incrementQuantity = withLoadingGuard(store.incQuantity);
+    const decrementQuantity = withLoadingGuard(store.decQuantity);
 
-    /**
-     * Безопасное удаление товара (уменьшение количества)
-     */
-    const removeProduct = async (productId) => {
-        if (isProductLoading(productId)) return;
+    // Подборки (коллекции)
+    const addCollection = (collection) => store.addCollectionToCart(collection);
+    const incrementCollection = (payload) => store.incCollectionQuantity(payload);
+    const decrementCollection = (payload) => store.decCollectionQuantity(payload);
+    const removeCollection = (payload) => store.removeCollectionFromCart(payload);
 
-        try {
-            return await store.removeProductFromCart(productId);
-        } catch (error) {
-            console.error('Ошибка удаления товара:', error);
-            throw error;
-        }
-    };
+    // Прочие действия
+    const addComment = (payload) => store.addCommentToProduct(payload);
+    const clearCart = () => store.clearCart();
+    const loadProductsInBasket = (payload = {}) => store.loadProductsInBasket(payload);
+    const startCheckout = (payload) => store.startCheckout(payload);
+    const createCheckoutLink = (payload) => store.createCheckoutLink(payload);
 
-    /**
-     * Полное удаление товара из корзины
-     */
-    const removeProductCompletely = async (productId) => {
-        if (isProductLoading(productId)) return;
-
-        try {
-            return await store.removeProduct(productId);
-        } catch (error) {
-            console.error('Ошибка полного удаления товара:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Увеличение количества товара
-     */
-    const incrementQuantity = async (productId) => {
-        if (isProductLoading(productId)) return;
-
-        try {
-            return await store.incQuantity(productId);
-        } catch (error) {
-            console.error('Ошибка увеличения количества:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Уменьшение количества товара
-     */
-    const decrementQuantity = async (productId) => {
-        if (isProductLoading(productId)) return;
-
-        try {
-            return await store.decQuantity(productId);
-        } catch (error) {
-            console.error('Ошибка уменьшения количества:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Добавление подборки
-     */
-    const addCollection = async (collection) => {
-        try {
-            return await store.addCollectionToCart(collection);
-        } catch (error) {
-            console.error('Ошибка добавления подборки:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Увеличение количества подборки
-     */
-    const incrementCollection = async (payload) => {
-        try {
-            return await store.incCollectionQuantity(payload);
-        } catch (error) {
-            console.error('Ошибка увеличения подборки:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Уменьшение количества подборки
-     */
-    const decrementCollection = async (payload) => {
-        try {
-            return await store.decCollectionQuantity(payload);
-        } catch (error) {
-            console.error('Ошибка уменьшения подборки:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Удаление подборки
-     */
-    const removeCollection = async (payload) => {
-        try {
-            return await store.removeCollectionFromCart(payload);
-        } catch (error) {
-            console.error('Ошибка удаления подборки:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Добавление комментария
-     */
-    const addComment = async (payload) => {
-        try {
-            return await store.addCommentToProduct(payload);
-        } catch (error) {
-            console.error('Ошибка добавления комментария:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Очистка корзины
-     */
-    const clearCart = async () => {
-        try {
-            await store.clearCart();
-        } catch (error) {
-            console.error('Ошибка очистки корзины:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Загрузка корзины
-     */
-    const loadProductsInBasket = async (payload = {}) => {
-        try {
-            return await store.loadProductsInBasket(payload);
-        } catch (error) {
-            console.error('Ошибка загрузки корзины:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Оформление заказа
-     */
-    const startCheckout = async (payload) => {
-        try {
-            return await store.startCheckout(payload);
-        } catch (error) {
-            console.error('Ошибка оформления заказа:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * Создание ссылки на оплату
-     */
-    const createCheckoutLink = async (payload) => {
-        try {
-            return await store.createCheckoutLink(payload);
-        } catch (error) {
-            console.error('Ошибка создания ссылки:', error);
-            throw error;
-        }
-    };
-
+    // ==========================================
+    // 4. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
+    // ==========================================
     return {
         // Состояние
         basket_items,
@@ -227,38 +90,34 @@ export function useBasket() {
         cartTotalCount,
         cartTotalPrice,
         isEmpty,
-        inCart: store.inCart,
-        inCollectionCart: store.inCollectionCart,
-        getItemById: store.getItemById,
-        getCollectionById: store.getCollectionById,
+        inCart,
+        inCollectionCart,
+        getItemById,
+        getCollectionById,
         isProductLoading,
 
-        // Товары
+        // Методы: Товары
         addProduct,
         removeProduct,
         removeProductCompletely,
         incrementQuantity,
         decrementQuantity,
 
-        // Подборки
+        // Методы: Подборки
         addCollection,
         incrementCollection,
         decrementCollection,
         removeCollection,
 
-        // Комментарии
+        // Методы: Общие
         addComment,
-
-        // Оформление
         loadProductsInBasket,
         startCheckout,
         createCheckoutLink,
-        useWheelOfFortunePrize: store.useWheelOfFortunePrize,
-
-        // Очистка
         clearCart,
 
-        // Сброс
+        // Прямые ссылки на методы стора, не требующие обертки
+        useWheelOfFortunePrize: store.useWheelOfFortunePrize,
         $reset: store.$reset,
     };
 }

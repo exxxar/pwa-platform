@@ -562,7 +562,7 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Переключение партнёра в избранном (оптимистично)
          */
-        async togglePartnerInFavorites(payload = {form: null}) {
+        async togglePartnerInFavorites(payload) {
             const partnerId = payload?.id || payload?.partner_id;
             if (!partnerId) {
                 throw new Error('Не указан ID партнёра');
@@ -580,6 +580,8 @@ export const usePartnersStore = defineStore('partners', {
                 // Отправляем на сервер именно то, что ему нужно (например, { id: partnerId })
                 const response = await axios.post(`${BASE}/toggle-favorite`, {id: partnerId});
                 const result = response.data?.data || response.data;
+
+                window.TenantUser.settings.fav_partners = result.fav_partners
 
                 if (partner && result) {
                     partner.is_favorite = result.is_favorite ?? !previousState;
@@ -600,7 +602,7 @@ export const usePartnersStore = defineStore('partners', {
         /**
          * Загрузка товаров партнёра по категориям
          */
-        async loadProductsByCategory(payload = { partner_id: null }) {
+        async loadProductsByCategory(payload = {partner_id: null}) {
             if (!payload.partner_id) {
                 throw new Error('partner_id is required');
             }
@@ -609,25 +611,25 @@ export const usePartnersStore = defineStore('partners', {
 
             // 🆕 ОПТИМИЗАЦИЯ: Если товары уже загружены и не пусты, не делаем запрос к серверу
             if (this.partnerProducts[partnerId] && this.partnerProducts[partnerId].categories.length > 0) {
-                return { data: this.partnerProducts[partnerId].categories, cached: true };
+                return {data: this.partnerProducts[partnerId].categories, cached: true};
             }
 
             // Инициализируем состояние
             if (!this.partnerProducts[partnerId]) {
-                this.partnerProducts[partnerId] = { categories: [], loading: false };
+                this.partnerProducts[partnerId] = {categories: [], loading: false};
             }
 
             this.partnerProducts[partnerId].loading = true;
 
             try {
                 const response = await axios.get(`${BASE}/products-by-category`, {
-                    params: { partner_id: payload.partner_id },
+                    params: {partner_id: payload.partner_id},
                 });
 
                 const categories = response.data?.data || response.data || [];
                 this.partnerProducts[partnerId].categories = categories;
 
-                return { data: categories };
+                return {data: categories};
             } catch (err) {
                 console.error('[Partners] Ошибка загрузки товаров партнёра:', err);
                 throw err;

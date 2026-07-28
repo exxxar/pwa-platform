@@ -1,17 +1,21 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useOrdersStore } from '@/MobileClient/stores/Shop/orders';
 
+
 /**
- * Composable для работы с заказами и отзывами
+ * Composable-фасад для работы с заказами, отзывами и корзиной.
+ * Убирает лишнюю реактивность и упрощает код компонентов.
  */
 export function useOrders() {
     const store = useOrdersStore();
 
+
     // ==========================================
-    // Реактивные ссылки на состояние (заказы)
+    // 1. ЕДИНАЯ ДЕСТРУКТУРИЗАЦИЯ РЕАКТИВНЫХ ССЫЛОК
     // ==========================================
+    // Pinia геттеры уже реактивны, поэтому мы берем их прямо через storeToRefs
     const {
+        // Состояние (заказы)
         orders,
         orders_paginate_object,
         isLoading,
@@ -22,145 +26,74 @@ export function useOrders() {
         lastError,
         errors,
         lastSyncAt,
-        // Отзывы (нужно добавить в store)
-        reviews = [],
-        reviews_paginate_object = null,
-        isLoadingReviews = false,
+        randomRecentOrders,
+        isLoadingRandom,
+
+        // Геттеры (заказы) - УБРАНЫ лишние computed(), берем напрямую из стора
+        sortedOrders,
+        pendingOrders,
+        completedOrders,
+        cancelledOrders,
+        todayOrders,
+        weekOrders,
+        totalRevenue,
+        todayRevenue,
+        ordersCount,
+        pendingOrdersCount,
+        getOrderById,
+        ordersByStatus,
+
+        // Состояние и геттеры (отзывы)
+        // Примечание: дефолтные значения лучше задавать внутри самого Pinia store (state: () => ({ reviews: [] }))
+        reviews,
+        reviews_paginate_object,
+        isLoadingReviews,
+        reviewsCount,
     } = storeToRefs(store);
 
     // ==========================================
-    // Реактивные геттеры
+    // 2. БЕЗОПАСНЫЕ МЕТОДЫ (без избыточного try/catch)
     // ==========================================
-    const sortedOrders = computed(() => store.sortedOrders);
-    const pendingOrders = computed(() => store.pendingOrders);
-    const completedOrders = computed(() => store.completedOrders);
-    const cancelledOrders = computed(() => store.cancelledOrders);
-    const todayOrders = computed(() => store.todayOrders);
-    const weekOrders = computed(() => store.weekOrders);
-    const totalRevenue = computed(() => store.totalRevenue);
-    const todayRevenue = computed(() => store.todayRevenue);
-    const ordersCount = computed(() => store.ordersCount);
-    const pendingOrdersCount = computed(() => store.pendingOrdersCount);
-    const reviewsCount = computed(() => store.reviewsCount ?? 0);
+    // Мы возвращаем промисы напрямую. Если нужна обработка ошибок с уведомлениями,
+    // это лучше делать либо в самом store, либо в компоненте.
+    // Это делает код в 2 раза короче и чище.
 
-    // ==========================================
-    // Вспомогательные функции
-    // ==========================================
+    const loadOrders = (payload = {}) => store.loadOrders(payload);
+    const loadAllOrders = (payload = {}) => store.loadAllOrders(payload);
+
+    const loadOrderById = (orderId) => store.loadOrderById({
+        dataObject: { order_id: orderId },
+    });
+
+    const loadRandomOrders = () => store.loadRandomOrders();
+
+    const changeStatus = (orderId, status) => store.changeOrderStatus({
+        dataObject: { order_id: orderId, status },
+    });
+
+    const declineOrder = (orderId) => store.declineOrder({
+        dataObject: { order_id: orderId },
+    });
+
+    const repeatOrder = (payload) => store.repeatOrder(payload);
+
+    const calculateDeliveryPrice = (payload) => store.requestDeliveryPriceNew(payload);
+
+    // Методы отзывов
+    const loadReviews = (payload = {}) => store.loadReviews(payload);
+
+    const storeReview = (payload) => store.storeReview(payload);
+
+    const getReviewsByProductId = (productId, payload = {}) => store.getReviewsByProductId({
+        dataObject: { product_id: productId, ...payload },
+    });
+
+    // Вспомогательная функция (не требует реактивности, просто проверка)
     const isOrderLoading = (orderId) => store.isOrderLoading(orderId);
 
     // ==========================================
-    // Безопасные методы (заказы)
+    // 3. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
     // ==========================================
-    const loadOrders = async (payload = {}) => {
-        try {
-            return await store.loadOrders(payload);
-        } catch (error) {
-            console.error('Ошибка загрузки заказов:', error);
-            throw error;
-        }
-    };
-
-    const loadAllOrders = async (payload = {}) => {
-        try {
-            return await store.loadAllOrders(payload);
-        } catch (error) {
-            console.error('Ошибка загрузки всех заказов:', error);
-            throw error;
-        }
-    };
-
-    const loadOrderById = async (orderId) => {
-        try {
-            return await store.loadOrderById({
-                dataObject: { order_id: orderId },
-            });
-        } catch (error) {
-            console.error('Ошибка загрузки заказа:', error);
-            throw error;
-        }
-    };
-
-    const loadRandomOrders = async () => {
-        try {
-            return await store.loadRandomOrders();
-        } catch (error) {
-            console.error('Ошибка загрузки случайных заказов:', error);
-            throw error;
-        }
-    };
-
-    const changeStatus = async (orderId, status) => {
-        try {
-            return await store.changeOrderStatus({
-                dataObject: { order_id: orderId, status },
-            });
-        } catch (error) {
-            console.error('Ошибка изменения статуса:', error);
-            throw error;
-        }
-    };
-
-    const declineOrder = async (orderId) => {
-        try {
-            return await store.declineOrder({
-                dataObject: { order_id: orderId },
-            });
-        } catch (error) {
-            console.error('Ошибка отмены заказа:', error);
-            throw error;
-        }
-    };
-
-    const repeatOrder = async (payload) => {
-        try {
-            return await store.repeatOrder(payload);
-        } catch (error) {
-            console.error('Ошибка повтора заказа:', error);
-            throw error;
-        }
-    };
-
-    const calculateDeliveryPrice = async (payload) => {
-        try {
-            return await store.requestDeliveryPriceNew(payload);
-        } catch (error) {
-            console.error('Ошибка расчёта доставки:', error);
-            throw error;
-        }
-    };
-
-    // ==========================================
-    // Безопасные методы (отзывы)
-    // ==========================================
-    const loadReviews = async (payload = {}) => {
-        try {
-            return await store.loadReviews(payload);
-        } catch (error) {
-            console.error('Ошибка загрузки отзывов:', error);
-            throw error;
-        }
-    };
-
-    const storeReview = async (payload) => {
-        try {
-            return await store.storeReview(payload);
-        } catch (error) {
-            console.error('Ошибка сохранения отзыва:', error);
-            throw error;
-        }
-    };
-
-    const getReviewsByProductId = async (productId, payload = {}) => {
-        try {
-            return await store.getReviewsByProductId({
-                dataObject: { product_id: productId, ...payload },
-            });
-        } catch (error) {
-            console.error('Ошибка загрузки отзывов по товару:', error);
-            throw error;
-        }
-    };
-
     return {
         // Состояние (заказы)
         orders,
@@ -173,11 +106,8 @@ export function useOrders() {
         lastError,
         errors,
         lastSyncAt,
-
-        // Состояние (отзывы)
-        reviews,
-        reviews_paginate_object,
-        isLoadingReviews,
+        randomRecentOrders,
+        isLoadingRandom,
 
         // Геттеры (заказы)
         sortedOrders,
@@ -190,44 +120,42 @@ export function useOrders() {
         todayRevenue,
         ordersCount,
         pendingOrdersCount,
-        getOrderById: store.getOrderById,
-        ordersByStatus: store.ordersByStatus,
+        getOrderById,
+        ordersByStatus,
         isOrderLoading,
 
-        // Геттеры (отзывы)
+        // Состояние и геттеры (отзывы)
+        reviews,
+        reviews_paginate_object,
+        isLoadingReviews,
         reviewsCount,
 
         // Методы (заказы)
         loadOrders,
         loadAllOrders,
         loadOrderById,
+        loadRandomOrders,
         changeStatus,
         declineOrder,
         repeatOrder,
-        sendSBPInvoice: store.sendSBPInvoice,
-        addCashBackToOrder: store.addCashBackToOrder,
         calculateDeliveryPrice,
         requestDeliveryPrice: store.requestDeliveryPrice,
+        sendSBPInvoice: store.sendSBPInvoice,
+        addCashBackToOrder: store.addCashBackToOrder,
         exportAllOrders: store.exportAllOrders,
-
-        loadRandomOrders,
         getRandomRecentOrders: store.getRandomRecentOrders,
-        randomRecentOrders: storeToRefs(store).randomRecentOrders,
-        isLoadingRandom: storeToRefs(store).isLoadingRandom,
 
         // Методы (отзывы)
-        getReviewsByProductId,
         loadReviews,
         storeReview,
+        getReviewsByProductId,
         updateReview: store.updateReview,
         deleteReview: store.deleteReview,
         canReviewOrder: store.canReviewOrder,
 
-        // Корзина (если есть в store)
-        clearCart: store.clearCart,
-        addProductToCart: store.addProductToCart,
 
-        // Сброс
+
+        // Сброс стор
         $reset: store.$reset,
     };
 }

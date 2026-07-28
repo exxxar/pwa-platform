@@ -48,54 +48,56 @@ export default {
             default: () => ({}),
         },
     },
+
     data() {
         return {
             unreadInterval: null,
         };
     },
+
     setup() {
+        // Инициализируем компосаблы
         const favorites = useFavorites();
         const basket = useBasket();
         const chat = useChat();
         const products = useProducts();
 
-
-        return { favorites, basket, chat, products };
+        return {
+            favorites,
+            basket,
+            chat,
+            products
+        };
     },
 
     computed: {
         self() {
             return window.TenantUser || null;
         },
+
+        // 🆕 ИСПРАВЛЕНО: Убрано лишнее .value. Vue уже распаковал ref из setup()
         totalUnread() {
-            return this.chat.totalUnread.value;
+            return this.chat.totalUnread || 0;
         },
+
         qr() {
-            // Исправлено: используем tenant.link вместо несуществующего this.link
             const link = this.tenant?.link || '';
             return `https://api.qrserver.com/v1/create-qr-code/?size=450x450&qzone=2&data=${encodeURIComponent(link)}`;
         }
     },
 
     created() {
-
         // Инициализация глобальных переменных
         window.TenantUser = this.tenant_user || null;
-        window.Tenant = this.tenant; // ← С большой буквы
-        // Проверяем расписание работы
-        const schedule = this.tenant?.settings?.schedule || [];
+        window.Tenant = this.tenant;
 
+        const schedule = this.tenant?.settings?.schedule || [];
         if (this.isCorrectSchedule(schedule)) {
             const isWork = this.checkIsWork(schedule);
-
-            // Добавляем is_work в настройки
             if (this.tenant?.settings) {
                 this.tenant.settings.is_work = isWork;
             }
-
-            console.log("Is work:", isWork);
         } else {
-            console.warn("Schedule is invalid or empty");
             if (this.tenant?.settings) {
                 this.tenant.settings.is_work = false;
             }
@@ -103,118 +105,86 @@ export default {
     },
 
     async mounted() {
-
+        // 1. Сначала синхронно заполняем сторы начальными данными (если они есть)
         this.initializeStores();
-        // Параллельно загружаем корзину и избранное
-        try {
-            await Promise.allSettled([
-                this.favorites.loadFavorites(),
-                this.basket.loadProductsInBasket(),
-                // Загружаем начальный счётчик
-                await this.chat.fetchUnreadCount()
-            ]);
 
-            // Обновляем каждые 30 секунд
+        // 2. 🆕 ИСПРАВЛЕНО: Загружаем данные ТОЛЬКО если они еще не были гидратированы из initial_data
+        // Это предотвращает ДВОЙНОЙ запрос и сброс корзины в пустой массив
+        try {
+            const promises = [];
+
+            if (!this.basket.isHydrated) {
+                promises.push(this.basket.loadProductsInBasket());
+            }
+            if (!this.favorites.isHydrated) {
+                promises.push(this.favorites.loadFavorites());
+            }
+
+            // Загружаем счетчик чатов (он легкий)
+            promises.push(this.chat.fetchUnreadCount());
+
+            await Promise.allSettled(promises);
+
+            // Обновляем счетчик чатов каждую минуту
             this.unreadInterval = setInterval(async () => {
                 try {
                     await this.chat.fetchUnreadCount();
                 } catch (error) {
-                    // Игнорируем ошибки
+                    console.warn('Ошибка обновления счетчика чатов:', error);
                 }
             }, 60000);
+
         } catch (error) {
-            console.error('Ошибка инициализации:', error);
+            console.error('Критическая ошибка инициализации App.vue:', error);
         }
-
-
     },
+
     beforeUnmount() {
         if (this.unreadInterval) {
             clearInterval(this.unreadInterval);
         }
     },
-    methods: {
 
+    methods: {
         initializeStores() {
             const data = this.initial_data || {};
 
-            // 1. Инициализация чатов
             if (data.chats) {
                 this.chat.setInitialData(data.chats);
             }
-
-            // 2. Инициализация корзины
             if (data.cart) {
                 this.basket.setInitialData(data.cart);
             }
-
-            // 3. Инициализация товаров
             if (data.recommendations) {
                 this.products.setRecommendations(data.recommendations);
             }
-
-            // 4. Количество товаров в каталоге
             if (data.products_count) {
                 this.products.setTotalCount(data.products_count);
             }
-
-            console.log('✅ Stores initialized from initial_data');
         },
-        /**
-         * Проверяет корректность массива расписания
-         * @param {Array} schedule - массив из 7 дней
-         * @returns {boolean}
-         */
+
         isCorrectSchedule(schedule) {
-            if (!Array.isArray(schedule) || schedule.length !== 7) {
-                return false;
-            }
-
+            if (!Array.isArray(schedule) || schedule.length !== 7) return false;
             return schedule.every(day => {
-                if (!day || typeof day !== "object") {
-                    return false;
-                }
-
-                // closed может быть true/false
-                if (typeof day.closed !== "boolean") {
-                    return false;
-                }
-
-                // если день не закрыт — должны быть start_at и end_at
+                if (!day || typeof day !== "object") return false;
+                if (typeof day.closed !== "boolean") return false;
                 if (!day.closed) {
-                    if (typeof day.start_at !== "string") return false;
-                    if (typeof day.end_at !== "string") return false;
-
-                    // простая проверка формата HH:MM
-                    if (!/^\d{2}:\d{2}$/.test(day.start_at)) return false;
-                    if (!/^\d{2}:\d{2}$/.test(day.end_at)) return false;
+                    if (typeof day.start_at !== "string" || !/^\d{2}:\d{2}$/.test(day.start_at)) return false;
+                    if (typeof day.end_at !== "string" || !/^\d{2}:\d{2}$/.test(day.end_at)) return false;
                 }
-
                 return true;
             });
         },
 
-        /**
-         * Проверяет, работает ли бизнес сейчас
-         * @param {Array} schedule - массив из 7 дней (понедельник = 0, воскресенье = 6)
-         * @returns {boolean}
-         */
         checkIsWork(schedule) {
-            if (!schedule || schedule.length === 0) {
-                return true; // Если расписания нет — считаем, что работаем
-            }
+            if (!schedule || schedule.length === 0) return true;
 
             const now = new Date();
-            const day = now.getDay(); // 0 = воскресенье, 1 = понедельник, ..., 6 = суббота
-
-            // Конвертируем: 0 = понедельник, 6 = воскресенье
+            const day = now.getDay();
             const adjustedDay = day === 0 ? 6 : day - 1;
             const today = schedule[adjustedDay];
 
-            // Если для текущего дня нет настроек или день закрыт
-            if (!today || today.closed) {
-                return false;
-            }
+            if (!today || today.closed) return false;
 
             const [startH, startM] = (today.start_at || "08:00").split(":").map(Number);
             const [endH, endM] = (today.end_at || "20:00").split(":").map(Number);
@@ -224,16 +194,15 @@ export default {
             const endMinutes = endH * 60 + endM;
 
             if (startMinutes <= endMinutes) {
-                // Обычный график (например 08:00–20:00)
                 return nowMinutes >= startMinutes && nowMinutes < endMinutes;
             } else {
-                // График через полночь (например 20:00–04:00)
                 return nowMinutes >= startMinutes || nowMinutes < endMinutes;
             }
         }
     }
 }
 </script>
+
 <style>
 .page-fade-enter-active,
 .page-fade-leave-active {

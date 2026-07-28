@@ -137,6 +137,7 @@ $routes = function () {
 
     Route::prefix('favorites')->middleware(['auth:tenant'])->group(function () {
         Route::get('/', [FavoriteController::class, 'index']);
+        Route::get('/fav-partners', [FavoriteController::class, 'favPartners']);
         Route::get('/products', [FavoriteController::class, 'products']);
         Route::post('/', [FavoriteController::class, 'store']);
         Route::delete('/{productId}', [FavoriteController::class, 'destroy']);

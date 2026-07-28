@@ -154,16 +154,22 @@
 
                 <div v-else class="partners-list">
                     <div class="partners-grid" :class="{ 'grid-view': viewMode === 'grid' }">
-                        <PartnerCard
-                            v-for="partner in filteredPartners"
-                            :key="partner.id"
-                            :partner="partner"
-                            :is-favorite="isFavorite(partner.id)"
-                            :view-mode="viewMode"
-                            @select="selectPartner"
-                            @toggle-favorite="toggleFavorite"
-                            @show-location="showPartnerLocation"
-                        />
+
+
+                        <div  v-for="partner in filteredPartners">
+
+                            <PartnerCard
+
+                                :key="partner.id"
+                                :partner="partner"
+                                :is-favorite="isFavorite(partner.id)"
+                                :view-mode="viewMode"
+                                @select="selectPartner"
+                                @toggle-favorite="toggleFavorite"
+                                @show-location="showPartnerLocation"
+                            />
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -567,6 +573,8 @@ export default {
         },
         favoriteIds() {
             const self = window.TenantUser || null;
+
+
             return self?.settings?.fav_partners || [];
         },
 
@@ -718,7 +726,7 @@ export default {
         },
 
         isFavorite(partnerId) {
-            return this.favoriteIds.includes(partnerId);
+            return this.favoriteIds.some(id => Number(id) === partnerId);
         },
 
         // 🆕 Обновленный сброс всех фильтров

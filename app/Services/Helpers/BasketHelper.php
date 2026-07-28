@@ -445,6 +445,7 @@ trait BasketHelper
                 $partnerProductBox[$uuid]["message"] .= sprintf("💎%s x%s %s=%s руб.%s\n", $item->product->name, $item->count, $unitOfMeasure, $price, $comment);
 
                 $tmpOrderProductInfo[] = [
+                    "id"=>$item->product->id,
                     "name" => $item->product->name, "count" => $item->count, "price" => $this->safeFloat($price),
                     'external_source' => $item->product->external_source ?? null, 'external_id' => $item->product->external_id ?? null,
                 ];
@@ -465,6 +466,7 @@ trait BasketHelper
                     $collectionPrice += ($product->price ?? 0) * (1 + $extraCharge / 100);
 
                     $tmpOrderProductInfo[] = [
+                        "id"=>$product->id,
                         "name" => "Коллекция `{$item->collection->name}`: {$product->name}", "count" => 1,
                         "price" => $this->safeFloat($product->price ?? 0),
                         'external_source' => $product->external_source ?? null, 'external_id' => $product->external_id ?? null,
@@ -507,7 +509,10 @@ trait BasketHelper
         return Order::query()->create([
             'tenant_id' => $this->tenant->id, 'tenant_user_id' => $this->tenantUser->id,
             'delivery_service_info' => null, 'deliveryman_info' => null,
-            'product_details' => [["from" => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин', "products" => $basketData['product_info']]],
+            'product_details' => [
+                "from" => $this->tenant->name ?? 'Магазин',
+                "products" => $basketData['product_info']
+            ],
             'product_count' => (int) $basketData['summary_count'], 'summary_price' => $basketData['final_price'],
             'delivery_price' => $context['delivery_price'], 'delivery_range' => $context['distance'],
             'deliveryman_latitude' => $context['lat'], 'deliveryman_longitude' => $context['lng'],

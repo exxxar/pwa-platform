@@ -1,16 +1,20 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useChatStore } from '@/MobileClient/stores/Shop/chat.js';
 
 /**
- * Composable для работы с чатом
+ * Composable для работы с чатом.
+ * Оптимизирован: убрана лишняя реактивность и шаблонный код.
  */
 export function useChat() {
     const store = useChatStore();
 
-    // Реактивные ссылки на состояние
+    // ==========================================
+    // 1. ЕДИНАЯ ДЕСТРУКТУРИЗАЦИЯ (State + Getters)
+    // ==========================================
+    // Геттеры Pinia УЖЕ являются вычисляемыми (computed) свойствами.
+    // Оборачивать их в computed() — это анти-паттерн, создающий лишний слой реактивности.
     const {
-
+        // Состояние
         dialogs,
         messages,
         currentDialog,
@@ -23,74 +27,34 @@ export function useChat() {
         lastError,
         lastSyncAt,
         hasMoreMessages,
+
+        // Геттеры (берем напрямую, они уже реактивны!)
+        sortedDialogs,
+        activeDialogs,
+        archivedDialogs,
+        activeDialogsCount,
+        archivedDialogsCount,
+        totalUnread,
+        currentInterlocutor,
+        sortedMessages,
+        getDialogById,
     } = storeToRefs(store);
 
-    // Реактивные геттеры
-    const sortedDialogs = computed(() => store.sortedDialogs);
-    const activeDialogs = computed(() => store.activeDialogs);
-    const archivedDialogs = computed(() => store.archivedDialogs);
-    const activeDialogsCount = computed(() => store.activeDialogsCount);
-    const archivedDialogsCount = computed(() => store.archivedDialogsCount);
-    const totalUnread = computed(() => store.totalUnread);
-    const currentInterlocutor = computed(() => store.currentInterlocutor);
-    const sortedMessages = computed(() => store.sortedMessages);
-
-    /**
-     * Проверка, загружается ли диалог
-     */
-    const isDialogLoading = (dialogId) => {
-        return store.isDialogLoading(dialogId);
-    };
+    // ==========================================
+    // 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+    // ==========================================
+    const isDialogLoading = (dialogId) => store.isDialogLoading(dialogId);
 
     // ==========================================
-    // БАЗОВЫЕ МЕТОДЫ
+    // 3. МЕТОДЫ (Без избыточного try/catch)
     // ==========================================
+    // Мы просто возвращаем Promise из стора.
+    // Обработкой ошибок должен заниматься компонент (например, через watch или try/catch в методе компонента).
 
-
-    /**
-     * 🆕 Получить общее число непрочитанных
-     */
-    const fetchUnreadCount = async () => {
-        try {
-            return await store.fetchUnreadCount();
-        } catch (error) {
-            console.error('Ошибка получения непрочитанных:', error);
-            throw error;
-        }
-    };
-
-    /**
-     * 🆕 Получить число непрочитанных в диалоге
-     */
-    const fetchDialogUnreadCount = async (dialogId) => {
-        try {
-            return await store.fetchDialogUnreadCount(dialogId);
-        } catch (error) {
-            console.error('Ошибка:', error);
-            throw error;
-        }
-    };
-
-    const loadDialogs = async () => {
-        try {
-            return await store.loadDialogs();
-        } catch (error) {
-            console.error('Ошибка загрузки диалогов:', error);
-            throw error;
-        }
-    };
-
-
-
-    const openDialog = async (id) => {
-        try {
-            // Просто делегируем всю умную логику в store
-            return await store.openDialog(id);
-        } catch (error) {
-            console.error('Ошибка открытия диалога в useChat:', error);
-            throw error; // Пробрасываем ошибку, чтобы watch в Chat.vue её поймал
-        }
-    };
+    const fetchUnreadCount = () => store.fetchUnreadCount();
+    const fetchDialogUnreadCount = (dialogId) => store.fetchDialogUnreadCount(dialogId);
+    const loadDialogs = () => store.loadDialogs();
+    const openDialog = (id) => store.openDialog(id);
 
     const closeDialog = (router = null, routeName = 'Chat') => {
         store.closeDialog();
@@ -99,107 +63,41 @@ export function useChat() {
         }
     };
 
-    const markDialogAsRead = (dialogId) => {
-        store.markDialogAsRead(dialogId);
-    };
+    const markDialogAsRead = (dialogId) => store.markDialogAsRead(dialogId);
 
-    // ==========================================
-    // 🆕 АРХИВИРОВАНИЕ
-    // ==========================================
+    // Архивирование
+    const archiveDialog = (dialogId) => store.archiveDialog(dialogId);
+    const restoreDialog = (dialogId) => store.restoreDialog(dialogId);
+    const archiveMultiple = (dialogIds) => store.archiveMultiple(dialogIds);
+    const emptyArchive = () => store.emptyArchive();
 
-    const archiveDialog = async (dialogId) => {
-        try {
-            return await store.archiveDialog(dialogId);
-        } catch (error) {
-            console.error('Ошибка архивации:', error);
-            throw error;
-        }
-    };
+    // Удаление
+    const deleteDialogPermanently = (dialogId) => store.deleteDialogPermanently(dialogId);
 
-    const restoreDialog = async (dialogId) => {
-        try {
-            return await store.restoreDialog(dialogId);
-        } catch (error) {
-            console.error('Ошибка восстановления:', error);
-            throw error;
-        }
-    };
+    // Вложения
+    const getDialogAttachments = (dialogId) => store.getDialogAttachments(dialogId);
 
-    const archiveMultiple = async (dialogIds) => {
-        try {
-            return await store.archiveMultiple(dialogIds);
-        } catch (error) {
-            console.error('Ошибка массового архивирования:', error);
-            throw error;
-        }
-    };
-
-    const emptyArchive = async () => {
-        try {
-            return await store.emptyArchive();
-        } catch (error) {
-            console.error('Ошибка очистки архива:', error);
-            throw error;
-        }
-    };
-
-    // ==========================================
-    // 🆕 УДАЛЕНИЕ
-    // ==========================================
-
-    const deleteDialogPermanently = async (dialogId) => {
-        try {
-            return await store.deleteDialogPermanently(dialogId);
-        } catch (error) {
-            console.error('Ошибка удаления диалога:', error);
-            throw error;
-        }
-    };
-
-    // ==========================================
-    // 🆕 ВЛОЖЕНИЯ
-    // ==========================================
-
-    const getDialogAttachments = async (dialogId) => {
-        try {
-            return await store.getDialogAttachments(dialogId);
-        } catch (error) {
-            console.error('Ошибка загрузки вложений:', error);
-            throw error;
-        }
-    };
-
-    // ==========================================
-    // СООБЩЕНИЯ
-    // ==========================================
-
-    const sendMessage = async (dialogId, payload) => {
+    // Сообщения
+    const sendMessage = (dialogId, payload) => {
         if (!dialogId) {
             throw new Error('Не указан ID диалога');
         }
-
-        try {
-            // Передаем dialogId и payload (объект) напрямую в store, как мы и договорились
-            return await store.sendMessage(dialogId, payload);
-        } catch (error) {
-            console.error('Ошибка отправки сообщения:', error);
-            throw error;
-        }
+        return store.sendMessage(dialogId, payload);
     };
-
 
     const loadOlderMessages = async () => {
         if (!store.currentDialog) return [];
-
         try {
             return await store.loadOlderMessages(store.currentDialog.id);
         } catch (error) {
             console.error('Ошибка загрузки старых сообщений:', error);
-            return [];
+            return []; // Здесь try/catch оправдан, так как мы возвращаем fallback-значение
         }
     };
 
-
+    // ==========================================
+    // 4. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
+    // ==========================================
     return {
         // Состояние
         dialogs,
@@ -225,9 +123,9 @@ export function useChat() {
         currentInterlocutor,
         sortedMessages,
         isDialogLoading,
-        getDialogById: store.getDialogById,
+        getDialogById,
 
-        // Базовые методы
+        // Методы: Базовые
         loadDialogs,
         openDialog,
         closeDialog,
@@ -236,19 +134,15 @@ export function useChat() {
         fetchDialogUnreadCount,
         setTotalUnreadCount: store.setTotalUnreadCount,
 
-        // 🆕 Архивирование
+        // Методы: Архивирование и Удаление
         archiveDialog,
         restoreDialog,
         archiveMultiple,
         emptyArchive,
-
-        // 🆕 Удаление
         deleteDialogPermanently,
 
-        // 🆕 Вложения
+        // Методы: Вложения и Сообщения
         getDialogAttachments,
-
-        // Сообщения
         sendMessage,
         loadOlderMessages,
         retryMessage: store.retryMessage,

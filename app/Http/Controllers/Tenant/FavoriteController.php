@@ -21,7 +21,7 @@ class FavoriteController extends Controller
             return response()->json(['data' => ['ids' => []]]);
         }
 
-        $favorites = $user->settings["settings"]['favorites'] ?? [];
+        $favorites = $user->settings['favorites'] ?? [];
 
 
         return response()->json([
@@ -32,6 +32,24 @@ class FavoriteController extends Controller
         ]);
     }
 
+    public function favPartners()
+    {
+        $user = Auth::guard('tenant')->user();
+
+        if (!$user) {
+            return response()->json(['data' => ['ids' => []]]);
+        }
+
+        $favorites = $user->settings["fav_partners"] ?? [];
+
+
+        return response()->json([
+            'data' => [
+                'ids' => $favorites,
+                'count' => count($favorites),
+            ],
+        ]);
+    }
 
 
     /**

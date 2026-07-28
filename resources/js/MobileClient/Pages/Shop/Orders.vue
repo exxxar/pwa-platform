@@ -97,6 +97,7 @@
                             </div>
                         </div>
 
+
                         <!-- Карточки заказов -->
                         <div
                             v-for="order in group.orders"
@@ -122,6 +123,7 @@
                                 <i class="fa-solid fa-clock"></i>
                                 <span>{{ formatDateTime(order.created_at) }}</span>
                             </div>
+
 
                             <!-- Товары -->
                             <div class="order-products" v-if="getOrderProducts(order).length>0">
@@ -160,6 +162,7 @@
 
                             <!-- Действия -->
                             <div class="order-actions" v-if="getOrderProducts(order).length>0">
+
                                 <button
                                     type="button"
                                     class="repeat-btn"
@@ -273,6 +276,7 @@ import { computed } from 'vue';
 import Pagination from '@/MobileClient/Components/Shop/Helpers/Pagination.vue';
 import ReviewCard from '@/MobileClient/Components/Shop/Reviews/ReviewCard.vue';
 import { useOrders } from '@/MobileClient/composables/useOrders.js';
+import { useBasket } from '@/MobileClient/composables/useBasket.js';
 import ReviewForm from '@/MobileClient/Components/Shop/Reviews/ReviewForm.vue';
 
 export default {
@@ -293,6 +297,7 @@ export default {
 
     setup() {
         const orderComposable = useOrders();
+        const basketComposable = useBasket();
 
         return {
             // Состояние заказов (из store через storeToRefs)
@@ -313,6 +318,8 @@ export default {
 
             // Методы (отзывы)
             loadReviews: orderComposable.loadReviews,
+
+            loadProductsInBasket: basketComposable.loadProductsInBasket,
 
             canReviewOrder: orderComposable.canReviewOrder,
             storeReview: orderComposable.storeReview,
@@ -491,44 +498,41 @@ export default {
         // ==========================================
         async repeatOrderHandler(item) {
             try {
-                // Маппинг: API возвращает name, repeatOrder ожидает titles
-                const productTitles = (item.product_details?.[0]?.products || [])
-                    .map(p => p.name || p.title);
+                // 1. Вызываем бэкенд.
+                // (Предполагается, что бэкенд сам очищает старую корзину и добавляет товары из этого заказа)
+                await this.repeatOrder({ id: item.id });
 
-                const resp = await this.repeatOrder({ products: productTitles });
-                const currentProducts = resp?.data || resp || [];
+                // 2. 🚀 КРИТИЧЕСКИ ВАЖНО: Загружаем актуальное состояние корзины с бэкенда!
+                // Это единственный способ гарантировать 100% синхронизацию и реактивность Vue.
+                // Метод loadProductsInBasket корректно обновит все ref-ы в Pinia store.
+                await this.loadProductsInBasket();
 
-                if (currentProducts.length === 0) {
-                    item.disabled = true;
-                    this.$notify?.({
-                        title: 'Корзина',
-                        text: 'Нет доступных к заказу товаров',
-                        type: 'warning',
-                    });
-                    return;
-                }
-
-                await this.clearCart();
-
-                for (const product of currentProducts) {
-                    await this.addProductToCart(product);
-                }
-
+                // 3. Показываем успешное уведомление
                 this.$notify?.({
-                    title: 'Корзина',
-                    text: 'Товары добавлены в корзину',
+                    title: 'Успешно',
+                    text: 'Заказ повторен и добавлен в корзину',
                     type: 'success',
                 });
 
-                this.$router.push({ name: 'ShopCart' });
+                this.$router.push({ name: 'Cart' }).catch(() => {});
+
 
             } catch (error) {
                 console.error('Ошибка повторного заказа:', error);
+
+                // Если бэкенд вернул ошибку (например, "нет доступных товаров"), покажем её
+                const errorMsg = error.response?.data?.message || 'Не удалось повторить заказ. Возможно, некоторые товары сняты с производства.';
+
                 this.$notify?.({
-                    title: 'Корзина',
-                    text: 'Ошибка формирования заказа',
+                    title: 'Ошибка',
+                    text: errorMsg,
                     type: 'error',
                 });
+
+                // Если бэкенд специально помечает товар как недоступный, можно заблокировать кнопку
+                if (error.response?.status === 400 || error.response?.status === 422) {
+                    item.disabled = true;
+                }
             }
         },
 
@@ -541,7 +545,8 @@ export default {
          * API: order.product_details[0].products[]
          */
         getOrderProducts(order) {
-            return order.product_details?.[0]?.products || [];
+            return order.product_details?.[0]?.products ||
+                order.product_details?.products || [];
         },
 
         /**
