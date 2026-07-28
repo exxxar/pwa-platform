@@ -5,7 +5,22 @@
         $tenant = \Illuminate\Support\Facades\Session::get("tenant")
     @endphp
     <meta charset="utf-8">
+    <!-- 1. Обязательный viewport для iOS (запрет зума и учет "челки" iPhone) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+    <!-- 2. Разрешает запуск в полноэкранном режиме (как нативное приложение) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <!-- 3. Стиль строки состояния (status bar).
+         Варианты: default (серый), black (черный), black-translucent (прозрачный, контент заходит под челку) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- 4. Название приложения на домашнем экране iOS (берем из ваших настроек или фоллбэк) -->
+    <meta name="apple-mobile-web-app-title" content="{{ $pwa['short_name'] ?? $tenant->short_name ?? 'Мое Приложение' }}">
+
+    <!-- 5. Иконка для iOS (Apple Touch Icon) -->
+    <!-- iOS не использует manifest.json для иконок на старых версиях, ей нужна эта ссылка -->
+    <link rel="apple-touch-icon" href="{{ $manifestIcons[0]['src'] ?? url('/storage/defaults/icons/icon-192x192.png') }}">
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 

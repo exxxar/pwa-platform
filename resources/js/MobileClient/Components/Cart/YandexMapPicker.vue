@@ -1,6 +1,21 @@
 <template>
     <div class="map-container">
 
+        <div v-if="nearestCitiesList.length > 0" class="search-city-chips">
+    <span class="chips-label">
+        <i class="fa-solid fa-magnifying-glass-location"></i> Город:
+    </span>
+            <button
+                v-for="city in nearestCitiesList"
+                :key="city"
+                type="button"
+                class="search-city-chip"
+                :class="{ 'active': searchCity === city }"
+                @click="selectCityForSearch(city)"
+            >
+                {{ city }}
+            </button>
+        </div>
 
         <div class="input-group mb-2">
 
@@ -87,6 +102,10 @@ export default {
         tenant() {
             return window.Tenant
         },
+        settings() {
+            return this.tenant?.settings || {};
+        },
+
         shopCoordsParsed() {
             const shopCoords = this.tenant?.settings?.shop_coords ?? null
 
@@ -106,7 +125,15 @@ export default {
                 lat,
                 lng
             }
-        }
+        },
+        nearestCitiesList() {
+            const rawCities = this.settings.shop?.nearest_cities || this.settings.nearest_cities || '';
+            if (!rawCities) return [];
+            return rawCities
+                .split(/[,\n]+/)
+                .map(city => city.trim())
+                .filter(city => city.length > 0);
+        },
     },
     data() {
         return {
@@ -114,8 +141,10 @@ export default {
             marker: null,
             searchQuery: "",
             city:"",
+
             coords: {lat: null, lng: null},
-            findAddress: ""
+            findAddress: "",
+
         };
     },
 
@@ -128,6 +157,31 @@ export default {
     },
 
     methods: {
+
+        selectCityForSearch(city) {
+            // Если уже выбран — снимаем выбор
+            if (this.city === city) {
+                this.city = '';
+                return;
+            }
+
+            this.city = city;
+
+            // Если поле поиска пустое — сразу подставляем город
+            if (!this.searchQuery.trim()) {
+                this.searchQuery = city;
+            }
+            // Если поле не пустое и город еще не в адресе — добавляем в начало
+            else if (!this.searchQuery.toLowerCase().includes(city.toLowerCase())) {
+                this.searchQuery = `${city}, ${this.searchQuery}`;
+            }
+
+            // Триггерим поиск (если у вас есть метод поиска)
+            this.$nextTick(() => {
+                this.searchAddress(); // или this.performSearch()
+            });
+        },
+
         initMap() {
             this.map = new maplibregl.Map({
                 container: this.$refs.map,
@@ -232,11 +286,93 @@ export default {
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .map {
     width: 100%;
     height: 450px;
     border-radius: 6px;
     overflow: hidden;
+}
+
+/* ==========================================
+   🆕 ЧИПСЫ ГОРОДОВ ДЛЯ ПОИСКА АДРЕСА
+   ========================================== */
+.search-city-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: rgba(var(--bs-primary-rgb, 102, 126, 234), 0.04);
+    border: 1px solid rgba(var(--bs-primary-rgb, 102, 126, 234), 0.1);
+    border-radius: 12px;
+}
+
+.chips-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-right: 4px;
+
+i {
+    color: var(--bs-primary);
+    font-size: 0.7rem;
+}
+}
+
+.search-city-chip {
+    padding: 6px 12px;
+    background: var(--bs-body-bg);
+    border: 1.5px solid var(--bs-border-color);
+    border-radius: 16px;
+    color: var(--bs-body-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+&:hover {
+     border-color: var(--bs-primary);
+     color: var(--bs-primary);
+     background: rgba(var(--bs-primary-rgb), 0.05);
+     transform: translateY(-1px);
+     box-shadow: 0 2px 8px rgba(var(--bs-primary-rgb), 0.15);
+ }
+
+&.active {
+     background: var(--bs-primary);
+     border-color: var(--bs-primary);
+     color: white;
+     box-shadow: 0 2px 8px rgba(var(--bs-primary-rgb), 0.3);
+ }
+
+&:active {
+     transform: scale(0.97);
+ }
+}
+
+/* Мобильная адаптация */
+@media (max-width: 576px) {
+    .search-city-chips {
+        gap: 5px;
+        padding: 8px 10px;
+    }
+
+    .chips-label {
+        width: 100%;
+        margin-bottom: 4px;
+    }
+
+    .search-city-chip {
+        padding: 5px 10px;
+        font-size: 0.75rem;
+    }
 }
 </style>

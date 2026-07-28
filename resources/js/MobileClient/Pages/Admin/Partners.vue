@@ -916,7 +916,7 @@ $admin-danger: #ef4444;
     background: $admin-card-bg;
     border: 1px solid $admin-border;
     border-radius: 14px;
-    padding: 16px;
+    padding: 10px;
 }
 
 .loading-state {

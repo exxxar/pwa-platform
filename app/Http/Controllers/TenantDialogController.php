@@ -98,7 +98,7 @@ class TenantDialogController extends Controller
         return response()->json($messages);
     }
 
-    public function sendMessage(Request $request, $dialogId)
+    public function sendMessage(Request $request, $tenant, $dialogId)
     {
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();

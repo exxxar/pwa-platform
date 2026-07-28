@@ -14,70 +14,38 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 trait BasketHelper
 {
-
     protected function safeInt($value): ?int
     {
-        if (is_null($value) || $value === '' || $value === false) {
-            return null;
-        }
-
-        if (is_numeric($value)) {
-            return (int) $value;
-        }
-
-        return null;
+        if (is_null($value) || $value === '' || $value === false) return null;
+        return is_numeric($value) ? (int) $value : null;
     }
 
-    /**
-     * Безопасное приведение к float или null
-     */
     protected function safeFloat($value): ?float
     {
-        if (is_null($value) || $value === '' || $value === false) {
-            return null;
-        }
-
-        if (is_numeric($value)) {
-            return (float) $value;
-        }
-
-        return null;
+        if (is_null($value) || $value === '' || $value === false) return null;
+        return is_numeric($value) ? (float) $value : null;
     }
 
-    /**
-     * Подготовка информации об ограничениях по здоровью
-     */
     private function fsPrepareDisabilities(): string
     {
         $hasDisability = ($this->data["has_disability"] ?? "false") === "true";
-
-        if (!$hasDisability) {
-            return '';
-        }
+        if (!$hasDisability) return '';
 
         $disabilities = json_decode($this->data["disabilities"] ?? '[]', true) ?: [];
         $allergy = $this->data["allergy"] ?? 'не указана';
-
-        $disabilitiesText = "<b>Внимание!</b> у клиента присутствуют ограничения по здоровью!\n";
+        $text = "<b>Внимание!</b> у клиента присутствуют ограничения по здоровью!\n";
 
         foreach ($disabilities as $disability) {
-            if ($disability === "пищевая аллергия") {
-                $disabilitiesText .= "-<em>$disability на: $allergy</em>\n";
-            } else {
-                $disabilitiesText .= "-<em>$disability</em>\n";
-            }
+            $text .= $disability === "пищевая аллергия"
+                ? "-<em>$disability на: $allergy</em>\n"
+                : "-<em>$disability</em>\n";
         }
-
-        return $disabilitiesText . "\n";
+        return $text . "\n";
     }
 
-    /**
-     * Подготовка информации о пользователе для сообщения
-     */
     private function fsPrepareUserInfo($order, $cashback = 0): string
     {
         $time = $this->data["time"] ?? null;
@@ -86,9 +54,6 @@ trait BasketHelper
         $whenReady = ($this->data["when_ready"] ?? "false") === "true";
         $needPickup = ($this->data["need_pickup"] ?? "false") === "true";
         $useCashback = ($this->data["use_cashback"] ?? "false") === "true";
-        $address = $this->data["address"] ?? "";
-        $lat = $this->data["lat"] ?? 0;
-        $lng = $this->data["lng"] ?? 0;
 
         $orderId = $order->id ?? '-';
         $userId = $this->tenantUser->id ?? '-';
@@ -104,172 +69,63 @@ trait BasketHelper
             return sprintf(
                 "\n%s Заказ №: <b>%s</b>\nИдентификатор клиента: <b>%s</b>\n\n" .
                 "<b>Данные для доставки:</b>\n" .
-                "Ф.И.О.: <b>%s</b>\n" .
-                "Номер телефона: <b>%s</b>\n" .
+                "Ф.И.О.: <b>%s</b>\nНомер телефона: <b>%s</b>\n" .
                 "Адрес: <code>%s,%s</code><code>(%s, %s)</code>\n" .
-                "Цена доставки: %s руб.\n" .
-                "Дистанция: %s км\n" .
-                "Номер подъезда: %s\n" .
-                "Номер этажа: %s\n" .
-                "Тип оплаты: <b>%s</b>\n" .
-                "Сдача с: %s руб.\n" .
-                "Доп.инфо: %s\n" .
-                "Использован кэшбэк: %s\n" .
-                "Доставить ко времени: %s\n" .
-                "Число персон: <b>%s</b> чел.\n",
-                $statusIcon,
-                $orderId,
-                $userId,
-                $name,
-                $phone,
-                $address,
-                $this->data["flat_number"] ?? "",
-                $lat,
-                $lng,
-                $order->delivery_price ?? 0,
-                $order->delivery_range ?? 0,
+                "Цена доставки: %s руб.\nДистанция: %s км\n" .
+                "Подъезд: %s\nЭтаж: %s\nТип оплаты: <b>%s</b>\n" .
+                "Сдача с: %s руб.\nДоп.инфо: %s\n" .
+                "Кэшбэк: %s\nДоставить ко времени: %s\nПерсон: <b>%s</b>\n",
+                $statusIcon, $orderId, $userId, $name, $phone,
+                $this->data["address"] ?? "", $this->data["flat_number"] ?? "",
+                $this->data["lat"] ?? 0, $this->data["lng"] ?? 0,
+                $order->delivery_price ?? 0, $order->delivery_range ?? 0,
                 $this->data["entrance_number"] ?? 'Не указано',
                 $this->data["floor_number"] ?? 'Не указано',
-                $cash,
-                $money,
-                $info,
-                $cashbackText,
-                $timeText,
-                $persons
+                $cash, $money, $info, $cashbackText, $timeText, $persons
             );
         }
 
         return sprintf(
             "\n%s Заказ №: <b>%s</b>\nИдентификатор: <b>%s</b>\n\n" .
             "<b>Данные для самовывоза:</b>\n" .
-            "Ф.И.О.: <b>%s</b>\n" .
-            "Номер телефона: <b>%s</b>\n" .
-            "Тип оплаты: <b>%s</b>\n" .
-            "Сдача с: %s руб.\n" .
-            "Доп.инфо: %s\n" .
-            "Использован кэшбэк: %s\n" .
-            "Заберу в: %s\n" .
-            "Число персон: <b>%s</b> чел.\n",
-            $statusIcon,
-            $orderId,
-            $userId,
-            $name,
-            $phone,
-            $cash,
-            $money,
-            $info,
-            $cashbackText,
-            $timeText,
-            $persons
+            "Ф.И.О.: <b>%s</b>\nНомер телефона: <b>%s</b>\n" .
+            "Тип оплаты: <b>%s</b>\nСдача с: %s руб.\n" .
+            "Доп.инфо: %s\nКэшбэк: %s\nЗаберу в: %s\nПерсон: <b>%s</b>\n",
+            $statusIcon, $orderId, $userId, $name, $phone,
+            $cash, $money, $info, $cashbackText, $timeText, $persons
         );
     }
 
-    /**
-     * Отправка результата клиенту
-     */
-    private function fsSendResult($message): void
-    {
-        MessageService::call()
-            ->sendMessage([
-                "message" => ("Спасибо, ваш заказ появился в нашей системе:\n\n<em>$message</em>") .
-                    "\nВы можете оставить отзыв с фото и получить от нас дополнительный КэшБэк!",
-                "keyboard" => [
-                    [
-                        ["text" => "📢Написать отзыв с фото"],
-                    ],
-                ],
-            ]);
-    }
-
-    /**
-     * Добавление префикса города к адресу
-     */
     private function ensureCityPrefix(string $address): string
     {
-        $patterns = [
-            '/\bг\.\b/ui',
-            '/\bгород\b/ui',
-            '/\bс\.\b/ui',
-            '/\bсело\b/ui',
-            '/\bпос\.\b/ui',
-            '/\bпос[её]лок\b/ui',
-            '/\bпгт\b/ui',
-        ];
-
+        $patterns = ['/г\./ui', '/город\b/ui', '/с\./ui', '/село\b/ui', '/пос\./ui', '/пос[её]лок\b/ui', '/пгт\b/ui'];
         foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $address)) {
-                return trim($address);
-            }
+            if (preg_match($pattern, $address)) return trim($address);
         }
-
         return 'г. ' . trim($address);
     }
 
-    /**
-     * Добавление префикса улицы
-     */
     private function ensureStreetPrefix(string $street): string
     {
-        $patterns = [
-            '/\bул\.\b/ui',
-            '/\bулица\b/ui',
-            '/\bпр-т\b/ui',
-            '/\bпросп\.\b/ui',
-            '/\bпроспект\b/ui',
-            '/\bпер\.\b/ui',
-            '/\bпереулок\b/ui',
-            '/\bбул\.\b/ui',
-            '/\bбульвар\b/ui',
-            '/\bпроезд\b/ui',
-            '/\bш\.\b/ui',
-            '/\bшоссе\b/ui',
-            '/\bнаб\.\b/ui',
-            '/\bнабережная\b/ui',
-            '/\bпл\.\b/ui',
-            '/\bплощадь\b/ui',
-            '/\bтракт\b/ui',
-            '/\bтуп\.\b/ui',
-            '/\bтупик\b/ui',
-        ];
-
+        $patterns = ['/ул\./ui', '/улица\b/ui', '/пр-т\b/ui', '/просп\./ui', '/проспект\b/ui', '/пер\./ui', '/переулок\b/ui', '/бул\./ui', '/бульвар\b/ui', '/проезд\b/ui', '/ш\./ui', '/шоссе\b/ui', '/наб\./ui', '/набережная\b/ui', '/пл\./ui', '/площадь\b/ui', '/тракт\b/ui', '/туп\./ui', '/тупик\b/ui'];
         foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $street)) {
-                return trim($street);
-            }
+            if (preg_match($pattern, $street)) return trim($street);
         }
-
         return 'ул. ' . trim($street);
     }
 
-    /**
-     * Формирование полного адреса
-     */
     private function fsPrepareAddress(): string
     {
         $city = $this->ensureCityPrefix($this->data["city"] ?? "");
         $street = $this->ensureStreetPrefix($this->data["street"] ?? "");
-
         return "$city, $street, " . ($this->data["building"] ?? "");
     }
 
-    /**
-     * Генерация и сохранение PDF-чека
-     * Возвращает путь к сохранённому файлу или null
-     */
-    private function fsPrintPDFInfo($order, $summaryPrice, $summaryCount, $tmpOrderProductInfo, $cashback = 0): ?string
+    private function fsPrintPDFInfo($order, $summaryPrice, $summaryCount, $tmpOrderProductInfo, $cashback = 0, $paymentStatusText = ''): ?string
     {
         $useCashback = ($this->data["use_cashback"] ?? "false") === "true";
         $cash = self::PAYMENT_TYPES[$this->data["payment_type"] ?? 0] ?? 'Не указан';
-
         $address = $this->fsPrepareAddress();
-        $userId = $this->tenantUser->telegram_chat_id ?? 'Не указан';
-
-        $paymentInfo = sprintf(
-            $this->tenant->settings["payment_info"] ??
-            "Оплатите заказ по реквизитам:\nСбер XXXX-XXXX-XXXX-XXXX Иванов И.И. или переводом по номеру +7(000)000-00-00 - указав номер %s\nИ отправьте нам скриншот оплаты со словом <strong>оплата</strong>",
-            $order->id ?? '-'
-        );
-
         $disabilitiesText = $this->fsPrepareDisabilities() ?: 'не указаны';
         $distance = $this->data["distance"] ?? 0;
         $deliveryPrice = $this->data["delivery_price"] ?? 0;
@@ -277,102 +133,59 @@ trait BasketHelper
         $number = Str::uuid()->toString();
         $tenantTitle = $this->tenant->title ?? $this->tenant->bot_domain ?? 'CashMan';
 
-        // Проверяем наличие Mpdf
+        $paymentInfo = sprintf(
+            $this->tenant->settings["payment_info"] ?? "Оплатите заказ по реквизитам, указав номер %s",
+            $order->id ?? '-'
+        );
+
         if (!class_exists('\Mpdf\Mpdf')) {
             Log::warning('[PDF] Mpdf не установлен, чек не сгенерирован');
             return null;
         }
 
         try {
-            $mpdf = new \Mpdf\Mpdf([
-                'mode' => 'utf-8',
-                'format' => 'A4',
-                'default_font' => 'dejavusans',
-            ]);
-
+            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'default_font' => 'dejavusans']);
             $html = view("pdf.order", [
-                "title" => $tenantTitle,
-                "uniqNumber" => $number,
-                "orderId" => $order->id,
-                "name" => $order->receiver_name,
-                "phone" => $order->receiver_phone,
+                "title" => $tenantTitle, "uniqNumber" => $number, "orderId" => $order->id,
+                "name" => $order->receiver_name, "phone" => $order->receiver_phone,
                 "address" => $address . "," . ($this->data["flat_number"] ?? ""),
                 "message" => ($this->data["info"] ?? 'Не указано'),
                 "entranceNumber" => ($this->data["entrance_number"] ?? 'Не указано'),
                 "floorNumber" => ($this->data["floor_number"] ?? 'Не указано'),
-                "cashType" => $cash,
-                "money" => ($this->data["money"] ?? 'Не указано'),
-                "disabilitiesText" => $disabilitiesText,
-                "totalPrice" => $summaryPrice,
-                "discount" => $useCashback ? $cashback : 0,
-                "totalCount" => $summaryCount,
-                "distance" => $distance,
-                "deliveryPrice" => $deliveryPrice,
-                "currentDate" => $currentDate,
-                "code" => "Без промокода",
-                "promoCount" => "0",
-                "paymentInfo" => $paymentInfo,
-                "products" => $tmpOrderProductInfo,
-                "info" => $this->data["info"] ?? 'Не указано',
+                "cashType" => $cash, "money" => ($this->data["money"] ?? 'Не указано'),
+                "disabilitiesText" => $disabilitiesText, "totalPrice" => $summaryPrice,
+                "discount" => $useCashback ? $cashback : 0, "totalCount" => $summaryCount,
+                "distance" => $distance, "deliveryPrice" => $deliveryPrice,
+                "currentDate" => $currentDate, "code" => "Без промокода", "promoCount" => "0",
+                "paymentInfo" => $paymentInfo, "products" => $tmpOrderProductInfo,
+                "paymentStatusText" => $paymentStatusText, "info" => $this->data["info"] ?? 'Не указано',
             ])->render();
 
             $mpdf->WriteHTML($html);
-
-            // ==========================================
-            // 🆕 СОХРАНЕНИЕ ФАЙЛА В STORAGE
-            // ==========================================
             $fileName = "order-{$order->id}-{$number}.pdf";
-            $directory = "orders/{$order->tenant_id}/{$order->id}";
-            $fullPath = "{$directory}/{$fileName}";
+            $fullPath = "orders/{$order->tenant_id}/{$order->id}/{$fileName}";
 
-            // Получаем содержимое PDF как строку
-            $pdfContent = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+            \Illuminate\Support\Facades\Storage::disk('public')->put($fullPath, $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN));
 
-            // Сохраняем в storage
-            \Illuminate\Support\Facades\Storage::disk('public')->put($fullPath, $pdfContent);
-
-            // Сохраняем путь к файлу в заказе (если есть поле)
             if (Schema::hasColumn('orders', 'invoice_path')) {
                 $order->invoice_path = $fullPath;
                 $order->save();
             }
 
             Log::info("[PDF] Чек сохранён: {$fullPath}");
-
             return $fullPath;
         } catch (\Throwable $e) {
             Log::error('[PDF] Ошибка генерации чека: ' . $e->getMessage());
             return null;
         }
     }
-    /**
-     * Подготовка заказа для FrontPad
-     * ИСПРАВЛЕНО: неопределённые переменные $tenant и $bot
-     */
+
     private function fsPrepareFrontPad($order, $tmpOrderProductInfo, $partnerId = null): void
     {
-        // ИСПРАВЛЕНИЕ: используем $this->tenant
         $tenant = $this->tenant;
         $bot = is_null($partnerId) ? $tenant : Tenant::query()->find($partnerId);
+        if (is_null($bot) || is_null($bot->frontPad)) return;
 
-        if (is_null($bot)) {
-            return;
-        }
-
-        $frontPad = $bot->frontPad ?? null;
-
-        if (is_null($frontPad)) {
-            return;
-        }
-
-        $persons = $this->data["persons"] ?? 1;
-        $whenReady = ($this->data["when_ready"] ?? "false") === "true";
-        $time = $this->data["time"] ?? null;
-        $cash = self::PAYMENT_TYPES[$this->data["payment_type"] ?? 0] ?? 'Не указан';
-
-        Log::info("tmpOrderProductInfo=>" . print_r($tmpOrderProductInfo, true));
-
-        // Примечание: BusinessLogic должен быть доступен через сервис-контейнер
         if (class_exists('\App\Services\BusinessLogic')) {
             \App\Services\BusinessLogic::frontPad()
                 ->setBot($bot)
@@ -386,885 +199,541 @@ trait BasketHelper
                     'pod' => ($this->data["entrance_number"] ?? 'Не указано'),
                     'et' => ($this->data["floor_number"] ?? 'Не указано'),
                     'apart' => ($this->data["flat_number"] ?? ""),
-                    'person' => $persons,
-                    'datetime' => $whenReady ? null : Carbon::parse($time)->format('Y-m-d H:i:s'),
-                    'cash' => $cash,
+                    'person' => $this->data["persons"] ?? 1,
+                    'datetime' => (($this->data["when_ready"] ?? "false") === "true") ? null : Carbon::parse($this->data["time"] ?? null)->format('Y-m-d H:i:s'),
+                    'cash' => self::PAYMENT_TYPES[$this->data["payment_type"] ?? 0] ?? 'Не указан',
                 ]);
-        } else {
-            Log::warning('BusinessLogic не доступен, FrontPad заказ не создан');
         }
     }
 
-    /**
-     * Подготовка заметки для доставки
-     * ИСПРАВЛЕНО: инвертированная логика is_null
-     */
     private function fsPrepareDeliveryNote(): string
     {
-        $disabilitiesText = $this->fsPrepareDisabilities();
-
-        $persons = $this->data["persons"] ?? 1;
-        $whenReady = ($this->data["when_ready"] ?? "false") === "true";
-        $cash = self::PAYMENT_TYPES[$this->data["payment_type"] ?? 0] ?? 'Не указан';
-        $time = $this->data["time"] ?? null;
-
-        // ИСПРАВЛЕНИЕ: логика инвертирована — добавляем, если НЕ null
         $note = ($this->data["info"] ?? 'Не указано') . "\n";
+        if (!is_null($this->data["entrance_number"] ?? null)) $note .= "Подъезд: " . $this->data["entrance_number"] . "\n";
+        if (!is_null($this->data["floor_number"] ?? null)) $note .= "Этаж: " . $this->data["floor_number"] . "\n";
 
-        if (!is_null($this->data["entrance_number"] ?? null)) {
-            $note .= "Номер подъезда: " . $this->data["entrance_number"] . "\n";
-        }
+        $note .= "Оплата: " . (self::PAYMENT_TYPES[$this->data["payment_type"] ?? 0] ?? 'Не указан') . "\n";
+        if (!is_null($this->data["money"] ?? null)) $note .= "Сдача с: " . $this->data["money"] . "\n";
 
-        if (!is_null($this->data["floor_number"] ?? null)) {
-            $note .= "Номер этажа: " . $this->data["floor_number"] . "\n";
-        }
-
-        $note .= "Тип оплаты: " . $cash . "\n";
-
-        if (!is_null($this->data["money"] ?? null)) {
-            $note .= "Сдача с: " . $this->data["money"] . "\n";
-        }
-
-        $note .= "Время доставки: " . ($whenReady ? "По готовности" : Carbon::parse($time)->format('Y-m-d H:i')) . "\n";
-        $note .= "Число персон: " . $persons . "\n";
-        $note .= "Ограничения:\n" . ($disabilitiesText ?: 'не указаны');
+        $whenReady = ($this->data["when_ready"] ?? "false") === "true";
+        $note .= "Время: " . ($whenReady ? "По готовности" : Carbon::parse($this->data["time"] ?? null)->format('Y-m-d H:i')) . "\n";
+        $note .= "Персон: " . ($this->data["persons"] ?? 1) . "\n";
+        $note .= "Ограничения:\n" . ($this->fsPrepareDisabilities() ?: 'не указаны');
 
         return $note;
     }
 
-    /**
-     * Сохранение информации о клиенте
-     */
     protected function storeClientInfoAsContact(): void
     {
-        $vowels = ["(", ")", "-"];
         $phone = $this->data["phone"] ?? $this->tenantUser->phone ?? null;
-        $filteredPhone = !is_null($phone) ? str_replace($vowels, "", $phone) : null;
-
-        $this->tenantUser->name = $this->data["name"] ?? $this->tenantUser->name ?? null;
-        $this->tenantUser->phone = $filteredPhone;
+        $this->tenantUser->name = $this->data["name"] ?? $this->tenantUser->name;
+        $this->tenantUser->phone = $phone ? str_replace(["(", ")", "-"], "", $phone) : $this->tenantUser->phone;
         $this->tenantUser->save();
     }
 
-    /**
-     * Использование кэшбэка для оплаты
-     */
     private function useCashBackForPayment($discount): void
     {
-        $useCashback = ($this->data["use_cashback"] ?? "false") === "true";
-
-        if (!$useCashback) {
-            return;
-        }
-
-        // TODO: Раскомментировать, когда CashBackService будет готов
-        /* CashBackService::call()
-            ->removeCashBack(
-                $discount ?? 0,
-                "Автоматическое списание скидки на покупку товара"
-            );*/
+        if (($this->data["use_cashback"] ?? "false") !== "true") return;
+        // TODO: Раскомментировать при готовности CashBackService
     }
 
-    /**
-     * Расчёт скидки по кэшбэку
-     */
     private function prepareCashbackDiscount($summaryPrice): float
     {
-        $useCashback = ($this->data["use_cashback"] ?? "false") === "true";
+        if (($this->data["use_cashback"] ?? "false") !== "true") return 0.0;
 
-        if (!$useCashback) {
-            return 0.0;
-        }
-
-        $maxCashbackUsePercent = $this->tenant->settings["max_cashback_use_percent"] ?? 0;
+        $maxPercent = $this->tenant->settings["max_cashback_use_percent"] ?? 0;
         $maxUserCashback = $this->tenantUser->cashback?->amount ?? 0;
-        $cashBackAmount = ($summaryPrice * ($maxCashbackUsePercent / 100));
-
-        return min($cashBackAmount, $maxUserCashback);
+        return min(($summaryPrice * ($maxPercent / 100)), $maxUserCashback);
     }
 
-    /**
-     * Отправка чека об оплате в канал
-     * ИСПРАВЛЕНО: синтаксическая ошибка, добавлен метод
-     */
     private function sendPaidReceiptToChannel($order, $message): void
     {
-        $uploadedPhoto = $this->uploadedImage;
-        $hasPhoto = !is_null($uploadedPhoto);
+        // Этот метод уже использует MessageService, оставляем как есть
+        $uploadedPhoto = $this->uploadedImage ?? null;
+        if (!$uploadedPhoto) return;
+
+        $ext = $uploadedPhoto->getClientOriginalExtension();
+        $imageName = Str::uuid()->toString() . "." . $ext;
+        $uploadedPhoto->storeAs($imageName);
+        $photoPath = storage_path() . "/app/$imageName";
         $whenReady = ($this->data["when_ready"] ?? "false") === "true";
 
-        $tmpMessage = '';
-
-        if ($hasPhoto) {
-            $ext = $uploadedPhoto->getClientOriginalExtension();
-            $imageName = Str::uuid()->toString() . "." . $ext;
-            $uploadedPhoto->storeAs($imageName);
-
-            $photoPath = storage_path() . "/app/$imageName";
-
-            // ИСПРАВЛЕНИЕ: убрана точка с запятой, разрывающая конкатенацию
-            $tmpMessage =
-                '<p><strong>#оплатачеком</strong></p>' .
-                '<p>' . ($whenReady ? '🟢' : '🟡') .
-                ' <strong>Заказ №:</strong> ' . ($order->id ?? '-') . '</p>' .
-                '<p><strong>Идентификатор клиента:</strong> ' . ($this->tenantUser->id ?? '-') . '</p>' .
-                '<p><strong>Пользователь:</strong> ' . ($order->receiver_name ?? '-') . '</p>' .
-                '<p><strong>Телефон:</strong> ' . ($order->receiver_phone ?? '-') . '</p>' .
-                '<br>' .
-                '<p><strong>Пояснение к оплате:</strong> ' . ($this->data["image_info"] ?? 'не указано') . '</p>' .
-                '<p><strong>Ссылка на фото:</strong> ' . $photoPath . '</p>';
-        }
+        $tmpMessage = '<p><strong>#оплатачеком</strong></p>' .
+            '<p>' . ($whenReady ? '🟢' : '🟡') . ' <strong>Заказ №:</strong> ' . ($order->id ?? '-') . '</p>' .
+            '<p><strong>Клиент:</strong> ' . ($order->receiver_name ?? '-') . ' | ' . ($order->receiver_phone ?? '-') . '</p>' .
+            '<p><strong>Пояснение:</strong> ' . ($this->data["image_info"] ?? 'не указано') . '</p>' .
+            '<p><strong>Фото:</strong> ' . $photoPath . '</p>';
 
         $thread = $this->tenant->topics["orders"] ?? null;
-
         if ($tmpMessage && $thread) {
-            MessageService::call()
-                ->sendMessage([
-                    "message" => $tmpMessage,
-                    "thread_id" => $thread,
-                ]);
+            MessageService::call()->sendMessage([
+                "message" => $tmpMessage,
+                "thread_id" => $thread,
+                "recipients" => ["partners" => true] // Или ваш канал
+            ]);
         }
-
-        // TODO: Доделать отправку фото в канал
     }
 
-    /**
-     * 🆕 Обновляет профиль пользователя данными из чекаута, если они были введены впервые.
-     * Адрес и город исключены, так как они уже сохранены в БД или относятся к конкретному заказу.
-     */
     private function updateUserProfileFromCheckout(array $checkoutData): void
     {
         $user = $this->tenantUser;
         $isUpdated = false;
-
-        // Обновляем только базовые контактные данные, которые точно есть в tenant_users
-        $fieldsToSync = [
-            'name'  => $checkoutData['name'] ?? null,
-            'phone' => $checkoutData['phone'] ?? null,
-            'email' => $checkoutData['email'] ?? null,
-        ];
-
-        foreach ($fieldsToSync as $field => $value) {
-            if (!empty($value)) {
-                // Телефон обновляем всегда (ключевой идентификатор), остальные — только если пустые
-                if ($field === 'phone' || empty($user->$field)) {
-                    $user->$field = $value;
-                    $isUpdated = true;
-                }
+        foreach (['name', 'phone', 'email'] as $field) {
+            if (!empty($checkoutData[$field]) && ($field === 'phone' || empty($user->$field))) {
+                $user->$field = $checkoutData[$field];
+                $isUpdated = true;
+                if ($field === 'phone') $user->phone = str_replace(["(", ")", "-"], "", $user->phone);
             }
         }
 
-        // Сохраняем изменения и флаг авто-заполнения
         if ($isUpdated) {
             $meta = $user->meta ?? [];
             $meta['profile_auto_filled_at'] = now()->toIso8601String();
             $user->meta = $meta;
             $user->save();
-
-            Log::info("[Checkout] Контактные данные пользователя #{$user->id} обновлены из заказа.");
         }
     }
 
-    /**
-     * 🆕 Выдает VIP статус за первый успешный заказ
-     */
     private function grantFirstOrderVipReward(): void
     {
         $user = $this->tenantUser;
-
-        // Если у пользователя еще нет VIP статуса, дарим его
         if (!$user->is_vip) {
-            // Дарим VIP на 30 дней (можете изменить на 365 или null для бессрочного)
-            $vipDays = 30;
-            $user->grantVip($vipDays);
+            $user->grantVip(30);
+            Log::info("[Checkout] Пользователю #{$user->id} выдан VIP на 30 дней.");
 
-            Log::info("[Checkout] Пользователю #{$user->id} выдан VIP статус на {$vipDays} дней за первый заказ.");
-
-            // 🎯 Бонус: добавляем системное сообщение в диалог заказа об этом (если диалог существует)
             try {
-                $orderDialogService = app(\App\Services\OrderDialogService::class);
-                // Мы не знаем ID заказа здесь напрямую, но можем найти последний
-                $lastOrder = \App\Models\Tenant\Order::query()
-                    ->where('tenant_user_id', $user->id)
-                    ->latest('id')
-                    ->first();
-
+                $lastOrder = Order::query()->where('tenant_user_id', $user->id)->latest('id')->first();
                 if ($lastOrder) {
-                    $orderDialogService->addStatusMessage(
-                        $lastOrder,
-                        'success',
-                        "🎉 Поздравляем! За этот заказ вам начислен <b>VIP-статус</b> на {$vipDays} дней!"
-                    );
+                    MessageService::call()->sendMessage([
+                        'message' => "🎉 Поздравляем! За этот заказ вам начислен <b>VIP-статус</b> на 30 дней!",
+                        'dialog_id' => $lastOrder->dialog_id ?? null, // Предполагается, что у заказа есть dialog_id, или найдите его через сервис
+                        'meta' => ['is_system' => true, 'type' => 'vip_granted'],
+                        'recipients' => ['client' => true],
+                    ]);
                 }
             } catch (\Throwable $e) {
-                // Не критично, если не получится отправить сообщение
-                Log::warning("[Checkout] Не удалось уведомить о VIP в диалоге: " . $e->getMessage());
+                Log::warning("[Checkout] Не удалось уведомить о VIP: " . $e->getMessage());
             }
         }
     }
-    /**
-     * Оформление заказа из магазина еды
-     * ОБНОВЛЕНО:
-     * - Один диалог на заказ (не создаются лишние)
-     * - Все сообщения клиенту помечены is_system: true
-     * - Чёткое разделение: клиент / партнёры / CRM
-     * @throws ValidationException
-     */
-    // 🆕 1. Меняем тип возвращаемого значения со string на array
+
+    // ==========================================
+    // 🎯 ОСНОВНОЙ МЕТОД (ОРКЕСТРАТОР)
+    // ==========================================
     private function foodShopCheckout(): array
     {
-        // ==========================================
-        // 0. 🆕 НАСТРОЙКА KANBAN CRM SDK
-        // ==========================================
-        $kanbanConfig = $this->tenant->settings['kanban'] ?? [];
-        $kanbanEnabled = $kanbanConfig['enabled'] ?? false;
-        $kanbanBoardUuid = $kanbanConfig['board_uuid'] ?? null;
-        $kanbanBaseUrl = $kanbanConfig['base_url'] ?? config('kanban.base_url');
-        $kanbanToken = $kanbanConfig['token'] ?? config('kanban.token');
-        $kanbanThread = $kanbanConfig['order_thread'] ?? 0;
+        try {
+            $context = $this->prepareCheckoutContext();
+            $basketData = $this->processBasketAndCalculateTotals($context);
+            $order = $this->createOrderRecord($context, $basketData);
+            $orderDialog = $this->initializeOrderDialog($order, $basketData);
 
-        if ($kanbanEnabled && $kanbanBoardUuid && $kanbanToken) {
+            // 🎯 ЕДИНЫЙ КОНТУР УВЕДОМЛЕНИЙ
+            $kanbanTaskId = $this->notifyStakeholders($order, $context, $basketData, $orderDialog);
+
+            // 🎯 ЕДИНЫЙ КОНТУР ОПЛАТЫ И ЧЕКОВ
+            $paymentData = $this->processPaymentAndReceipt($order, $context, $basketData, $kanbanTaskId, $orderDialog);
+
+            $this->finalizeOrder($order);
+
+            return [
+                'success' => true,
+                'order_id' => $order->id,
+                'summary_price' => $basketData['final_price'],
+                'payment_type' => $context['payment_type'],
+                'payment_status_text' => $this->getPaymentStatusText($context['payment_type']),
+                'status' => $order->status,
+                'payment_data' => $paymentData,
+                'delivery_price' => $context['delivery_price'],
+                'message' => 'Заказ успешно оформлен',
+            ];
+        } catch (\Throwable $e) {
+            Log::error('[Checkout] Критическая ошибка: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return ['success' => false, 'message' => 'Ошибка при оформлении заказа. Попробуйте позже.'];
+        }
+    }
+
+    // ==========================================
+    // 🎯 ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+    // ==========================================
+
+    private function prepareCheckoutContext(): array
+    {
+        $data = $this->data;
+        $kanbanConfig = $this->tenant->settings['kanban'] ?? [];
+        $kanbanEnabled = !empty($kanbanConfig['enabled']) && !empty($kanbanConfig['board_uuid']) && !empty($kanbanConfig['token']);
+
+        if ($kanbanEnabled) {
             try {
-                \Exxxar\Kanban\Facades\Kanban::setBaseUrl($kanbanBaseUrl)
-                    ->setToken($kanbanToken)
-                    ->setTimeout(30)
-                    ->setConnectTimeout(10)
-                    ->setRetryTimes(3)
-                    ->setRetrySleep(100)
-                    ->setLoggingEnabled(true);
+                \Exxxar\Kanban\Facades\Kanban::setBaseUrl($kanbanConfig['base_url'] ?? config('kanban.base_url'))
+                    ->setToken($kanbanConfig['token'])->setTimeout(30)->setConnectTimeout(10)
+                    ->setRetryTimes(3)->setRetrySleep(100)->setLoggingEnabled(true);
             } catch (\Throwable $e) {
                 Log::error('[KanbanCRM] Ошибка настройки SDK: ' . $e->getMessage());
                 $kanbanEnabled = false;
             }
-        } else {
-            $kanbanEnabled = false;
         }
 
-        $needPickup = ($this->data["need_pickup"] ?? "false") === "true";
-        $deliveryPrice = $this->safeFloat($this->data["delivery_price"] ?? 0);
-        $distance = $this->safeFloat($this->data["distance"] ?? 0);
-        $lat = $this->safeFloat($this->data["lat"] ?? 0);
-        $lng = $this->safeFloat($this->data["lng"] ?? 0);
+        $this->updateUserProfileFromCheckout($data);
 
-        $locationId = $this->safeInt($this->data["location_id"] ?? null);
-        $paymentType = $this->safeInt($this->data["payment_type"] ?? 4);
-        $deliveryDetails = json_decode($this->data["delivery_details"] ?? '[]', true) ?: [];
-        $useCashback = ($this->data["use_cashback"] ?? "false") === "true";
+        return [
+            'kanban_enabled' => $kanbanEnabled,
+            'kanban_board_uuid' => $kanbanConfig['board_uuid'] ?? null,
+            'kanban_thread' => $kanbanConfig['order_thread'] ?? 0,
+            'need_pickup' => ($data["need_pickup"] ?? "false") === "true",
+            'delivery_price' => $this->safeFloat($data["delivery_price"] ?? 0),
+            'distance' => $this->safeFloat($data["distance"] ?? 0),
+            'lat' => $this->safeFloat($data["lat"] ?? 0),
+            'lng' => $this->safeFloat($data["lng"] ?? 0),
+            'location_id' => $this->safeInt($data["location_id"] ?? null),
+            'payment_type' => $this->safeInt($data["payment_type"] ?? 4),
+            'delivery_details' => json_decode($data["delivery_details"] ?? '[]', true) ?: [],
+            'use_cashback' => ($data["use_cashback"] ?? "false") === "true",
+            'customer_name' => $data["name"] ?? 'Нет имени',
+            'customer_phone' => $data["phone"] ?? null,
+        ];
+    }
 
-        // 🆕 1. ОБНОВЛЯЕМ ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ ДАННЫМИ ИЗ ЧЕКАУТА
-        $this->updateUserProfileFromCheckout($this->data);
-
-        // ==========================================
-        // 1. ОБРАБОТКА КОРЗИНЫ
-        // ==========================================
-        $basket = Basket::query()
-            ->where("tenant_id", $this->tenant->id)
-            ->where("tenant_user_id", $this->tenantUser->id)
-            ->whereNull("ordered_at")
-            ->get();
+    private function processBasketAndCalculateTotals(array $context): array
+    {
+        $basket = Basket::query()->where("tenant_id", $this->tenant->id)
+            ->where("tenant_user_id", $this->tenantUser->id)->whereNull("ordered_at")->get();
 
         $isPartnersActive = $this->tenant->settings["partners"]["is_active"] ?? false;
         $isPartnersDisplaySelf = $this->tenant->settings["partners"]["display_self"] ?? false;
 
-        $summaryPrice = 0;
-        $summaryCount = 0;
-        $summaryDiscount = 0;
-
-        $tmpOrderProductInfo = [];
-        $partnerProductBox = [];
-        $ids = [];
+        $summaryPrice = 0; $summaryCount = 0; $summaryDiscount = 0;
+        $tmpOrderProductInfo = []; $partnerProductBox = []; $processedProductIds = [];
 
         foreach ($basket as $item) {
-            $comment = $item->comment ?? null;
-            $product = $item->product ?? null;
-            $collection = $item->collection ?? null;
-            $productTenantId = $item->product ? $item->product->tenant_id : $this->tenant->id;
+            $productTenantId = $item->product?->tenant_id ?? $this->tenant->id;
+            if ($isPartnersActive && !$isPartnersDisplaySelf && $productTenantId == $this->tenant->id) continue;
 
-            if ($isPartnersActive && !$isPartnersDisplaySelf && $productTenantId == $this->tenant->id) {
-                continue;
-            }
+            $partner = Tenant::query()->find($productTenantId) ?? $this->tenant;
+            $uuid = $partner->uuid;
 
-            $partner = Tenant::query()->where("id", $productTenantId)->first();
-            if (!$partner) $partner = $this->tenant; // Fallback
-
-            $deliveryDetails = (array) $deliveryDetails;
-
-            if (empty($partnerProductBox[$partner->uuid])) {
-                $partnerProductBox[$partner->uuid] = [
-                    "id" => $partner->id,
-                    "name" => $partner->name ?? $partner->slug ?? 'Без названия',
-                    "title" => $partner->title ?? $partner->name ?? 'Без названия',
-                    "message" => "",
-                    "extra_charge" => (Partner::query()
-                            ->where("tenant_id", $item->tenant_id)
-                            ->where("tenant_partner_id", $item->tenant_partner_id)
-                            ->first())?->extra_charge ?? 0,
-                    "summary_price" => 0,
-                    "summary_count" => 0,
-                    "summary_discount" => 0,
-                    "delivery_price" => $deliveryDetails[$partner->uuid]["price"] ?? 0,
-                    "distance" => $deliveryDetails[$partner->uuid]["distance"] ?? 0,
+            if (empty($partnerProductBox[$uuid])) {
+                $partnerProductBox[$uuid] = [
+                    "id" => $partner->id, "name" => $partner->name ?? $partner->slug ?? 'Без названия',
+                    "title" => $partner->title ?? $partner->name ?? 'Без названия', "message" => "",
+                    "extra_charge" => (Partner::query()->where("tenant_id", $item->tenant_id)->where("tenant_partner_id", $item->tenant_partner_id)->first())?->extra_charge ?? 0,
+                    "summary_price" => 0, "summary_count" => 0, "summary_discount" => 0,
+                    "delivery_price" => $context['delivery_details'][$uuid]["price"] ?? 0,
+                    "distance" => $context['delivery_details'][$uuid]["distance"] ?? 0,
                     "thread" => $partner->topics["delivery"] ?? $this->tenant->topics["delivery"] ?? null,
                     "products" => [],
                 ];
             }
 
-            $price = 0;
-            $extraCharge = $partnerProductBox[$partner->uuid]["extra_charge"];
-            $isWeightProduct = false;
+            $price = 0; $extraCharge = $partnerProductBox[$uuid]["extra_charge"]; $isWeightProduct = false;
 
-            if (!is_null($product)) {
-                $isWeightProduct = $product->is_weight_product ?? false;
-                $count = $item->count;
-                $currentPrice = $item->params["discount_price"] ?? $product->price ?? 0;
-
-                $price = (($currentPrice) * (1 + $extraCharge / 100)) * $count;
+            if ($item->product) {
+                $isWeightProduct = $item->product->is_weight_product ?? false;
+                $currentPrice = $item->params["discount_price"] ?? $item->product->price ?? 0;
                 $unitOfMeasure = "ед.";
 
                 if ($isWeightProduct) {
-                    $weightConfig = $product->weight_config;
-                    if (is_string($weightConfig)) {
-                        $weightConfig = json_decode($weightConfig, true) ?? [];
-                    }
-                    $weightConfig = (object) ($weightConfig ?? []);
-                    $step = $weightConfig->step ?? 100;
-
-                    $price = ((($currentPrice) * (1 + $extraCharge / 100)) * $count) / $step;
+                    $weightConfig = is_string($item->product->weight_config) ? json_decode($item->product->weight_config, true) : ($item->product->weight_config ?? []);
+                    $step = $weightConfig['step'] ?? 100;
+                    $price = (($currentPrice * (1 + $extraCharge / 100)) * $item->count) / $step;
                     $unitOfMeasure = "гр.";
+                } else {
+                    $price = ($currentPrice * (1 + $extraCharge / 100)) * $item->count;
                 }
 
-                $tmpMessage = is_null($comment)
-                    ? sprintf("💎%s x%s %s=%s руб.\n", $product->name, $item->count, $unitOfMeasure, $price)
-                    : sprintf("💎%s x%s %s=%s руб.\n<em>(%s)</em>\n", $product->name, $item->count, $unitOfMeasure, $price, $comment);
-
-                $partnerProductBox[$partner->uuid]["message"] .= $tmpMessage;
+                $comment = $item->comment ? "\n<em>({$item->comment})</em>" : "";
+                $partnerProductBox[$uuid]["message"] .= sprintf("💎%s x%s %s=%s руб.%s\n", $item->product->name, $item->count, $unitOfMeasure, $price, $comment);
 
                 $tmpOrderProductInfo[] = [
-                    "name" => $product->name,
-                    "count" => $item->count,
-                    "price" => $this->safeFloat($price),
-                    'external_source' => $product->external_source ?? null,
-                    'external_id' => $product->external_id ?? null,
+                    "name" => $item->product->name, "count" => $item->count, "price" => $this->safeFloat($price),
+                    'external_source' => $item->product->external_source ?? null, 'external_id' => $item->product->external_id ?? null,
                 ];
 
-                if (!in_array($product->id, $ids)) {
-                    $ids[] = $product->id;
-                    $partnerProductBox[$partner->uuid]["products"][] = $tmpOrderProductInfo;
+                if (!in_array($item->product->id, $processedProductIds)) {
+                    $processedProductIds[] = $item->product->id;
+                    $partnerProductBox[$uuid]["products"][] = end($tmpOrderProductInfo);
                 }
             }
 
-            if (!is_null($collection)) {
-                $collectionTitles = "";
-                $params = is_null($item->params) ? null : (is_array($item->params) ? (object) $item->params : $item->params);
+            if ($item->collection) {
+                $params = is_array($item->params) ? (object)$item->params : $item->params;
+                $collectionTitles = ""; $collectionPrice = 0;
 
-                foreach (($collection->products ?? []) as $product) {
-                    if (!in_array($product->id, $params->ids ?? [])) {
-                        continue;
-                    }
-
+                foreach (($item->collection->products ?? []) as $product) {
+                    if (!in_array($product->id, $params->ids ?? [])) continue;
                     $collectionTitles .= "-" . $product->name . "\n";
+                    $collectionPrice += ($product->price ?? 0) * (1 + $extraCharge / 100);
 
                     $tmpOrderProductInfo[] = [
-                        "name" => "Коллекция `" . ($collection->name) . "`: " . $product->name,
-                        "count" => 1,
+                        "name" => "Коллекция `{$item->collection->name}`: {$product->name}", "count" => 1,
                         "price" => $this->safeFloat($product->price ?? 0),
-                        'external_source' => $product->external_source ?? null,
-                        'external_id' => $product->external_id ?? null,
+                        'external_source' => $product->external_source ?? null, 'external_id' => $product->external_id ?? null,
                     ];
 
-                    $price += ($product->price ?? 0) * (1 + $extraCharge / 100);
-
-                    if (!in_array($product->id, $ids)) {
-                        $ids[] = $product->id;
-                        $partnerProductBox[$partner->uuid]["products"][] = $tmpOrderProductInfo;
+                    if (!in_array($product->id, $processedProductIds)) {
+                        $processedProductIds[] = $product->id;
+                        $partnerProductBox[$uuid]["products"][] = end($tmpOrderProductInfo);
                     }
                 }
-
-                $price = $price * $item->count;
-
-                $tmpMessage = sprintf(
-                    "💎Коллекция `%s` x%s=%s руб.:\n%s\n",
-                    $collection->name,
-                    $item->count,
-                    $price,
-                    $collectionTitles
-                );
-
-                $partnerProductBox[$partner->uuid]["message"] .= $tmpMessage;
+                $price += $collectionPrice * $item->count;
+                $partnerProductBox[$uuid]["message"] .= sprintf("💎Коллекция `%s` x%s=%s руб.:\n%s\n", $item->collection->name, $item->count, $price, $collectionTitles);
             }
 
-            $partnerProductBox[$partner->uuid]["summary_count"] += $isWeightProduct ? 1 : $item->count;
-            $partnerProductBox[$partner->uuid]["summary_price"] += $price;
-            $partnerProductBox[$partner->uuid]["summary_discount"] += $item->params["discount_amount"] ?? 0;
+            $countToAdd = $isWeightProduct ? 1 : $item->count;
+            $discountToAdd = $item->params["discount_amount"] ?? 0;
 
-            $summaryDiscount += $item->params["discount_amount"] ?? 0;
-            $summaryCount += $isWeightProduct ? 1 : $item->count;
-            $summaryPrice += $price;
+            $partnerProductBox[$uuid]["summary_count"] += $countToAdd;
+            $partnerProductBox[$uuid]["summary_price"] += $price;
+            $partnerProductBox[$uuid]["summary_discount"] += $discountToAdd;
+
+            $summaryCount += $countToAdd; $summaryPrice += $price; $summaryDiscount += $discountToAdd;
 
             $item->ordered_at = env("APP_DEBUG") ? null : Carbon::now();
             $item->save();
         }
 
-        $deliveryNote = $this->fsPrepareDeliveryNote();
         $cashback = $this->prepareCashbackDiscount($summaryPrice);
         $this->useCashBackForPayment($cashback);
 
-        // ==========================================
-        // 2. СОЗДАНИЕ ЗАКАЗА
-        // ==========================================
-        $order = Order::query()->create([
-            'tenant_id' => $this->tenant->id,
-            'tenant_user_id' => $this->tenantUser->id,
-            'delivery_service_info' => null,
-            'deliveryman_info' => null,
-            'product_details' => [
-                [
-                    "from" => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин',
-                    "products" => $tmpOrderProductInfo,
-                ],
-            ],
-            'product_count' => (int) $summaryCount,
-            'summary_price' => $this->safeFloat($summaryPrice - $cashback),
-            'delivery_price' => $deliveryPrice,
-            'delivery_range' => $distance,
-            'deliveryman_latitude' => $lat,
-            'deliveryman_longitude' => $lng,
-            'delivery_note' => $deliveryNote,
-            'receiver_name' => $this->data["name"] ?? 'Нет имени',
-            'receiver_phone' => $this->data["phone"] ?? 'Нет телефона',
-            'location_id' => $locationId,
-            'status' => OrderStatusEnum::NewOrder->value,
-            'order_type' => OrderTypeEnum::InternalStore->value,
-            'payed_at' => Carbon::now(),
+        return [
+            'summary_price' => $summaryPrice, 'summary_count' => $summaryCount, 'summary_discount' => $summaryDiscount,
+            'final_price' => $this->safeFloat($summaryPrice - $cashback), 'cashback' => $cashback,
+            'product_info' => $tmpOrderProductInfo, 'partner_boxes' => $partnerProductBox,
+        ];
+    }
+
+    private function createOrderRecord(array $context, array $basketData): Order
+    {
+        return Order::query()->create([
+            'tenant_id' => $this->tenant->id, 'tenant_user_id' => $this->tenantUser->id,
+            'delivery_service_info' => null, 'deliveryman_info' => null,
+            'product_details' => [["from" => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин', "products" => $basketData['product_info']]],
+            'product_count' => (int) $basketData['summary_count'], 'summary_price' => $basketData['final_price'],
+            'delivery_price' => $context['delivery_price'], 'delivery_range' => $context['distance'],
+            'deliveryman_latitude' => $context['lat'], 'deliveryman_longitude' => $context['lng'],
+            'delivery_note' => $this->fsPrepareDeliveryNote(), 'receiver_name' => $context['customer_name'],
+            'receiver_phone' => $context['customer_phone'], 'location_id' => $context['location_id'],
+            'status' => OrderStatusEnum::NewOrder->value, 'order_type' => OrderTypeEnum::InternalStore->value,
+            'payed_at' => in_array($context['payment_type'], [0, 4]) ? Carbon::now() : null,
         ]);
+    }
 
-        // ==========================================
-        // 3. СОЗДАНИЕ ДИАЛОГА ДЛЯ ЗАКАЗА
-        // ==========================================
-        $orderDialogService = app(\App\Services\OrderDialogService::class);
-        $orderDialog = null;
-
+    private function initializeOrderDialog(Order $order, array $basketData): ?object
+    {
         try {
-            $orderDialog = $orderDialogService->getOrCreateDialog($order);
-
-            $orderDialogService->addStatusMessage(
-                $order,
-                'new',
-                "Сумма: " . number_format($summaryPrice - $cashback, 0, '.', ' ') . " ₽, товаров: {$summaryCount} шт."
-            );
-
-            if (in_array($paymentType, [1, 2, 3])) {
-                $orderDialogService->addPaymentMessage($order, $summaryPrice - $cashback, $paymentType);
-            }
+            $orderDialogService = app(\App\Services\OrderDialogService::class);
+            $dialog = $orderDialogService->getOrCreateDialog($order);
+            // 🎯 Перенесено в MessageService ниже, но оставим базовую инициализацию, если она нужна для связки
+            return $dialog;
         } catch (\Throwable $e) {
-            Log::error('[Checkout] Ошибка создания диалога заказа: ' . $e->getMessage());
+            Log::error('[Checkout] Ошибка создания диалога: ' . $e->getMessage());
+            return null;
         }
+    }
 
-        // ==========================================
-        // 4. ОТПРАВКА В ИНТЕГРАЦИИ (FrontPad, IIKO)
-        // ==========================================
-        foreach ($partnerProductBox as $key => $box) {
-            $box = (object) $box;
-            $tenantInBox = Tenant::query()->find($box->id);
-
-            if (is_null($tenantInBox)) {
-                continue;
-            }
-
-            $this->fsPrepareFrontPad($order, $tmpOrderProductInfo, $tenantInBox->id);
-
-            $iiko = $tenantInBox->iiko ?? null;
-            if ($iiko && !is_null($iiko->api_login ?? null)) {
-                Log::info('IIKO order created for order #' . $order->id);
-            }
-        }
-
-        $needBill = false;
-        ini_set('max_execution_time', 300);
-
-        // ==========================================
-        // 5. ФОРМИРОВАНИЕ СООБЩЕНИЙ
-        // ==========================================
-        $clientMessage = $this->buildClientMessage($order, $partnerProductBox, $summaryPrice, $cashback, $summaryCount, $summaryDiscount, $deliveryPrice, $distance, $needPickup);
-        $partnerMessages = $this->buildPartnerMessages($order, $partnerProductBox, $cashback, $needPickup);
-        $crmMessage = $this->buildCrmMessage($order, $partnerProductBox, $summaryPrice, $cashback, $summaryCount, $summaryDiscount, $deliveryPrice, $distance, $needPickup);
-
-        // ==========================================
-        // 6. ОТПРАВКА КЛИЕНТУ
-        // ==========================================
-        if ($orderDialog) {
-            try {
-                $orderDialogService->addOrderDetailsMessage(
-                    $order,
-                    $clientMessage,
-                    [
-                        'summary_price' => $summaryPrice - $cashback,
-                        'summary_count' => $summaryCount,
-                        'payment_type' => $paymentType,
-                    ]
-                );
-            } catch (\Throwable $e) {
-                Log::error('[Checkout] Ошибка отправки клиенту: ' . $e->getMessage());
-            }
-        }
-
-        // ==========================================
-        // 7. ОТПРАВКА ПАРТНЁРАМ
-        // ==========================================
-        foreach ($partnerMessages as $partnerUuid => $partnerData) {
-            try {
-                MessageService::call()->sendMessage([
-                    "message" => $partnerData['message'],
-                    "thread_id" => $partnerData['thread'],
-                    "title" => "Заказ #{$order->id} — {$partnerData['name']}",
-                    "recipients" => [
-                        "partners" => true,
-                    ],
-                    "meta" => [
-                        "order_id" => $order->id,
-                        "partner_id" => $partnerData['id'] ?? null,
-                        "partner_name" => $partnerData['name'] ?? null,
-                        "type" => "partner_order",
-                        "is_system" => true,
-                    ],
-                ]);
-            } catch (\Throwable $e) {
-                Log::error('[Checkout] Ошибка отправки партнёру: ' . $e->getMessage());
-            }
-        }
-
-        // ==========================================
-        // 8. 🆕 ОТПРАВКА В KANBAN CRM (Структурированные данные для CardOrder.vue)
-        // ==========================================
+    // 🎯 ЕДИНЫЙ КОНТУР УВЕДОМЛЕНИЙ ЧЕРЕЗ MESSAGE SERVICE
+    private function notifyStakeholders(Order $order, array $context, array $basketData, $orderDialog): ?string
+    {
         $kanbanTaskId = null;
-        $kanbanMessageId = null;
+        $paymentStatusText = $this->getPaymentStatusText($context['payment_type']);
 
-        if ($kanbanEnabled) {
-            try {
-                $customerName = $this->data["name"] ?? 'Нет имени';
-                $customerPhone = $this->data["phone"] ?? null;
+        // 1. Интеграции (FrontPad, IIKO)
+        foreach ($basketData['partner_boxes'] as $box) {
+            $tenantInBox = Tenant::query()->find($box['id']);
+            if ($tenantInBox) {
+                $this->fsPrepareFrontPad($order, $basketData['product_info'], $tenantInBox->id);
+                if (!empty($tenantInBox->iiko?->api_login)) Log::info('IIKO order created for order #' . $order->id);
+            }
+        }
 
-                // 🎯 ФОРМИРУЕМ СТРУКТУРУ ДЛЯ КАРТОЧКИ ЗАКАЗА (как ждет CardOrder.vue)
-                $kanbanProductDetails = [
-                    [
-                        'from' => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин',
-                        'products' => $tmpOrderProductInfo,
-                    ]
-                ];
+        // 2. Подготовка сообщений
+        $clientMessage = $this->buildClientMessage($order, $basketData['partner_boxes'], $basketData['summary_price'], $basketData['cashback'], $basketData['summary_count'], $basketData['summary_discount'], $context['delivery_price'], $context['distance'], $context['need_pickup']);
+        $crmMessage = $this->buildCrmMessage($order, $basketData['partner_boxes'], $basketData['summary_price'], $basketData['cashback'], $basketData['summary_count'], $basketData['summary_discount'], $context['delivery_price'], $context['distance'], $context['need_pickup']);
+        $partnerMessages = $this->buildPartnerMessages($order, $basketData['partner_boxes'], $basketData['cashback'], $context['need_pickup']);
 
-                $kanbanCustomData = [
-                    'tenant_id' => $this->tenant->id,
-                    'tenant_name' => $this->tenant->name ?? $this->tenant->title,
-                    'tenant_user_id' => $this->tenantUser->id,
-                    'last_order_id' => $order->id,
-                    'last_order_date' => now()->toIso8601String(),
-                    // 🎯 Ключевые поля для рендеринга в CardOrder.vue:
-                    'product_details' => $kanbanProductDetails,
-                    'product_count' => $summaryCount,
-                    'delivery_price' => $deliveryPrice,
-                    'delivery_note' => $deliveryNote,
-                    'payment_type' => $paymentType,
-                    'summary_price' => $this->safeFloat($summaryPrice - $cashback),
-                    'summary_count' => $summaryCount,
-                ];
+        // 3. Отправка КЛИЕНТУ через MessageService
+        if ($orderDialog) {
+            MessageService::call()->sendMessage([
+                'message' => $clientMessage,
+                'dialog_id' => $orderDialog->id,
+                'meta' => [
+                    'order_id' => $order->id,
+                    'payment_status' => $paymentStatusText,
+                    'is_system' => false,
+                ],
+                'recipients' => ['client' => true],
+            ]);
+        }
 
-                $existingTaskId = $this->findKanbanClientByPhone($kanbanBoardUuid, $customerPhone);
+        // 4. Отправка в CRM (Kanban) через MessageService
+        if ($context['kanban_enabled']) {
+            $kanbanCustomData = [
+                'tenant_id' => $this->tenant->id, 'tenant_name' => $this->tenant->name ?? $this->tenant->title,
+                'tenant_user_id' => $this->tenantUser->id, 'last_order_id' => $order->id,
+                'last_order_date' => now()->toIso8601String(),
+                'product_details' => [['from' => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин', 'products' => $basketData['product_info']]],
+                'product_count' => $basketData['summary_count'], 'delivery_price' => $context['delivery_price'],
+                'delivery_note' => $this->fsPrepareDeliveryNote(), 'payment_type' => $context['payment_type'],
+                'payment_status' => $paymentStatusText, 'summary_price' => $basketData['final_price'],
+            ];
 
-                if ($existingTaskId) {
-                    // === КЛИЕНТ НАЙДЕН ===
+            $crmResult = MessageService::call()->sendMessage([
+                'message' => $crmMessage,
+                'title' => "Заказ #{$order->id} — {$context['customer_name']}",
+                'meta' => [
+                    'order_id' => $order->id, 'customer_name' => $context['customer_name'],
+                    'customer_phone' => $context['customer_phone'], 'summary_price' => $basketData['final_price'],
+                    'need_pickup' => $context['need_pickup'], 'delivery_note' => $this->fsPrepareDeliveryNote(),
+                    'kanban_board_uuid' => $context['kanban_board_uuid'], 'kanban_thread' => $context['kanban_thread'],
+                    'kanban_custom_data' => $kanbanCustomData,
+                    'kanban_payload' => array_merge($kanbanCustomData, ['source' => 'foodshop', 'type' => 'new_order']),
+                ],
+                'recipients' => ['crm' => true],
+            ]);
 
-                    // 1. Обновляем кастомные данные задачи последней информацией о заказе
-                    \Exxxar\Kanban\Facades\Kanban::clients()->updateCustomData($existingTaskId, $kanbanCustomData);
-
-                    // 2. Отправляем сообщение
-                    $result = \Exxxar\Kanban\Facades\Kanban::query()
-                        ->task($existingTaskId)
-                        ->message($crmMessage)
-                        ->senderType('system')
-                        ->senderLabel('FoodShop Checkout')
-                        ->payload(array_merge($kanbanCustomData, [
-                            'source' => 'foodshop',
-                            'order_id' => $order->id,
-                            'customer_name' => $customerName,
-                            'customer_phone' => $customerPhone,
-                            'type' => 'new_order',
-                        ]))
-                        ->send();
-
-                    $kanbanTaskId = $result['task_id'];
-                    $kanbanMessageId = $result['message_id'];
-
-                } else {
-                    // === КЛИЕНТ НЕ НАЙДЕН — СОЗДАЁМ НОВОГО ===
-                    $result = \Exxxar\Kanban\Facades\Kanban::client()
-                        ->board($kanbanBoardUuid)
-                        ->thread($kanbanThread)
-                        ->title($customerName)
-                        ->priority('medium')
-                        ->label('order')
-                        ->label('foodshop')
-                        ->clientData([
-                            'company_name' => $customerName,
-                            'contact_person' => $customerName,
-                            'phone' => $customerPhone,
-                            'source' => 'FoodShop',
-                            'cost' => $this->safeFloat($summaryPrice - $cashback),
-                            'placement_type' => $needPickup ? 'Самовывоз' : 'Доставка',
-                            'address' => $deliveryNote, // 🎯 Добавили адрес для отображения в карточке
-                            'custom_data' => $kanbanCustomData,
-                        ])
-                        ->message($crmMessage)
-                        ->senderType('system')
-                        ->senderLabel('FoodShop Checkout')
-                        ->payload(array_merge($kanbanCustomData, [
-                            'source' => 'foodshop',
-                            'order_id' => $order->id,
-                            'customer_name' => $customerName,
-                            'customer_phone' => $customerPhone,
-                            'type' => 'new_client_and_order',
-                        ]))
-                        ->send();
-
-                    $kanbanTaskId = $result['task_id'];
-                    $kanbanMessageId = $result['message_id'];
-                }
-
+            if (!empty($crmResult['crm']['task_id'])) {
+                $kanbanTaskId = $crmResult['crm']['task_id'];
                 $order->update([
                     'meta' => array_merge($order->meta ?? [], [
                         'kanban_task_id' => $kanbanTaskId,
-                        'kanban_message_id' => $kanbanMessageId,
-                        'kanban_board_uuid' => $kanbanBoardUuid,
+                        'kanban_message_id' => $crmResult['crm']['message_id'],
+                        'kanban_board_uuid' => $context['kanban_board_uuid'],
                     ]),
                 ]);
-
-            } catch (\Exxxar\Kanban\Exceptions\ValidationException $e) {
-                Log::error('[KanbanCRM] Ошибка валидации: ' . $e->getMessage(), ['errors' => $e->errors(), 'order_id' => $order->id]);
-            } catch (\Exxxar\Kanban\Exceptions\KanbanException $e) {
-                Log::error('[KanbanCRM] Ошибка API: ' . $e->getMessage(), ['code' => $e->getCode(), 'order_id' => $order->id]);
-            } catch (\Throwable $e) {
-                Log::error('[KanbanCRM] Неизвестная ошибка: ' . $e->getMessage(), ['order_id' => $order->id, 'trace' => $e->getTraceAsString()]);
             }
         }
 
-        // ==========================================
-        // 9. ОБРАБОТКА ОПЛАТЫ И ЧЕКА
-        // ==========================================
-        $order->delivery_price = $deliveryPrice;
-        $order->save();
+        // 5. Отправка ПАРТНЁРАМ через MessageService (цикл, т.к. у каждого свой thread_id)
+        foreach ($partnerMessages as $partnerData) {
+            MessageService::call()->sendMessage([
+                'message' => $partnerData['message'],
+                'thread_id' => $partnerData['thread'],
+                'title' => "Заказ #{$order->id} — {$partnerData['name']}",
+                'meta' => [
+                    'order_id' => $order->id, 'partner_id' => $partnerData['id'] ?? null,
+                    'partner_name' => $partnerData['name'] ?? null, 'type' => 'partner_order', 'is_system' => true,
+                ],
+                'recipients' => ['partners' => true],
+            ]);
+        }
 
+        return $kanbanTaskId;
+    }
+
+    // 🎯 ЕДИНЫЙ КОНТУР ОПЛАТЫ И ЧЕКОВ
+    private function processPaymentAndReceipt(Order $order, array $context, array $basketData, ?string $kanbanTaskId, $orderDialog): ?array
+    {
+        $paymentType = $context['payment_type'];
+        $paymentStatusText = $this->getPaymentStatusText($paymentType);
         $paymentData = null;
 
-        switch ($paymentType) {
-            case 0:
-                // TODO: PaymentService::call()->checkout();
-                break;
-            case 1:
-            case 2:
-            case 3:
-                $needBill = true;
-                break;
-            case 4:
-                $paymentData = PaymentService::call()->sbpForShop($order, $crmMessage);
-                break;
+        if (in_array($paymentType, [1, 2, 3])) {
+            // Логика для оплаты курьеру/при получении
+        } elseif ($paymentType === 4) {
+            $paymentData = PaymentService::call()->sbpForShop($order, '');
         }
 
-        // Генерация PDF-чека
-        $invoicePath = null;
-        if ($needBill) {
-            $invoicePath = $this->fsPrintPDFInfo(
-                order: $order,
-                summaryPrice: $summaryPrice,
-                summaryCount: $summaryCount,
-                tmpOrderProductInfo: $tmpOrderProductInfo,
-                cashback: $cashback
-            );
+        // 🎯 ГЕНЕРАЦИЯ ЧЕКА ВСЕГДА
+        $invoicePath = $this->fsPrintPDFInfo(
+            order: $order, summaryPrice: $basketData['summary_price'], summaryCount: $basketData['summary_count'],
+            tmpOrderProductInfo: $basketData['product_info'], cashback: $basketData['cashback'],
+            paymentStatusText: $paymentStatusText
+        );
 
-            if ($invoicePath && $orderDialog) {
-                try {
-                    $orderDialogService->sendInvoiceToDialog(
-                        $order,
-                        $invoicePath,
-                        [
-                            'payment_type' => $paymentType,
-                            'summary_price' => $summaryPrice - $cashback,
-                        ]
-                    );
-                } catch (\Throwable $e) {
-                    Log::error('[Checkout] Ошибка отправки чека: ' . $e->getMessage());
-                }
+        // 🎯 ОТПРАВКА ЧЕКА ЧЕРЕЗ MESSAGE SERVICE
+        if ($invoicePath) {
+            $receiptMeta = [
+                'order_id' => $order->id, 'payment_type' => $paymentType,
+                'payment_status_text' => $paymentStatusText, 'summary_price' => $basketData['final_price'], 'is_system' => true,
+            ];
+
+            // Клиенту
+            if ($orderDialog) {
+                MessageService::call()->sendMessage([
+                    'message' => "📄 Чек по заказу #{$order->id} (Статус: {$paymentStatusText})",
+                    'file_path' => $invoicePath, 'dialog_id' => $orderDialog->id,
+                    'meta' => $receiptMeta, 'recipients' => ['client' => true],
+                ]);
             }
 
-            if ($invoicePath && $kanbanEnabled && $kanbanTaskId) {
-                try {
-                    \Exxxar\Kanban\Facades\Kanban::query()
-                        ->task($kanbanTaskId)
-                        ->message("📄 Чек по заказу #{$order->id} прикреплён")
-                        ->senderType('system')
-                        ->senderLabel('FoodShop Checkout')
-                        ->file($invoicePath)
-                        ->payload([
-                            'type' => 'invoice_attached',
-                            'order_id' => $order->id,
-                        ])
-                        ->send();
-                } catch (\Throwable $e) {
-                    Log::error('[KanbanCRM] Ошибка отправки чека: ' . $e->getMessage());
-                }
+            // В CRM (если задача уже создана)
+            if ($kanbanTaskId && $context['kanban_enabled']) {
+                MessageService::call()->sendMessage([
+                    'message' => "📄 Чек по заказу #{$order->id} прикреплён",
+                    'file_path' => $invoicePath,
+                    'meta' => array_merge($receiptMeta, [
+                        'kanban_board_uuid' => $context['kanban_board_uuid'],
+                        'kanban_payload' => ['type' => 'invoice_attached', 'order_id' => $order->id],
+                    ]),
+                    'recipients' => ['crm' => true],
+                ]);
             }
         }
 
-        $this->sendPaidReceiptToChannel($order, $crmMessage);
+        // Отправка в канал (уже использует MessageService внутри)
+        $this->sendPaidReceiptToChannel($order, '');
 
-        // ==========================================
-        // 10. ФИНАЛЬНОЕ СООБЩЕНИЕ КЛИЕНТУ
-        // ==========================================
-        if ($orderDialog) {
-            try {
-                $paymentInfo = sprintf(
-                    $this->tenant->settings["payment_info"] ?? "Оплатите заказ по реквизитам, указав номер %s",
-                    $order->id ?? '-'
-                );
+        return $paymentData;
+    }
 
-                $orderDialogService->addOrderMessage(
-                    $order,
-                    "📨 <strong>Инструкция по оплате</strong>\n\n{$paymentInfo}\n\n" .
-                    "Вы можете оставить отзыв с фото и получить от нас дополнительный КэшБэк!",
-                    [
-                        'type' => 'payment_instruction',
-                        'is_system' => true,
-                    ]
-                );
-            } catch (\Throwable $e) {
-                Log::error('[Checkout] Ошибка финального сообщения: ' . $e->getMessage());
-            }
-        }
-
-        // ==========================================
-        // 11. ОЧИСТКА ПРОМОКОДОВ
-        // ==========================================
+    private function finalizeOrder(Order $order): void
+    {
         $config = $this->tenantUser->meta ?? [];
         $config["current_promocodes"] = [];
         $this->tenantUser->meta = $config;
         $this->tenantUser->save();
-
-        // ==========================================
-        // 12. 🆕 НАГРАДА ЗА ПЕРВЫЙ ЗАКАЗ (VIP)
-        // ==========================================
-        // Вызываем только если заказ успешно дошел до этого этапа
         $this->grantFirstOrderVipReward();
-
-        // 🆕 13. ФОРМИРОВАНИЕ И ВОЗВРАТ МАССИВА С ДАННЫМИ ЗАКАЗА
-        return [
-            'success' => true,
-            'order_id' => $order->id,
-            'summary_price' => $this->safeFloat($summaryPrice - $cashback),
-            'payment_type' => $paymentType,
-            'status' => $order->status,
-            'payment_data' => $paymentData,
-            'delivery_price' => $deliveryPrice,
-            'message' => 'Заказ успешно оформлен',
-        ];
     }
 
-    /**
-     * 🆕 Поиск клиента в KanbanCRM по телефону (серверный поиск)
-     *
-     * @return int|null ID задачи клиента или null если не найден
-     */
     private function findKanbanClientByPhone(string $boardUuid, ?string $phone): ?int
     {
-        if (empty($phone)) {
-            return null;
-        }
-
+        if (empty($phone)) return null;
         try {
-            // Используем серверный поиск вместо загрузки всех задач
-            $taskId = \Exxxar\Kanban\Facades\Kanban::clients()
-                ->getTaskIdByPhone($boardUuid, $phone);
-
-            if ($taskId) {
-                Log::info('[KanbanCRM] Клиент найден по телефону', [
-                    'phone' => $phone,
-                    'task_id' => $taskId,
-                ]);
-            } else {
-                Log::info('[KanbanCRM] Клиент не найден по телефону', [
-                    'phone' => $phone,
-                ]);
-            }
-
+            $taskId = \Exxxar\Kanban\Facades\Kanban::clients()->getTaskIdByPhone($boardUuid, $phone);
+            if ($taskId) Log::info('[KanbanCRM] Клиент найден', ['phone' => $phone, 'task_id' => $taskId]);
             return $taskId;
-        } catch (\Exxxar\Kanban\Exceptions\KanbanException $e) {
-            Log::warning('[KanbanCRM] Ошибка поиска клиента: ' . $e->getMessage());
-            return null;
         } catch (\Throwable $e) {
-            Log::error('[KanbanCRM] Неизвестная ошибка поиска: ' . $e->getMessage());
+            Log::warning('[KanbanCRM] Ошибка поиска: ' . $e->getMessage());
             return null;
         }
     }
 
-    /**
-     * 🆕 Формирование сообщения для КЛИЕНТА
-     */
+    private function getPaymentStatusText(int $paymentType): string
+    {
+        return match($paymentType) {
+            0 => 'Оплачено онлайн (Карта)',
+            1, 2, 3 => 'Оплата курьеру / При получении',
+            4 => 'Ожидает оплаты по счету СБП',
+            default => 'Статус оплаты уточняется',
+        };
+    }
+
     private function buildClientMessage($order, $partnerProductBox, $summaryPrice, $cashback, $summaryCount, $summaryDiscount, $deliveryPrice, $distance, $needPickup): string
     {
-        $message = "<b>✅ Заказ #{$order->id} принят!</b>\n\n";
-        $message .= "<b>Состав заказа:</b>\n";
+        $message = "<b>✅ Заказ #{$order->id} принят!</b>\n\n<b>Состав заказа:</b>\n";
+        foreach ($partnerProductBox as $box) $message .= $box["message"];
 
-        foreach ($partnerProductBox as $box) {
-            $message .= $box["message"];
-        }
-
-        $message .= "\n<b>📊 Итого:</b>\n";
-        $message .= "Товары: <b>" . number_format($summaryPrice, 0, '.', ' ') . " ₽</b>\n";
-
-        if ($cashback > 0) {
-            $message .= "Скидка (кэшбэк): <b>-" . number_format($cashback, 0, '.', ' ') . " ₽</b>\n";
-        }
-
-        if ($summaryDiscount > 0) {
-            $message .= "Скидки: <b>-" . number_format($summaryDiscount, 0, '.', ' ') . " ₽</b>\n";
-        }
-
-        if ($deliveryPrice > 0) {
-            $message .= "Доставка: <b>" . number_format($deliveryPrice, 0, '.', ' ') . " ₽</b>";
-            if ($distance > 0) {
-                $message .= " ({$distance} км)";
-            }
-            $message .= "\n";
-        }
+        $message .= "\n<b>📊 Итого:</b>\nТовары: <b>" . number_format($summaryPrice, 0, '.', ' ') . " ₽</b>\n";
+        if ($cashback > 0) $message .= "Скидка (кэшбэк): <b>-" . number_format($cashback, 0, '.', ' ') . " ₽</b>\n";
+        if ($summaryDiscount > 0) $message .= "Скидки: <b>-" . number_format($summaryDiscount, 0, '.', ' ') . " ₽</b>\n";
+        if ($deliveryPrice > 0) $message .= "Доставка: <b>" . number_format($deliveryPrice, 0, '.', ' ') . " ₽</b>" . ($distance > 0 ? " ({$distance} км)" : "") . "\n";
 
         $totalToPay = ($summaryPrice - $cashback) + $deliveryPrice;
-        $message .= "\n💰 <b>К оплате: " . number_format($totalToPay, 0, '.', ' ') . " ₽</b>\n";
-        $message .= "📦 Позиций: <b>{$summaryCount}</b>\n";
-
+        $message .= "\n💰 <b>К оплате: " . number_format($totalToPay, 0, '.', ' ') . " ₽</b>\n📦 Позиций: <b>{$summaryCount}</b>\n";
         $message .= "\n" . $this->fsPrepareUserInfo($order, $cashback);
-
-        if ($this->fsPrepareDisabilities()) {
-            $message .= "\n" . $this->fsPrepareDisabilities();
-        }
+        if ($this->fsPrepareDisabilities()) $message .= "\n" . $this->fsPrepareDisabilities();
 
         return $message;
     }
 
-    /**
-     * 🆕 Формирование сообщений для ПАРТНЁРОВ
-     */
     private function buildPartnerMessages($order, $partnerProductBox, $cashback, $needPickup): array
     {
         $messages = [];
-
         foreach ($partnerProductBox as $uuid => $box) {
-            $resultMessage = "🔔 <b>Новый заказ #{$order->id}</b>\n";
-            $resultMessage .= (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
-            $resultMessage .= $this->fsPrepareDisabilities();
-            $resultMessage .= $box["message"] ?? 'Неуказанный продукт (ошибка)';
+            $resultMessage = "🔔 <b>Новый заказ #{$order->id}</b>\n" . (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
+            $resultMessage .= $this->fsPrepareDisabilities() . ($box["message"] ?? 'Неуказанный продукт') . $this->fsPrepareUserInfo($order, $cashback);
 
-            $resultMessage .= $this->fsPrepareUserInfo($order, $cashback);
-
-            if ($box["summary_discount"] > 0) {
-                $resultMessage .= "\nСкидка по товарам: <b>-" . $box["summary_discount"] . " руб.</b>";
-            }
+            if ($box["summary_discount"] > 0) $resultMessage .= "\nСкидка: <b>-" . $box["summary_discount"] . " руб.</b>";
             $resultMessage .= "\nИтого: <b>" . $box["summary_price"] . " руб.</b> за <b>" . $box["summary_count"] . " ед.</b>\n";
 
             if ($box["delivery_price"] > 0) {
@@ -1272,60 +741,37 @@ trait BasketHelper
                 $resultMessage .= "\nИтого c доставкой: <b>" . ($box["summary_price"] + $box["delivery_price"]) . " руб.</b>";
             }
 
-            $messages[$uuid] = [
-                'message' => $resultMessage,
-                'thread' => $box["thread"],
-                'id' => $box["id"] ?? null,
-                'name' => $box["name"] ?? null,
-            ];
+            $messages[$uuid] = ['message' => $resultMessage, 'thread' => $box["thread"], 'id' => $box["id"] ?? null, 'name' => $box["name"] ?? null];
         }
-
         return $messages;
     }
 
-    /**
-     * 🆕 Формирование сообщения для CRM
-     */
     private function buildCrmMessage($order, $partnerProductBox, $summaryPrice, $cashback, $summaryCount, $summaryDiscount, $deliveryPrice, $distance, $needPickup): string
     {
-        $message = "<b>⚠️⚠️⚠️Сводный заказ⚠️⚠️⚠️</b>\n";
-        $message .= (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
-
+        $message = "<b>⚠️⚠️⚠️Сводный заказ⚠️⚠️⚠️</b>\n" . (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
         $recountDeliveryPrice = $deliveryPrice == 0;
 
-        foreach ($partnerProductBox as $key => $box) {
-            $message .= "\n<b>﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌</b>\n";
-            $message .= "Заказ из <b>{$box['name']}</b>\n";
-            $message .= $box["message"] ?? '';
-            $message .= "\nСкидка по товарам: <b>-" . ($box["summary_discount"] ?? 0) . " руб.</b>";
+        foreach ($partnerProductBox as $box) {
+            $message .= "\n<b>﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌</b>\nЗаказ из <b>{$box['name']}</b>\n" . ($box["message"] ?? '');
+            $message .= "\nСкидка: <b>-" . ($box["summary_discount"] ?? 0) . " руб.</b>";
             $message .= "\nИтого: <b>" . ($box["summary_price"] ?? 0) . " руб.</b> за <b>" . ($box["summary_count"] ?? 0) . " ед.</b>";
-
             if (($box["delivery_price"] ?? 0) > 0) {
                 $message .= "\nДоставка: <b>" . $box["delivery_price"] . " руб.</b> за " . $box["distance"] . " км";
                 $message .= "\nИтого c доставкой: <b>" . ($box["summary_price"] + $box["delivery_price"]) . " руб.</b>";
-
-                if ($recountDeliveryPrice) {
-                    $deliveryPrice += $box["delivery_price"];
-                }
+                if ($recountDeliveryPrice) $deliveryPrice += $box["delivery_price"];
             }
         }
 
         $message .= "\n<b>﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌</b>\n";
-
-        if ($cashback > 0) {
-            $message .= "Использованы баллы: <b>-$cashback</b> руб.\n";
-        }
+        if ($cashback > 0) $message .= "Использованы баллы: <b>-$cashback</b> руб.\n";
         $message .= "Итоговая скидка: <b>-$summaryDiscount</b> руб.\n";
         $message .= "Итого по всем: <b>" . ($summaryPrice - $cashback) . " руб.</b> за <b>$summaryCount ед.</b>\n";
-
         if ($deliveryPrice > 0) {
             $message .= "Доставка: <b>" . $deliveryPrice . " руб.</b> за $distance км\n";
             $message .= "Итого c доставкой: <b>" . (($summaryPrice - $cashback) + $deliveryPrice) . " руб.</b>\n";
         }
 
-        $message .= $this->fsPrepareUserInfo($order, $cashback);
-        $message .= $this->fsPrepareDisabilities();
-
+        $message .= $this->fsPrepareUserInfo($order, $cashback) . $this->fsPrepareDisabilities();
         return $message;
     }
 }

@@ -116,6 +116,7 @@
                                 </div>
                             </div>
 
+
                             <!-- Дата и время -->
                             <div class="order-meta">
                                 <i class="fa-solid fa-clock"></i>
@@ -125,7 +126,7 @@
                             <!-- Товары -->
                             <div class="order-products" v-if="getOrderProducts(order).length>0">
                                 <div
-                                    v-for="(product, i) in getOrderProducts(order).slice(0, 3)"
+                                    v-for="(product, i) in getOrderProducts(order).slice(0, 5)"
                                     :key="product.id || product.external_id || i"
                                     class="product-item"
                                 >
@@ -136,11 +137,11 @@
                                     </span>
                                 </div>
                                 <div
-                                    v-if="getOrderProducts(order).length > 3"
+                                    v-if="getOrderProducts(order).length > 5"
                                     class="product-more"
                                 >
-                                    + ещё {{ getOrderProducts(order).length - 3 }}
-                                    {{ pluralize(getOrderProducts(order).length - 3, 'товар', 'товара', 'товаров') }}
+                                    + ещё {{ getOrderProducts(order).length - 5 }}
+                                    {{ pluralize(getOrderProducts(order).length - 5, 'товар', 'товара', 'товаров') }}
                                 </div>
                             </div>
                             <p class="alert alert-light" v-else>Детали заказа отсутствуют</p>

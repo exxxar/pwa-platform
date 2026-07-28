@@ -2,6 +2,7 @@
 
 return [
     'is_disabled' => false,
+    'has_booking' => false,
     'is_edit_mode' => false,
     'default_theme_scheme' => false,
     'disabled_text' => "Магазин временно не работает",

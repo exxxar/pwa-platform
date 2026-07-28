@@ -59,6 +59,36 @@
                     >
                 </div>
 
+                <!-- 🌟 КНОПКА ПЕРЕХОДА ПО ССЫЛКЕ -->
+                <div v-if="currentStory?.link" class="story-link-wrapper" @click.stop>
+                    <a
+                        :href="currentStory.link"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="story-link-btn"
+                    >
+                        <span>{{ currentStory.linkText || 'Подробнее' }}</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                </div>
+
+                <!-- 🌟 РАСКРЫВАЮЩИЙСЯ ТЕКСТ -->
+                <div
+                    v-if="currentStory?.description"
+                    class="story-text-overlay"
+                    :class="{ 'is-expanded': isTextExpanded }"
+                    @click.stop="toggleText"
+                >
+                    <div class="text-content">
+                        <p>{{ currentStory.description }}</p>
+                    </div>
+
+                    <div class="text-toggle-indicator">
+                        <span>{{ isTextExpanded ? 'Свернуть' : 'Читать далее' }}</span>
+                        <i :class="isTextExpanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
+                    </div>
+                </div>
+
                 <!-- 🌟 РАСКРЫВАЮЩИЙСЯ ТЕКСТ -->
                 <div
                     v-if="currentStory?.description"
@@ -492,5 +522,85 @@ export default {
 .story-fade-enter-from,
 .story-fade-leave-to {
     opacity: 0;
+}
+
+/* ==========================================
+   🌟 КРАСИВАЯ КНОПКА ССЫЛКИ
+   ========================================== */
+.story-link-wrapper {
+    position: absolute;
+    bottom: 130px; /* Располагаем прямо над текстовым блоком */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 26;
+    animation: linkPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.story-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 28px;
+    background: linear-gradient(135deg, var(--bs-primary, #667eea) 0%, #764ba2 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.3px;
+    box-shadow:
+        0 8px 24px rgba(102, 126, 234, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+
+/* Эффект при наведении */
+&:hover {
+     transform: translateY(-3px) scale(1.05);
+     box-shadow:
+         0 12px 32px rgba(102, 126, 234, 0.6),
+         0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+ }
+
+/* Эффект при нажатии */
+&:active {
+     transform: translateY(0) scale(0.98);
+     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+ }
+
+/* Анимация иконки */
+i {
+    font-size: 0.85rem;
+    transition: transform 0.3s ease;
+}
+
+&:hover i {
+     transform: translate(2px, -2px);
+ }
+}
+
+/* Анимация появления кнопки */
+@keyframes linkPopIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+}
+
+/* Адаптация для мобильных устройств */
+@media (max-width: 480px) {
+    .story-link-wrapper {
+        bottom: 120px;
+    }
+
+    .story-link-btn {
+        padding: 12px 24px;
+        font-size: 0.9rem;
+    }
 }
 </style>

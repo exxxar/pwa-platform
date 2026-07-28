@@ -145,6 +145,31 @@
             </div>
         </div>
 
+        <!-- 🆕 ГЛОБАЛЬНЫЕ ТЕГИ ЗАВЕДЕНИЯ (Быстрый выбор) -->
+        <div v-if="globalVenueTags.length > 0" class="form-section global-tags-section">
+            <div class="section-title">
+                <i class="fa-solid fa-store"></i>
+                Глобальные теги заведения
+            </div>
+            <p class="form-hint" style="margin-bottom: 12px;">
+                Нажмите на тег, чтобы быстро добавить его к партнёру. Это обеспечивает единый стандарт для поиска и фильтрации.
+            </p>
+            <div class="global-tags-list">
+                <button
+                    v-for="(tag, index) in globalVenueTags"
+                    :key="index"
+                    type="button"
+                    class="global-tag-chip"
+                    :class="{ 'is-added': form.tags.includes(tag.toLowerCase()) }"
+                    @click="addGlobalTag(tag)"
+                    :title="form.tags.includes(tag.toLowerCase()) ? 'Уже добавлен' : 'Добавить тег'"
+                >
+                    <i :class="form.tags.includes(tag.toLowerCase()) ? 'fa-solid fa-check' : 'fa-solid fa-plus'"></i>
+                    {{ tag }}
+                </button>
+            </div>
+        </div>
+
         <!-- 🆕 ТЕГИ -->
         <div class="form-section">
             <div class="section-title">
@@ -361,6 +386,20 @@ export default {
     },
 
     computed: {
+        // 🆕 Получаем глобальные теги из настроек магазина
+        globalVenueTags() {
+            const tags = this.settings?.venue_tags;
+            if (!tags) return [];
+
+            // Поддержка и массива, и строки (на случай разных форматов сохранения)
+            if (Array.isArray(tags)) {
+                return tags;
+            }
+            if (typeof tags === 'string') {
+                return tags.split(',').map(t => t.trim()).filter(Boolean);
+            }
+            return [];
+        },
         tenant() {
             return window.Tenant || null;
         },
@@ -406,8 +445,38 @@ export default {
     },
 
     methods: {
+        addGlobalTag(tag) {
+            const normalizedTag = tag.trim().toLowerCase();
+            if (!normalizedTag) return;
+
+            if (this.form.tags.includes(normalizedTag)) {
+                this.$notify?.({
+                    title: 'Информация',
+                    text: 'Этот тег уже добавлен',
+                    type: 'info'
+                });
+                return;
+            }
+
+            if (this.form.tags.length >= 10) {
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Максимальное количество тегов: 10',
+                    type: 'warning'
+                });
+                return;
+            }
+
+            this.form.tags.push(normalizedTag);
+            this.$notify?.({
+                title: 'Успех',
+                text: `Тег "${tag}" добавлен`,
+                type: 'success'
+            });
+        },
+
         // ==========================================
-        // 🆕 МЕТОДЫ ДЛЯ ТЕГОВ
+        // 🆕 МЕТОДЫ ДЛЯ ТЕГОВ (Ваши существующие)
         // ==========================================
         focusTagInput() {
             this.$refs.tagInputRef?.focus()
@@ -1166,6 +1235,60 @@ $admin-danger: #ef4444;
     .btn-cancel, .btn-submit {
         flex: 0 1 auto;
         min-width: 140px;
+    }
+}
+
+// ==========================================
+// 🆕 ГЛОБАЛЬНЫЕ ТЕГИ ЗАВЕДЕНИЯ
+// ==========================================
+.global-tags-section {
+    background: rgba($admin-primary, 0.03);
+    border-color: rgba($admin-primary, 0.2);
+}
+
+.global-tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.global-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: $admin-card-bg;
+    border: 1px solid $admin-border;
+    border-radius: 8px;
+    color: $admin-text;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    i {
+        font-size: 0.75rem;
+        color: $admin-primary;
+        transition: all 0.2s ease;
+    }
+
+    &:hover:not(.is-added) {
+        border-color: $admin-primary;
+        color: $admin-primary;
+        background: rgba($admin-primary, 0.05);
+        transform: translateY(-1px);
+    }
+
+    // Состояние: тег уже добавлен
+    &.is-added {
+        background: rgba($admin-success, 0.1);
+        border-color: $admin-success;
+        color: $admin-success;
+        cursor: default;
+
+        i {
+            color: $admin-success;
+        }
     }
 }
 </style>

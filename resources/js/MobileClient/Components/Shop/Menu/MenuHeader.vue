@@ -1,5 +1,5 @@
 <template>
-    <header class="menu-header sticky-top bg-white shadow-sm" style="z-index: 1000;">
+    <header class="menu-header sticky-top bg-white shadow-sm" style="z-index: 1021;">
         <CategorySlider
             :settings="settings"
             :categories="categories"

@@ -159,6 +159,17 @@
                 </div>
             </div>
         </div>
+
+        <!-- Кастомная подсказка для iOS (скрыта по умолчанию) -->
+        <div id="ios-install-prompt" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 20px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 9999; text-align: center;">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #333;">
+                Установите приложение для удобного доступа:<br>
+                Нажмите <strong>Поделиться</strong>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                → <strong>На экран «Домой»</strong>
+            </p>
+            <button onclick="document.getElementById('ios-install-prompt').style.display='none'" style="background: #007aff; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;">Понятно</button>
+        </div>
     </div>
 </template>
 

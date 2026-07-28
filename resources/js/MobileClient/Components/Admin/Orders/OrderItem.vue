@@ -38,6 +38,7 @@
                 <span>Товары ({{ products.length }})</span>
             </div>
             <ul class="products-list">
+
                 <li v-for="(product, idx) in displayedProducts" :key="idx">
                     {{ product.title }}
                 </li>

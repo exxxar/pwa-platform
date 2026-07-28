@@ -35,6 +35,19 @@ window.axios.defaults.headers.common['X-CSRF-TOKEN'] = document.querySelector('m
 //     enabledTransports: ['ws', 'wss'],
 // });
 
+const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const isStandalone = window.navigator.standalone === true;
+
+// Если это iOS, не в режиме приложения, и пользователь еще не скрывал подсказку
+if (isIos && !isStandalone && !localStorage.getItem('ios_prompt_hidden')) {
+    document.getElementById('ios-install-prompt').style.display = 'block';
+}
+
+// Запоминаем, что пользователь закрыл подсказку
+document.querySelector('#ios-install-prompt button')?.addEventListener('click', () => {
+    localStorage.setItem('ios_prompt_hidden', 'true');
+});
+
 let deferredPrompt = null
 
 window.addEventListener('beforeinstallprompt', (e) => {

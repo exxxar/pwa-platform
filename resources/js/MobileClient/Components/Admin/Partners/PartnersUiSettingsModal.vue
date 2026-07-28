@@ -19,60 +19,103 @@
                     </button>
                 </div>
 
+                <!-- 🆕 ВКЛАДКИ НАВИГАЦИИ -->
+                <div class="modal-tabs">
+                    <button class="tab-btn" :class="{ 'active': activeTab === 'hero' }" @click="activeTab = 'hero'">
+                        <i class="fa-solid fa-image"></i>
+                        <span>Главный экран</span>
+                    </button>
+                    <button class="tab-btn" :class="{ 'active': activeTab === 'categories' }"
+                            @click="activeTab = 'categories'">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <span>Категории</span>
+                    </button>
+                    <button class="tab-btn" :class="{ 'active': activeTab === 'services' }"
+                            @click="activeTab = 'services'">
+                        <i class="fa-solid fa-star"></i>
+                        <span>Сервисы</span>
+                    </button>
+                    <button class="tab-btn" :class="{ 'active': activeTab === 'filters' }"
+                            @click="activeTab = 'filters'">
+                        <i class="fa-solid fa-tags"></i>
+                        <span>Фильтры</span>
+                    </button>
+                </div>
+
+
                 <!-- Тело модалки -->
                 <div class="modal-body">
 
                     <!-- 1. HERO СЕКЦИЯ -->
-                    <div class="settings-card">
+                    <div v-if="activeTab === 'hero'" class="settings-card fade-in">
                         <h4 class="card-title"><i class="fa-solid fa-image"></i> Главный экран</h4>
                         <div class="form-grid">
                             <div class="form-group full-width">
                                 <label>Заголовок</label>
-                                <input v-model="uiForm.hero.title" type="text" class="form-input" placeholder="Вкусные блюда...">
+                                <input v-model="uiForm.hero.title" type="text" class="form-input"
+                                       placeholder="Вкусные блюда...">
                             </div>
                             <div class="form-group full-width">
                                 <label>Подзаголовок</label>
-                                <input v-model="uiForm.hero.subtitle" type="text" class="form-input" placeholder="Доставка из кафе...">
+                                <input v-model="uiForm.hero.subtitle" type="text" class="form-input"
+                                       placeholder="Доставка из кафе...">
                             </div>
                             <div class="form-group full-width">
                                 <label>Текст в поле поиска</label>
-                                <input v-model="uiForm.hero.search_placeholder" type="text" class="form-input" placeholder="Поиск блюд и заведений">
+                                <input v-model="uiForm.hero.search_placeholder" type="text" class="form-input"
+                                       placeholder="Поиск блюд и заведений">
                             </div>
                         </div>
                         <div class="images-grid">
-                            <div v-for="(img, index) in ['bg_image_1', 'bg_image_2', 'bg_image_3', 'bg_image_4']" :key="img" class="image-upload-box">
+                            <div v-for="(img, index) in ['bg_image_1', 'bg_image_2', 'bg_image_3', 'bg_image_4']"
+                                 :key="img" class="image-upload-box">
                                 <label class="image-label">Картинка {{ index + 1 }}</label>
-                                <div class="image-preview" :style="{ backgroundImage: imagePreviews[img] ? `url(${imagePreviews[img]})` : 'none' }">
-                                    <div v-if="!imagePreviews[img]" class="image-placeholder"><i class="fa-solid fa-cloud-arrow-up"></i></div>
-                                    <button v-else class="remove-image" @click.prevent="removeImage(img)" type="button"><i class="fa-solid fa-xmark"></i></button>
+                                <div class="image-preview"
+                                     :style="{ backgroundImage: imagePreviews[img] ? `url(${imagePreviews[img]})` : 'none' }">
+                                    <div v-if="!imagePreviews[img]" class="image-placeholder"><i
+                                        class="fa-solid fa-cloud-arrow-up"></i></div>
+                                    <button v-else class="remove-image" @click.prevent="removeImage(img)" type="button">
+                                        <i class="fa-solid fa-xmark"></i></button>
                                 </div>
-                                <input type="file" accept="image/*" @change="(e) => handleImageUpload(e, img)" class="file-input" hidden :ref="'file_' + img">
+                                <input type="file" accept="image/*" @change="(e) => handleImageUpload(e, img)"
+                                       class="file-input" hidden :ref="'file_' + img">
                                 <button class="upload-btn" @click.prevent="triggerFileInput(img)">Выбрать</button>
                             </div>
                         </div>
                     </div>
 
                     <!-- 2. КАТЕГОРИИ МЕНЮ (с эмодзи) -->
-                    <div class="settings-card">
+                    <div v-if="activeTab === 'categories'" class="settings-card fade-in">
+
                         <div class="card-header-row">
                             <h4 class="card-title"><i class="fa-solid fa-layer-group"></i> Категории меню</h4>
-                            <button class="add-btn" @click="addItem('categories')"><i class="fa-solid fa-plus"></i></button>
+                            <button class="add-btn" @click="addItem('categories')"><i class="fa-solid fa-plus"></i>
+                            </button>
                         </div>
 
-                        <div class="title-input-row">
+                        <div class="title-input-row mb-3">
                             <label>Заголовок секции на странице</label>
-                            <input v-model="uiForm.categories_title" type="text" class="form-input title-input" placeholder="Популярные категории">
+                            <input v-model="uiForm.categories_title" type="text" class="form-input title-input"
+                                   placeholder="Популярные категории">
                         </div>
 
                         <div class="categories-grid">
-                            <div v-for="(item, index) in uiForm.categories" :key="item.id || index" class="category-card">
-                                <div class="category-emoji-display">
-                                    {{ item.icon || '🍽️' }}
+                            <div v-for="(item, index) in uiForm.categories" :key="item.id || index"
+                                 class="category-card">
+                                <!-- 🆕 Кликабельная область выбора эмодзи -->
+                                <div class="category-emoji-display" @click="openEmojiPicker(index)"
+                                     title="Нажмите, чтобы выбрать эмодзи">
+                                    <span class="emoji-char">{{ item.icon || '🍽️' }}</span>
+                                    <div class="emoji-overlay">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </div>
                                 </div>
+
                                 <div class="category-info">
-                                    <input v-model="item.icon" type="text" class="form-input" placeholder="Эмодзи (🍕)" maxlength="4">
-                                    <input v-model="item.name" type="text" class="form-input" placeholder="Название (Пицца)">
-                                    <input v-model="item.slug" type="text" class="form-input" placeholder="Slug (pizza)">
+                                    <input v-model="item.name" type="text" class="form-input"
+                                           placeholder="Название (Пицца)">
+                                    <input v-model="item.slug" type="text" class="form-input"
+                                           placeholder="Slug (pizza)">
                                 </div>
                                 <button class="remove-category-btn" @click="removeItem('categories', index)">
                                     <i class="fa-solid fa-trash"></i>
@@ -81,11 +124,14 @@
                         </div>
                     </div>
 
+
                     <!-- 3. СЕРВИСЫ -->
-                    <div class="settings-card">
+                    <div v-if="activeTab === 'services'" class="settings-card fade-in">
+
                         <div class="card-header-row">
                             <h4 class="card-title"><i class="fa-solid fa-star"></i> Преимущества</h4>
-                            <button class="add-btn" @click="addItem('services')"><i class="fa-solid fa-plus"></i></button>
+                            <button class="add-btn" @click="addItem('services')"><i class="fa-solid fa-plus"></i>
+                            </button>
                         </div>
                         <div class="items-grid">
                             <div v-for="(item, index) in uiForm.services" :key="item.id || index" class="service-card">
@@ -93,21 +139,26 @@
                                     <i v-if="item.icon" :class="item.icon"></i><span v-else>?</span>
                                 </div>
                                 <div class="service-info">
-                                    <input v-model="item.label" type="text" class="form-input" placeholder="Текст преимущества">
+                                    <input v-model="item.label" type="text" class="form-input"
+                                           placeholder="Текст преимущества">
                                 </div>
                                 <div class="service-actions">
-                                    <button class="icon-picker-btn" @click="openIconPicker(index)"><i class="fa-solid fa-icons"></i></button>
-                                    <button class="remove-service-btn" @click="removeItem('services', index)"><i class="fa-solid fa-trash"></i></button>
+                                    <button class="icon-picker-btn" @click="openIconPicker(index)"><i
+                                        class="fa-solid fa-icons"></i></button>
+                                    <button class="remove-service-btn" @click="removeItem('services', index)"><i
+                                        class="fa-solid fa-trash"></i></button>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- 4. ФИЛЬТРЫ (ТЕГИ) -->
-                    <div class="settings-card">
+                    <div v-if="activeTab === 'filters'" class="settings-card fade-in">
+
                         <div class="card-header-row">
                             <h4 class="card-title"><i class="fa-solid fa-tags"></i> Фильтры</h4>
-                            <button class="add-btn" @click="addItem('filters')"><i class="fa-solid fa-plus"></i></button>
+                            <button class="add-btn" @click="addItem('filters')"><i class="fa-solid fa-plus"></i>
+                            </button>
                         </div>
                         <div class="filters-grid">
                             <div v-for="(item, index) in uiForm.filters" :key="item.id || index" class="filter-tag">
@@ -116,7 +167,8 @@
                                     <input v-model="item.name" type="text" class="form-input" placeholder="Название">
                                     <input v-model="item.slug" type="text" class="form-input" placeholder="Slug">
                                 </div>
-                                <button class="remove-filter-btn" @click="removeItem('filters', index)"><i class="fa-solid fa-xmark"></i></button>
+                                <button class="remove-filter-btn" @click="removeItem('filters', index)"><i
+                                    class="fa-solid fa-xmark"></i></button>
                             </div>
                         </div>
                     </div>
@@ -150,8 +202,37 @@
                     <input v-model="iconSearchQuery" type="text" placeholder="Поиск..." class="form-input">
                 </div>
                 <div class="icons-grid">
-                    <button v-for="icon in filteredIcons" :key="icon" class="icon-option" :class="{ 'selected': currentEditingService && currentEditingService.icon === icon }" @click="selectIcon(icon)">
+                    <button v-for="icon in filteredIcons" :key="icon" class="icon-option"
+                            :class="{ 'selected': currentEditingService && currentEditingService.icon === icon }"
+                            @click="selectIcon(icon)">
                         <i :class="icon"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <!-- 🆕 Модалка выбора ЭМОДЗИ (для категорий меню) -->
+    <transition name="modal-fade">
+        <div v-if="showEmojiPicker" class="icon-picker-overlay" @click.self="closeEmojiPicker">
+            <div class="icon-picker-modal emoji-picker-modal">
+                <div class="picker-header">
+                    <h4>Выберите эмодзи для категории</h4>
+                    <button class="picker-close" @click="closeEmojiPicker"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="picker-search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input v-model="emojiSearchQuery" type="text" placeholder="Поиск эмодзи..." class="form-input">
+                </div>
+                <div class="emojis-grid">
+                    <button
+                        v-for="emoji in filteredEmojis"
+                        :key="emoji"
+                        class="emoji-option"
+                        :class="{ 'selected': currentEditingCategory && currentEditingCategory.icon === emoji }"
+                        @click="selectEmoji(emoji)"
+                    >
+                        {{ emoji }}
                     </button>
                 </div>
             </div>
@@ -162,17 +243,20 @@
 <script>
 export default {
     name: 'PartnersUiSettingsModal',
-    props: { modelValue: { type: Boolean, default: false } },
+    props: {modelValue: {type: Boolean, default: false}},
     emits: ['update:modelValue', 'saved'],
 
     data() {
         return {
+            activeTab: 'hero',
             isSaving: false,
             showIconPicker: false,
             iconSearchQuery: '',
             currentEditingServiceIndex: null,
             imagePreviews: {},
-
+            showEmojiPicker: false,
+            emojiSearchQuery: '',
+            currentEditingCategoryIndex: null,
             availableIcons: [
                 'fa-solid fa-bolt', 'fa-solid fa-bag-shopping', 'fa-solid fa-shield-halved',
                 'fa-solid fa-motorcycle', 'fa-solid fa-truck-fast', 'fa-solid fa-clock',
@@ -182,7 +266,14 @@ export default {
                 'fa-solid fa-location-dot', 'fa-solid fa-phone', 'fa-solid fa-gift',
                 'fa-solid fa-percent', 'fa-solid fa-wallet', 'fa-solid fa-award'
             ],
-
+            availableEmojis: [
+                '🍕', '🍔', '🌯', '🍣', '🍖', '🥟', '🫓', '🍜', '🍝', '🥙',
+                '🌮', '🍱', '🦞', '🍟', '🍺', '🥗', '🥑', '🍰', '☕', '🥤',
+                '🍩', '🍗', '🥩', '🥪', '🌭', '🥘', '🥣', '🧀', '🥚', '🍞',
+                '🥐', '🥨', '🥯', '🥞', '🧇', '🍳', '🍲', '🍛', '🍜', '🍝',
+                '🍠', '🍢', '🍣', '🍤', '🍥', '🍡', '🍦', '🍧', '🍨', '🍩',
+                '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯'
+            ],
             uiForm: {
                 hero: {
                     title: 'Вкусные блюда из любимых заведений',
@@ -192,44 +283,56 @@ export default {
                 },
                 categories_title: 'Популярные категории',
                 categories: [
-                    { id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza' },
-                    { id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers' },
-                    { id: 3, name: 'Шаурма', icon: '🌯', slug: 'shawarma' },
-                    { id: 4, name: 'Суши и роллы', icon: '🍣', slug: 'sushi' },
-                    { id: 5, name: 'Шашлык', icon: '🍖', slug: 'shashlik' },
-                    { id: 6, name: 'Хинкали', icon: '🥟', slug: 'khinkali' },
-                    { id: 7, name: 'Хачапури', icon: '🫓', slug: 'khachapuri' },
-                    { id: 8, name: 'Лапша / Wok', icon: '🍜', slug: 'wok' },
-                    { id: 9, name: 'Паста', icon: '🍝', slug: 'pasta' },
-                    { id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner' },
-                    { id: 11, name: 'Тако и буррито', icon: '🌮', slug: 'taco' },
-                    { id: 12, name: 'Пельмени и вареники', icon: '🥟', slug: 'dumplings' },
-                    { id: 13, name: 'Обеды', icon: '🍱', slug: 'lunch' },
-                    { id: 14, name: 'Морепродукты', icon: '🦞', slug: 'seafood' },
-                    { id: 15, name: 'Закуски', icon: '🍟', slug: 'snacks' },
-                    { id: 16, name: 'Пивные закуски', icon: '🍺', slug: 'beer_snacks' },
-                    { id: 17, name: 'Салаты', icon: '🥗', slug: 'salads' },
-                    { id: 18, name: 'ПП', icon: '🥑', slug: 'pp' }
+                    {id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza'},
+                    {id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers'},
+                    {id: 3, name: 'Шаурма', icon: '🌯', slug: 'shawarma'},
+                    {id: 4, name: 'Суши и роллы', icon: '🍣', slug: 'sushi'},
+                    {id: 5, name: 'Шашлык', icon: '🍖', slug: 'shashlik'},
+                    {id: 6, name: 'Хинкали', icon: '🥟', slug: 'khinkali'},
+                    {id: 7, name: 'Хачапури', icon: '🫓', slug: 'khachapuri'},
+                    {id: 8, name: 'Лапша / Wok', icon: '🍜', slug: 'wok'},
+                    {id: 9, name: 'Паста', icon: '🍝', slug: 'pasta'},
+                    {id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner'},
+                    {id: 11, name: 'Тако и буррито', icon: '🌮', slug: 'taco'},
+                    {id: 12, name: 'Пельмени и вареники', icon: '🥟', slug: 'dumplings'},
+                    {id: 13, name: 'Обеды', icon: '🍱', slug: 'lunch'},
+                    {id: 14, name: 'Морепродукты', icon: '🦞', slug: 'seafood'},
+                    {id: 15, name: 'Закуски', icon: '🍟', slug: 'snacks'},
+                    {id: 16, name: 'Пивные закуски', icon: '🍺', slug: 'beer_snacks'},
+                    {id: 17, name: 'Салаты', icon: '🥗', slug: 'salads'},
+                    {id: 18, name: 'ПП', icon: '🥑', slug: 'pp'}
                 ],
                 services: [
-                    { id: 1, label: 'Быстрая доставка', icon: 'fa-solid fa-bolt' },
-                    { id: 2, label: 'Большой выбор', icon: 'fa-solid fa-bag-shopping' }
+                    {id: 1, label: 'Быстрая доставка', icon: 'fa-solid fa-bolt'},
+                    {id: 2, label: 'Большой выбор', icon: 'fa-solid fa-bag-shopping'}
                 ],
                 filters: [
-                    { id: 1, name: 'Рядом с вами', slug: 'nearby' },
-                    { id: 2, name: 'С рейтингом', slug: 'rating' },
-                    { id: 3, name: 'Новинки', slug: 'new' },
-                    { id: 4, name: 'Акции', slug: 'promo' }
+                    {id: 1, name: 'Рядом с вами', slug: 'nearby'},
+                    {id: 2, name: 'С рейтингом', slug: 'rating'},
+                    {id: 3, name: 'Новинки', slug: 'new'},
+                    {id: 4, name: 'Акции', slug: 'promo'}
                 ]
             }
         };
     },
 
     computed: {
-        tenant() { return window.Tenant; },
+        tenant() {
+            return window.Tenant;
+        },
         filteredIcons() {
             if (!this.iconSearchQuery) return this.availableIcons;
             return this.availableIcons.filter(icon => icon.includes(this.iconSearchQuery.toLowerCase()));
+        },
+        // 🆕 Вычисляемое свойство для текущей редактируемой категории
+        currentEditingCategory() {
+            return this.currentEditingCategoryIndex !== null ? this.uiForm.categories[this.currentEditingCategoryIndex] : null;
+        },
+        // 🆕 Фильтрация эмодзи (пока простая, но можно расширить)
+        filteredEmojis() {
+            if (!this.emojiSearchQuery) return this.availableEmojis;
+            // Эмодзи сложно фильтровать по тексту без библиотеки, поэтому пока возвращаем все или по точному совпадению
+            return this.availableEmojis;
         },
         currentEditingService() {
             return this.currentEditingServiceIndex !== null ? this.uiForm.services[this.currentEditingServiceIndex] : null;
@@ -248,11 +351,13 @@ export default {
     },
 
     methods: {
-        closeModal() { this.$emit('update:modelValue', false); },
+        closeModal() {
+            this.$emit('update:modelValue', false);
+        },
 
         loadSettings() {
             const settings = this.tenant?.settings?.partners?.ui || {};
-            if (settings.hero) this.uiForm.hero = { ...this.uiForm.hero, ...settings.hero };
+            if (settings.hero) this.uiForm.hero = {...this.uiForm.hero, ...settings.hero};
             // Поддержка старого названия 'cuisines' для обратной совместимости
             if (settings.categories) this.uiForm.categories = JSON.parse(JSON.stringify(settings.categories));
             else if (settings.cuisines) this.uiForm.categories = JSON.parse(JSON.stringify(settings.cuisines));
@@ -278,27 +383,31 @@ export default {
                 if (!this.tenant.settings.partners) this.tenant.settings.partners = {};
                 this.tenant.settings.partners.ui = JSON.parse(JSON.stringify(this.uiForm));
 
-                this.$notify?.({ title: 'Успех', text: 'Настройки сохранены', type: 'success' });
+                this.$notify?.({title: 'Успех', text: 'Настройки сохранены', type: 'success'});
                 this.$emit('saved', this.uiForm);
                 this.closeModal();
             } catch (error) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить', type: 'error' });
+                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
             } finally {
                 this.isSaving = false;
             }
         },
 
         addItem(collection) {
-            const newItem = { id: Date.now() };
-            if (collection === 'categories') Object.assign(newItem, { name: '', icon: '', slug: '' });
-            if (collection === 'services') Object.assign(newItem, { label: '', icon: '' });
-            if (collection === 'filters') Object.assign(newItem, { name: '', slug: '' });
+            const newItem = {id: Date.now()};
+            if (collection === 'categories') Object.assign(newItem, {name: '', icon: '', slug: ''});
+            if (collection === 'services') Object.assign(newItem, {label: '', icon: ''});
+            if (collection === 'filters') Object.assign(newItem, {name: '', slug: ''});
             this.uiForm[collection].push(newItem);
         },
 
-        removeItem(collection, index) { this.uiForm[collection].splice(index, 1); },
+        removeItem(collection, index) {
+            this.uiForm[collection].splice(index, 1);
+        },
 
-        triggerFileInput(key) { this.$refs['file_' + key][0].click(); },
+        triggerFileInput(key) {
+            this.$refs['file_' + key][0].click();
+        },
 
         handleImageUpload(event, key) {
             const file = event.target.files[0];
@@ -327,10 +436,30 @@ export default {
         selectIcon(iconClass) {
             if (this.currentEditingService) this.currentEditingService.icon = iconClass;
             this.closeIconPicker();
-        }
+        },
+        // 🆕 Методы для выбора эмодзи
+        openEmojiPicker(index) {
+            this.currentEditingCategoryIndex = index;
+            this.emojiSearchQuery = '';
+            this.showEmojiPicker = true;
+        },
+
+        closeEmojiPicker() {
+            this.showEmojiPicker = false;
+            this.currentEditingCategoryIndex = null;
+        },
+
+        selectEmoji(emoji) {
+            if (this.currentEditingCategory) {
+                this.currentEditingCategory.icon = emoji;
+            }
+            this.closeEmojiPicker();
+        },
     },
 
-    beforeUnmount() { document.body.style.overflow = ''; }
+    beforeUnmount() {
+        document.body.style.overflow = '';
+    }
 };
 </script>
 
@@ -427,7 +556,11 @@ $admin-success: #10b981;
     font-size: 1.1rem;
     transition: all 0.2s;
     flex-shrink: 0;
-    &:hover { background: $admin-danger; color: white; }
+
+    &:hover {
+        background: $admin-danger;
+        color: white;
+    }
 }
 
 .modal-body {
@@ -459,7 +592,10 @@ $admin-success: #10b981;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    &:hover { background: $admin-bg; }
+
+    &:hover {
+        background: $admin-bg;
+    }
 }
 
 .save-btn {
@@ -474,15 +610,23 @@ $admin-success: #10b981;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    &:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
-    &:disabled { opacity: 0.7; cursor: wait; }
+
+    &:hover:not(:disabled) {
+        background: #2563eb;
+        transform: translateY(-1px);
+    }
+
+    &:disabled {
+        opacity: 0.7;
+        cursor: wait;
+    }
 }
 
 .settings-card {
     background: $admin-bg;
     border: 1px solid $admin-border;
     border-radius: 14px;
-    padding: 20px;
+    padding: 10px;
 }
 
 .card-title {
@@ -493,7 +637,10 @@ $admin-success: #10b981;
     display: flex;
     align-items: center;
     gap: 8px;
-    i { color: $admin-primary; }
+
+    i {
+        color: $admin-primary;
+    }
 }
 
 .card-header-row {
@@ -501,7 +648,10 @@ $admin-success: #10b981;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 16px;
-    .card-title { margin: 0; }
+
+    .card-title {
+        margin: 0;
+    }
 }
 
 .add-btn {
@@ -518,7 +668,12 @@ $admin-success: #10b981;
     font-size: 1.1rem;
     transition: all 0.2s;
     flex-shrink: 0;
-    &:hover { background: $admin-primary; color: white; border-color: $admin-primary; }
+
+    &:hover {
+        background: $admin-primary;
+        color: white;
+        border-color: $admin-primary;
+    }
 }
 
 .form-grid {
@@ -527,8 +682,16 @@ $admin-success: #10b981;
     gap: 16px;
     margin-bottom: 20px;
 }
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-group.full-width { grid-column: 1 / -1; }
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
 
 label {
     font-size: 0.8rem;
@@ -548,7 +711,12 @@ label {
     transition: all 0.2s;
     width: 100%;
     box-sizing: border-box;
-    &:focus { outline: none; border-color: $admin-primary; box-shadow: 0 0 0 3px rgba($admin-primary, 0.1); }
+
+    &:focus {
+        outline: none;
+        border-color: $admin-primary;
+        box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+    }
 }
 
 // Изображения Hero
@@ -557,12 +725,20 @@ label {
     grid-template-columns: repeat(4, 1fr);
     gap: 12px;
 }
+
 .image-upload-box {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
-.image-label { font-size: 0.75rem; text-align: center; color: $admin-text-muted; font-weight: 600; }
+
+.image-label {
+    font-size: 0.75rem;
+    text-align: center;
+    color: $admin-text-muted;
+    font-weight: 600;
+}
+
 .image-preview {
     width: 100%;
     aspect-ratio: 1;
@@ -576,13 +752,22 @@ label {
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    &:hover { border-color: $admin-primary; }
+
+    &:hover {
+        border-color: $admin-primary;
+    }
 }
+
 .image-placeholder {
     text-align: center;
     color: $admin-text-muted;
-    i { font-size: 1.5rem; display: block; }
+
+    i {
+        font-size: 1.5rem;
+        display: block;
+    }
 }
+
 .remove-image {
     position: absolute;
     top: 6px;
@@ -598,8 +783,12 @@ label {
     align-items: center;
     justify-content: center;
     font-size: 0.8rem;
-    &:hover { transform: scale(1.1); }
+
+    &:hover {
+        transform: scale(1.1);
+    }
 }
+
 .upload-btn {
     width: 100%;
     padding: 8px;
@@ -610,7 +799,11 @@ label {
     font-weight: 600;
     color: $admin-text;
     cursor: pointer;
-    &:hover { background: $admin-bg; border-color: $admin-text-muted; }
+
+    &:hover {
+        background: $admin-bg;
+        border-color: $admin-text-muted;
+    }
 }
 
 // КАТЕГОРИИ БЛЮД (сетка карточек)
@@ -633,7 +826,7 @@ label {
 
     &:hover {
         border-color: $admin-primary;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
     }
 }
 
@@ -664,7 +857,7 @@ label {
 .category-upload-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     color: white;
     display: flex;
     align-items: center;
@@ -673,7 +866,10 @@ label {
     cursor: pointer;
     transition: opacity 0.2s;
     font-size: 1.3rem;
-    &:hover { opacity: 1; }
+
+    &:hover {
+        opacity: 1;
+    }
 }
 
 .category-info {
@@ -700,7 +896,11 @@ label {
     opacity: 0;
     transition: all 0.2s;
     z-index: 2;
-    &:hover { background: $admin-danger; transform: scale(1.1); }
+
+    &:hover {
+        background: $admin-danger;
+        transform: scale(1.1);
+    }
 }
 
 .category-card:hover .remove-category-btn {
@@ -720,7 +920,7 @@ label {
 
     &:hover {
         border-color: $admin-primary;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
     }
 }
 
@@ -768,7 +968,12 @@ label {
     justify-content: center;
     font-size: 1rem;
     transition: all 0.2s;
-    &:hover { border-color: $admin-primary; color: $admin-primary; background: rgba($admin-primary, 0.05); }
+
+    &:hover {
+        border-color: $admin-primary;
+        color: $admin-primary;
+        background: rgba($admin-primary, 0.05);
+    }
 }
 
 .remove-service-btn {
@@ -784,7 +989,12 @@ label {
     justify-content: center;
     font-size: 1rem;
     transition: all 0.2s;
-    &:hover { background: $admin-danger; color: white; border-color: $admin-danger; }
+
+    &:hover {
+        background: $admin-danger;
+        color: white;
+        border-color: $admin-danger;
+    }
 }
 
 // ФИЛЬТРЫ (адаптивная сетка)
@@ -806,7 +1016,7 @@ label {
 
     &:hover {
         border-color: $admin-primary;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     }
 }
 
@@ -845,7 +1055,11 @@ label {
     font-size: 1rem;
     flex-shrink: 0;
     transition: all 0.2s;
-    &:hover { background: $admin-danger; color: white; }
+
+    &:hover {
+        background: $admin-danger;
+        color: white;
+    }
 }
 
 // Модалка иконок
@@ -879,15 +1093,30 @@ label {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    h4 { margin: 0; font-size: 1.1rem; color: $admin-text; }
+
+    h4 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: $admin-text;
+    }
 }
 
 .picker-close {
-    width: 32px; height: 32px; border-radius: 50%;
-    background: $admin-bg; border: none; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: $admin-bg;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: $admin-text;
-    &:hover { background: $admin-danger; color: white; }
+
+    &:hover {
+        background: $admin-danger;
+        color: white;
+    }
 }
 
 .picker-search {
@@ -897,9 +1126,22 @@ label {
     gap: 10px;
     background: $admin-bg;
     border-bottom: 1px solid $admin-border;
-    i { color: $admin-text-muted; }
-    .form-input { border: none; background: transparent; padding: 0; font-size: 1rem; flex: 1; }
-    .form-input:focus { box-shadow: none; }
+
+    i {
+        color: $admin-text-muted;
+    }
+
+    .form-input {
+        border: none;
+        background: transparent;
+        padding: 0;
+        font-size: 1rem;
+        flex: 1;
+    }
+
+    .form-input:focus {
+        box-shadow: none;
+    }
 }
 
 .icons-grid {
@@ -923,12 +1165,29 @@ label {
     display: flex;
     align-items: center;
     justify-content: center;
-    &:hover { border-color: $admin-primary; color: $admin-primary; transform: scale(1.1); z-index: 1; }
-    &.selected { background: $admin-primary; color: white; border-color: $admin-primary; box-shadow: 0 4px 12px rgba($admin-primary, 0.3); }
+
+    &:hover {
+        border-color: $admin-primary;
+        color: $admin-primary;
+        transform: scale(1.1);
+        z-index: 1;
+    }
+
+    &.selected {
+        background: $admin-primary;
+        color: white;
+        border-color: $admin-primary;
+        box-shadow: 0 4px 12px rgba($admin-primary, 0.3);
+    }
 }
 
-.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.25s ease; }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+.modal-fade-enter-active, .modal-fade-leave-active {
+    transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from, .modal-fade-leave-to {
+    opacity: 0;
+}
 
 // ==========================================
 // АДАПТИВНОСТЬ
@@ -984,8 +1243,12 @@ label {
 }
 
 @media (max-width: 480px) {
-    .modal-title { font-size: 1rem; }
-    .modal-subtitle { display: none; }
+    .modal-title {
+        font-size: 1rem;
+    }
+    .modal-subtitle {
+        display: none;
+    }
 
     .items-grid {
         grid-template-columns: 1fr; // Одна колонка на очень маленьких экранах
@@ -1001,6 +1264,286 @@ label {
         .service-icon-wrapper {
             width: 40px;
             height: 40px;
+        }
+    }
+}
+
+// ==========================================
+// 🆕 КАТЕГОРИИ МЕНЮ (с интерактивным выбором эмодзи)
+// ==========================================
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.category-card {
+    background: white;
+    border: 1px solid $admin-border;
+    border-radius: 14px;
+    padding: 14px;
+    transition: all 0.2s;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    &:hover {
+        border-color: $admin-primary;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+    }
+}
+
+.category-emoji-display {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: $admin-bg;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem; // Крупный размер для эмодзи
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+
+    &:hover {
+        background: #eef2f7;
+        border-color: rgba($admin-primary, 0.3);
+
+        .emoji-overlay {
+            opacity: 1;
+        }
+    }
+}
+
+.emoji-char {
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.emoji-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+    backdrop-filter: blur(2px);
+}
+
+.category-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.remove-category-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba($admin-danger, 0.9);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.2s;
+    z-index: 2;
+
+    .category-card:hover & {
+        opacity: 1;
+    }
+
+    &:hover {
+        background: $admin-danger;
+        transform: scale(1.1);
+    }
+}
+
+// ==========================================
+// 🆕 СЕТКА И МОДАЛКА ВЫБОРА ЭМОДЗИ
+// ==========================================
+.emoji-picker-modal {
+    max-width: 600px; // Чуть шире для эмодзи
+}
+
+.emojis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 10px;
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+    max-height: 400px;
+}
+
+.emoji-option {
+    aspect-ratio: 1;
+    border: 2px solid $admin-border;
+    border-radius: 12px;
+    background: white;
+    font-size: 2rem; // Крупные цветные эмодзи
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding-bottom: 4px; // Корректировка вертикального центрирования эмодзи
+
+    &:hover {
+        border-color: $admin-primary;
+        background: rgba($admin-primary, 0.05);
+        transform: scale(1.15);
+        z-index: 1;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    &.selected {
+        background: rgba($admin-primary, 0.1);
+        border-color: $admin-primary;
+        box-shadow: 0 0 0 3px rgba($admin-primary, 0.2);
+        transform: scale(1.1);
+    }
+}
+
+// Адаптивность для мобильных
+@media (max-width: 768px) {
+    .categories-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .emojis-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .categories-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .emojis-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .category-emoji-display {
+        font-size: 2.5rem;
+    }
+}
+
+// ==========================================
+// 🆕 СТИЛИ ДЛЯ ВКЛАДОК
+// ==========================================
+.modal-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 24px;
+    border-bottom: 1px solid $admin-border;
+    background: $admin-card-bg;
+    overflow-x: auto;
+    flex-shrink: 0;
+
+    // Скрываем скроллбар для эстетики
+    &::-webkit-scrollbar {
+        display: none;
+    }
+
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 18px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: $admin-text-muted;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+    i {
+        font-size: 1rem;
+        transition: transform 0.2s ease;
+    }
+
+    &:hover {
+        color: $admin-text;
+        background: rgba($admin-primary, 0.03);
+    }
+
+    &.active {
+        color: $admin-primary;
+        border-bottom-color: $admin-primary;
+
+        i {
+            transform: scale(1.1);
+        }
+    }
+}
+
+// Анимация плавного появления контента вкладки
+.fade-in {
+    animation: fadeInTab 0.3s ease-out;
+}
+
+@keyframes fadeInTab {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+// ==========================================
+// АДАПТИВНОСТЬ ВКЛАДОК
+// ==========================================
+@media (max-width: 768px) {
+    .modal-tabs {
+        padding: 0 16px;
+    }
+
+    .tab-btn {
+        padding: 12px 14px;
+        font-size: 0.85rem;
+
+        span {
+            display: none; // На мобильных показываем только иконки для экономии места
+        }
+
+        i {
+            font-size: 1.1rem;
+        }
+    }
+}
+
+@media (max-width: 480px) {
+    .tab-btn {
+        padding: 12px 16px;
+
+        span {
+            display: inline; // На очень маленьких экранах можно вернуть текст, если иконок мало
         }
     }
 }

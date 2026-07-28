@@ -157,7 +157,7 @@ export default {
         },
 
         hasBooking() {
-            return (this.settings?.tables_variants || []).length > 0;
+            return this.settings?.has_booking || false;
         },
 
         favoritesCount() {

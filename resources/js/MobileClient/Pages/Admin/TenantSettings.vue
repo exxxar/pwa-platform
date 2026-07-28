@@ -546,6 +546,17 @@
                             <textarea v-model="shopForm.disabled_text" rows="4" maxlength="4000"></textarea>
                         </div>
 
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <h4>Бронирование столиков</h4>
+                                <p>У пользователей будет скрыт блок бронирования</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" v-model="shopForm.has_booking">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
                         <div class="form-grid">
                             <div class="form-field">
                                 <label>Тип магазина</label>
@@ -611,6 +622,32 @@
                         </div>
                     </div>
 
+
+                    <!-- 🆕 Блок: Теги заведения -->
+                    <div class="form-section">
+                        <h3 class="section-title"><i class="fa-solid fa-tags"></i> Теги заведения</h3>
+
+                        <div class="alert-info">
+                            <i class="fa-solid fa-circle-info"></i>
+                            Укажите ключевые слова, описывающие ваше заведение (например: <em>Итальянская кухня, Пицца, Доставка, Веганское меню, Wi-Fi</em>).
+                            Эти теги будут использоваться в API для фильтрации, поиска и формирования единых стандартов.
+                        </div>
+
+                        <div class="form-field full-width">
+                            <label>Список тегов (через запятую)</label>
+                            <textarea
+                                v-model="shopForm.venue_tags"
+                                rows="3"
+                                maxlength="500"
+                                placeholder="Итальянская, Пицца, Доставка, Веганское меню, Wi-Fi..."
+                                class="form-input"
+                            ></textarea>
+                            <span class="field-hint">
+                                Введено уникальных тегов: <strong>{{ countTags(shopForm.venue_tags) }}</strong>
+                            </span>
+                        </div>
+                    </div>
+
                     <div class="form-section">
                         <h3 class="section-title"><i class="fa-solid fa-truck"></i> Доставка</h3>
 
@@ -663,6 +700,22 @@
                                     <label>Координаты заведения (из Яндекс.Карт)</label>
                                     <input type="text" v-model="shopForm.shop_coords" placeholder="00.000000, 00.000000">
                                 </div>
+
+                                <!-- 🆕 НОВОЕ ПОЛЕ: Ближайшие города -->
+                                <div class="form-field full-width" style="margin-top: 8px;">
+                                    <label><i class="fa-solid fa-city"></i> Ближайшие города (для подсказок в корзине)</label>
+                                    <textarea
+                                        v-model="shopForm.nearest_cities"
+                                        rows="3"
+                                        maxlength="500"
+                                        placeholder="Москва, Химки, Красногорск, Мытищи..."
+                                    ></textarea>
+                                    <span class="field-hint">
+                                        Введите названия городов через запятую или с новой строки.
+                                        Они будут использоваться как быстрые подсказки при поиске адреса доставки.
+                                    </span>
+                                </div>
+
                                 <div class="form-field full-width">
                                     <label>Токен MapTiler</label>
                                     <input type="text" v-model="shopForm.map_tiler" placeholder="Ваш токен">
@@ -1253,12 +1306,16 @@ export default {
 
             // 🆕 Обновленная структура shopForm
             shopForm: {
-                is_disabled: false, disabled_text: null, shop_display_type: 0, is_product_list: false,
+                is_disabled: false,
+                has_booking: false,
+                disabled_text: null, shop_display_type: 0, is_product_list: false,
                 can_buy_after_closing: false, need_hide_disabled_products: true, min_price: 80,
                 delivery_price_text: null, need_automatic_delivery_request: true, need_hide_delivery_period: false,
                 min_base_delivery_price: 0, price_per_km: 80, free_shipping_starts_from: 0,
                 shop_coords: '0,0', map_tiler: null, payment_info: null, need_pay_after_call: false,
                 can_use_cash: true, can_use_card: true,
+                venue_tags: '',
+                nearest_cities: '',
                 // 🆕 СБП с поддержкой нескольких банков
                 sbp_banks: {
                     tinkoff: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'none' },
@@ -1357,6 +1414,15 @@ export default {
                 this.isTestingPayment = false;
                 this.testingBank = null;
             }
+        },
+
+        countTags(text) {
+            if (!text || !text.trim()) return 0;
+            return text
+                .split(',')
+                .map(tag => tag.trim())
+                .filter(tag => tag.length > 0)
+                .length;
         },
 
         async initForms() {
@@ -2017,6 +2083,7 @@ $warning: #f59e0b;
 .alert-info {
     display: flex;
     align-items: flex-start;
+    flex-direction: column;
     gap: 10px;
     padding: 12px 16px;
     background: rgba($primary, 0.05);

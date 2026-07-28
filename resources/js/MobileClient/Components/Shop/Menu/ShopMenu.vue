@@ -2,7 +2,7 @@
     <div class="menu-container">
         <!-- Режим выбора партнёра -->
         <template v-if="shopMode === 'partners'">
-            <PartnersMain @select="onPartnerSelect" />
+            <PartnersList @select="onPartnerSelect" />
         </template>
 
         <!-- Режим магазина -->
@@ -71,7 +71,7 @@
 <script>
 import { useMenuStore } from '@/MobileClient/stores/Shop/menu.js';
 import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
-import PartnersMain from '@/MobileClient/Components/Partners/PartnersMain.vue';
+import PartnersList from '@/MobileClient/Components/Partners/PartnerList.vue';
 import MenuHeader from '@/MobileClient/Components/Shop/Menu/MenuHeader.vue';
 import CategoryList from '@/MobileClient/Components/Shop/Menu/CategoryList.vue';
 import ProductGrid from '@/MobileClient/Components/Shop/Menu/ProductGrid.vue';
@@ -82,7 +82,7 @@ export default {
     name: 'Menu',
 
     components: {
-        PartnersMain,
+        PartnersList,
         MenuHeader,
         CategoryList,
         SkeletonLoader,
