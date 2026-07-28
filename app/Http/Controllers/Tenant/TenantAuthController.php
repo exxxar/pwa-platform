@@ -440,7 +440,7 @@ class TenantAuthController extends Controller
             "id" => "/pwa/{$tenant->slug}/",
             "name" => $pwa['name'] ?? $tenant->name,
             "short_name" => $pwa['short_name'] ?? $tenant->short_name ?? $tenant->name,
-            "start_url" => "/pwa/#/menu?source=pwa",
+            "start_url" => "/pwa/#/catalog?source=pwa",
             "scope" => "/pwa/",
             "display" => $pwa['display'] ?? 'standalone',
             "display_override" => ["standalone", "minimal-ui"],
