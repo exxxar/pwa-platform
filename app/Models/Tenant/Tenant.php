@@ -31,7 +31,7 @@ class Tenant extends Model
     ];
 
     protected $appends = ['settings', 'topics'];
-    protected $with = ['partners'];
+    protected $with = ['partners','tapLinks'];
 
 
     protected static function booted()

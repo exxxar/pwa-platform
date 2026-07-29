@@ -66,6 +66,7 @@ $routesManager = function () {
 
 $routes = function () {
 
+    Route::get('/taplink', [TenantTapLinkController::class, 'index']);
     Route::get('/auth/login', [TenantAuthController::class, 'loginPage']);
     Route::get('/auth/register', [TenantAuthController::class, 'registrationPage']);
 
@@ -127,7 +128,6 @@ $routes = function () {
     Route::get("/tables-qr", [ProductController::class, "generateTablesQR"]);
 
 
-    Route::get('/taplink', [TenantTapLinkController::class, 'index']);
 
     Route::prefix('profile')->middleware(['auth:tenant'])->group(function () {
         Route::get('/', [ProfileController::class, 'index']);
@@ -203,7 +203,21 @@ $routes = function () {
             Route::post('/{id}/toggle-active', [PromoCodeController::class, 'toggleActive']);
         });
 
+        Route::prefix("tap-links")->group(function () {
+            Route::get('/', [TenantTapLinkController::class, 'adminIndex']);
 
+            // Создать новую ссылку
+            Route::post('/', [TenantTapLinkController::class, 'store']);
+
+            // Обновить существующую ссылку (включая переключатель is_active)
+            Route::put('/{taplink}', [TenantTapLinkController::class, 'update']);
+
+            // Удалить ссылку
+            Route::delete('/{taplink}', [TenantTapLinkController::class, 'destroy']);
+
+            // 🆕 Переместить ссылку вверх или вниз (вызывается из Vue при клике на стрелки)
+            Route::post('/{taplink}/move', [TenantTapLinkController::class, 'move']);
+        });
 
         Route::prefix("tenant-settings")->group(function () {
 
@@ -213,6 +227,7 @@ $routes = function () {
             // Основные настройки
             Route::put('/basic', [TenantSettingsController::class, 'updateBasic']);
             Route::put('/shop', [TenantSettingsController::class, 'updateShop']);
+
             Route::put('/wheel', [TenantSettingsController::class, 'updateWheel']);
             Route::put('/guests', [TenantSettingsController::class, 'updateGuests']);
             Route::put('/main-menu', [TenantSettingsController::class, 'updateMainMenu']);

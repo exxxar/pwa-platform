@@ -225,12 +225,16 @@
 
             <!-- ===== АДМИНКА (только для админов) ===== -->
             <template v-if="isAdmin">
+
+
                 <div class="d-flex align-items-center justify-content-between mb-3 mt-4">
                     <AppDivider
                         icon="fa-solid fa-screwdriver-wrench"
                         text="Админка"
                         class="flex-grow-1 m-0"
                     />
+
+
 
                     <!-- 🆕 Переключатель вида: Список / Сетка -->
                     <div class="admin-view-toggle ms-2">
@@ -253,6 +257,9 @@
                     </div>
                 </div>
 
+                <TaplinkButton
+                    class="mb-3"
+                    label="Таплинк" icon="fa-regular fa-hand-pointer" />
 
                 <!-- ВАРИАНТ 1: СПИСОК -->
                 <div v-if="adminViewMode === 'list'" class="admin-menu-list">
@@ -350,12 +357,13 @@ import AppDivider from "@/MobileClient/Components/AppDivider.vue";
 import OrderPeriscope from "@/MobileClient/Components/Shop/OrderPeriscope.vue";
 import { usePermissions } from '@/MobileClient/Composables/usePermissions.js';
 import StoryCreateModal from '@/MobileClient/Components/Shop/Stories/StoryCreateModal.vue'; // 🆕
-
+import TaplinkButton from '@/MobileClient/Components/Common/TaplinkButton.vue';
 export default {
     name: "HomePage",
 
     components: {
         AppDivider,
+        TaplinkButton,
         ThemeToggle,
         StoryCreateModal,
         OrderPeriscope,
