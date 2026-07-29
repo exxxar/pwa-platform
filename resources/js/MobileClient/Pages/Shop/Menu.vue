@@ -261,6 +261,17 @@
                     class="mb-3"
                     label="Таплинк" icon="fa-regular fa-hand-pointer" />
 
+                <a
+                    v-if="canOpenCrm"
+                    :href="crmBoardUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn-crm-link"
+                >
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    <span>Открыть CRM</span>
+                </a>
+
                 <!-- ВАРИАНТ 1: СПИСОК -->
                 <div v-if="adminViewMode === 'list'" class="admin-menu-list">
                     <button
@@ -413,6 +424,17 @@ export default {
     },
 
     computed: {
+        canOpenCrm() {
+            console.log("settings",this.settings )
+            return this.settings?.kanban?.enabled && this.settings?.kanban?.board_uuid && this.settings?.kanban?.board_uuid.length > 5;
+        },
+        crmBoardUrl() {
+            if (!this.settings?.kanban?.board_uuid) return '#';
+            let baseUrl = this.settings?.kanban?.base_url || 'https://crm.mypwa.ru';
+            // Убираем /api/v1 (с возможным слэшем на конце) и любые trailing slashes
+            baseUrl = baseUrl.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
+            return `${baseUrl}/board/${this.settings?.kanban?.board_uuid}`;
+        },
         tenant() {
             return window.Tenant || null;
         },
@@ -1584,5 +1606,33 @@ export default {
     .bonus-action {
         font-size: 0.8rem;
     }
+}
+
+/* 🆕 СТИЛИ ДЛЯ КНОПКИ CRM */
+.btn-crm-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 20px;
+    color: var(--primary);
+    border: 2px solid var(--primary);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    white-space: nowrap;
+    margin-bottom:16px;
+}
+.btn-crm-link:hover {
+    transform: translateY(-1px);
+}
+.btn-crm-link i {
+    font-size: 13px;
+    transition: transform 0.2s;
+}
+.btn-crm-link:hover i {
+    transform: translate(2px, -2px);
 }
 </style>
