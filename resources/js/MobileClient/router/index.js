@@ -55,6 +55,7 @@ const AdminShop = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/
 const AdminAchievements = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/AchievementsAdmin.vue'));
 const AdminClients = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Clients.vue'));
 const AdminOrders = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Orders.vue'));
+const AdminOrderDetails = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/OrderDetails.vue'));
 const AdminPartners = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Partners.vue'));
 const AdminStories = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/StoryManager.vue'));
 const AdminPromoCodes = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Promocodes.vue'));
@@ -209,6 +210,14 @@ const routes = [
         path: '/admin/orders', name: 'AdminOrders', component: AdminOrders,
         meta: { auth: true, roles: ['admin', 'super_admin', 'worker'], permission: 'manage_orders' }
     },
+
+    {
+        path: '/admin/orders/:id',
+        name: 'AdminOrderDetails',
+        component: () => AdminOrderDetails,
+        meta: { requiresAuth: true, isAdmin: true }
+    },
+
     {
         path: '/admin/partners', name: 'AdminPartners', component: AdminPartners,
         meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_partners' }

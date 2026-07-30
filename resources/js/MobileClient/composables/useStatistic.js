@@ -1,11 +1,13 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useStatisticStore } from '@/MobileClient/stores/Shop/statistic.js';
 
 export function useStatistic() {
     const store = useStatisticStore();
 
+    // ✅ ИСПРАВЛЕНИЕ: Извлекаем и состояние, и геттеры через storeToRefs.
+    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность геттеров.
     const {
+        // --- Состояние (State) ---
         statistic,
         users,
         orders,
@@ -18,14 +20,15 @@ export function useStatistic() {
         isExporting,
         isHydrated,
         lastError,
+
+        // --- Геттеры (Getters) ---
+        hasData,
+        preparedCashback,
+        totalTraffic,
     } = storeToRefs(store);
 
-    const hasData = computed(() => store.hasData);
-    const preparedCashback = computed(() => store.preparedCashback);
-    const totalTraffic = computed(() => store.totalTraffic);
-
     return {
-        // State
+        // Состояние (Refs)
         statistic,
         users,
         orders,
@@ -39,16 +42,18 @@ export function useStatistic() {
         isHydrated,
         lastError,
 
-        // Getters
+        // Геттеры (Refs)
         hasData,
         preparedCashback,
         totalTraffic,
 
-        // Actions
+        // Методы (Actions)
+        // Прямое маппирование — это отлично и эффективно
         loadStatistic: store.loadStatistic,
         loadTraffic: store.loadTraffic,
         exportStatistic: store.exportStatistic,
 
+        // Сброс стора
         $reset: store.$reset,
     };
 }

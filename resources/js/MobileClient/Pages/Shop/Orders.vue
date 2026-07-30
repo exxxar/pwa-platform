@@ -1,4 +1,5 @@
 <template>
+
     <div class="orders-page pb-5">
 
         <!-- ===== HERO СЕКЦИЯ ===== -->
@@ -10,9 +11,11 @@
                 </div>
                 <h2 class="hero-title">Мои заказы</h2>
                 <p class="hero-subtitle">
-                    {{ orders.length > 0
-                    ? `Всего заказов: ${totalOrdersCount}`
-                    : 'История ваших покупок' }}
+                    {{
+                        orders.length > 0
+                            ? `Всего заказов: ${totalOrdersCount}`
+                            : 'История ваших покупок'
+                    }}
                 </p>
             </div>
         </div>
@@ -135,8 +138,8 @@
                                     <span class="product-qty">{{ getProductQty(product) }}×</span>
                                     <span class="product-name">{{ getProductName(product) }}</span>
                                     <span v-if="product.price" class="product-price">
-                                        {{ formatPrice(product.price) }}
-                                    </span>
+                                            {{ formatPrice(product.price) }}
+                                        </span>
                                 </div>
                                 <div
                                     v-if="getOrderProducts(order).length > 5"
@@ -161,8 +164,8 @@
                             />
 
                             <!-- Действия -->
-                            <div class="order-actions" v-if="getOrderProducts(order).length>0">
-
+                            <!-- Действия -->
+                            <div class="order-actions" v-if="getOrderProducts(order).length > 0">
                                 <button
                                     type="button"
                                     class="repeat-btn"
@@ -171,14 +174,31 @@
                                     @click.stop="repeatOrderHandler(order)"
                                 >
                                     <i class="fa-solid fa-arrow-rotate-right"></i>
-                                    <span>Повторить заказ</span>
+                                    <span>Повторить</span>
+                                </button>
+
+                                <!-- 🆕 Кнопка перехода в чат заказа (показывается только если есть dialog_id) -->
+                                <button
+                                    :disabled="!order.dialog_id"
+                                    type="button"
+                                    class="chat-btn"
+                                    @click.stop="goToOrderChat(order)"
+                                >
+                                    <i class="fa-solid fa-comments"></i>
+                                    <span v-if="order.dialog_id">Чат заказа</span>
+                                    <span v-else>Чат заказа недоступен</span>
                                 </button>
                             </div>
 
                             <!-- Кнопка отзыва -->
+                            <!-- Было (ошибочно, если там был async вызов): -->
+                            <!-- <div v-if="canShowReviewButton(order) && canReviewOrder(order)"> -->
+
+                            <!-- Стало (правильно): -->
                             <div v-if="canShowReviewButton(order)" class="review-actions">
+                                <!-- Используем canReviewOrderSync, который проверяет уже загруженные данные -->
                                 <button
-                                    v-if="!order.review && canReviewOrder(order)"
+                                    v-if="!order.review && canReviewOrderSync(order)"
                                     type="button"
                                     class="review-btn"
                                     @click.stop="openReviewForm(order)"
@@ -200,8 +220,12 @@
                                         <i class="fa-solid fa-pen"></i>
                                     </button>
                                 </div>
-                            </div>
 
+                                <!-- Опционально: показать лоадер, если проверка еще идет -->
+                                <div v-else class="text-muted small mt-2">
+                                    <i class="fa-solid fa-spinner fa-spin me-1"></i> Проверка возможности отзыва...
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -260,28 +284,29 @@
             </div>
 
         </div>
+
+        <ReviewForm
+            :is-visible="showReviewForm"
+            :order-id="selectedOrderForReview?.id"
+            :review="selectedReviewForEdit"
+            @close="closeReviewForm"
+            @success="onReviewSuccess"
+        />
     </div>
 
-    <ReviewForm
-        :is-visible="showReviewForm"
-        :order-id="selectedOrderForReview?.id"
-        :review="selectedReviewForEdit"
-        @close="closeReviewForm"
-        @success="onReviewSuccess"
-    />
+
 </template>
 
 <script>
-import { computed } from 'vue';
 import Pagination from '@/MobileClient/Components/Shop/Helpers/Pagination.vue';
 import ReviewCard from '@/MobileClient/Components/Shop/Reviews/ReviewCard.vue';
-import { useOrders } from '@/MobileClient/composables/useOrders.js';
-import { useBasket } from '@/MobileClient/composables/useBasket.js';
+import {useOrders} from '@/MobileClient/composables/useOrders.js';
+import {useBasket} from '@/MobileClient/composables/useBasket.js';
 import ReviewForm from '@/MobileClient/Components/Shop/Reviews/ReviewForm.vue';
 
 export default {
     name: "OrdersList",
-
+    inheritAttrs: false, // 🆕 ДОБАВЬТЕ ЭТУ СТРОКУ
     components: {
         Pagination,
         ReviewForm,
@@ -289,8 +314,8 @@ export default {
     },
 
     props: {
-        selected: { type: Object, default: null },
-        active:   { type: Boolean, default: false },
+        selected: {type: Object, default: null},
+        active: {type: Boolean, default: false},
     },
 
     emits: ['select'],
@@ -300,31 +325,7 @@ export default {
         const basketComposable = useBasket();
 
         return {
-            // Состояние заказов (из store через storeToRefs)
-            orders: orderComposable.orders,
-            orders_paginate_object: orderComposable.orders_paginate_object,
-            isLoading: orderComposable.isLoading,
-
-            // Состояние отзывов
-            reviews: orderComposable.reviews,
-            reviews_paginate_object: orderComposable.reviews_paginate_object,
-            isLoadingReviews: orderComposable.isLoadingReviews,
-
-            // Методы (заказы)
-            loadOrders: orderComposable.loadOrders,
-            repeatOrder: orderComposable.repeatOrder,
-            clearCart: orderComposable.clearCart,
-            addProductToCart: orderComposable.addProductToCart,
-
-            // Методы (отзывы)
-            loadReviews: orderComposable.loadReviews,
-
-            loadProductsInBasket: basketComposable.loadProductsInBasket,
-
-            canReviewOrder: orderComposable.canReviewOrder,
-            storeReview: orderComposable.storeReview,
-            updateReview: orderComposable.updateReview,
-            deleteReview: orderComposable.deleteReview,
+            ...orderComposable, ...basketComposable
         };
     },
 
@@ -332,21 +333,20 @@ export default {
         return {
             tab: 0,
             reviewsLoaded: false,
-
             showReviewForm: false,
             selectedOrderForReview: null,
             selectedReviewForEdit: null,
+
+            // 🆕 Реактивное хранилище для статусов отзывов, если объекты order не глубоко реактивны
+            reviewStatuses: new Map(),
         };
     },
 
     computed: {
         totalOrdersCount() {
-            return this.orders_paginate_object?.total || this.orders.length;
+            return this.orders_paginate_object?.total || this.orders?.length || 0;
         },
 
-        /**
-         * Группировка заказов по датам
-         */
         groupedOrders() {
             const groups = {};
             const today = new Date();
@@ -375,12 +375,11 @@ export default {
                 }
 
                 if (!groups[key]) {
-                    groups[key] = { key, label, orders: [] };
+                    groups[key] = {key, label, orders: []};
                 }
                 groups[key].orders.push(order);
             });
 
-            // Сортируем группы (новые сверху)
             return Object.fromEntries(
                 Object.entries(groups).sort((a, b) => {
                     if (a[0] === 'today') return -1;
@@ -398,31 +397,54 @@ export default {
     },
 
     methods: {
-
+        goToOrderChat(order) {
+            if (order.dialog_id) {
+                this.$router.push({
+                    name: 'ChatRoom',
+                    params: {id: order.dialog_id}
+                }).catch(() => {
+                    // Игнорируем ошибки навигации (например, если пользователь уже на этой странице)
+                });
+            }
+        },
         canShowReviewButton(order) {
-            // Показываем кнопку только для выполненных заказов
             const status = String(order.status ?? '').toLowerCase();
             return ['2', 'completed', 'delivered', 'done'].includes(status);
         },
 
-        async canReviewOrder(order) {
-            if (order._reviewChecked) {
-                return order._canReview;
-            }
+        // 🆕 Синхронный геттер для шаблона. Проверяет локальное состояние или Map.
+        canReviewOrderSync(order) {
+            // Если мы уже проверяли, возвращаем сохраненный результат
+            if (order._canReview !== undefined) return order._canReview;
+            if (this.reviewStatuses.has(order.id)) return this.reviewStatuses.get(order.id);
+
+            // По умолчанию скрываем кнопку, пока идет проверка (или показываем, если хотите optimistic UI)
+            return false;
+        },
+
+        // 🆕 Асинхронный метод для фоновой проверки. Вызывается при загрузке или по необходимости.
+        async checkReviewStatusAsync(order) {
+            if (order._reviewChecked || this.reviewStatuses.has(order.id)) return;
 
             try {
-                const result = await this.canReviewOrder(order.id);
+                // Используем переименованный метод из композабла
+                const result = await this.apiCheckReviewStatus(order.id);
+
+                // Мутируем реактивный объект (если он из Pinia/reactive)
                 order._reviewChecked = true;
                 order._canReview = result.can_review;
+
+                // Дублируем в Map для надежности реактивности
+                this.reviewStatuses.set(order.id, result.can_review);
 
                 if (result.has_review && result.review) {
                     order.review = result.review;
                 }
-
-                return result.can_review;
             } catch (err) {
                 console.error('Ошибка проверки отзыва:', err);
-                return false;
+                order._reviewChecked = true;
+                order._canReview = false;
+                this.reviewStatuses.set(order.id, false);
             }
         },
 
@@ -438,16 +460,15 @@ export default {
             this.selectedReviewForEdit = null;
         },
 
-        async onReviewSuccess(reviewData) {
-            // Обновляем отзыв в заказе
+        onReviewSuccess(reviewData) {
             if (this.selectedOrderForReview) {
                 this.selectedOrderForReview.review = reviewData;
                 this.selectedOrderForReview._canReview = false;
+                this.reviewStatuses.set(this.selectedOrderForReview.id, false);
             }
+            this.closeReviewForm();
         },
-        // ==========================================
-        // Навигация и переключение
-        // ==========================================
+
         async switchTab(index) {
             this.tab = index;
             if (index === 1 && !this.reviewsLoaded) {
@@ -461,194 +482,116 @@ export default {
         },
 
         goToCatalog() {
-            this.$router.push({ name: 'Catalog' });
+            this.$router.push({name: 'Catalog'}).catch(() => {
+            });
         },
 
-        // ==========================================
-        // Обработчики загрузки (с маппингом пагинации Laravel)
-        // ==========================================
         async loadOrdersHandler(page = 0) {
             try {
-                await this.loadOrders({ page, size: 20 });
+                await this.loadOrders({page, size: 20});
+
+                // 🆕 После загрузки заказов инициируем фоновую проверку отзывов для новых заказов
+                if (this.orders && this.orders.length > 0) {
+                    this.orders.forEach(order => {
+                        if (this.canShowReviewButton(order) && !order._reviewChecked) {
+                            this.checkReviewStatusAsync(order);
+                        }
+                    });
+                }
             } catch (error) {
                 console.error('Ошибка загрузки заказов:', error);
-                this.$notify?.({
-                    title: 'Заказы',
-                    text: 'Ошибка загрузки заказов',
-                    type: 'error',
-                });
+                this.$notify?.({title: 'Заказы', text: 'Ошибка загрузки заказов', type: 'error'});
             }
         },
 
         async loadReviewsHandler(page = 0) {
             try {
-                await this.loadReviews({ page, size: 20 });
+                await this.loadReviews({page, size: 20});
             } catch (error) {
                 console.error('Ошибка загрузки отзывов:', error);
-                this.$notify?.({
-                    title: 'Отзывы',
-                    text: 'Ошибка загрузки отзывов',
-                    type: 'error',
-                });
+                this.$notify?.({title: 'Отзывы', text: 'Ошибка загрузки отзывов', type: 'error'});
             }
         },
 
-        // ==========================================
-        // Повтор заказа
-        // ==========================================
         async repeatOrderHandler(item) {
             try {
-                // 1. Вызываем бэкенд.
-                // (Предполагается, что бэкенд сам очищает старую корзину и добавляет товары из этого заказа)
-                await this.repeatOrder({ id: item.id });
-
-                // 2. 🚀 КРИТИЧЕСКИ ВАЖНО: Загружаем актуальное состояние корзины с бэкенда!
-                // Это единственный способ гарантировать 100% синхронизацию и реактивность Vue.
-                // Метод loadProductsInBasket корректно обновит все ref-ы в Pinia store.
+                await this.repeatOrder({id: item.id});
                 await this.loadProductsInBasket();
 
-                // 3. Показываем успешное уведомление
                 this.$notify?.({
                     title: 'Успешно',
                     text: 'Заказ повторен и добавлен в корзину',
                     type: 'success',
                 });
 
-                this.$router.push({ name: 'Cart' }).catch(() => {});
-
-
+                this.$router.push({name: 'Cart'}).catch(() => {
+                });
             } catch (error) {
                 console.error('Ошибка повторного заказа:', error);
-
-                // Если бэкенд вернул ошибку (например, "нет доступных товаров"), покажем её
                 const errorMsg = error.response?.data?.message || 'Не удалось повторить заказ. Возможно, некоторые товары сняты с производства.';
 
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: errorMsg,
-                    type: 'error',
-                });
+                this.$notify?.({title: 'Ошибка', text: errorMsg, type: 'error'});
 
-                // Если бэкенд специально помечает товар как недоступный, можно заблокировать кнопку
                 if (error.response?.status === 400 || error.response?.status === 422) {
+                    // ⚠️ Убедитесь, что item является реактивным объектом!
                     item.disabled = true;
                 }
             }
         },
 
-        // ==========================================
-        // Вспомогательные функции (маппинг под формат API)
-        // ==========================================
-
-        /**
-         * Получить товары заказа
-         * API: order.product_details[0].products[]
-         */
         getOrderProducts(order) {
-            return order.product_details?.[0]?.products ||
-                order.product_details?.products || [];
+            return order.product_details?.[0]?.products || order.product_details?.products || [];
         },
 
-        /**
-         * Количество товара
-         * API: product.count (а не product.quantity)
-         */
         getProductQty(product) {
             return product.count || product.quantity || 1;
         },
 
-        /**
-         * Название товара
-         * API: product.name (а не product.title)
-         */
         getProductName(product) {
             return product.name || product.title || 'Товар';
         },
 
-        /**
-         * Итого заказа
-         * API: order.summary_price (а не order.total)
-         */
         getOrderTotal(order) {
             return order.summary_price || order.total || 0;
         },
 
-        /**
-         * Класс статуса заказа
-         * API: status — число (0, 1, 2, 3, 4, 5)
-         */
         getStatusClass(order) {
             const status = String(order.status ?? '').toLowerCase();
-
             const statusMap = {
-                '0': 'status-new',
-                '1': 'status-processing',
-                '2': 'status-completed',
-                '3': 'status-cancelled',
-                '4': 'status-processing',
-                '5': 'status-processing',
+                '0': 'status-new', '1': 'status-processing', '2': 'status-completed',
+                '3': 'status-cancelled', '4': 'status-processing', '5': 'status-processing',
             };
-
             if (statusMap[status]) return statusMap[status];
-
-            // Фолбэк на строковые статусы
             if (status.includes('cancel') || status.includes('отмен')) return 'status-cancelled';
             if (status.includes('complet') || status.includes('выполн') || status.includes('доставлен')) return 'status-completed';
             if (status.includes('process') || status.includes('готов') || status.includes('в пути')) return 'status-processing';
-
             return 'status-new';
         },
 
-        /**
-         * Текстовое представление статуса
-         */
         getStatusText(order) {
             const status = String(order.status ?? '').toLowerCase();
-
             const statusTextMap = {
-                '0': 'Новый',
-                '1': 'В обработке',
-                '2': 'Выполнен',
-                '3': 'Отменён',
-                '4': 'Готов к доставке',
-                '5': 'Передан на кухню',
+                '0': 'Новый', '1': 'В обработке', '2': 'Выполнен',
+                '3': 'Отменён', '4': 'Готов к доставке', '5': 'Передан на кухню',
             };
-
             if (statusTextMap[status]) return statusTextMap[status];
-
             if (status.includes('cancel') || status.includes('отмен')) return 'Отменён';
             if (status.includes('complet') || status.includes('выполн') || status.includes('доставлен')) return 'Выполнен';
             if (status.includes('process') || status.includes('готов') || status.includes('в пути')) return 'В обработке';
-
             return 'Новый';
         },
 
-        /**
-         * Форматирование даты и времени
-         */
         formatDateTime(dateString) {
             if (!dateString) return '';
-            const date = new Date(dateString);
-            return date.toLocaleString('ru-RU', {
-                hour: '2-digit',
-                minute: '2-digit',
-            });
+            return new Date(dateString).toLocaleString('ru-RU', {hour: '2-digit', minute: '2-digit'});
         },
 
-        /**
-         * Форматирование цены
-         */
         formatPrice(price) {
             return new Intl.NumberFormat('ru-RU', {
-                style: 'currency',
-                currency: 'RUB',
-                minimumFractionDigits: 0,
+                style: 'currency', currency: 'RUB', minimumFractionDigits: 0,
             }).format(price || 0);
         },
 
-        /**
-         * Склонение слов
-         */
         pluralize(count, one, two, five) {
             const n = Math.abs(count) % 100;
             const n1 = n % 10;
@@ -682,9 +625,8 @@ export default {
 .hero-background {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+    background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
 }
 
 .hero-content {
@@ -1023,6 +965,7 @@ export default {
 .order-actions {
     display: flex;
     gap: 8px;
+    flex-direction: column;
 }
 
 .repeat-btn {
@@ -1085,14 +1028,29 @@ export default {
     animation: shimmer 1.5s infinite;
 }
 
-.skeleton-line.w-30 { width: 30%; }
-.skeleton-line.w-40 { width: 40%; }
-.skeleton-line.w-60 { width: 60%; }
-.skeleton-line.w-80 { width: 80%; }
+.skeleton-line.w-30 {
+    width: 30%;
+}
+
+.skeleton-line.w-40 {
+    width: 40%;
+}
+
+.skeleton-line.w-60 {
+    width: 60%;
+}
+
+.skeleton-line.w-80 {
+    width: 80%;
+}
 
 @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
 }
 
 /* ==========================================
@@ -1256,4 +1214,56 @@ export default {
     background: var(--bs-primary);
     color: white;
 }
+
+/* ==========================================
+КНОПКА ЧАТА ЗАКАЗА
+========================================== */
+.chat-btn {
+    flex: 1; /* Занимает оставшееся пространство, деля его 50/50 с кнопкой повтора */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    background: transparent;
+    border: 1.5px solid var(--bs-primary);
+    border-radius: 12px;
+    color: var(--bs-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.chat-btn:hover {
+    background: var(--bs-primary);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.25);
+}
+
+.chat-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(var(--bs-primary-rgb), 0.35);
+}
+
+.chat-btn:disabled,
+.chat-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.chat-btn:active {
+    transform: translateY(0) scale(0.97);
+}
+
+/* Адаптация существующего order-actions для двух кнопок */
+.order-actions {
+    display: flex;
+    gap: 12px; /* Немного увеличили отступ для красоты */
+    margin-top: 8px;
+}
+
+
 </style>

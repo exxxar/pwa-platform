@@ -1,4 +1,3 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAchievementsStore } from '@/MobileClient/stores/achievements.js';
 
@@ -8,8 +7,11 @@ import { useAchievementsStore } from '@/MobileClient/stores/achievements.js';
 export function useAchievements() {
     const store = useAchievementsStore();
 
-    // Реактивные ссылки
+    // ✅ ИСПРАВЛЕНИЕ 1: Извлекаем ВСЁ (и состояние, и геттеры) через storeToRefs.
+    // Pinia автоматически превратит геттеры в реактивные ref-ссылки.
+    // Ручные computed() здесь не нужны и даже вредны (лишние пересчеты).
     const {
+        // --- Состояние (State) ---
         unlocked,
         available,
         progress,
@@ -19,54 +21,42 @@ export function useAchievements() {
         isClaiming,
         achievementActions,
         lastError,
-        recentlyUnlocked,
+        recentlyUnlocked, // Массив/объект состояния
         lastSyncAt,
+
+        // --- Геттеры (Getters) ---
+        // Pinia сама обеспечит их реактивность
+        allAchievements,
+        unlockedAchievements,
+        availableAchievements,
+        achievementsByCategory,
+        overallProgress,
+        unlockedCount,
+        totalCount,
+        completionPercent,
+        unclaimedRewards,
+        unclaimedRewardsCount,
+        userStats,
+        recentUnlocks, // Геттер (обратите внимание на 's' на конце, как в оригинале)
     } = storeToRefs(store);
 
-    // Реактивные геттеры
-    const allAchievements = computed(() => store.allAchievements);
-    const unlockedAchievements = computed(() => store.unlockedAchievements);
-    const availableAchievements = computed(() => store.availableAchievements);
-    const achievementsByCategory = computed(() => store.achievementsByCategory);
-    const overallProgress = computed(() => store.overallProgress);
-    const unlockedCount = computed(() => store.unlockedCount);
-    const totalCount = computed(() => store.totalCount);
-    const completionPercent = computed(() => store.completionPercent);
-    const unclaimedRewards = computed(() => store.unclaimedRewards);
-    const unclaimedRewardsCount = computed(() => store.unclaimedRewardsCount);
-    const userStats = computed(() => store.userStats);
-    const recentUnlocks = computed(() => store.recentlyUnlocks);
-
-    /**
-     * Проверка, получено ли достижение
-     */
-    const isUnlocked = (achievementId) => {
-        return store.isUnlocked(achievementId);
-    };
-
-    /**
-     * Получить прогресс достижения
-     */
-    const getAchievementProgress = (achievementId) => {
-        return store.getAchievementProgress(achievementId);
-    };
-
-    /**
-     * Проверка загрузки достижения
-     */
-    const isAchievementLoading = (id) => {
-        return store.isAchievementLoading(id);
-    };
+    // ==========================================
+    // Методы с аргументами (Parameterized Getters/Actions)
+    // ==========================================
+    // Возвращаем их как есть. Если в сторе это геттеры, возвращающие функции,
+    // Vue корректно отследит их при использовании в шаблоне.
+    const isUnlocked = (achievementId) => store.isUnlocked(achievementId);
+    const getAchievementProgress = (achievementId) => store.getAchievementProgress(achievementId);
+    const isAchievementLoading = (id) => store.isAchievementLoading(id);
 
     // ==========================================
-    // МЕТОДЫ
+    // МЕТОДЫ (Actions) с безопасной обработкой ошибок
     // ==========================================
-
     const loadAchievements = async () => {
         try {
             return await store.loadAchievements();
         } catch (error) {
-            console.error('Ошибка загрузки достижений:', error);
+            console.error('[useAchievements] Ошибка загрузки достижений:', error);
             throw error;
         }
     };
@@ -75,7 +65,7 @@ export function useAchievements() {
         try {
             return await store.loadStats();
         } catch (error) {
-            console.error('Ошибка загрузки статистики:', error);
+            console.error('[useAchievements] Ошибка загрузки статистики:', error);
             throw error;
         }
     };
@@ -84,7 +74,7 @@ export function useAchievements() {
         try {
             return await store.claimReward(achievementId);
         } catch (error) {
-            console.error('Ошибка получения награды:', error);
+            console.error(`[useAchievements] Ошибка получения награды ${achievementId}:`, error);
             throw error;
         }
     };
@@ -93,7 +83,7 @@ export function useAchievements() {
         try {
             return await store.claimAllRewards();
         } catch (error) {
-            console.error('Ошибка получения всех наград:', error);
+            console.error('[useAchievements] Ошибка получения всех наград:', error);
             throw error;
         }
     };
@@ -107,12 +97,9 @@ export function useAchievements() {
     };
 
     // ==========================================
-    // УТИЛИТЫ
+    // УТИЛИТЫ (Чистые функции, реактивность не требуется)
     // ==========================================
 
-    /**
-     * Форматирование названия типа условия
-     */
     const formatConditionType = (type) => {
         const labels = {
             orders_count: 'Заказы',
@@ -129,9 +116,6 @@ export function useAchievements() {
         return labels[type] || type;
     };
 
-    /**
-     * Форматирование типа награды
-     */
     const formatRewardType = (type) => {
         const labels = {
             cashback: '₽',
@@ -142,18 +126,12 @@ export function useAchievements() {
         return labels[type] || '';
     };
 
-    /**
-     * Форматирование значения награды
-     */
     const formatRewardValue = (value, type) => {
         if (!value) return '';
         const formatted = new Intl.NumberFormat('ru-RU').format(value);
         return `${formatted} ${formatRewardType(type)}`.trim();
     };
 
-    /**
-     * Иконка для категории
-     */
     const getCategoryIcon = (type) => {
         const icons = {
             orders_count: 'fa-solid fa-bag-shopping',
@@ -170,9 +148,6 @@ export function useAchievements() {
         return icons[type] || 'fa-solid fa-trophy';
     };
 
-    /**
-     * Цвет для категории
-     */
     const getCategoryColor = (type) => {
         const colors = {
             orders_count: '#667eea',
@@ -189,8 +164,11 @@ export function useAchievements() {
         return colors[type] || '#6b7280';
     };
 
+    // ==========================================
+    // Возврат API композабла
+    // ==========================================
     return {
-        // Состояние
+        // Состояние (Refs)
         unlocked,
         available,
         progress,
@@ -203,7 +181,7 @@ export function useAchievements() {
         recentlyUnlocked,
         lastSyncAt,
 
-        // Геттеры
+        // Геттеры (Refs)
         allAchievements,
         unlockedAchievements,
         availableAchievements,
@@ -216,11 +194,13 @@ export function useAchievements() {
         unclaimedRewardsCount,
         userStats,
         recentUnlocks,
+
+        // Методы с аргументами
         isUnlocked,
         getAchievementProgress,
         isAchievementLoading,
 
-        // Методы
+        // Экшены (Actions)
         loadAchievements,
         loadStats,
         claimReward,
@@ -235,7 +215,7 @@ export function useAchievements() {
         getCategoryIcon,
         getCategoryColor,
 
-        // Сброс
+        // Сброс стора
         $reset: store.$reset,
     };
 }

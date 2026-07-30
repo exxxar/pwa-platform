@@ -35,6 +35,14 @@ export const useOrdersStore = defineStore('orders', {
 
         randomRecentOrders: [],
         isLoadingRandom: false,
+
+        currentOrder: null,
+        isLoadingOrderDetails: false,
+        isUpdatingStatus: false,
+        isSendingMessage: false,
+
+        adminOrders:[],
+        adminOrdersPaginate:null,
     }),
 
     // ==========================================
@@ -590,6 +598,94 @@ export const useOrdersStore = defineStore('orders', {
             }
         },
 
+        async loadAdminOrders(payload = {}) {
+            this.isLoadingAdmin = true;
+            try {
+                const response = await axios.get('/admin/orders', {
+                    params: {
+                        page: payload.page || 1,
+                        size: payload.size || 20,
+                        search: payload.search || null,
+                        status: payload.status || null,
+                        order_by: payload.order_by || 'id',
+                        direction: payload.direction || 'desc'
+                    }
+                });
+
+                const responseData = response.data;
+
+                // 🎯 Четко под ваш JSON формат: { data: [...], paginate: {...} }
+                if (responseData && Array.isArray(responseData.data)) {
+                    this.adminOrders = responseData.data;
+                    this.adminOrdersPaginate = responseData.paginate || null;
+
+                    console.log(`[Admin Orders] Успешно загружено: ${this.adminOrders.length} заказов`);
+                } else {
+                    console.warn('[Admin Orders] Неожиданный формат ответа от API:', responseData);
+                    this.adminOrders = [];
+                    this.adminOrdersPaginate = null;
+                }
+
+            } catch (error) {
+                console.error('Ошибка загрузки админских заказов:', error);
+                this.adminOrders = [];
+                this.adminOrdersPaginate = null;
+            } finally {
+                this.isLoadingAdmin = false;
+            }
+        },
+
+        async loadAdminOrderDetails(orderId) {
+            this.isLoadingOrderDetails = true;
+            try {
+                const response = await axios.get(`/admin/orders/${orderId}`);
+                this.currentOrder = response.data;
+                return response.data;
+            } catch (error) {
+                console.error('Ошибка загрузки деталей заказа:', error);
+                throw error;
+            } finally {
+                this.isLoadingOrderDetails = false;
+            }
+        },
+
+        /**
+         * Быстрая смена статуса заказа
+         */
+        async updateAdminOrderStatus(orderId, status) {
+            this.isUpdatingStatus = true;
+            try {
+                const response = await axios.post(`/admin/orders/${orderId}/status`, { status });
+
+                // 🔄 Мгновенно обновляем локальное состояние, чтобы UI отреагировал без перезагрузки
+                if (this.currentOrder && this.currentOrder.id === orderId) {
+                    this.currentOrder.status = status;
+                }
+
+                return response.data;
+            } catch (error) {
+                console.error('Ошибка обновления статуса заказа:', error);
+                throw error;
+            } finally {
+                this.isUpdatingStatus = false;
+            }
+        },
+
+        /**
+         * Отправка сообщения в чат, привязанный к заказу
+         */
+        async sendAdminOrderMessage(orderId, message) {
+            this.isSendingMessage = true;
+            try {
+                const response = await axios.post(`/admin/orders/${orderId}/message`, { message });
+                return response.data;
+            } catch (error) {
+                console.error('Ошибка отправки сообщения:', error);
+                throw error;
+            } finally {
+                this.isSendingMessage = false;
+            }
+        },
         // ==========================================
         // ПОВТОР ЗАКАЗА
         // ==========================================

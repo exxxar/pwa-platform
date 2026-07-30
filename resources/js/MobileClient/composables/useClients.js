@@ -1,11 +1,13 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useClientsStore } from '@/MobileClient/stores/Shop/clients.js';
 
 export function useClients() {
     const store = useClientsStore();
 
+    // ✅ ИСПРАВЛЕНИЕ: Извлекаем и состояние, и геттеры через storeToRefs.
+    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность геттеров.
     const {
+        // --- Состояние (State) ---
         currentClient,
         receiverUserData,
         messages,
@@ -15,16 +17,17 @@ export function useClients() {
         isSendingMessage,
         isUploading,
         lastError,
+
+        // --- Геттеры (Getters) ---
+        hasClient,
+        clientName,
+        clientPhone,
+        sortedMessages,
+        unreadCount,
     } = storeToRefs(store);
 
-    const hasClient = computed(() => store.hasClient);
-    const clientName = computed(() => store.clientName);
-    const clientPhone = computed(() => store.clientPhone);
-    const sortedMessages = computed(() => store.sortedMessages);
-    const unreadCount = computed(() => store.unreadCount);
-
     return {
-        // State
+        // Состояние (Refs)
         currentClient,
         receiverUserData,
         messages,
@@ -35,14 +38,15 @@ export function useClients() {
         isUploading,
         lastError,
 
-        // Getters
+        // Геттеры (Refs)
         hasClient,
         clientName,
         clientPhone,
         sortedMessages,
         unreadCount,
 
-        // Actions
+        // Методы (Actions)
+        // Прямое маппирование — это отлично и эффективно
         loadReceiverUserData: store.loadReceiverUserData,
         loadMessages: store.loadMessages,
         sendMessage: store.sendMessage,
@@ -52,6 +56,7 @@ export function useClients() {
         selectClient: store.selectClient,
         clearClient: store.clearClient,
 
+        // Сброс стора
         $reset: store.$reset,
     };
 }

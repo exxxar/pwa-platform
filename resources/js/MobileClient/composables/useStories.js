@@ -1,4 +1,3 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
 
@@ -8,8 +7,10 @@ import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
 export function useStories() {
     const store = useStoriesStore();
 
-    // Реактивные ссылки на состояние
+    // ✅ ИСПРАВЛЕНИЕ 1: Извлекаем ВСЁ (состояние и геттеры) через storeToRefs.
+    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность геттеров.
     const {
+        // --- Состояние (State) ---
         stories,
         stories_paginate_object,
         isLoading,
@@ -19,38 +20,31 @@ export function useStories() {
         lastError,
         errors,
         lastSyncAt,
+
+        // --- Геттеры (Getters) ---
+        sortedStories,
+        activeStories,
+        archivedStories,
+        recentStories,
+        storiesCount,
     } = storeToRefs(store);
 
-    // Реактивные геттеры
-    const sortedStories = computed(() => store.sortedStories);
-    const activeStories = computed(() => store.activeStories);
-    const archivedStories = computed(() => store.archivedStories);
-    const recentStories = computed(() => store.recentStories);
-    const storiesCount = computed(() => store.storiesCount);
-
-    /**
-     * Проверка, просмотрена ли история (реактивно)
-     */
-    const isViewed = (storyId) => {
-        return store.isViewed(storyId);
-    };
-
-    /**
-     * Отметить историю как просмотренную
-     */
-    const markAsViewed = (storyId) => {
-        store.markAsViewed(storyId);
-    };
+    // ==========================================
+    // ПАРАМЕТРИЗИРОВАННЫЕ ХЕЛПЕРЫ
+    // ==========================================
+    const isViewed = (storyId) => store.isViewed(storyId);
+    const markAsViewed = (storyId) => store.markAsViewed(storyId);
+    const getStoryById = (id) => store.getStoryById(id);
 
     // ==========================================
-    // Безопасные методы
+    // МЕТОДЫ (ACTIONS) С ОБРАБОТКОЙ ОШИБОК
     // ==========================================
 
     const loadStories = async (payload = {}) => {
         try {
             return await store.loadStories(payload);
         } catch (error) {
-            console.error('Ошибка загрузки историй:', error);
+            console.error('[useStories] Ошибка загрузки историй:', error);
             throw error;
         }
     };
@@ -59,7 +53,7 @@ export function useStories() {
         try {
             return await store.fetchStory(storyId);
         } catch (error) {
-            console.error('Ошибка загрузки истории:', error);
+            console.error(`[useStories] Ошибка загрузки истории ${storyId}:`, error);
             throw error;
         }
     };
@@ -68,7 +62,7 @@ export function useStories() {
         try {
             return await store.saveStory(storyForm);
         } catch (error) {
-            console.error('Ошибка сохранения истории:', error);
+            console.error('[useStories] Ошибка сохранения истории:', error);
             throw error;
         }
     };
@@ -77,7 +71,7 @@ export function useStories() {
         try {
             return await store.deleteStory(storyId);
         } catch (error) {
-            console.error('Ошибка удаления истории:', error);
+            console.error(`[useStories] Ошибка удаления истории ${storyId}:`, error);
             throw error;
         }
     };
@@ -86,7 +80,7 @@ export function useStories() {
         try {
             return await store.archiveStory(storyId);
         } catch (error) {
-            console.error('Ошибка архивации:', error);
+            console.error(`[useStories] Ошибка архивации истории ${storyId}:`, error);
             throw error;
         }
     };
@@ -95,13 +89,16 @@ export function useStories() {
         try {
             return await store.toggleStoryActive(storyId);
         } catch (error) {
-            console.error('Ошибка переключения активности:', error);
+            console.error(`[useStories] Ошибка переключения активности истории ${storyId}:`, error);
             throw error;
         }
     };
 
+    // ==========================================
+    // ВОЗВРАЩАЕМЫЕ ЗНАЧЕНИЯ
+    // ==========================================
     return {
-        // Состояние
+        // Состояние (Refs)
         stories,
         stories_paginate_object,
         isLoading,
@@ -112,25 +109,28 @@ export function useStories() {
         errors,
         lastSyncAt,
 
-        // Геттеры
+        // Геттеры (Refs)
         sortedStories,
         activeStories,
         archivedStories,
         recentStories,
         storiesCount,
-        getStoryById: store.getStoryById,
-        isViewed,
 
-        // Методы
+        // Хелперы
+        isViewed,
+        markAsViewed,
+        getStoryById,
+
+        // Методы (Actions)
         loadStories,
         fetchStory,
         saveStory,
         deleteStory,
         archiveStory,
         toggleActive,
-        markAsViewed,
-        loadPartnersStories: store.loadPartnersStories,
-        // Сброс
+        loadPartnersStories: store.loadPartnersStories, // Прямой маппинг, если доп. логика не нужна
+
+        // Сброс стора
         $reset: store.$reset,
     };
 }

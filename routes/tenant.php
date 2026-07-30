@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\BasketController;
 use App\Http\Controllers\BitrixController;
 use App\Http\Controllers\CdekController;
@@ -154,6 +155,13 @@ $routes = function () {
     });
 
     Route::prefix('admin')->group(function () {
+
+        Route::prefix('orders')->group(function () {
+            Route::get('/', [AdminOrderController::class, 'index']);
+            Route::get('/{id}', [AdminOrderController::class, 'show']);
+            Route::post('/{id}/status', [AdminOrderController::class, 'updateStatus']);
+            Route::post('/{id}/message', [AdminOrderController::class, 'sendMessage']);
+        });
 
         Route::get('/transactions', [TransactionAdminController::class, 'index'])
             ->name('admin.transactions.index');

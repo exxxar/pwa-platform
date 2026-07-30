@@ -1,11 +1,13 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useReferralsStore } from '@/MobileClient/stores/Shop/referrals.js';
 
 export function useReferrals() {
     const store = useReferralsStore();
 
+    // ✅ ИСПРАВЛЕНИЕ: Извлекаем и состояние, и геттеры через storeToRefs.
+    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность геттеров.
     const {
+        // --- Состояние (State) ---
         referralTree,
         rewardsHistory,
         referralLink,
@@ -15,15 +17,16 @@ export function useReferrals() {
         isLoading,
         isHydrated,
         lastError,
+
+        // --- Геттеры (Getters) ---
+        totalReferrals,
+        totalEarnings,
+        friendsCount,
+        pendingRequestsCount,
     } = storeToRefs(store);
 
-    const totalReferrals = computed(() => store.totalReferrals);
-    const totalEarnings = computed(() => store.totalEarnings);
-    const friendsCount = computed(() => store.friendsCount);
-    const pendingRequestsCount = computed(() => store.pendingRequestsCount);
-
     return {
-        // State
+        // Состояние (Refs)
         referralTree,
         rewardsHistory,
         referralLink,
@@ -34,13 +37,14 @@ export function useReferrals() {
         isHydrated,
         lastError,
 
-        // Getters
+        // Геттеры (Refs)
         totalReferrals,
         totalEarnings,
         friendsCount,
         pendingRequestsCount,
 
-        // Methods
+        // Методы (Actions)
+        // Прямое маппирование — это отлично и эффективно
         loadReferralTree: store.loadReferralTree,
         loadRewardsHistory: store.loadRewardsHistory,
         loadReferralLink: store.loadReferralLink,
@@ -51,6 +55,7 @@ export function useReferrals() {
         rejectFriendRequest: store.rejectFriendRequest,
         removeFriend: store.removeFriend,
 
+        // Сброс стора
         $reset: store.$reset,
     };
 }

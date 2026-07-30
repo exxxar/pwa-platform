@@ -353,9 +353,12 @@ export default {
     border-top: 1px solid var(--bs-border-color);
     background: var(--bs-body-bg);
     flex-shrink: 0;
-    position: relative; // Или fixed, в зависимости от родительского layout
+  //  position: relative; // Или fixed, в зависимости от родительского layout
     width: 100%;
     z-index: 1047;
+
+    position: fixed;
+    bottom: 0;
 }
 
 .chat-input-form {

@@ -1,57 +1,60 @@
-    <template>
-        <div class="chat-component">
-            <!-- ШАПКА ЧАТА -->
-            <div class="chat-header">
-                <button class="back-btn" @click="goBack">
-                    <i class="fa-solid fa-arrow-left"></i>
-                </button>
-                <div class="header-info">
-                    <div class="header-avatar" :style="avatarGradientStyle">
-                        <img v-if="currentInterlocutor?.avatar" :src="currentInterlocutor.avatar" :alt="currentInterlocutor?.name">
-                        <span v-else class="avatar-initials">{{ getInitials(currentInterlocutor?.name) }}</span>
-                        <div v-if="currentInterlocutor?.is_online" class="online-dot"></div>
-                    </div>
-                    <div class="header-text">
-                        <div class="header-name">{{ currentInterlocutor?.name || 'Чат' }}</div>
-                        <div class="header-status">
-                            <template v-if="currentInterlocutor?.is_online">
-                                <span class="online-indicator"></span><span class="online-text">в сети</span>
-                            </template>
-                            <template v-else-if="currentInterlocutor?.last_seen_at">
-                                {{ formatLastSeen(currentInterlocutor.last_seen_at) }}
-                            </template>
-                            <template v-else>
-                                <span class="offline-text">был(а) недавно</span>
-                            </template>
-                        </div>
+<template>
+    <div class="chat-component">
+        <!-- ШАПКА ЧАТА -->
+        <div class="chat-header">
+            <button class="back-btn" @click="goBack">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <div class="header-info">
+                <div class="header-avatar" :style="avatarGradientStyle">
+                    <img v-if="currentInterlocutor?.avatar" :src="currentInterlocutor.avatar"
+                         :alt="currentInterlocutor?.name">
+                    <span v-else class="avatar-initials">{{ getInitials(currentInterlocutor?.name) }}</span>
+                    <div v-if="currentInterlocutor?.is_online" class="online-dot"></div>
+                </div>
+                <div class="header-text">
+                    <div class="header-name">{{ currentInterlocutor?.name || 'Чат' }}</div>
+                    <div class="header-status">
+                        <template v-if="currentInterlocutor?.is_online">
+                            <span class="online-indicator"></span><span class="online-text">в сети</span>
+                        </template>
+                        <template v-else-if="currentInterlocutor?.last_seen_at">
+                            {{ formatLastSeen(currentInterlocutor.last_seen_at) }}
+                        </template>
+                        <template v-else>
+                            <span class="offline-text">был(а) недавно</span>
+                        </template>
                     </div>
                 </div>
-                <button class="header-action" @click.stop="openDialogMenu">
-                    <i class="fa-solid fa-ellipsis-vertical"></i>
-                </button>
             </div>
+            <button class="header-action" @click.stop="openDialogMenu">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+            </button>
+        </div>
 
-            <!-- СООБЩЕНИЯ -->
-            <div ref="messagesContainer" class="messages-container" @scroll="handleScroll">
-                <div v-if="isMessagesLoading" class="messages-loader"><div class="loader-spinner"></div></div>
-                <button v-if="hasMoreMessages && !isMessagesLoading" class="load-more-btn" @click="loadOlderMessages">
-                    <i class="fa-solid fa-arrow-up"></i> Загрузить ещё
-                </button>
-                <div v-if="sortedMessages.length === 0 && !isMessagesLoading" class="empty-chat">
-                    <div class="empty-icon"><i class="fa-solid fa-comments"></i></div>
-                    <p>Начните общение!</p><span>Напишите первое сообщение</span>
-                </div>
-                <template v-else>
-                    <template v-for="(message, index) in sortedMessages" :key="message.id">
+        <!-- СООБЩЕНИЯ -->
+        <div ref="messagesContainer" class="messages-container" @scroll="handleScroll">
+            <div v-if="isMessagesLoading" class="messages-loader">
+                <div class="loader-spinner"></div>
+            </div>
+            <button v-if="hasMoreMessages && !isMessagesLoading" class="load-more-btn" @click="loadOlderMessages">
+                <i class="fa-solid fa-arrow-up"></i> Загрузить ещё
+            </button>
+            <div v-if="sortedMessages.length === 0 && !isMessagesLoading" class="empty-chat">
+                <div class="empty-icon"><i class="fa-solid fa-comments"></i></div>
+                <p>Начните общение!</p><span>Напишите первое сообщение</span>
+            </div>
+            <template v-else>
+                <template v-for="(message, index) in sortedMessages" :key="message.id">
 
-                        <!-- 1. Разделитель дат -->
-                        <div v-if="shouldShowDateSeparator(index)" class="date-separator">
-                            <span>{{ formatDateSeparator(message.created_at) }}</span>
-                        </div>
+                    <!-- 1. Разделитель дат -->
+                    <div v-if="shouldShowDateSeparator(index)" class="date-separator">
+                        <span>{{ formatDateSeparator(message.created_at) }}</span>
+                    </div>
 
-                        <div
-                            class="message-bubble"
-                            :class="{
+                    <div
+                        class="message-bubble"
+                        :class="{
                                 'is-mine': isMine(message),
                                 'is-error': message.status === 'error',
                                 'is-sending': message.status === 'sending',
@@ -59,596 +62,652 @@
                                 'is-order': isOrderMessage(message),
                                 'is-system': isSystemMessage(message),
                             }"
-                        >
-                            <!-- ✅ 1. СООБЩЕНИЕ С ЗАКАЗОМ (Восстановлено) -->
-                            <template v-if="isOrderMessage(message)">
-                                <div class="order-card">
-                                    <!-- Иконка в цветном кружке -->
-                                    <div class="order-icon-wrap">
-                                        <i class="fa-solid fa-receipt"></i>
-                                    </div>
-
-                                    <!-- Основной контент -->
-                                    <div class="order-body">
-                                        <div class="order-header">
-                                            <span class="order-title">Заказ #{{ message.meta?.order_id }}</span>
-                                            <span class="order-time">{{ formatMessageTime(message.created_at) }}</span>
-                                        </div>
-                                        <div class="order-description" v-html="message.text || message.message"></div>
-
-                                        <a
-                                            v-if="message.attachment?.url"
-                                            :href="message.attachment.url"
-                                            target="_blank"
-                                            class="order-download"
-                                        >
-                                            <i class="fa-solid fa-file-pdf"></i>
-                                            <span>Скачать чек</span>
-                                            <i class="fa-solid fa-arrow-right download-arrow"></i>
-                                        </a>
-                                    </div>
+                    >
+                        <!-- ✅ 1. СООБЩЕНИЕ С ЗАКАЗОМ (Восстановлено) -->
+                        <template v-if="isOrderMessage(message)">
+                            <div class="order-card">
+                                <!-- Иконка в цветном кружке -->
+                                <div class="order-icon-wrap">
+                                    <i class="fa-solid fa-receipt"></i>
                                 </div>
-                            </template>
 
-                            <!-- ✅ 2. СООБЩЕНИЕ С ФАЙЛОМ (Восстановлено) -->
-                            <template v-else-if="message.has_attachment">
-                                <div class="message-content">
-                                    <div class="message-text" v-if="message.text || message.message" v-html="message.text || message.message"></div>
+                                <!-- Основной контент -->
+                                <div class="order-body">
+                                    <div class="order-header">
+                                        <span class="order-title">Заказ #{{ message.meta?.order_id }}</span>
+                                        <span class="order-time">{{ formatMessageTime(message.created_at) }}</span>
+                                    </div>
+                                    <div class="order-description" v-html="message.text || message.message"></div>
 
                                     <a
+                                        v-if="message.attachment?.url"
                                         :href="message.attachment.url"
                                         target="_blank"
-                                        class="attachment-card"
-                                        :class="[`attachment-${message.attachment.type}`]"
+                                        class="order-download"
                                     >
-                                        <div class="attachment-icon">
-                                            <i :class="getAttachmentIcon(message.attachment.type)"></i>
-                                        </div>
-                                        <div class="attachment-info">
-                                            <div class="attachment-name">{{ message.attachment.name }}</div>
-                                            <div class="attachment-meta">
-                                                <span class="attachment-size">{{ message.attachment_size_formatted }}</span>
-                                                <span class="attachment-type">{{ message.attachment.type.toUpperCase() }}</span>
-                                            </div>
-                                        </div>
-                                        <button class="attachment-download-btn" type="button">
-                                            <i class="fa-solid fa-arrow-down"></i>
-                                        </button>
+                                        <i class="fa-solid fa-file-pdf"></i>
+                                        <span>Скачать чек</span>
+                                        <i class="fa-solid fa-arrow-right download-arrow"></i>
                                     </a>
+                                </div>
+                            </div>
+                        </template>
 
-                                    <div class="message-meta">
-                                        <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
-                                        <span v-if="isMine(message)" class="message-status">
+                        <!-- ✅ 2. СООБЩЕНИЕ С ФАЙЛОМ (Восстановлено) -->
+                        <template v-else-if="message.has_attachment">
+                            <div class="message-content">
+                                <div class="message-text" v-if="message.text || message.message"
+                                     v-html="message.text || message.message"></div>
+
+                                <a
+                                    :href="message.attachment.url"
+                                    target="_blank"
+                                    class="attachment-card"
+                                    :class="[`attachment-${message.attachment.type}`]"
+                                >
+                                    <div class="attachment-icon">
+                                        <i :class="getAttachmentIcon(message.attachment.type)"></i>
+                                    </div>
+                                    <div class="attachment-info">
+                                        <div class="attachment-name">{{ message.attachment.name }}</div>
+                                        <div class="attachment-meta">
+                                            <span class="attachment-size">{{ message.attachment_size_formatted }}</span>
+                                            <span class="attachment-type">{{
+                                                    message.attachment.type.toUpperCase()
+                                                }}</span>
+                                        </div>
+                                    </div>
+                                    <button class="attachment-download-btn" type="button">
+                                        <i class="fa-solid fa-arrow-down"></i>
+                                    </button>
+                                </a>
+
+                                <div class="message-meta">
+                                    <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
+                                    <span v-if="isMine(message)" class="message-status">
                     <i :class="getStatusIcon(message)"></i>
                 </span>
-                                    </div>
                                 </div>
-                            </template>
+                            </div>
+                        </template>
 
-                            <!-- ✅ 3. 🆕 СПЕЦИАЛЬНЫЙ БЛОК ДЛЯ СИСТЕМНЫХ СООБЩЕНИЙ -->
-                            <template v-else-if="isSystemMessage(message)">
-                                <div class="system-message-content">
-                                    <i :class="getSystemMessageIcon(message)"></i>
-                                    <span v-html="message.text || message.message"></span>
-                                </div>
-                            </template>
+                        <!-- ✅ 3. 🆕 СПЕЦИАЛЬНЫЙ БЛОК ДЛЯ СИСТЕМНЫХ СООБЩЕНИЙ -->
+                        <template v-else-if="isSystemMessage(message)">
+                            <div class="system-message-content">
+                                <i :class="getSystemMessageIcon(message)"></i>
+                                <span v-html="message.text || message.message"></span>
+                            </div>
+                        </template>
 
-                            <!-- ✅ 4. ОБЫЧНОЕ ТЕКСТОВОЕ СООБЩЕНИЕ -->
-                            <template v-else>
-                                <div class="message-content">
-                                    <div class="message-text" v-if="message.text || message.message" v-html="message.text || message.message"></div>
-                                    <div class="message-meta">
-                                        <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
-                                        <span v-if="isMine(message)" class="message-status">
+                        <!-- ✅ 4. ОБЫЧНОЕ ТЕКСТОВОЕ СООБЩЕНИЕ -->
+                        <template v-else>
+                            <div class="message-content">
+                                <div class="message-text" v-if="message.text || message.message"
+                                     v-html="message.text || message.message"></div>
+                                <div class="message-meta">
+                                    <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
+                                    <span v-if="isMine(message)" class="message-status">
                                             <i :class="getStatusIcon(message)"></i>
                                         </span>
-                                    </div>
                                 </div>
-                            </template>
+                            </div>
+                        </template>
 
-                            <!-- Кнопка повторной отправки -->
-                            <button v-if="message.status === 'error'" class="retry-btn" @click="retryMessage(message)" title="Повторить отправку">
-                                <i class="fa-solid fa-rotate-right"></i>
-                            </button>
-                        </div>
-                    </template>
-
-                    <div v-if="isTyping" class="typing-indicator">
-                        <div class="typing-bubble"><span></span><span></span><span></span></div>
+                        <!-- Кнопка повторной отправки -->
+                        <button v-if="message.status === 'error'" class="retry-btn" @click="retryMessage(message)"
+                                title="Повторить отправку">
+                            <i class="fa-solid fa-rotate-right"></i>
+                        </button>
                     </div>
                 </template>
-            </div>
 
-            <!-- ПОЛЕ ВВОДА -->
-            <ChatInput
-                :dialog="currentDialog"
-                :disabled="false"
-                @send="handleSendMessage"
-            />
-
-            <!-- BOTTOM SHEET МЕНЮ ДИАЛОГА -->
-            <teleport to="body">
-                <transition name="sheet-fade">
-                    <div v-if="showDialogMenu" class="sheet-overlay" @click="closeDialogMenu">
-                        <div class="sheet-container" @click.stop>
-                            <div class="sheet-header">
-                                <div class="sheet-avatar" :style="avatarGradientStyle">
-                                    <img v-if="currentInterlocutor?.avatar" :src="currentInterlocutor.avatar" :alt="currentInterlocutor?.name">
-                                    <span v-else class="avatar-initials">{{ getInitials(currentInterlocutor?.name) }}</span>
-                                </div>
-                                <div class="sheet-info">
-                                    <div class="sheet-name">{{ currentInterlocutor?.name || 'Чат' }}</div>
-                                    <div class="sheet-status">
-                                        <template v-if="currentInterlocutor?.is_online"><span class="online-dot-small"></span><span>в сети</span></template>
-                                        <template v-else><span>был(а) недавно</span></template>
-                                    </div>
-                                </div>
-                                <button class="sheet-close" @click="closeDialogMenu"><i class="fa-solid fa-xmark"></i></button>
-                            </div>
-                            <div class="sheet-divider"></div>
-                            <div class="sheet-actions">
-                                <button class="sheet-action" @click="viewAttachments">
-                                    <div class="sheet-action-icon attachments"><i class="fa-solid fa-paperclip"></i></div>
-                                    <div class="sheet-action-info">
-                                        <div class="sheet-action-title">Вложения</div>
-                                        <div class="sheet-action-desc">Просмотр файлов и документов</div>
-                                    </div>
-                                    <span v-if="attachmentsCount > 0" class="sheet-action-badge">{{ attachmentsCount }}</span>
-                                    <i class="fa-solid fa-chevron-right sheet-action-arrow"></i>
-                                </button>
-                                <button class="sheet-action" @click="archiveCurrentDialog">
-                                    <div class="sheet-action-icon archive"><i class="fa-solid fa-box-archive"></i></div>
-                                    <div class="sheet-action-info">
-                                        <div class="sheet-action-title">В архив</div>
-                                        <div class="sheet-action-desc">Скрыть диалог из списка</div>
-                                    </div>
-                                    <i class="fa-solid fa-chevron-right sheet-action-arrow"></i>
-                                </button>
-                                <button class="sheet-action" @click="clearHistory">
-                                    <div class="sheet-action-icon clear"><i class="fa-solid fa-broom"></i></div>
-                                    <div class="sheet-action-info">
-                                        <div class="sheet-action-title">Очистить историю</div>
-                                        <div class="sheet-action-desc">Удалить все сообщения</div>
-                                    </div>
-                                    <i class="fa-solid fa-chevron-right sheet-action-arrow"></i>
-                                </button>
-                                <div class="sheet-divider"></div>
-                                <button class="sheet-action danger" @click="deleteCurrentDialog">
-                                    <div class="sheet-action-icon delete"><i class="fa-solid fa-trash"></i></div>
-                                    <div class="sheet-action-info">
-                                        <div class="sheet-action-title">Удалить диалог</div>
-                                        <div class="sheet-action-desc">Удалить навсегда без возможности восстановления</div>
-                                    </div>
-                                    <i class="fa-solid fa-chevron-right sheet-action-arrow"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </transition>
-            </teleport>
-
-            <!-- МОДАЛКА ВЛОЖЕНИЙ -->
-            <teleport to="body">
-                <transition name="fade">
-                    <div v-if="showAttachmentsModal" class="modal-overlay" @click.self="closeAttachmentsModal">
-                        <div class="attachments-modal">
-                            <div class="modal-header">
-                                <h3><i class="fa-solid fa-paperclip"></i> Вложения</h3>
-                                <button class="modal-close" @click="closeAttachmentsModal"><i class="fa-solid fa-xmark"></i></button>
-                            </div>
-                            <div v-if="isLoadingAttachments" class="attachments-loading"><div class="loader-spinner"></div></div>
-                            <div v-else-if="attachments.length === 0" class="attachments-empty"><i class="fa-solid fa-inbox"></i><p>Вложений нет</p></div>
-                            <div v-else class="attachments-grid">
-                                <a v-for="attachment in attachments" :key="attachment.id" :href="attachment.url" target="_blank" class="attachment-item" :class="[`type-${attachment.type}`]">
-                                    <div class="attachment-icon-large"><i :class="getAttachmentIcon(attachment.type)"></i></div>
-                                    <div class="attachment-info">
-                                        <div class="attachment-name">{{ attachment.name }}</div>
-                                        <div class="attachment-meta">
-                                            <span>{{ attachment.size_formatted }}</span>
-                                            <span>{{ attachment.date_formatted }}</span>
-                                        </div>
-                                    </div>
-                                    <i class="fa-solid fa-download attachment-download"></i>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </transition>
-            </teleport>
-
-            <!-- МОДАЛКА ПОДТВЕРЖДЕНИЯ -->
-            <teleport to="body">
-                <transition name="fade">
-                    <div v-if="confirmModal.visible" class="modal-overlay" @click.self="cancelConfirm">
-                        <div class="confirm-modal">
-                            <div class="confirm-icon" :class="confirmModal.type"><i :class="confirmModal.icon"></i></div>
-                            <h3>{{ confirmModal.title }}</h3>
-                            <p>{{ confirmModal.message }}</p>
-                            <div class="confirm-actions">
-                                <button class="confirm-btn cancel" @click="cancelConfirm">Отмена</button>
-                                <button class="confirm-btn" :class="confirmModal.type" @click="executeConfirm">{{ confirmModal.confirmText }}</button>
-                            </div>
-                        </div>
-                    </div>
-                </transition>
-            </teleport>
+                <div v-if="isTyping" class="typing-indicator">
+                    <div class="typing-bubble"><span></span><span></span><span></span></div>
+                </div>
+            </template>
         </div>
-    </template>
 
-    <script>
-    import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
-    import { useChat } from '@/MobileClient/Composables/useChat.js';
-    import ChatInput from "@/MobileClient/Components/Chat/ChatInput.vue";
-    import {
-        formatMessageTime,
-        formatDateSeparator,
-        formatLastSeen,
-        getInitials,
-        getAvatarGradient,
-        isMyMessage,
-    } from '@/MobileClient/utils/chatUtils.js';
+        <!-- ПОЛЕ ВВОДА -->
+        <ChatInput
+            :dialog="currentDialog"
+            :disabled="false"
+            @send="handleSendMessage"
+        />
 
-    export default {
-        name: "ChatComponent",
-        components: { ChatInput },
+        <!-- BOTTOM SHEET МЕНЮ ДИАЛОГА -->
+        <teleport to="body">
+            <transition name="sheet-fade">
+                <div v-if="showDialogMenu" class="sheet-overlay" @click="closeDialogMenu">
+                    <div class="sheet-container" @click.stop>
+                        <div class="sheet-header">
+                            <div class="sheet-avatar" :style="avatarGradientStyle">
+                                <img v-if="currentInterlocutor?.avatar" :src="currentInterlocutor.avatar"
+                                     :alt="currentInterlocutor?.name">
+                                <span v-else class="avatar-initials">{{ getInitials(currentInterlocutor?.name) }}</span>
+                            </div>
+                            <div class="sheet-info">
+                                <div class="sheet-name">{{ currentInterlocutor?.name || 'Чат' }}</div>
+                                <div class="sheet-status">
+                                    <template v-if="currentInterlocutor?.is_online"><span
+                                        class="online-dot-small"></span><span>в сети</span></template>
+                                    <template v-else><span>был(а) недавно</span></template>
+                                </div>
+                            </div>
+                            <button class="sheet-close" @click="closeDialogMenu"><i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="sheet-divider"></div>
+                        <div class="sheet-actions">
+                            <button class="sheet-action" @click="viewAttachments">
+                                <div class="sheet-action-icon attachments"><i class="fa-solid fa-paperclip"></i></div>
+                                <div class="sheet-action-info">
+                                    <div class="sheet-action-title">Вложения</div>
+                                    <div class="sheet-action-desc">Просмотр файлов и документов</div>
+                                </div>
+                                <span v-if="attachmentsCount > 0" class="sheet-action-badge">{{
+                                        attachmentsCount
+                                    }}</span>
+                                <i class="fa-solid fa-chevron-right sheet-action-arrow"></i>
+                            </button>
+                            <button class="sheet-action" @click="archiveCurrentDialog">
+                                <div class="sheet-action-icon archive"><i class="fa-solid fa-box-archive"></i></div>
+                                <div class="sheet-action-info">
+                                    <div class="sheet-action-title">В архив</div>
+                                    <div class="sheet-action-desc">Скрыть диалог из списка</div>
+                                </div>
+                                <i class="fa-solid fa-chevron-right sheet-action-arrow"></i>
+                            </button>
+                            <button class="sheet-action" @click="clearHistory">
+                                <div class="sheet-action-icon clear"><i class="fa-solid fa-broom"></i></div>
+                                <div class="sheet-action-info">
+                                    <div class="sheet-action-title">Очистить историю</div>
+                                    <div class="sheet-action-desc">Удалить все сообщения</div>
+                                </div>
+                                <i class="fa-solid fa-chevron-right sheet-action-arrow"></i>
+                            </button>
+                            <div class="sheet-divider"></div>
+                            <button class="sheet-action danger" @click="deleteCurrentDialog">
+                                <div class="sheet-action-icon delete"><i class="fa-solid fa-trash"></i></div>
+                                <div class="sheet-action-info">
+                                    <div class="sheet-action-title">Удалить диалог</div>
+                                    <div class="sheet-action-desc">Удалить навсегда без возможности восстановления</div>
+                                </div>
+                                <i class="fa-solid fa-chevron-right sheet-action-arrow"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </teleport>
 
-        setup() {
-            const chat = useChat();
-            const route = useRoute();
-            const router = useRouter();
+        <!-- МОДАЛКА ВЛОЖЕНИЙ -->
+        <teleport to="body">
+            <transition name="fade">
+                <div v-if="showAttachmentsModal" class="modal-overlay" @click.self="closeAttachmentsModal">
+                    <div class="attachments-modal">
+                        <div class="modal-header">
+                            <h3><i class="fa-solid fa-paperclip"></i> Вложения</h3>
+                            <button class="modal-close" @click="closeAttachmentsModal"><i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div v-if="isLoadingAttachments" class="attachments-loading">
+                            <div class="loader-spinner"></div>
+                        </div>
+                        <div v-else-if="attachments.length === 0" class="attachments-empty"><i
+                            class="fa-solid fa-inbox"></i>
+                            <p>Вложений нет</p></div>
+                        <div v-else class="attachments-grid">
+                            <a v-for="attachment in attachments" :key="attachment.id" :href="attachment.url"
+                               target="_blank" class="attachment-item" :class="[`type-${attachment.type}`]">
+                                <div class="attachment-icon-large"><i :class="getAttachmentIcon(attachment.type)"></i>
+                                </div>
+                                <div class="attachment-info">
+                                    <div class="attachment-name">{{ attachment.name }}</div>
+                                    <div class="attachment-meta">
+                                        <span>{{ attachment.size_formatted }}</span>
+                                        <span>{{ attachment.date_formatted }}</span>
+                                    </div>
+                                </div>
+                                <i class="fa-solid fa-download attachment-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </teleport>
 
-            // 🧹 Очистка состояния при уходе со страницы чата (чтобы не "залипал" последний диалог)
-            onBeforeRouteLeave((to, from) => {
-                if (to.name !== 'ChatRoom') {
-                    chat.closeDialog();
+        <!-- МОДАЛКА ПОДТВЕРЖДЕНИЯ -->
+        <teleport to="body">
+            <transition name="fade">
+                <div v-if="confirmModal.visible" class="modal-overlay" @click.self="cancelConfirm">
+                    <div class="confirm-modal">
+                        <div class="confirm-icon" :class="confirmModal.type"><i :class="confirmModal.icon"></i></div>
+                        <h3>{{ confirmModal.title }}</h3>
+                        <p>{{ confirmModal.message }}</p>
+                        <div class="confirm-actions">
+                            <button class="confirm-btn cancel" @click="cancelConfirm">Отмена</button>
+                            <button class="confirm-btn" :class="confirmModal.type" @click="executeConfirm">
+                                {{ confirmModal.confirmText }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </teleport>
+    </div>
+</template>
+
+<script>
+import {useRoute, useRouter, onBeforeRouteLeave} from 'vue-router';
+import {useChat} from '@/MobileClient/Composables/useChat.js';
+import ChatInput from "@/MobileClient/Components/Chat/ChatInput.vue";
+import {
+    formatMessageTime,
+    formatDateSeparator,
+    formatLastSeen,
+    getInitials,
+    getAvatarGradient,
+    isMyMessage,
+} from '@/MobileClient/utils/chatUtils.js';
+
+export default {
+    name: "ChatComponent",
+    components: {ChatInput},
+
+    setup() {
+        const chat = useChat();
+        const route = useRoute();
+        const router = useRouter();
+
+        // 🧹 Очистка состояния при уходе со страницы чата (чтобы не "залипал" последний диалог)
+        onBeforeRouteLeave((to, from) => {
+            if (to.name !== 'ChatRoom') {
+                chat.closeDialog();
+            }
+        });
+
+        return {...chat, route, router};
+    },
+
+    data() {
+        return {
+            autoScroll: true,
+            isTyping: false,
+            showDialogMenu: false,
+            showAttachmentsModal: false,
+            attachments: [],
+            isLoadingAttachments: false,
+            attachmentsCount: 0,
+            confirmModal: {
+                visible: false,
+                type: 'warning',
+                icon: 'fa-solid fa-triangle-exclamation',
+                title: '',
+                message: '',
+                confirmText: 'Подтвердить',
+                callback: null
+            },
+        };
+    },
+
+    computed: {
+        user() {
+            return window.TenantUser;
+        },
+        avatarGradientStyle() {
+            if (!this.currentDialog) return {};
+            const interlocutor = this.currentDialog.interlocutor || this.currentDialog.user || this.currentDialog.companion;
+            if (interlocutor?.avatar) return {};
+            return getAvatarGradient(this.currentDialog.id);
+        },
+    },
+
+    watch: {
+        sortedMessages: {
+            handler(newMessages, oldMessages) {
+                if (newMessages.length > (oldMessages?.length || 0)) {
+                    this.$nextTick(() => this.scrollToBottom());
                 }
-            });
-
-            return { ...chat, route, router };
+            },
+            deep: true,
+        },
+        currentDialog: {
+            immediate: true,
+            handler(newDialog) {
+                if (newDialog) {
+                    this.autoScroll = true;
+                    this.showDialogMenu = false;
+                }
+            },
         },
 
-        data() {
-            return {
-                autoScroll: true,
-                isTyping: false,
-                showDialogMenu: false,
-                showAttachmentsModal: false,
-                attachments: [],
-                isLoadingAttachments: false,
-                attachmentsCount: 0,
-                confirmModal: { visible: false, type: 'warning', icon: 'fa-solid fa-triangle-exclamation', title: '', message: '', confirmText: 'Подтвердить', callback: null },
+        // 🛡️ АБСОЛЮТНАЯ ЗАЩИТА ДЛЯ ПРЯМЫХ ПЕРЕХОДОВ И ОБНОВЛЕНИЙ СТРАНИЦЫ
+        '$route.params.id': {
+            immediate: true,
+            async handler(newId) {
+                // 1. Если ID нет в URL вообще -> уходим в список
+                if (!newId) {
+                    this.router.replace({name: 'ChatList'});
+                    return;
+                }
+
+                // 2. Приводим к строке для безопасного сравнения (URL всегда строка, БД может быть числом)
+                const currentId = this.currentDialog ? String(this.currentDialog.id) : null;
+                const targetId = String(newId);
+
+                // 3. Если этот диалог УЖЕ открыт, не делаем лишних запросов к серверу
+                if (currentId === targetId) {
+                    return;
+                }
+
+                console.log(`[ChatComponent] Прямой переход или смена чата. Загружаем ID: ${targetId}`);
+
+                try {
+                    // 4. Пытаемся загрузить диалог и сообщения
+                    await this.openDialog(targetId);
+                } catch (error) {
+                    console.error('[ChatComponent] Не удалось загрузить диалог:', error);
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: 'Этот чат не найден или был удален',
+                        type: 'error'
+                    });
+                    // 5. Если ошибка (например, 404), перенаправляем в список
+                    this.router.replace({name: 'ChatList'});
+                }
+            }
+        }
+    },
+
+    methods: {
+        // 🆕 Добавьте этот метод, если его нет в useChat или локально
+        // 🆕 Исправленный метод повторной отправки
+        retryMessage(message) {
+            if (!this.sendMessage || !this.currentDialog) return;
+
+            const payload = {
+                text: message.text || message.message || '',
+                // Убедимся, что attachments это массив (даже если он пустой)
+                attachments: Array.isArray(message.attachments) ? message.attachments : []
             };
+
+            this.sendMessage(this.currentDialog.id, payload)
+                .catch(err => {
+                    console.error('Ошибка повторной отправки:', err);
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: 'Не удалось отправить сообщение повторно',
+                        type: 'error'
+                    });
+                });
         },
 
-        computed: {
-            user() { return window.TenantUser; },
-            avatarGradientStyle() {
-                if (!this.currentDialog) return {};
-                const interlocutor = this.currentDialog.interlocutor || this.currentDialog.user || this.currentDialog.companion;
-                if (interlocutor?.avatar) return {};
-                return getAvatarGradient(this.currentDialog.id);
-            },
+        getSystemMessageIcon(message) {
+            const type = message.meta?.type;
+            const iconMap = {
+                'status_change': 'fa-solid fa-arrow-right-arrow-left',
+                'payment': 'fa-solid fa-credit-card',
+                'dialog_closed': 'fa-solid fa-lock',
+                'user_joined': 'fa-solid fa-user-plus',
+                'user_left': 'fa-solid fa-user-minus',
+                'default': 'fa-solid fa-circle-info'
+            };
+            return iconMap[type] || iconMap['default'];
+        },
+        openDialogMenu() {
+            this.showDialogMenu = true;
+            document.body.style.overflow = 'hidden';
+        },
+        closeDialogMenu() {
+            this.showDialogMenu = false;
+            document.body.style.overflow = '';
         },
 
-        watch: {
-            sortedMessages: {
-                handler(newMessages, oldMessages) {
-                    if (newMessages.length > (oldMessages?.length || 0)) {
-                        this.$nextTick(() => this.scrollToBottom());
-                    }
-                },
-                deep: true,
-            },
-            currentDialog: {
-                immediate: true,
-                handler(newDialog) {
-                    if (newDialog) {
-                        this.autoScroll = true;
-                        this.showDialogMenu = false;
-                    }
-                },
-            },
+        viewAttachments() {
+            this.closeDialogMenu();
+            this.showAttachmentsModal = true;
+            this.isLoadingAttachments = true;
+            this.attachments = [];
+            this.getDialogAttachments(this.currentDialog.id)
+                .then(data => {
+                    this.attachments = (data || []).map(att => ({
+                        ...att,
+                        size_formatted: this.formatFileSize(att.size || 0),
+                        date_formatted: this.formatAttachmentDate(att.created_at),
+                    }));
+                    this.attachmentsCount = this.attachments.length;
+                })
+                .catch(() => {
+                    this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить вложения', type: 'error'});
+                })
+                .finally(() => {
+                    this.isLoadingAttachments = false;
+                });
+        },
+        closeAttachmentsModal() {
+            this.showAttachmentsModal = false;
+        },
 
-            // 🛡️ АБСОЛЮТНАЯ ЗАЩИТА ДЛЯ ПРЯМЫХ ПЕРЕХОДОВ И ОБНОВЛЕНИЙ СТРАНИЦЫ
-            '$route.params.id': {
-                immediate: true,
-                async handler(newId) {
-                    // 1. Если ID нет в URL вообще -> уходим в список
-                    if (!newId) {
-                        this.router.replace({ name: 'ChatList' });
-                        return;
-                    }
-
-                    // 2. Приводим к строке для безопасного сравнения (URL всегда строка, БД может быть числом)
-                    const currentId = this.currentDialog ? String(this.currentDialog.id) : null;
-                    const targetId = String(newId);
-
-                    // 3. Если этот диалог УЖЕ открыт, не делаем лишних запросов к серверу
-                    if (currentId === targetId) {
-                        return;
-                    }
-
-                    console.log(`[ChatComponent] Прямой переход или смена чата. Загружаем ID: ${targetId}`);
-
+        archiveCurrentDialog() {
+            this.closeDialogMenu();
+            this.showConfirm({
+                type: 'warning', icon: 'fa-solid fa-box-archive', title: 'Архивировать диалог?',
+                message: `Диалог с ${this.currentInterlocutor?.name || 'собеседником'} будет перемещен в архив.`,
+                confirmText: 'В архив',
+                callback: async () => {
                     try {
-                        // 4. Пытаемся загрузить диалог и сообщения
-                        await this.openDialog(targetId);
+                        await this.archiveDialog(this.currentDialog.id);
+                        this.$notify?.({title: 'Архивировано', type: 'success'});
+                        this.goBack();
                     } catch (error) {
-                        console.error('[ChatComponent] Не удалось загрузить диалог:', error);
-                        this.$notify?.({
-                            title: 'Ошибка',
-                            text: 'Этот чат не найден или был удален',
-                            type: 'error'
-                        });
-                        // 5. Если ошибка (например, 404), перенаправляем в список
-                        this.router.replace({ name: 'ChatList' });
+                        this.$notify?.({title: 'Ошибка', text: 'Не удалось архивировать', type: 'error'});
                     }
+                },
+            });
+        },
+
+        clearHistory() {
+            this.closeDialogMenu();
+            this.showConfirm({
+                type: 'warning', icon: 'fa-solid fa-broom', title: 'Очистить историю?',
+                message: 'Все сообщения в этом диалоге будут удалены.',
+                confirmText: 'Очистить',
+                callback: async () => {
+                    try {
+                        // await this.clearDialogHistory(this.currentDialog.id); // TODO
+                        this.$notify?.({title: 'История очищена', type: 'success'});
+                        this.messages = [];
+                    } catch (error) {
+                        this.$notify?.({title: 'Ошибка', type: 'error'});
+                    }
+                },
+            });
+        },
+
+        deleteCurrentDialog() {
+            this.closeDialogMenu();
+            this.showConfirm({
+                type: 'danger', icon: 'fa-solid fa-trash', title: 'Удалить диалог навсегда?',
+                message: `Диалог с ${this.currentInterlocutor?.name || 'собеседником'} и вся история будут удалены безвозвратно.`,
+                confirmText: 'Удалить',
+                callback: async () => {
+                    try {
+                        await this.deleteDialogPermanently(this.currentDialog.id);
+                        this.$notify?.({title: 'Удалено', type: 'success'});
+                        this.goBack();
+                    } catch (error) {
+                        this.$notify?.({title: 'Ошибка', text: 'Не удалось удалить', type: 'error'});
+                    }
+                },
+            });
+        },
+
+        showConfirm(options) {
+            this.confirmModal = {visible: true, ...options};
+        },
+        cancelConfirm() {
+            this.confirmModal.visible = false;
+            this.confirmModal.callback = null;
+        },
+        executeConfirm() {
+            const callback = this.confirmModal.callback;
+            this.confirmModal.visible = false;
+            if (callback) callback();
+        },
+
+        formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        },
+        formatAttachmentDate(date) {
+            return new Date(date).toLocaleDateString('ru-RU', {day: '2-digit', month: 'short', year: 'numeric'});
+        },
+
+        // 🚀 ИЗМЕНЕНО: Используем router.back() вместо кастомной логики
+        goBack() {
+            this.router.back();
+        },
+
+        isOrderMessage(message) {
+            const type = message.meta?.type;
+            return type === 'invoice' || type === 'order_created' || type === 'order_summary' || type === 'partner_order' || !!message.meta?.order_id;
+        },
+        isSystemMessage(message) {
+            const type = message.meta?.type;
+            return type === 'status_change' || type === 'payment' || type === 'dialog_closed';
+        },
+        getAttachmentIcon(type) {
+            const icons = {
+                pdf: 'fa-solid fa-file-pdf',
+                image: 'fa-solid fa-image',
+                doc: 'fa-solid fa-file-word',
+                xls: 'fa-solid fa-file-excel',
+                zip: 'fa-solid fa-file-zipper',
+                video: 'fa-solid fa-file-video',
+                audio: 'fa-solid fa-file-audio'
+            };
+            return icons[type] || 'fa-solid fa-file';
+        },
+        getStatusIcon(message) {
+            if (message.status === 'sending') return 'fa-solid fa-clock';
+            if (message.status === 'error') return 'fa-solid fa-circle-exclamation error-icon';
+            if (message.status === 'read') return 'fa-solid fa-check-double status-read';
+            if (message.status === 'delivered') return 'fa-solid fa-check-double status-delivered';
+            return 'fa-solid fa-check status-sent';
+        },
+
+        isMine(message) {
+            return isMyMessage(message, this.user?.id);
+        },
+        shouldShowTail(index) {
+            const current = this.sortedMessages[index];
+            const next = this.sortedMessages[index + 1];
+            if (!next) return true;
+            return this.isMine(current) !== this.isMine(next);
+        },
+        shouldShowDateSeparator(index) {
+            if (index === 0) return true;
+            const current = this.sortedMessages[index];
+            const prev = this.sortedMessages[index - 1];
+            return new Date(current.created_at).toDateString() !== new Date(prev.created_at).toDateString();
+        },
+
+        async handleSendMessage(text, attachments) {
+            // 1. Создаем временное сообщение для мгновенного отображения
+            const tempId = 'temp_' + Date.now();
+            const tempMessage = {
+                id: tempId,
+                dialog_id: this.currentDialog.id,
+                sender_id: this.user?.id, // КРИТИЧЕСКИ ВАЖНО: чтобы сработало isMine() и сообщение встало справа
+                text: text || '',
+                message: text || '',
+                attachments: Array.isArray(attachments) ? attachments : [],
+                created_at: new Date().toISOString(),
+                status: 'sending' // Статус для отображения иконки "часики"
+            };
+
+            // 2. Сразу добавляем в чат и скроллим вниз
+            this.messages.push(tempMessage);
+            this.scrollToBottom();
+
+            try {
+                // 3. Формируем payload и отправляем на сервер
+                const payload = {
+                    text: text || '',
+                    attachments: Array.isArray(attachments) ? attachments : []
+                };
+
+                const response = await this.sendMessage(this.currentDialog.id, payload);
+
+                // 4. Успех! Заменяем временное сообщение на реальное от сервера
+                const serverMessage = response.data || response; // Учитываем разные форматы ответа
+                const index = this.messages.findIndex(m => m.id === tempId);
+
+                if (index !== -1) {
+                    // Полностью заменяем временный объект на реальный с настоящим ID и статусом
+                    this.messages.splice(index, 1, {
+                        ...serverMessage,
+                        status: 'sent' // или 'delivered', в зависимости от вашей логики
+                    });
                 }
+
+                this.scrollToBottom();
+
+            } catch (error) {
+                // 5. Ошибка! Помечаем сообщение как ошибочное, чтобы показать кнопку "Повторить"
+                console.error('Ошибка отправки сообщения:', error);
+                const index = this.messages.findIndex(m => m.id === tempId);
+                if (index !== -1) {
+                    this.messages[index].status = 'error';
+                }
+
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось отправить сообщение. Нажмите на иконку для повтора.',
+                    type: 'error'
+                });
             }
         },
 
-        methods: {
-            // 🆕 Добавьте этот метод, если его нет в useChat или локально
-            // 🆕 Исправленный метод повторной отправки
-            retryMessage(message) {
-                if (!this.sendMessage || !this.currentDialog) return;
-
-                const payload = {
-                    text: message.text || message.message || '',
-                    // Убедимся, что attachments это массив (даже если он пустой)
-                    attachments: Array.isArray(message.attachments) ? message.attachments : []
-                };
-
-                this.sendMessage(this.currentDialog.id, payload)
-                    .catch(err => {
-                        console.error('Ошибка повторной отправки:', err);
-                        this.$notify?.({
-                            title: 'Ошибка',
-                            text: 'Не удалось отправить сообщение повторно',
-                            type: 'error'
-                        });
-                    });
-            },
-
-            getSystemMessageIcon(message) {
-                const type = message.meta?.type;
-                const iconMap = {
-                    'status_change': 'fa-solid fa-arrow-right-arrow-left',
-                    'payment': 'fa-solid fa-credit-card',
-                    'dialog_closed': 'fa-solid fa-lock',
-                    'user_joined': 'fa-solid fa-user-plus',
-                    'user_left': 'fa-solid fa-user-minus',
-                    'default': 'fa-solid fa-circle-info'
-                };
-                return iconMap[type] || iconMap['default'];
-            },
-            openDialogMenu() {
-                this.showDialogMenu = true;
-                document.body.style.overflow = 'hidden';
-            },
-            closeDialogMenu() {
-                this.showDialogMenu = false;
-                document.body.style.overflow = '';
-            },
-
-            viewAttachments() {
-                this.closeDialogMenu();
-                this.showAttachmentsModal = true;
-                this.isLoadingAttachments = true;
-                this.attachments = [];
-                this.getDialogAttachments(this.currentDialog.id)
-                    .then(data => {
-                        this.attachments = (data || []).map(att => ({
-                            ...att,
-                            size_formatted: this.formatFileSize(att.size || 0),
-                            date_formatted: this.formatAttachmentDate(att.created_at),
-                        }));
-                        this.attachmentsCount = this.attachments.length;
-                    })
-                    .catch(() => {
-                        this.$notify?.({ title: 'Ошибка', text: 'Не удалось загрузить вложения', type: 'error' });
-                    })
-                    .finally(() => { this.isLoadingAttachments = false; });
-            },
-            closeAttachmentsModal() { this.showAttachmentsModal = false; },
-
-            archiveCurrentDialog() {
-                this.closeDialogMenu();
-                this.showConfirm({
-                    type: 'warning', icon: 'fa-solid fa-box-archive', title: 'Архивировать диалог?',
-                    message: `Диалог с ${this.currentInterlocutor?.name || 'собеседником'} будет перемещен в архив.`,
-                    confirmText: 'В архив',
-                    callback: async () => {
-                        try {
-                            await this.archiveDialog(this.currentDialog.id);
-                            this.$notify?.({ title: 'Архивировано', type: 'success' });
-                            this.goBack();
-                        } catch (error) {
-                            this.$notify?.({ title: 'Ошибка', text: 'Не удалось архивировать', type: 'error' });
-                        }
-                    },
-                });
-            },
-
-            clearHistory() {
-                this.closeDialogMenu();
-                this.showConfirm({
-                    type: 'warning', icon: 'fa-solid fa-broom', title: 'Очистить историю?',
-                    message: 'Все сообщения в этом диалоге будут удалены.',
-                    confirmText: 'Очистить',
-                    callback: async () => {
-                        try {
-                            // await this.clearDialogHistory(this.currentDialog.id); // TODO
-                            this.$notify?.({ title: 'История очищена', type: 'success' });
-                            this.messages = [];
-                        } catch (error) {
-                            this.$notify?.({ title: 'Ошибка', type: 'error' });
-                        }
-                    },
-                });
-            },
-
-            deleteCurrentDialog() {
-                this.closeDialogMenu();
-                this.showConfirm({
-                    type: 'danger', icon: 'fa-solid fa-trash', title: 'Удалить диалог навсегда?',
-                    message: `Диалог с ${this.currentInterlocutor?.name || 'собеседником'} и вся история будут удалены безвозвратно.`,
-                    confirmText: 'Удалить',
-                    callback: async () => {
-                        try {
-                            await this.deleteDialogPermanently(this.currentDialog.id);
-                            this.$notify?.({ title: 'Удалено', type: 'success' });
-                            this.goBack();
-                        } catch (error) {
-                            this.$notify?.({ title: 'Ошибка', text: 'Не удалось удалить', type: 'error' });
-                        }
-                    },
-                });
-            },
-
-            showConfirm(options) { this.confirmModal = { visible: true, ...options }; },
-            cancelConfirm() { this.confirmModal.visible = false; this.confirmModal.callback = null; },
-            executeConfirm() {
-                const callback = this.confirmModal.callback;
-                this.confirmModal.visible = false;
-                if (callback) callback();
-            },
-
-            formatFileSize(bytes) {
-                if (bytes === 0) return '0 B';
-                const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-            },
-            formatAttachmentDate(date) {
-                return new Date(date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
-            },
-
-            // 🚀 ИЗМЕНЕНО: Используем router.back() вместо кастомной логики
-            goBack() {
-                this.router.back();
-            },
-
-            isOrderMessage(message) {
-                const type = message.meta?.type;
-                return type === 'invoice' || type === 'order_created' || type === 'order_summary' || type === 'partner_order' || !!message.meta?.order_id;
-            },
-            isSystemMessage(message) {
-                const type = message.meta?.type;
-                return type === 'status_change' || type === 'payment' || type === 'dialog_closed';
-            },
-            getAttachmentIcon(type) {
-                const icons = { pdf: 'fa-solid fa-file-pdf', image: 'fa-solid fa-image', doc: 'fa-solid fa-file-word', xls: 'fa-solid fa-file-excel', zip: 'fa-solid fa-file-zipper', video: 'fa-solid fa-file-video', audio: 'fa-solid fa-file-audio' };
-                return icons[type] || 'fa-solid fa-file';
-            },
-            getStatusIcon(message) {
-                if (message.status === 'sending') return 'fa-solid fa-clock';
-                if (message.status === 'error') return 'fa-solid fa-circle-exclamation error-icon';
-                if (message.status === 'read') return 'fa-solid fa-check-double status-read';
-                if (message.status === 'delivered') return 'fa-solid fa-check-double status-delivered';
-                return 'fa-solid fa-check status-sent';
-            },
-
-            isMine(message) { return isMyMessage(message, this.user?.id); },
-            shouldShowTail(index) {
-                const current = this.sortedMessages[index];
-                const next = this.sortedMessages[index + 1];
-                if (!next) return true;
-                return this.isMine(current) !== this.isMine(next);
-            },
-            shouldShowDateSeparator(index) {
-                if (index === 0) return true;
-                const current = this.sortedMessages[index];
-                const prev = this.sortedMessages[index - 1];
-                return new Date(current.created_at).toDateString() !== new Date(prev.created_at).toDateString();
-            },
-
-            async handleSendMessage(text, attachments) {
-                // 1. Создаем временное сообщение для мгновенного отображения
-                const tempId = 'temp_' + Date.now();
-                const tempMessage = {
-                    id: tempId,
-                    dialog_id: this.currentDialog.id,
-                    sender_id: this.user?.id, // КРИТИЧЕСКИ ВАЖНО: чтобы сработало isMine() и сообщение встало справа
-                    text: text || '',
-                    message: text || '',
-                    attachments: Array.isArray(attachments) ? attachments : [],
-                    created_at: new Date().toISOString(),
-                    status: 'sending' // Статус для отображения иконки "часики"
-                };
-
-                // 2. Сразу добавляем в чат и скроллим вниз
-                this.messages.push(tempMessage);
-                this.scrollToBottom();
-
-                try {
-                    // 3. Формируем payload и отправляем на сервер
-                    const payload = {
-                        text: text || '',
-                        attachments: Array.isArray(attachments) ? attachments : []
-                    };
-
-                    const response = await this.sendMessage(this.currentDialog.id, payload);
-
-                    // 4. Успех! Заменяем временное сообщение на реальное от сервера
-                    const serverMessage = response.data || response; // Учитываем разные форматы ответа
-                    const index = this.messages.findIndex(m => m.id === tempId);
-
-                    if (index !== -1) {
-                        // Полностью заменяем временный объект на реальный с настоящим ID и статусом
-                        this.messages.splice(index, 1, {
-                            ...serverMessage,
-                            status: 'sent' // или 'delivered', в зависимости от вашей логики
-                        });
-                    }
-
-                    this.scrollToBottom();
-
-                } catch (error) {
-                    // 5. Ошибка! Помечаем сообщение как ошибочное, чтобы показать кнопку "Повторить"
-                    console.error('Ошибка отправки сообщения:', error);
-                    const index = this.messages.findIndex(m => m.id === tempId);
-                    if (index !== -1) {
-                        this.messages[index].status = 'error';
-                    }
-
-                    this.$notify?.({
-                        title: 'Ошибка',
-                        text: 'Не удалось отправить сообщение. Нажмите на иконку для повтора.',
-                        type: 'error'
-                    });
-                }
-            },
-
-            scrollToBottom() {
-                const container = this.$refs.messagesContainer;
-                if (container && this.autoScroll) {
-                    container.scrollTop = container.scrollHeight;
-                }
-            },
-            handleScroll() {
-                const container = this.$refs.messagesContainer;
-                if (!container) return;
-                const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
-                this.autoScroll = isAtBottom;
-                if (container.scrollTop < 100 && this.hasMoreMessages && !this.isMessagesLoading) {
-                    const previousHeight = container.scrollHeight;
-                    this.loadOlderMessages().then(() => {
-                        this.$nextTick(() => {
-                            const newHeight = container.scrollHeight;
-                            container.scrollTop = newHeight - previousHeight;
-                        });
-                    });
-                }
-            },
-
-            formatMessageTime(timestamp) { return formatMessageTime(timestamp); },
-            formatDateSeparator(timestamp) { return formatDateSeparator(timestamp); },
-            formatLastSeen(timestamp) { return formatLastSeen(timestamp); },
-            getInitials(name) { return getInitials(name); },
+        scrollToBottom() {
+            const container = this.$refs.messagesContainer;
+            if (container && this.autoScroll) {
+                container.scrollTop = container.scrollHeight;
+            }
         },
-    };
-    </script>
+        handleScroll() {
+            const container = this.$refs.messagesContainer;
+            if (!container) return;
+            const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+            this.autoScroll = isAtBottom;
+            if (container.scrollTop < 100 && this.hasMoreMessages && !this.isMessagesLoading) {
+                const previousHeight = container.scrollHeight;
+                this.loadOlderMessages().then(() => {
+                    this.$nextTick(() => {
+                        const newHeight = container.scrollHeight;
+                        container.scrollTop = newHeight - previousHeight;
+                    });
+                });
+            }
+        },
+
+        formatMessageTime(timestamp) {
+            return formatMessageTime(timestamp);
+        },
+        formatDateSeparator(timestamp) {
+            return formatDateSeparator(timestamp);
+        },
+        formatLastSeen(timestamp) {
+            return formatLastSeen(timestamp);
+        },
+        getInitials(name) {
+            return getInitials(name);
+        },
+    },
+};
+</script>
 
 <style lang="scss" scoped>
 // ==========================================
@@ -670,12 +729,12 @@ $warning: #f59e0b;
 .chat-component {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-
+    height: 100 dvh; // 🆕 100dvh вместо 100vh: учитывает адресную строку мобильных браузеров
     background: $bg;
     overflow: hidden;
     position: relative;
 }
+
 
 // ==========================================
 // ШАПКА
@@ -685,17 +744,19 @@ $warning: #f59e0b;
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
     background: $bg;
     border-bottom: 1px solid $border;
-    flex-shrink: 0;
-    z-index: 10;
+    flex-shrink: 0; // 🆕 Запрещаем сжатие, шапка всегда видна
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    padding-top: calc(12px + env(safe-area-inset-top, 0px));
-    top: 0;
+
     position: fixed;
+    top: 0;
+    z-index: 1021;
     width: 100%;
-    transition: 0.5s;
+    height: 85px;
 }
+
 
 .back-btn,
 .header-action {
@@ -829,25 +890,31 @@ $warning: #f59e0b;
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
 }
 
 // ==========================================
 // СООБЩЕНИЯ
 // ==========================================
 .messages-container {
-    flex: 1;
+    flex: 1; // 🆕 Занимает всё доступное пространство между шапкой и вводом
     overflow-y: auto;
     overflow-x: hidden;
     padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
     padding-bottom: 100px;
+    -webkit-overflow-scrolling: touch;
+    // 🆕 УБРАНО: scroll-behavior: smooth; (оно вызывает "прыжки" при подгрузке истории)
+    // 🆕 УБРАНО: padding-bottom: 100px; (больше не нужен, так как ввод теперь в flex-потоке)
 }
+
 
 .messages-loader {
     display: flex;
@@ -865,7 +932,9 @@ $warning: #f59e0b;
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .load-more-btn {
@@ -1009,6 +1078,7 @@ $warning: #f59e0b;
         transform: scale(1) translateY(0);
     }
 }
+
 // ==========================================
 // 🎨 КАРТОЧКА ЗАКАЗА — СОВРЕМЕННЫЙ СТИЛЬ
 // ==========================================
@@ -1020,18 +1090,16 @@ $warning: #f59e0b;
     background: $bg;
     border: 1px solid $border;
     border-radius: 18px;
-    box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.04),
-        0 4px 16px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.04);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
     position: relative;
 
     &:hover {
         transform: translateY(-2px);
-        box-shadow:
-            0 2px 4px rgba(0, 0, 0, 0.06),
-            0 8px 24px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06),
+        0 8px 24px rgba(0, 0, 0, 0.08);
         border-color: rgba($primary, 0.3);
     }
 }
@@ -1178,13 +1246,33 @@ $warning: #f59e0b;
         width: 4px;
     }
 
-    &.attachment-pdf::before { background: #ef4444; }
-    &.attachment-image::before { background: #22c55e; }
-    &.attachment-doc::before { background: #3b82f6; }
-    &.attachment-xls::before { background: #10b981; }
-    &.attachment-zip::before { background: #f59e0b; }
-    &.attachment-video::before { background: #8b5cf6; }
-    &.attachment-audio::before { background: #ec4899; }
+    &.attachment-pdf::before {
+        background: #ef4444;
+    }
+
+    &.attachment-image::before {
+        background: #22c55e;
+    }
+
+    &.attachment-doc::before {
+        background: #3b82f6;
+    }
+
+    &.attachment-xls::before {
+        background: #10b981;
+    }
+
+    &.attachment-zip::before {
+        background: #f59e0b;
+    }
+
+    &.attachment-video::before {
+        background: #8b5cf6;
+    }
+
+    &.attachment-audio::before {
+        background: #ec4899;
+    }
 
     // 🔄 Инверсия внутри "своего" пузыря (синий фон)
     .is-mine & {
@@ -1198,8 +1286,13 @@ $warning: #f59e0b;
             border-color: rgba(255, 255, 255, 0.4);
         }
 
-        .attachment-name { color: white; }
-        .attachment-meta { color: rgba(255, 255, 255, 0.8); }
+        .attachment-name {
+            color: white;
+        }
+
+        .attachment-meta {
+            color: rgba(255, 255, 255, 0.8);
+        }
 
         .attachment-icon {
             background: rgba(255, 255, 255, 0.2);
@@ -1235,26 +1328,32 @@ $warning: #f59e0b;
         background: rgba(239, 68, 68, 0.12);
         color: #ef4444;
     }
+
     .attachment-image & {
         background: rgba(34, 197, 94, 0.12);
         color: #22c55e;
     }
+
     .attachment-doc & {
         background: rgba(59, 130, 246, 0.12);
         color: #3b82f6;
     }
+
     .attachment-xls & {
         background: rgba(16, 185, 129, 0.12);
         color: #10b981;
     }
+
     .attachment-zip & {
         background: rgba(245, 158, 11, 0.12);
         color: #f59e0b;
     }
+
     .attachment-video & {
         background: rgba(139, 92, 246, 0.12);
         color: #8b5cf6;
     }
+
     .attachment-audio & {
         background: rgba(236, 72, 153, 0.12);
         color: #ec4899;
@@ -1321,6 +1420,7 @@ $warning: #f59e0b;
         transform: scale(0.95);
     }
 }
+
 // ==========================================
 // ИНДИКАТОР "ПЕЧАТАЕТ..."
 // ==========================================
@@ -1344,8 +1444,13 @@ $warning: #f59e0b;
         background: $text-muted;
         animation: typing 1.4s infinite;
 
-        &:nth-child(2) { animation-delay: 0.2s; }
-        &:nth-child(3) { animation-delay: 0.4s; }
+        &:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        &:nth-child(3) {
+            animation-delay: 0.4s;
+        }
     }
 }
 
@@ -1513,13 +1618,22 @@ $warning: #f59e0b;
     &.danger {
         color: $danger;
 
-        .sheet-action-title { color: $danger; }
-        .sheet-action-desc { color: rgba($danger, 0.7); }
+        .sheet-action-title {
+            color: $danger;
+        }
+
+        .sheet-action-desc {
+            color: rgba($danger, 0.7);
+        }
+
         .sheet-action-icon {
             background: rgba($danger, 0.1);
             color: $danger;
         }
-        .sheet-action-arrow { color: $danger; }
+
+        .sheet-action-arrow {
+            color: $danger;
+        }
 
         &:hover {
             background: rgba($danger, 0.05);
@@ -1636,8 +1750,14 @@ $warning: #f59e0b;
 }
 
 @keyframes modalSlideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .modal-header {
@@ -1654,7 +1774,9 @@ $warning: #f59e0b;
         font-size: 1.1rem;
         margin: 0;
 
-        i { color: $primary; }
+        i {
+            color: $primary;
+        }
     }
 }
 
@@ -1739,13 +1861,33 @@ $warning: #f59e0b;
         border-color: rgba($primary, 0.3);
     }
 
-    &.type-pdf::before { background: #ef4444; }
-    &.type-image::before { background: #22c55e; }
-    &.type-doc::before { background: #3b82f6; }
-    &.type-xls::before { background: #10b981; }
-    &.type-zip::before { background: #f59e0b; }
-    &.type-video::before { background: #8b5cf6; }
-    &.type-audio::before { background: #ec4899; }
+    &.type-pdf::before {
+        background: #ef4444;
+    }
+
+    &.type-image::before {
+        background: #22c55e;
+    }
+
+    &.type-doc::before {
+        background: #3b82f6;
+    }
+
+    &.type-xls::before {
+        background: #10b981;
+    }
+
+    &.type-zip::before {
+        background: #f59e0b;
+    }
+
+    &.type-video::before {
+        background: #8b5cf6;
+    }
+
+    &.type-audio::before {
+        background: #ec4899;
+    }
 }
 
 .attachment-icon-large {
@@ -1758,13 +1900,40 @@ $warning: #f59e0b;
     justify-content: center;
     font-size: 1.25rem;
 
-    .type-pdf & { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
-    .type-image & { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
-    .type-doc & { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
-    .type-xls & { background: rgba(16, 185, 129, 0.12); color: #10b981; }
-    .type-zip & { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
-    .type-video & { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; }
-    .type-audio & { background: rgba(236, 72, 153, 0.12); color: #ec4899; }
+    .type-pdf & {
+        background: rgba(239, 68, 68, 0.12);
+        color: #ef4444;
+    }
+
+    .type-image & {
+        background: rgba(34, 197, 94, 0.12);
+        color: #22c55e;
+    }
+
+    .type-doc & {
+        background: rgba(59, 130, 246, 0.12);
+        color: #3b82f6;
+    }
+
+    .type-xls & {
+        background: rgba(16, 185, 129, 0.12);
+        color: #10b981;
+    }
+
+    .type-zip & {
+        background: rgba(245, 158, 11, 0.12);
+        color: #f59e0b;
+    }
+
+    .type-video & {
+        background: rgba(139, 92, 246, 0.12);
+        color: #8b5cf6;
+    }
+
+    .type-audio & {
+        background: rgba(236, 72, 153, 0.12);
+        color: #ec4899;
+    }
 }
 
 .attachment-info {
@@ -1872,9 +2041,17 @@ $warning: #f59e0b;
     color: white;
     margin: 0 auto 16px;
 
-    &.warning { background: linear-gradient(135deg, $warning, #d97706); }
-    &.danger { background: linear-gradient(135deg, $danger, #dc2626); }
-    &.success { background: linear-gradient(135deg, $success, #16a34a); }
+    &.warning {
+        background: linear-gradient(135deg, $warning, #d97706);
+    }
+
+    &.danger {
+        background: linear-gradient(135deg, $danger, #dc2626);
+    }
+
+    &.success {
+        background: linear-gradient(135deg, $success, #16a34a);
+    }
 }
 
 .confirm-modal h3 {
@@ -1918,19 +2095,28 @@ $warning: #f59e0b;
     &.warning {
         background: $warning;
         color: white;
-        &:hover { background: #d97706; }
+
+        &:hover {
+            background: #d97706;
+        }
     }
 
     &.danger {
         background: $danger;
         color: white;
-        &:hover { background: #dc2626; }
+
+        &:hover {
+            background: #dc2626;
+        }
     }
 
     &.success {
         background: $success;
         color: white;
-        &:hover { background: #16a34a; }
+
+        &:hover {
+            background: #16a34a;
+        }
     }
 }
 
@@ -2062,10 +2248,21 @@ $warning: #f59e0b;
     display: flex;
     align-items: center;
 
-    .status-read { color: #60a5fa; }
-    .status-delivered { color: rgba(255, 255, 255, 0.9); }
-    .status-sent { color: rgba(255, 255, 255, 0.7); }
-    .error-icon { color: $danger; }
+    .status-read {
+        color: #60a5fa;
+    }
+
+    .status-delivered {
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .status-sent {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .error-icon {
+        color: $danger;
+    }
 }
 
 .retry-btn {
@@ -2086,4 +2283,13 @@ $warning: #f59e0b;
         transform: rotate(180deg);
     }
 }
+
+/*::v-deep(.chat-input-wrapper) {
+    flex-shrink: 0; // 🆕 Запрещаем сжатие, поле ввода всегда прижато к низу
+    position: relative !important; // 🆕 Отменяем position: fixed из ChatInput.vue, если он там есть
+    width: 100% !important;
+    bottom: auto !important;
+    z-index: 20;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.03); // Легкая тень сверху для разделения
+}*/
 </style>

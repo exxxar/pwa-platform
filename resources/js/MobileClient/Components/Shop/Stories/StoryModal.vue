@@ -1,118 +1,104 @@
 <template>
-    <transition name="story-fade">
-        <div v-if="isVisible" class="story-modal-overlay" @click="closeModal">
-            <div
-                class="story-modal-content"
-                @click.stop
-                @touchstart="handleTouchStart"
-                @touchend="handleTouchEnd"
-                @mousedown="handleTouchStart"
-                @mouseup="handleTouchEnd"
-                @mouseleave="handleTouchEnd"
-            >
+    <!-- 🚀 TELEPORT переносит модалку в конец <body>, избегая проблем с z-index и overflow -->
+    <teleport to="body">
+        <transition name="story-fade">
+            <div v-if="isVisible" class="story-modal-overlay" @click="closeModal">
+                <div
+                    class="story-modal-content"
+                    @click.stop
+                    @touchstart="handleTouchStart"
+                    @touchend="handleTouchEnd"
+                    @mousedown="handleTouchStart"
+                    @mouseup="handleTouchEnd"
+                    @mouseleave="handleTouchEnd"
+                >
 
-                <!-- Прогресс-бары для каждой истории -->
-                <div class="story-progress-container">
-                    <div
-                        v-for="(story, index) in stories"
-                        :key="'progress-' + index"
-                        class="story-progress-bg"
-                    >
+                    <!-- Прогресс-бары для каждой истории -->
+                    <div class="story-progress-container">
                         <div
-                            class="story-progress-fill"
-                            :style="{ width: getProgressForStory(index) + '%' }"
-                        ></div>
-                    </div>
-                </div>
-
-                <!-- Шапка истории -->
-                <div class="story-header">
-                    <div class="story-user-info">
-                        <div class="story-user-avatar">
-                            <img
-                                v-if="currentStory"
-                                v-lazy="currentStory.avatar || '/pwa-lazy.jpg'"
-                                alt=""
-                            >
-                        </div>
-                        <div class="story-user-details">
-                            <span class="story-username">
-                                {{ currentStory?.author || 'Магазин' }}
-                            </span>
-                            <span class="story-time">
-                                {{ currentStory?.time || 'Только что' }}
-                            </span>
+                            v-for="(story, index) in stories"
+                            :key="'progress-' + index"
+                            class="story-progress-bg"
+                        >
+                            <div
+                                class="story-progress-fill"
+                                :style="{ width: getProgressForStory(index) + '%' }"
+                            ></div>
                         </div>
                     </div>
-                    <button class="story-close-btn" @click="closeModal">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
 
-                <!-- Контент истории -->
-                <div class="story-media-container">
-                    <img
-                        v-if="currentStory"
-                        :src="currentStory.image || currentStory.thumbnail || 'pwa-lazy.jpg'"
-                        :alt="currentStory.title"
-                        class="story-image"
+                    <!-- Шапка истории -->
+                    <div class="story-header">
+                        <div class="story-user-info">
+                            <div class="story-user-avatar">
+                                <img
+                                    v-if="currentStory"
+                                    v-lazy="currentStory.avatar || '/pwa-lazy.jpg'"
+                                    alt=""
+                                >
+                            </div>
+                            <div class="story-user-details">
+                                <span class="story-username">
+                                    {{ currentStory?.author || 'Магазин' }}
+                                </span>
+                                <span class="story-time">
+                                    {{ currentStory?.time || 'Только что' }}
+                                </span>
+                            </div>
+                        </div>
+                        <button class="story-close-btn" @click="closeModal">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- Контент истории -->
+                    <div class="story-media-container">
+                        <img
+                            v-if="currentStory"
+                            :src="currentStory.image || currentStory.thumbnail || '/pwa-lazy.jpg'"
+                            :alt="currentStory.title"
+                            class="story-image"
+                        >
+                    </div>
+
+                    <!-- 🌟 КНОПКА ПЕРЕХОДА ПО ССЫЛКЕ -->
+                    <div v-if="currentStory?.link" class="story-link-wrapper" @click.stop>
+                        <a
+                            :href="currentStory.link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="story-link-btn"
+                        >
+                            <span>{{ currentStory.linkText || 'Подробнее' }}</span>
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                        </a>
+                    </div>
+
+                    <!-- 🌟 РАСКРЫВАЮЩИЙСЯ ТЕКСТ (Оставлен один раз, дубль удален) -->
+                    <div
+                        v-if="currentStory?.description"
+                        class="story-text-overlay"
+                        :class="{ 'is-expanded': isTextExpanded }"
+                        @click.stop="toggleText"
                     >
-                </div>
+                        <div class="text-content">
+                            <p>{{ currentStory.description }}</p>
+                        </div>
 
-                <!-- 🌟 КНОПКА ПЕРЕХОДА ПО ССЫЛКЕ -->
-                <div v-if="currentStory?.link" class="story-link-wrapper" @click.stop>
-                    <a
-                        :href="currentStory.link"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="story-link-btn"
-                    >
-                        <span>{{ currentStory.linkText || 'Подробнее' }}</span>
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                    </a>
-                </div>
-
-                <!-- 🌟 РАСКРЫВАЮЩИЙСЯ ТЕКСТ -->
-                <div
-                    v-if="currentStory?.description"
-                    class="story-text-overlay"
-                    :class="{ 'is-expanded': isTextExpanded }"
-                    @click.stop="toggleText"
-                >
-                    <div class="text-content">
-                        <p>{{ currentStory.description }}</p>
+                        <div class="text-toggle-indicator">
+                            <span>{{ isTextExpanded ? 'Свернуть' : 'Читать далее' }}</span>
+                            <i :class="isTextExpanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
+                        </div>
                     </div>
 
-                    <div class="text-toggle-indicator">
-                        <span>{{ isTextExpanded ? 'Свернуть' : 'Читать далее' }}</span>
-                        <i :class="isTextExpanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
-                    </div>
+                    <!-- Зоны для тапа -->
+                    <div v-if="!isTextExpanded" class="tap-zone tap-zone-left" @click.stop="prevStory"></div>
+                    <div v-if="!isTextExpanded" class="tap-zone tap-zone-right" @click.stop="nextStory"></div>
+
                 </div>
-
-                <!-- 🌟 РАСКРЫВАЮЩИЙСЯ ТЕКСТ -->
-                <div
-                    v-if="currentStory?.description"
-                    class="story-text-overlay"
-                    :class="{ 'is-expanded': isTextExpanded }"
-                    @click.stop="toggleText"
-                >
-                    <div class="text-content">
-                        <p>{{ currentStory.description }}</p>
-                    </div>
-
-                    <div class="text-toggle-indicator">
-                        <span>{{ isTextExpanded ? 'Свернуть' : 'Читать далее' }}</span>
-                        <i :class="isTextExpanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
-                    </div>
-                </div>
-
-                <!-- Зоны для тапа -->
-                <div v-if="!isTextExpanded" class="tap-zone tap-zone-left" @click.stop="prevStory"></div>
-                <div v-if="!isTextExpanded" class="tap-zone tap-zone-right" @click.stop="nextStory"></div>
-
             </div>
-        </div>
-    </transition>
+        </transition>
+    </teleport>
 </template>
 
 <script>
@@ -145,9 +131,6 @@ export default {
     },
 
     computed: {
-        /**
-         * 🆕 Видимость модалки
-         */
         isVisible() {
             return true; // Модалка рендерится только когда v-if="showModal" в родителе
         },
@@ -158,9 +141,6 @@ export default {
     },
 
     watch: {
-        /**
-         * 🆕 Следим за изменением initialIndex (на случай обновления извне)
-         */
         initialIndex(newIndex) {
             if (newIndex !== this.currentIndex) {
                 this.currentIndex = newIndex;
@@ -170,7 +150,6 @@ export default {
     },
 
     mounted() {
-        console.log('🎬 StoryModal mounted, starting at index:', this.currentIndex);
         this.startTimer();
         document.addEventListener('keydown', this.handleKeydown);
         // Блокируем скролл body
@@ -180,13 +159,11 @@ export default {
     beforeUnmount() {
         this.stopTimer();
         document.removeEventListener('keydown', this.handleKeydown);
+        // Возвращаем скролл body
         document.body.style.overflow = '';
     },
 
     methods: {
-        /**
-         * 🆕 Получить прогресс для конкретной истории
-         */
         getProgressForStory(index) {
             if (index < this.currentIndex) return 100;
             if (index > this.currentIndex) return 0;
@@ -236,42 +213,29 @@ export default {
             }
         },
 
-        /**
-         * 🆕 Закрытие модалки
-         */
         closeModal() {
             this.stopTimer();
             this.$emit('close');
         },
 
-        /**
-         * 🆕 Переключение раскрытия текста
-         */
         toggleText() {
             this.isTextExpanded = !this.isTextExpanded;
             // При раскрытии ставим таймер на паузу
             this.isPaused = this.isTextExpanded;
         },
 
-        /**
-         * 🆕 Начало касания/зажатия
-         */
         handleTouchStart(e) {
             this.touchStartTime = Date.now();
             this.isPaused = true; // Пауза при удержании
         },
 
-        /**
-         * 🆕 Конец касания
-         */
         handleTouchEnd(e) {
             const touchDuration = Date.now() - this.touchStartTime;
             this.isPaused = false;
 
-            // Если это был короткий тап (не удержание) — не делаем ничего
-            // Навигация уже обрабатывается через tap-zone
+            // Если это было долгое удержание — просто возобновляем таймер
+            // (короткий тап обрабатывается через tap-zone)
             if (touchDuration > 500) {
-                // Долгое удержание — просто возобновляем таймер
                 this.isPaused = false;
             }
         },
@@ -285,7 +249,7 @@ export default {
 };
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .story-modal-overlay {
     position: fixed;
     inset: 0;
@@ -529,7 +493,7 @@ export default {
    ========================================== */
 .story-link-wrapper {
     position: absolute;
-    bottom: 130px; /* Располагаем прямо над текстовым блоком */
+    bottom: 130px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 26;

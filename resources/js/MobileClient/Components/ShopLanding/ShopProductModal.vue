@@ -1,109 +1,113 @@
 <template>
-    <transition name="modal-fade">
-        <div v-if="isOpen" class="modal-overlay" @click.self="close">
-            <div class="product-modal">
-                <button class="modal-close" @click="close">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+    <!-- 🚀 TELEPORT переносит модалку в конец <body>, избегая проблем с z-index и overflow -->
+    <teleport to="body">
+        <transition name="modal-fade">
+            <div v-if="isOpen" class="modal-overlay" @click.self="close">
+                <div class="product-modal">
+                    <button class="modal-close" @click="close" aria-label="Закрыть">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
 
-                <div class="modal-grid">
-                    <!-- Изображение -->
-                    <div class="modal-image">
-                        <!-- 🆕 Надежное получение изображения: строка или первый элемент массива -->
-                        <img
-                            :src="product.image || (product.images && product.images[0]) || 'https://via.placeholder.com/400x400?text=Нет+фото'"
-                            :alt="product.name"
-                            loading="lazy"
-                        >
-                        <div v-if="product.badge" class="image-badge">{{ product.badge }}</div>
-                    </div>
-
-                    <!-- Информация -->
-                    <div class="modal-info">
-                        <h2 class="product-title">{{ product.name }}</h2>
-
-                        <div class="product-price-block">
-                            <span class="price-current">{{ formatPrice(product.price) }} ₽</span>
-                            <span v-if="product.oldPrice" class="price-old">{{ formatPrice(product.oldPrice) }} ₽</span>
+                    <div class="modal-grid">
+                        <!-- Изображение -->
+                        <div class="modal-image">
+                            <img
+                                :src="product.image || (product.images && product.images[0]) || 'https://via.placeholder.com/400x400?text=Нет+фото'"
+                                :alt="product.name"
+                                loading="lazy"
+                            >
+                            <div v-if="product.badge" class="image-badge">{{ product.badge }}</div>
                         </div>
 
-                        <!-- Табы -->
-                        <div class="tabs">
-                            <button
-                                class="tab-btn"
-                                :class="{ active: activeTab === 'desc' }"
-                                @click="activeTab = 'desc'"
-                            >Описание</button>
-                            <button
-                                class="tab-btn"
-                                :class="{ active: activeTab === 'reviews' }"
-                                @click="activeTab = 'reviews'"
-                            >Отзывы ({{ mockReviews.length }})</button>
-                        </div>
+                        <!-- Информация -->
+                        <div class="modal-info">
+                            <h2 class="product-title">{{ product.name }}</h2>
 
-                        <div class="tab-content">
-                            <div v-if="activeTab === 'desc'" class="content-desc">
-                                <p>{{ product.description || 'Свежий товар высокого качества. Готовим из натуральных ингредиентов.' }}</p>
+                            <div class="product-price-block">
+                                <span class="price-current">{{ formatPrice(product.price) }} ₽</span>
+                                <span v-if="product.oldPrice" class="price-old">{{ formatPrice(product.oldPrice) }} ₽</span>
                             </div>
 
-                            <div v-else class="content-reviews">
-                                <div v-if="mockReviews.length === 0" class="no-reviews">Пока нет отзывов</div>
-                                <div v-else class="review-list">
-                                    <div v-for="rev in mockReviews" :key="rev.id" class="modal-review">
-                                        <div class="review-header">
-                                            <strong>{{ rev.name }}</strong>
-                                            <div class="stars">
-                                                <i v-for="s in 5" :key="s" class="fa-solid fa-star" :class="{ filled: s <= rev.rating }"></i>
+                            <!-- Табы -->
+                            <div class="tabs">
+                                <button
+                                    class="tab-btn"
+                                    :class="{ active: activeTab === 'desc' }"
+                                    @click="activeTab = 'desc'"
+                                >Описание</button>
+                                <button
+                                    class="tab-btn"
+                                    :class="{ active: activeTab === 'reviews' }"
+                                    @click="activeTab = 'reviews'"
+                                >Отзывы ({{ mockReviews.length }})</button>
+                            </div>
+
+                            <div class="tab-content">
+                                <div v-if="activeTab === 'desc'" class="content-desc">
+                                    <p>{{ product.description || 'Свежий товар высокого качества. Готовим из натуральных ингредиентов.' }}</p>
+                                </div>
+
+                                <div v-else class="content-reviews">
+                                    <div v-if="mockReviews.length === 0" class="no-reviews">Пока нет отзывов</div>
+                                    <div v-else class="review-list">
+                                        <div v-for="rev in mockReviews" :key="rev.id" class="modal-review">
+                                            <div class="review-header">
+                                                <strong>{{ rev.name }}</strong>
+                                                <div class="stars">
+                                                    <i v-for="s in 5" :key="s" class="fa-solid fa-star" :class="{ filled: s <= rev.rating }"></i>
+                                                </div>
                                             </div>
+                                            <p class="review-text">{{ rev.text }}</p>
                                         </div>
-                                        <p class="review-text">{{ rev.text }}</p>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- 🆕 Действия: Полностью реактивные через useBasket -->
-                        <div class="modal-actions">
-                            <!-- Если товар уже в корзине, показываем селектор количества -->
-                            <template v-if="currentQty > 0">
-                                <div class="qty-selector">
-                                    <button
-                                        @click="decreaseQty"
-                                        :disabled="basket.isProductLoading(productId)"
-                                    >
-                                        <i v-if="basket.isProductLoading(productId)" class="fa-solid fa-spinner fa-spin"></i>
-                                        <span v-else>−</span>
-                                    </button>
+                            <!-- 🆕 Действия: Полностью реактивные через useBasket -->
+                            <div class="modal-actions">
+                                <!-- Если товар уже в корзине, показываем селектор количества -->
+                                <template v-if="currentQty > 0">
+                                    <div class="qty-selector">
+                                        <button
+                                            @click="decreaseQty"
+                                            :disabled="basket.isProductLoading(productId)"
+                                            aria-label="Уменьшить количество"
+                                        >
+                                            <i v-if="basket.isProductLoading(productId)" class="fa-solid fa-spinner fa-spin"></i>
+                                            <span v-else>−</span>
+                                        </button>
 
-                                    <span>{{ currentQty }}</span>
+                                        <span>{{ currentQty }}</span>
 
-                                    <button
-                                        @click="increaseQty"
-                                        :disabled="basket.isProductLoading(productId)"
-                                    >
-                                        <i v-if="basket.isProductLoading(productId)" class="fa-solid fa-spinner fa-spin"></i>
-                                        <span v-else>+</span>
-                                    </button>
-                                </div>
-                            </template>
+                                        <button
+                                            @click="increaseQty"
+                                            :disabled="basket.isProductLoading(productId)"
+                                            aria-label="Увеличить количество"
+                                        >
+                                            <i v-if="basket.isProductLoading(productId)" class="fa-solid fa-spinner fa-spin"></i>
+                                            <span v-else>+</span>
+                                        </button>
+                                    </div>
+                                </template>
 
-                            <!-- Если товара нет в корзине, показываем кнопку добавления -->
-                            <button
-                                v-else
-                                class="add-btn"
-                                @click="handleAdd"
-                                :disabled="basket.isProductLoading(productId)"
-                            >
-                                <i v-if="basket.isProductLoading(productId)" class="fa-solid fa-spinner fa-spin me-2"></i>
-                                <i v-else class="fa-solid fa-cart-plus me-2"></i>
-                                В корзину
-                            </button>
+                                <!-- Если товара нет в корзине, показываем кнопку добавления -->
+                                <button
+                                    v-else
+                                    class="add-btn"
+                                    @click="handleAdd"
+                                    :disabled="basket.isProductLoading(productId)"
+                                >
+                                    <i v-if="basket.isProductLoading(productId)" class="fa-solid fa-spinner fa-spin me-2"></i>
+                                    <i v-else class="fa-solid fa-cart-plus me-2"></i>
+                                    В корзину
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </transition>
+        </transition>
+    </teleport>
 </template>
 
 <script>
@@ -132,12 +136,10 @@ export default {
     },
 
     computed: {
-        // 🆕 Надежное определение ID товара
         productId() {
             return this.product.id || this.product.product_id;
         },
 
-        // 🆕 Реактивное получение количества из корзины (учитываем поле count или quantity)
         currentQty() {
             const item = this.basket.getItemById(this.productId);
             return item ? (item.count || item.quantity || 0) : 0;
@@ -153,12 +155,21 @@ export default {
     },
 
     watch: {
-        // Сбрасываем таб на описание при каждом открытии
         isOpen(newVal) {
             if (newVal) {
                 this.activeTab = 'desc';
+                // Блокируем скролл страницы при открытии модалки
+                document.body.style.overflow = 'hidden';
+            } else {
+                // Возвращаем скролл при закрытии
+                document.body.style.overflow = '';
             }
         },
+    },
+
+    beforeUnmount() {
+        // Гарантируем возврат скролла, если компонент уничтожается при открытой модалке
+        document.body.style.overflow = '';
     },
 
     methods: {
@@ -171,7 +182,6 @@ export default {
             return Number(value).toLocaleString('ru-RU');
         },
 
-        // 🆕 Прямой вызов методов useBasket
         increaseQty() {
             this.basket.incrementQuantity(this.productId);
         },
@@ -191,8 +201,9 @@ export default {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     z-index: 99999;
     display: flex;
     align-items: center;
@@ -210,19 +221,20 @@ export default {
     position: relative;
     display: flex;
     flex-direction: column;
-    animation: scaleIn 0.3s ease;
+    animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
 @keyframes scaleIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .modal-close {
     position: absolute;
     top: 16px;
     right: 16px;
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.05);
     border: none;
     width: 40px;
     height: 40px;
@@ -230,23 +242,47 @@ export default {
     cursor: pointer;
     z-index: 10;
     font-size: 1.2rem;
-    transition: 0.2s;
-}
+    color: var(--dark, #222);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
-.modal-close:hover {
-    background: #ef4444;
-    color: white;
+    &:hover {
+        background: #ef4444;
+        color: white;
+        transform: rotate(90deg);
+    }
 }
 
 .modal-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     height: 100%;
-    overflow: auto;
+    overflow: hidden; /* Предотвращает двойной скролл */
 }
 
 @media (max-width: 768px) {
-    .modal-grid { grid-template-columns: 1fr; }
+    .modal-grid {
+        grid-template-columns: 1fr;
+        overflow-y: auto; /* Разрешаем скролл внутри модалки на мобильных */
+    }
+
+    .modal-overlay {
+        padding: 0;
+        align-items: flex-end; /* Модалка выезжает снизу на мобильных */
+    }
+
+    .product-modal {
+        max-height: 95vh;
+        border-radius: 24px 24px 0 0;
+        animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slideUp {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+    }
 }
 
 .modal-image {
@@ -263,6 +299,11 @@ export default {
     max-height: 350px;
     object-fit: contain;
     border-radius: 16px;
+    transition: transform 0.3s ease;
+
+    &:hover {
+        transform: scale(1.05);
+    }
 }
 
 .image-badge {
@@ -275,12 +316,14 @@ export default {
     border-radius: 20px;
     font-size: 0.8rem;
     font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 .modal-info {
     padding: 2rem;
     display: flex;
     flex-direction: column;
+    overflow-y: auto; /* Скролл только для правой части на десктопе */
 }
 
 .product-title {
@@ -288,6 +331,7 @@ export default {
     font-weight: 800;
     margin-bottom: 1rem;
     color: var(--dark, #222);
+    line-height: 1.2;
 }
 
 .product-price-block {
@@ -326,25 +370,38 @@ export default {
     border-radius: 8px;
     font-weight: 600;
     cursor: pointer;
-    transition: 0.2s;
+    transition: all 0.2s ease;
     color: var(--gray, #888);
-}
 
-.tab-btn.active {
-    background: white;
-    color: var(--dark, #222);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    &:hover:not(.active) {
+        color: var(--dark, #222);
+    }
+
+    &.active {
+        background: white;
+        color: var(--dark, #222);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
 }
 
 .tab-content {
     flex: 1;
     overflow-y: auto;
     margin-bottom: 1.5rem;
+    padding-right: 4px; /* Место для скроллбара */
 }
 
 .content-desc p {
     line-height: 1.6;
     color: var(--gray, #6c757d);
+    font-size: 0.95rem;
+}
+
+.no-reviews {
+    text-align: center;
+    color: var(--gray, #888);
+    padding: 2rem 0;
+    font-style: italic;
 }
 
 .modal-review {
@@ -357,22 +414,33 @@ export default {
 .review-header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     margin-bottom: 0.4rem;
 }
 
 .stars i {
-    color: #ddd;
+    color: #e5e7eb;
     margin-left: 2px;
+    font-size: 0.85rem;
+
+    &.filled {
+        color: #fbbf24;
+    }
 }
 
-.stars i.filled {
-    color: #fbbf24;
+.review-text {
+    font-size: 0.9rem;
+    color: var(--gray, #6c757d);
+    margin: 0;
+    line-height: 1.5;
 }
 
 .modal-actions {
     display: flex;
     gap: 12px;
     margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--light, #f8f9fa);
 }
 
 .qty-selector {
@@ -395,21 +463,24 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-}
+    color: var(--dark, #222);
+    transition: background 0.2s;
 
-.qty-selector button:hover:not(:disabled) {
-    background: white;
-}
+    &:hover:not(:disabled) {
+        background: white;
+    }
 
-.qty-selector button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 }
 
 .qty-selector span {
     flex: 1;
     text-align: center;
     font-weight: 700;
+    font-size: 1.1rem;
     color: var(--dark, #222);
 }
 
@@ -421,23 +492,30 @@ export default {
     padding: 12px 20px;
     border-radius: 12px;
     font-weight: 700;
+    font-size: 1rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: 0.3s;
-}
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb, 255, 122, 0), 0.3);
 
-.add-btn:hover:not(:disabled) {
-    background: var(--primary-dark, #e56f00);
-    transform: translateY(-2px);
-}
+    &:hover:not(:disabled) {
+        background: var(--primary-dark, #e56f00);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(var(--primary-rgb, 255, 122, 0), 0.4);
+    }
 
-.add-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
+    &:active:not(:disabled) {
+        transform: translateY(0);
+    }
+
+    &:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+    }
 }
 
 .modal-fade-enter-active, .modal-fade-leave-active {

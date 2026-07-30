@@ -1,4 +1,3 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { usePromocodesStore } from '@/MobileClient/stores/Shop/promocodes.js';
 
@@ -8,8 +7,10 @@ import { usePromocodesStore } from '@/MobileClient/stores/Shop/promocodes.js';
 export function usePromocodes() {
     const store = usePromocodesStore();
 
-    // Реактивные ссылки на состояние
+    // ✅ ИСПРАВЛЕНИЕ 1: Извлекаем ВСЁ (состояние и геттеры) через storeToRefs.
+    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность.
     const {
+        // --- Состояние (State) ---
         promocodes,
         promocodes_paginate_object,
         isLoading,
@@ -21,33 +22,34 @@ export function usePromocodes() {
         lastError,
         errors,
         lastSyncAt,
+
+        // --- Геттеры (Getters) ---
+        sortedPromocodes,
+        activePromocodes,
+        expiredPromocodes,
+        upcomingPromocodes,
+        almostExhaustedPromocodes,
+        promocodesCount,
+        activePromocodesCount,
     } = storeToRefs(store);
 
-    // Реактивные геттеры
-    const sortedPromocodes = computed(() => store.sortedPromocodes);
-    const activePromocodes = computed(() => store.activePromocodes);
-    const expiredPromocodes = computed(() => store.expiredPromocodes);
-    const upcomingPromocodes = computed(() => store.upcomingPromocodes);
-    const almostExhaustedPromocodes = computed(() => store.almostExhaustedPromocodes);
-    const promocodesCount = computed(() => store.promocodesCount);
-    const activePromocodesCount = computed(() => store.activePromocodesCount);
-
-    /**
-     * Проверка, загружается ли промокод
-     */
-    const isPromocodeLoading = (promocodeId) => {
-        return store.isPromocodeLoading(promocodeId);
-    };
+    // ==========================================
+    // ПАРАМЕТРИЗИРОВАННЫЕ ХЕЛПЕРЫ
+    // ==========================================
+    const isPromocodeLoading = (promocodeId) => store.isPromocodeLoading(promocodeId);
+    const getPromocodeById = (id) => store.getPromocodeById(id);
+    const getPromocodeByCode = (code) => store.getPromocodeByCode(code);
+    const promocodesByType = (type) => store.promocodesByType(type);
 
     // ==========================================
-    // Безопасные методы
+    // МЕТОДЫ (ACTIONS) С ОБРАБОТКОЙ ОШИБОК
     // ==========================================
 
     const loadPromocodes = async (payload = {}) => {
         try {
             return await store.loadPromoCodes(payload);
         } catch (error) {
-            console.error('Ошибка загрузки промокодов:', error);
+            console.error('[usePromocodes] Ошибка загрузки промокодов:', error);
             throw error;
         }
     };
@@ -56,7 +58,7 @@ export function usePromocodes() {
         try {
             return await store.activatePromocode({ promocodeForm });
         } catch (error) {
-            console.error('Ошибка активации промокода:', error);
+            console.error('[usePromocodes] Ошибка активации промокода:', error);
             throw error;
         }
     };
@@ -65,7 +67,7 @@ export function usePromocodes() {
         try {
             return await store.activateShopDiscountPromocode({ promocodeForm });
         } catch (error) {
-            console.error('Ошибка активации скидки:', error);
+            console.error('[usePromocodes] Ошибка активации скидки:', error);
             throw error;
         }
     };
@@ -74,7 +76,7 @@ export function usePromocodes() {
         try {
             return await store.storePromoCodes({ promoCodeForm });
         } catch (error) {
-            console.error('Ошибка создания промокода:', error);
+            console.error('[usePromocodes] Ошибка создания промокода:', error);
             throw error;
         }
     };
@@ -83,13 +85,16 @@ export function usePromocodes() {
         try {
             return await store.removePromoCodes({ promoCodeId: promocodeId });
         } catch (error) {
-            console.error('Ошибка удаления промокода:', error);
+            console.error(`[usePromocodes] Ошибка удаления промокода ${promocodeId}:`, error);
             throw error;
         }
     };
 
+    // ==========================================
+    // ВОЗВРАЩАЕМЫЕ ЗНАЧЕНИЯ
+    // ==========================================
     return {
-        // Состояние
+        // Состояние (Refs)
         promocodes,
         promocodes_paginate_object,
         isLoading,
@@ -102,7 +107,7 @@ export function usePromocodes() {
         errors,
         lastSyncAt,
 
-        // Геттеры
+        // Геттеры (Refs)
         sortedPromocodes,
         activePromocodes,
         expiredPromocodes,
@@ -110,19 +115,21 @@ export function usePromocodes() {
         almostExhaustedPromocodes,
         promocodesCount,
         activePromocodesCount,
-        getPromocodeById: store.getPromocodeById,
-        getPromocodeByCode: store.getPromocodeByCode,
-        promocodesByType: store.promocodesByType,
-        isPromocodeLoading,
 
-        // Методы
+        // Параметризированные хелперы
+        isPromocodeLoading,
+        getPromocodeById,
+        getPromocodeByCode,
+        promocodesByType,
+
+        // Методы (Actions)
         loadPromocodes,
         activatePromocode,
         activateShopDiscount,
         createPromocode,
         removePromocode,
 
-        // Сброс
+        // Сброс стора
         $reset: store.$reset,
     };
 }

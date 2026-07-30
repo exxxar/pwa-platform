@@ -3,6 +3,7 @@
 namespace App\Models\Tenant;
 
 
+use App\Observers\OrderObserver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,6 +23,7 @@ class Order extends Model
     protected $fillable = [
         'tenant_id',
         'tenant_user_id',
+        'dialog_id',
         'delivery_service_info',
         'deliveryman_info',
         'product_details',
@@ -42,7 +44,7 @@ class Order extends Model
 
     protected $casts = [
         'tenant_id' => 'integer',
-
+        'dialog_id' => 'integer',
         'tenant_user_id' => 'integer',
         'product_details' => 'array',
         'product_count' => 'integer',
@@ -57,6 +59,10 @@ class Order extends Model
         'payed_at' => 'datetime',
     ];
 
+    protected static function booted()
+    {
+        static::observe(OrderObserver::class);
+    }
 
     public function review(): HasOne
     {
@@ -79,6 +85,14 @@ class Order extends Model
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * 🆕 Связь с диалогом, созданным для этого заказа
+     */
+    public function dialog(): BelongsTo
+    {
+        return $this->belongsTo(TenantDialog::class, 'dialog_id');
     }
 
 }

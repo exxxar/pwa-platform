@@ -55,8 +55,9 @@ class TenantDialogController extends Controller
     /**
      * Сообщения диалога
      */
-    public function messages(Request $request,  $tenant, $dialogId)
+    public function messages(Request $request, $dialogId, $tenant)
     {
+
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
 
@@ -69,8 +70,8 @@ class TenantDialogController extends Controller
 
         Log::info(print_r([
             $dialogId,
-            $user->toArray() ?? 'нет пользователя',
-            $tenant->toArray() ?? 'нет тенанта'
+                $user->toArray() ?? 'нет пользователя',
+                $tenant->toArray() ?? 'нет тенанта'
         ], true));
 
         if (!$dialog) {
@@ -79,8 +80,8 @@ class TenantDialogController extends Controller
             ], 404);
         }
 
-        $page = (int) $request->get('page', 1);
-        $perPage = (int) $request->get('size', 20);
+        $page = (int)$request->get('page', 1);
+        $perPage = (int)$request->get('size', 20);
 
         $messages = TenantMessage::where('dialog_id', $dialog->id)
             ->orderByDesc('created_at')
@@ -115,8 +116,8 @@ class TenantDialogController extends Controller
         // 🛠️ ИСПРАВЛЕНИЕ 1: Убрали dialog_id из валидации (он уже есть в URL),
         // или изменили exists на tenant_dialogs, если оставляете.
         $validated = $request->validate([
-            'text'      => 'nullable|string|max:2000',
-            'message'   => 'nullable|string|max:2000',
+            'text' => 'nullable|string|max:2000',
+            'message' => 'nullable|string|max:2000',
             'attachments' => 'nullable|array',
             'attachments.*' => 'nullable|file|mimes:jpeg,png,jpg,gif,webm,mp3,mp4,pdf,doc,docx|max:10240',
         ]);
@@ -414,7 +415,7 @@ class TenantDialogController extends Controller
             ->where('tenant_messages.tenant_user_id', '!=', $user->id)
             ->groupBy('tenant_messages.dialog_id')
             ->pluck('unread_count', 'dialog_id')
-            ->map(fn($count) => (int) $count);
+            ->map(fn($count) => (int)$count);
 
         return response()->json([
             'total' => $totalUnread,

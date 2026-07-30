@@ -1,11 +1,13 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useBroadcastsStore } from '@/MobileClient/stores/Shop/broadcasts.js';
 
 export function useBroadcasts() {
     const store = useBroadcastsStore();
 
+    // ✅ ИСПРАВЛЕНИЕ: Извлекаем и состояние, и геттеры через storeToRefs.
+    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность геттеров.
     const {
+        // --- Состояние (State) ---
         broadcasts,
         currentBroadcast,
         statistics,
@@ -15,15 +17,16 @@ export function useBroadcasts() {
         lastError,
         filters,
         pagination,
+
+        // --- Геттеры (Getters) ---
+        draftBroadcasts,
+        scheduledBroadcasts,
+        sentBroadcasts,
+        activeBroadcasts,
     } = storeToRefs(store);
 
-    const draftBroadcasts = computed(() => store.draftBroadcasts);
-    const scheduledBroadcasts = computed(() => store.scheduledBroadcasts);
-    const sentBroadcasts = computed(() => store.sentBroadcasts);
-    const activeBroadcasts = computed(() => store.activeBroadcasts);
-
     return {
-        // State
+        // Состояние (Refs)
         broadcasts,
         currentBroadcast,
         statistics,
@@ -34,13 +37,15 @@ export function useBroadcasts() {
         filters,
         pagination,
 
-        // Getters
+        // Геттеры (Refs)
         draftBroadcasts,
         scheduledBroadcasts,
         sentBroadcasts,
         activeBroadcasts,
 
-        // Methods
+        // Методы (Actions)
+        // ✅ Прямое маппирование — это отлично и эффективно, если не требуется
+        // дополнительная обертка (например, для перехвата ошибок).
         loadBroadcasts: store.loadBroadcasts,
         loadBroadcast: store.loadBroadcast,
         createBroadcast: store.createBroadcast,
@@ -53,6 +58,7 @@ export function useBroadcasts() {
         deleteMedia: store.deleteMedia,
         setFilter: store.setFilter,
 
+        // Сброс стора
         $reset: store.$reset,
     };
 }

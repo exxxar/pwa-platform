@@ -1847,6 +1847,7 @@ export default {
 
 .order-actions {
     display: flex;
+
     gap: 8px;
 }
 

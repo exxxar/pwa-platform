@@ -5,6 +5,7 @@ namespace App\Models\Tenant;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TenantDialog extends Model
 {
@@ -69,6 +70,11 @@ class TenantDialog extends Model
             'is_read' => true,
             'read_at' => now(),
         ]);
+    }
+
+    public function order(): HasOne
+    {
+        return $this->hasOne(Order::class, 'dialog_id');
     }
 
     /**

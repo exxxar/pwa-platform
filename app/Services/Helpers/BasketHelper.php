@@ -169,7 +169,7 @@ trait BasketHelper
 
             if (Schema::hasColumn('orders', 'invoice_path')) {
                 $order->invoice_path = $fullPath;
-                $order->save();
+                $order->saveQuietly(); // 🎯 Используем saveQuietly, чтобы не триггерить Observer повторно
             }
 
             Log::info("[PDF] Чек сохранён: {$fullPath}");
@@ -228,7 +228,7 @@ trait BasketHelper
         $phone = $this->data["phone"] ?? $this->tenantUser->phone ?? null;
         $this->tenantUser->name = $this->data["name"] ?? $this->tenantUser->name;
         $this->tenantUser->phone = $phone ? str_replace(["(", ")", "-"], "", $phone) : $this->tenantUser->phone;
-        $this->tenantUser->save();
+        $this->tenantUser->saveQuietly();
     }
 
     private function useCashBackForPayment($discount): void
@@ -248,7 +248,6 @@ trait BasketHelper
 
     private function sendPaidReceiptToChannel($order, $message): void
     {
-        // Этот метод уже использует MessageService, оставляем как есть
         $uploadedPhoto = $this->uploadedImage ?? null;
         if (!$uploadedPhoto) return;
 
@@ -269,7 +268,7 @@ trait BasketHelper
             MessageService::call()->sendMessage([
                 "message" => $tmpMessage,
                 "thread_id" => $thread,
-                "recipients" => ["partners" => true] // Или ваш канал
+                "recipients" => ["partners" => true]
             ]);
         }
     }
@@ -290,7 +289,7 @@ trait BasketHelper
             $meta = $user->meta ?? [];
             $meta['profile_auto_filled_at'] = now()->toIso8601String();
             $user->meta = $meta;
-            $user->save();
+            $user->saveQuietly();
         }
     }
 
@@ -302,11 +301,12 @@ trait BasketHelper
             Log::info("[Checkout] Пользователю #{$user->id} выдан VIP на 30 дней.");
 
             try {
+                // 🎯 Берем последний заказ, у которого уже есть dialog_id благодаря Observer
                 $lastOrder = Order::query()->where('tenant_user_id', $user->id)->latest('id')->first();
-                if ($lastOrder) {
+                if ($lastOrder && $lastOrder->dialog_id) {
                     MessageService::call()->sendMessage([
                         'message' => "🎉 Поздравляем! За этот заказ вам начислен <b>VIP-статус</b> на 30 дней!",
-                        'dialog_id' => $lastOrder->dialog_id ?? null, // Предполагается, что у заказа есть dialog_id, или найдите его через сервис
+                        'dialog_id' => $lastOrder->dialog_id,
                         'meta' => ['is_system' => true, 'type' => 'vip_granted'],
                         'recipients' => ['client' => true],
                     ]);
@@ -325,20 +325,26 @@ trait BasketHelper
         try {
             $context = $this->prepareCheckoutContext();
             $basketData = $this->processBasketAndCalculateTotals($context);
+
+            // 1. Создаем заказ.
+            // 🎯 OrderObserver автоматически перехватит событие 'created' и создаст TenantDialog!
             $order = $this->createOrderRecord($context, $basketData);
-            $orderDialog = $this->initializeOrderDialog($order, $basketData);
 
-            // 🎯 ЕДИНЫЙ КОНТУР УВЕДОМЛЕНИЙ
-            $kanbanTaskId = $this->notifyStakeholders($order, $context, $basketData, $orderDialog);
+            // 2. Принудительно подгружаем связь dialog, чтобы она была доступна в памяти сразу
+            $order->load('dialog');
 
-            // 🎯 ЕДИНЫЙ КОНТУР ОПЛАТЫ И ЧЕКОВ
-            $paymentData = $this->processPaymentAndReceipt($order, $context, $basketData, $kanbanTaskId, $orderDialog);
+            // 3. Уведомления (теперь метод сам возьмет $order->dialog)
+            $kanbanTaskId = $this->notifyStakeholders($order, $context, $basketData);
+
+            // 4. Оплата и чеки (тоже сам возьмет $order->dialog)
+            $paymentData = $this->processPaymentAndReceipt($order, $context, $basketData, $kanbanTaskId);
 
             $this->finalizeOrder($order);
 
             return [
                 'success' => true,
                 'order_id' => $order->id,
+                'dialog_id' => $order->dialog_id, // 🆕 Обязательно добавляем это поле!
                 'summary_price' => $basketData['final_price'],
                 'payment_type' => $context['payment_type'],
                 'payment_status_text' => $this->getPaymentStatusText($context['payment_type']),
@@ -491,7 +497,7 @@ trait BasketHelper
             $summaryCount += $countToAdd; $summaryPrice += $price; $summaryDiscount += $discountToAdd;
 
             $item->ordered_at = env("APP_DEBUG") ? null : Carbon::now();
-            $item->save();
+            $item->saveQuietly();
         }
 
         $cashback = $this->prepareCashbackDiscount($summaryPrice);
@@ -507,40 +513,40 @@ trait BasketHelper
     private function createOrderRecord(array $context, array $basketData): Order
     {
         return Order::query()->create([
-            'tenant_id' => $this->tenant->id, 'tenant_user_id' => $this->tenantUser->id,
-            'delivery_service_info' => null, 'deliveryman_info' => null,
+            'tenant_id' => $this->tenant->id,
+            'tenant_user_id' => $this->tenantUser->id,
+            'delivery_service_info' => null,
+            'deliveryman_info' => null,
             'product_details' => [
                 "from" => $this->tenant->name ?? 'Магазин',
                 "products" => $basketData['product_info']
             ],
-            'product_count' => (int) $basketData['summary_count'], 'summary_price' => $basketData['final_price'],
-            'delivery_price' => $context['delivery_price'], 'delivery_range' => $context['distance'],
-            'deliveryman_latitude' => $context['lat'], 'deliveryman_longitude' => $context['lng'],
-            'delivery_note' => $this->fsPrepareDeliveryNote(), 'receiver_name' => $context['customer_name'],
-            'receiver_phone' => $context['customer_phone'], 'location_id' => $context['location_id'],
-            'status' => OrderStatusEnum::NewOrder->value, 'order_type' => OrderTypeEnum::InternalStore->value,
+            'product_count' => (int) $basketData['summary_count'],
+            'summary_price' => $basketData['final_price'],
+            'delivery_price' => $context['delivery_price'],
+            'delivery_range' => $context['distance'],
+            'deliveryman_latitude' => $context['lat'],
+            'deliveryman_longitude' => $context['lng'],
+            'delivery_note' => $this->fsPrepareDeliveryNote(),
+            'receiver_name' => $context['customer_name'],
+            'receiver_phone' => $context['customer_phone'],
+            'location_id' => $context['location_id'],
+            'status' => OrderStatusEnum::NewOrder->value,
+            'order_type' => OrderTypeEnum::InternalStore->value,
             'payed_at' => in_array($context['payment_type'], [0, 4]) ? Carbon::now() : null,
         ]);
     }
 
-    private function initializeOrderDialog(Order $order, array $basketData): ?object
-    {
-        try {
-            $orderDialogService = app(\App\Services\OrderDialogService::class);
-            $dialog = $orderDialogService->getOrCreateDialog($order);
-            // 🎯 Перенесено в MessageService ниже, но оставим базовую инициализацию, если она нужна для связки
-            return $dialog;
-        } catch (\Throwable $e) {
-            Log::error('[Checkout] Ошибка создания диалога: ' . $e->getMessage());
-            return null;
-        }
-    }
+    // 🎯 МЕТОД initializeOrderDialog УДАЛЕН. Эту работу теперь выполняет OrderObserver.
 
     // 🎯 ЕДИНЫЙ КОНТУР УВЕДОМЛЕНИЙ ЧЕРЕЗ MESSAGE SERVICE
-    private function notifyStakeholders(Order $order, array $context, array $basketData, $orderDialog): ?string
+    private function notifyStakeholders(Order $order, array $context, array $basketData): ?string
     {
         $kanbanTaskId = null;
         $paymentStatusText = $this->getPaymentStatusText($context['payment_type']);
+
+        // 🎯 Получаем диалог, созданный Observer-ом
+        $dialog = $order->dialog;
 
         // 1. Интеграции (FrontPad, IIKO)
         foreach ($basketData['partner_boxes'] as $box) {
@@ -557,10 +563,10 @@ trait BasketHelper
         $partnerMessages = $this->buildPartnerMessages($order, $basketData['partner_boxes'], $basketData['cashback'], $context['need_pickup']);
 
         // 3. Отправка КЛИЕНТУ через MessageService
-        if ($orderDialog) {
+        if ($dialog) {
             MessageService::call()->sendMessage([
                 'message' => $clientMessage,
-                'dialog_id' => $orderDialog->id,
+                'dialog_id' => $dialog->id,
                 'meta' => [
                     'order_id' => $order->id,
                     'payment_status' => $paymentStatusText,
@@ -598,7 +604,7 @@ trait BasketHelper
 
             if (!empty($crmResult['crm']['task_id'])) {
                 $kanbanTaskId = $crmResult['crm']['task_id'];
-                $order->update([
+                $order->updateQuietly([ // 🎯 updateQuietly, чтобы не триггерить Observer на обновлении, если это не нужно
                     'meta' => array_merge($order->meta ?? [], [
                         'kanban_task_id' => $kanbanTaskId,
                         'kanban_message_id' => $crmResult['crm']['message_id'],
@@ -626,11 +632,14 @@ trait BasketHelper
     }
 
     // 🎯 ЕДИНЫЙ КОНТУР ОПЛАТЫ И ЧЕКОВ
-    private function processPaymentAndReceipt(Order $order, array $context, array $basketData, ?string $kanbanTaskId, $orderDialog): ?array
+    private function processPaymentAndReceipt(Order $order, array $context, array $basketData, ?string $kanbanTaskId): ?array
     {
         $paymentType = $context['payment_type'];
         $paymentStatusText = $this->getPaymentStatusText($paymentType);
         $paymentData = null;
+
+        // 🎯 Получаем диалог, созданный Observer-ом
+        $dialog = $order->dialog;
 
         if (in_array($paymentType, [1, 2, 3])) {
             // Логика для оплаты курьеру/при получении
@@ -653,10 +662,10 @@ trait BasketHelper
             ];
 
             // Клиенту
-            if ($orderDialog) {
+            if ($dialog) {
                 MessageService::call()->sendMessage([
                     'message' => "📄 Чек по заказу #{$order->id} (Статус: {$paymentStatusText})",
-                    'file_path' => $invoicePath, 'dialog_id' => $orderDialog->id,
+                    'file_path' => $invoicePath, 'dialog_id' => $dialog->id,
                     'meta' => $receiptMeta, 'recipients' => ['client' => true],
                 ]);
             }
@@ -686,7 +695,7 @@ trait BasketHelper
         $config = $this->tenantUser->meta ?? [];
         $config["current_promocodes"] = [];
         $this->tenantUser->meta = $config;
-        $this->tenantUser->save();
+        $this->tenantUser->saveQuietly();
         $this->grantFirstOrderVipReward();
     }
 

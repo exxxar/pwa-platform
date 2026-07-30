@@ -1,4 +1,3 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAddressesStore } from '@/stores/addresses.js';
 
@@ -8,8 +7,10 @@ import { useAddressesStore } from '@/stores/addresses.js';
 export function useAddresses() {
     const store = useAddressesStore();
 
-    // Реактивные ссылки на состояние
+    // ✅ ИСПРАВЛЕНИЕ 1: Извлекаем ВСЁ (состояние и геттеры) через storeToRefs.
+    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность.
     const {
+        // --- Состояние (State) ---
         addresses,
         isLoading,
         isHydrated,
@@ -17,88 +18,76 @@ export function useAddresses() {
         lastError,
         errors,
         lastSyncAt,
+
+        // --- Геттеры (Getters) ---
+        sortedAddresses,
+        activeAddresses,
+        // Алиас: в сторе геттер называется getDefaultAddress, но мы возвращаем его как defaultAddress для совместимости
+        getDefaultAddress: defaultAddress,
+        addressesCount,
+        hasDefaultAddress,
     } = storeToRefs(store);
 
-    // Реактивные геттеры
-    const sortedAddresses = computed(() => store.sortedAddresses);
-    const activeAddresses = computed(() => store.activeAddresses);
-    const defaultAddress = computed(() => store.getDefaultAddress);
-    const addressesCount = computed(() => store.addressesCount);
-    const hasDefaultAddress = computed(() => store.hasDefaultAddress);
-
-    /**
-     * Проверка, загружается ли адрес
-     */
-    const isAddressLoading = (addressId) => {
-        return store.isAddressLoading(addressId);
-    };
+    // ==========================================
+    // ПАРАМЕТРИЗИРОВАННЫЕ ХЕЛПЕРЫ
+    // ==========================================
+    const isAddressLoading = (addressId) => store.isAddressLoading(addressId);
+    const getAddressById = (id) => store.getAddressById(id);
 
     // ==========================================
-    // Безопасные методы
+    // МЕТОДЫ (ACTIONS) С ОБРАБОТКОЙ ОШИБОК
     // ==========================================
 
-    /**
-     * Загрузка адресов
-     */
     const loadAddresses = async () => {
         try {
             return await store.loadAddresses();
         } catch (error) {
-            console.error('Ошибка загрузки адресов:', error);
+            console.error('[useAddresses] Ошибка загрузки адресов:', error);
             throw error;
         }
     };
 
-    /**
-     * Создание адреса
-     */
     const createAddress = async (form) => {
         try {
             return await store.storeAddress({ form });
         } catch (error) {
-            console.error('Ошибка создания адреса:', error);
+            console.error('[useAddresses] Ошибка создания адреса:', error);
             throw error;
         }
     };
 
-    /**
-     * Обновление адреса
-     */
     const updateAddress = async (id, form) => {
         try {
             return await store.updateAddress({ id, form });
         } catch (error) {
-            console.error('Ошибка обновления адреса:', error);
+            console.error(`[useAddresses] Ошибка обновления адреса ${id}:`, error);
             throw error;
         }
     };
 
-    /**
-     * Удаление адреса
-     */
     const removeAddress = async (id) => {
         try {
             return await store.removeAddress({ id });
         } catch (error) {
-            console.error('Ошибка удаления адреса:', error);
+            console.error(`[useAddresses] Ошибка удаления адреса ${id}:`, error);
             throw error;
         }
     };
 
-    /**
-     * Сделать адрес дефолтным
-     */
     const setDefault = async (id) => {
         try {
             return await store.setDefaultAddress({ id });
         } catch (error) {
-            console.error('Ошибка установки дефолтного адреса:', error);
+            console.error(`[useAddresses] Ошибка установки дефолтного адреса ${id}:`, error);
             throw error;
         }
     };
 
+    // ==========================================
+    // ВОЗВРАЩАЕМЫЕ ЗНАЧЕНИЯ
+    // ==========================================
     return {
-        // Состояние
+        // Состояние (Refs)
         addresses,
         isLoading,
         isHydrated,
@@ -107,16 +96,18 @@ export function useAddresses() {
         errors,
         lastSyncAt,
 
-        // Геттеры
+        // Геттеры (Refs)
         sortedAddresses,
         activeAddresses,
         defaultAddress,
         addressesCount,
         hasDefaultAddress,
-        getAddressById: store.getAddressById,
-        isAddressLoading,
 
-        // Методы
+        // Параметризированные хелперы
+        isAddressLoading,
+        getAddressById,
+
+        // Методы (Actions)
         loadAddresses,
         createAddress,
         updateAddress,
@@ -126,7 +117,7 @@ export function useAddresses() {
         // Инициализация
         initStore: store.initStore,
 
-        // Сброс
+        // Сброс стора
         $reset: store.$reset,
     };
 }

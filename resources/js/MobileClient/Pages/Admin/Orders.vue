@@ -1,497 +1,342 @@
 <template>
-    <div class="orders-page">
-
-        <!-- ========================================== -->
-        <!-- ЗАГОЛОВОК -->
-        <!-- ========================================== -->
+    <div class="admin-orders-page">
+        <!-- Шапка -->
         <div class="page-header">
-            <div class="header-icon">
-                <i class="fa-solid fa-list-check"></i>
+            <div class="header-content">
+                <h2 class="header-title"><i class="fa-solid fa-list-check me-2"></i> Управление заказами</h2>
+                <span class="header-subtitle">Просмотр и фильтрация всех заказов в системе</span>
             </div>
-            <h2 class="header-title">Список заказов</h2>
         </div>
 
-        <!-- ========================================== -->
-        <!-- ПАНЕЛЬ УПРАВЛЕНИЯ (STICKY) -->
-        <!-- ========================================== -->
+        <!-- Панель управления -->
         <div class="control-panel">
-            <!-- Поиск -->
             <div class="search-box">
-                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <i class="fa-solid fa-magnifying-glass"></i>
                 <input
-                    type="text"
                     v-model="search"
-                    class="search-input"
-                    placeholder="Поиск по заказам..."
-                >
-                <button
-                    v-if="search"
-                    type="button"
-                    class="search-clear"
-                    @click="search = ''"
-                >
+                    @input="debounceSearch"
+                    placeholder="Поиск по № заказа, имени или телефону..."
+                />
+                <button v-if="search" class="clear-search" @click="clearSearch">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
-            <!-- Табы -->
-            <div class="tabs-container">
-                <button
-                    class="tab-btn"
-                    :class="{ 'is-active': tab === 0 }"
-                    @click="switchTab(0)"
-                >
-                    <i class="fa-solid fa-receipt"></i>
-                    <span>Заказы</span>
-                </button>
-                <button
-                    class="tab-btn"
-                    :class="{ 'is-active': tab === 1 }"
-                    @click="switchTab(1)"
-                >
-                    <i class="fa-solid fa-star"></i>
-                    <span>Отзывы</span>
-                </button>
+            <div class="filters">
+                <select v-model="filterStatus" @change="reloadData" class="modern-select">
+                    <option value="">Все статусы</option>
+                    <option value="new">🆕 Новые</option>
+                    <option value="processing">⏳ В обработке</option>
+                    <option value="completed">✅ Завершенные</option>
+                    <option value="cancelled">❌ Отмененные</option>
+                </select>
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- ВКЛАДКА: ЗАКАЗЫ -->
-        <!-- ========================================== -->
-        <div v-if="tab === 0" class="tab-content">
+        <!-- Таблица заказов -->
+        <div class="table-wrapper">
 
-            <!-- Панель сортировки -->
-            <div class="sort-panel">
-                <div class="sort-controls">
-                    <select v-model="sort.param" @change="reloadOrders" class="select-modern">
-                        <option value="id">По номеру</option>
-                        <option value="is_cashback_crediting">По CashBack</option>
-                        <option value="summary_price">По цене</option>
-                        <option value="product_count">По кол-ву товаров</option>
-                        <option value="updated_at">По дате</option>
-                    </select>
-                    <button class="sort-direction-btn" @click="toggleSortDirection">
-                        <i class="fa-solid" :class="sort.direction === 'asc' ? 'fa-arrow-up' : 'fa-arrow-down'"></i>
-                    </button>
-                </div>
+
+            <table class="admin-table" v-if="!isLoadingAdmin && adminOrders?.length > 0">
+                <thead>
+                <tr>
+                    <th @click="toggleSort('id')" class="sortable">
+                        № Заказа <i :class="sortIcon('id')"></i>
+                    </th>
+                    <th class="text-end">Действия</th>
+                    <th>Дата и время</th>
+                    <th>Клиент</th>
+                    <th @click="toggleSort('summary_price')" class="sortable">
+                        Сумма <i :class="sortIcon('summary_price')"></i>
+                    </th>
+                    <th>Статус</th>
+
+                </tr>
+                </thead>
+                <tbody>
+                <tr v-for="order in adminOrders" :key="order.id" class="order-row">
+                    <td class="font-monospace fw-bold text-primary">#{{ order.id }}</td>
+                    <td class="text-end">
+                        <router-link :to="{ name: 'AdminOrderDetails', params: { id: order.id } }" class="btn-action primary" title="Открыть детали">
+                            <i class="fa-solid fa-eye"></i>
+                        </router-link>
+                    </td>
+                    <td class="text-muted">{{ formatDate(order.created_at) }}</td>
+                    <td>
+                        <div class="client-info">
+                            <span class="client-name">{{ order.tenant_user?.name || 'Гость' }}</span>
+                            <span class="client-phone">{{ order.tenant_user?.phone || 'Нет телефона' }}</span>
+                        </div>
+                    </td>
+                    <td class="fw-bold text-dark">{{ formatPrice(order.summary_price) }} ₽</td>
+                    <td>
+                        <span class="status-badge" :class="getStatusInfo(order.status).class">
+                            {{ getStatusInfo(order.status).label }}
+                        </span>
+                    </td>
+
+                </tr>
+                </tbody>
+            </table>
+
+            <!-- Пустое состояние -->
+            <div v-else-if="!isLoadingAdmin" class="empty-state">
+                <div class="empty-icon"><i class="fa-solid fa-inbox"></i></div>
+                <h3>Заказы не найдены</h3>
+                <p>Попробуйте изменить параметры поиска или фильтры</p>
             </div>
 
-            <!-- Индикатор загрузки -->
-            <div v-if="isLoading" class="loading-overlay">
-                <div class="loading-spinner"></div>
-                <p>Загрузка заказов...</p>
-            </div>
-
-            <!-- Список заказов -->
-            <div v-else class="orders-container">
-                <div v-if="orders && orders.length > 0" class="orders-list">
-                    <OrderItem
-                        v-for="item in orders"
-                        :key="'order-' + item.id"
-                        :item="item"
-                    />
-                </div>
-
-                <!-- Пустое состояние -->
-                <div v-else class="empty-state">
-                    <div class="empty-icon">
-                        <i class="fa-solid fa-receipt"></i>
-                    </div>
-                    <h3>Заказов пока нет</h3>
-                    <p>{{ search ? 'Попробуйте изменить поисковый запрос' : 'Заказы появятся здесь после оформления' }}</p>
-                </div>
-            </div>
-
-            <!-- Пагинация -->
-            <div v-if="orders_paginate_object && orders_paginate_object.last_page > 1" class="pagination-wrapper">
-                <Pagination
-                    :simple="true"
-                    @pagination_page="nextOrders"
-                    :pagination="orders_paginate_object"
-                />
-            </div>
-        </div>
-
-        <!-- ========================================== -->
-        <!-- ВКЛАДКА: ОТЗЫВЫ -->
-        <!-- ========================================== -->
-        <div v-if="tab === 1" class="tab-content">
-
-            <!-- Индикатор загрузки -->
-            <div v-if="isLoading" class="loading-overlay">
-                <div class="loading-spinner"></div>
-                <p>Загрузка отзывов...</p>
-            </div>
-
-            <!-- Список отзывов -->
-            <div v-else class="reviews-container">
-                <div v-if="reviews.length > 0" class="reviews-list">
-                    <div
-                        v-for="(review, index) in reviews"
-                        :key="'review-' + index"
-                        class="review-item"
-                    >
-                        <ReviewCard
-                            :is-admin="true"
-                            :need-product="true"
-                            v-model="reviews[index]"
-                        />
-                    </div>
-                </div>
-
-                <!-- Пустое состояние -->
-                <div v-else class="empty-state">
-                    <div class="empty-icon">
-                        <i class="fa-solid fa-comment-slash"></i>
-                    </div>
-                    <h3>Отзывов пока нет</h3>
-                    <p>Отзывы появятся здесь после их добавления</p>
-                </div>
-            </div>
-
-            <!-- Пагинация -->
-            <div v-if="reviews_paginate_object && reviews_paginate_object.last_page > 1" class="pagination-wrapper">
-                <Pagination
-                    :simple="true"
-                    @pagination_page="nextReviews"
-                    :pagination="reviews_paginate_object"
-                />
+            <!-- Загрузка -->
+            <div v-if="isLoadingAdmin" class="loading-state">
+                <div class="spinner"></div>
+                <p>Загрузка данных...</p>
             </div>
         </div>
 
+        <!-- Пагинация -->
+        <div v-if="adminOrdersPaginate && adminOrdersPaginate.last_page > 1" class="pagination-wrapper">
+            <Pagination
+                :simple="false"
+                :pagination="adminOrdersPaginate"
+                @pagination_page="handlePageChange"
+            />
+        </div>
     </div>
 </template>
 
 <script>
-import { mapState, mapActions } from 'pinia'
-import Pagination from '@/MobileClient/Components/Pagination.vue'
-import ReviewCard from '@/MobileClient/Components/Shop/Reviews/ReviewCard.vue'
-import OrderItem from '@/MobileClient/Components/Admin/Orders/OrderItem.vue'
+import { useOrders } from '@/MobileClient/composables/useOrders';
+import Pagination from '@/MobileClient/Components/Shop/Helpers/Pagination.vue';
+
+// Простая реализация debounce, если lodash не установлен
+const debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+};
 
 export default {
-    name: 'OrdersList',
+    name: 'AdminOrdersList',
+    components: { Pagination },
 
-    components: {
-        Pagination,
-        ReviewCard,
-        OrderItem,
-    },
+    setup() {
+        // Деструктуризируем и возвращаем с теми же именами, что используются в шаблоне
+        const { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin } = useOrders();
 
-    props: {
-        botUser: {
-            type: Object,
-            default: null,
-        },
+        return { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin };
     },
 
     data() {
         return {
-            isLoading: false,
             search: '',
-            searchDebounce: null,
-            tab: 0,
-            sort: {
-                param: 'id',
-                direction: 'desc',
-            },
-        }
-    },
-
-    computed: {
-        ...mapState('orders', [
-            'orders',
-            'orders_paginate_object',
-            'reviews',
-            'reviews_paginate_object',
-        ]),
-    },
-
-    watch: {
-        search() {
-            if (this.searchDebounce) clearTimeout(this.searchDebounce)
-            this.searchDebounce = setTimeout(() => this.reloadOrders(), 300)
-        },
+            filterStatus: '',
+            sort: { param: 'id', direction: 'desc' },
+            currentPage: 1,
+        };
     },
 
     mounted() {
-        this.loadOrdersPage(0)
-    },
-
-    beforeUnmount() {
-        if (this.searchDebounce) clearTimeout(this.searchDebounce)
+        this.loadData(1);
     },
 
     methods: {
-        ...mapActions('orders', [
-            'loadAllOrders',
-            'loadReviews',
-        ]),
+        debounceSearch: debounce(function () {
+            this.loadData(1); // Сброс на 1 страницу при поиске
+        }, 400),
 
-        // ==========================================
-        // ПЕРЕКЛЮЧЕНИЕ ТАБОВ
-        // ==========================================
-        switchTab(newTab) {
-            this.tab = newTab
-            if (newTab === 1 && (!this.reviews || this.reviews.length === 0)) {
-                this.loadReviewsPage(0)
-            }
+        clearSearch() {
+            this.search = '';
+            this.loadData(1);
         },
 
-        // ==========================================
-        // ЗАКАЗЫ
-        // ==========================================
-        reloadOrders() {
-            this.loadOrdersPage(0)
-        },
-
-        async loadOrdersPage(page = 0) {
-            this.isLoading = true
+        async loadData(page = 1) {
+            this.currentPage = page;
             try {
-                await this.loadAllOrders({
-                    dataObject: {
-                        search: this.search || null,
-                        order_by: this.sort.param || null,
-                        direction: this.sort.direction || 'desc',
-                        bot_user_id: this.botUser ? this.botUser.id : null,
-                    },
-                    page,
+                await this.loadAdminOrders({
+                    page: page,
                     size: 20,
-                })
+                    search: this.search || null,
+                    status: this.filterStatus || null,
+                    order_by: this.sort.param,
+                    direction: this.sort.direction
+                });
             } catch (err) {
-                console.error('Ошибка загрузки заказов:', err)
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось загрузить заказы',
-                    type: 'error',
-                })
-            } finally {
-                this.isLoading = false
+                console.error('Ошибка загрузки:', err);
             }
         },
 
-        nextOrders(index) {
-            this.loadOrdersPage(index)
+        handlePageChange(page) {
+            this.loadData(page);
+            // Прокрутка наверх при смене страницы
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
-        // ==========================================
-        // ОТЗЫВЫ
-        // ==========================================
-        async loadReviewsPage(page = 0) {
-            this.isLoading = true
-            try {
-                await this.loadReviews({
-                    dataObject: {
-                        bot_user_id: this.botUser ? this.botUser.id : null,
-                    },
-                    page: page || 0,
-                    size: 20,
-                })
-            } catch (err) {
-                console.error('Ошибка загрузки отзывов:', err)
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось загрузить отзывы',
-                    type: 'error',
-                })
-            } finally {
-                this.isLoading = false
+        reloadData() {
+            this.loadData(1);
+        },
+
+        toggleSort(param) {
+            if (this.sort.param === param) {
+                this.sort.direction = this.sort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sort.param = param;
+                this.sort.direction = 'desc';
             }
+            this.reloadData();
         },
 
-        nextReviews(index) {
-            this.loadReviewsPage(index)
+        sortIcon(param) {
+            if (this.sort.param !== param) return 'fa-solid fa-sort text-muted opacity-50';
+            return this.sort.direction === 'asc' ? 'fa-solid fa-sort-up text-primary' : 'fa-solid fa-sort-down text-primary';
         },
 
-        // ==========================================
-        // СОРТИРОВКА
-        // ==========================================
-        toggleSortDirection() {
-            this.sort.direction = this.sort.direction === 'asc' ? 'desc' : 'asc'
-            this.reloadOrders()
+        formatDate(date) {
+            if (!date) return '—';
+            return new Date(date).toLocaleString('ru-RU', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
         },
-    },
-}
+
+        formatPrice(price) {
+            return Number(price || 0).toLocaleString('ru-RU');
+        },
+
+        getStatusInfo(status) {
+            const map = {
+                // Числовые статусы (из вашей БД)
+                0: { label: 'Новый', class: 'new' },
+                1: { label: 'В обработке', class: 'processing' },
+                2: { label: 'Выполнен', class: 'completed' },
+                3: { label: 'Отменен', class: 'cancelled' },
+                4: { label: 'Готов к доставке', class: 'processing' },
+                5: { label: 'Передан на кухню', class: 'processing' },
+                // Строковые статусы (на случай миграции)
+                'new': { label: 'Новый', class: 'new' },
+                'processing': { label: 'В работе', class: 'processing' },
+                'completed': { label: 'Выполнен', class: 'completed' },
+                'cancelled': { label: 'Отменен', class: 'cancelled' },
+            };
+            return map[status] || { label: status || 'Неизвестно', class: 'new' };
+        },
+
+        // Оставьте старый метод для обратной совместимости
+        getStatusLabel(status) {
+            return this.getStatusInfo(status).label;
+        },
+    }
+};
 </script>
 
 <style lang="scss" scoped>
-$admin-bg: #f4f6f9;
+$admin-bg: #f8fafc;
 $admin-card-bg: #ffffff;
-$admin-text: #2c3e50;
-$admin-text-muted: #6c757d;
-$admin-border: #e9ecef;
+$admin-text: #0f172a;
+$admin-text-muted: #64748b;
+$admin-border: #e2e8f0;
 $admin-primary: #3b82f6;
+$admin-primary-light: #eff6ff;
 $admin-success: #10b981;
 $admin-warning: #f59e0b;
 $admin-danger: #ef4444;
 
-.orders-page {
+.admin-orders-page {
+    padding: 32px;
     background: $admin-bg;
-    min-height: 100%;
-    padding-bottom: env(safe-area-inset-bottom);
+    min-height: 100vh;
 }
 
-// ==========================================
-// ЗАГОЛОВОК
-// ==========================================
+// --- Шапка ---
 .page-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 20px 16px;
-    background: $admin-card-bg;
-    border-bottom: 1px solid $admin-border;
+    margin-bottom: 24px;
 }
-
-.header-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, rgba($admin-primary, 0.1) 0%, rgba($admin-primary, 0.05) 100%);
-    color: $admin-primary;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-}
-
 .header-title {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 1.5rem;
+    font-weight: 700;
     color: $admin-text;
+    margin: 0 0 4px 0;
+}
+.header-subtitle {
+    font-size: 0.9rem;
+    color: $admin-text-muted;
     margin: 0;
 }
 
-// ==========================================
-// ПАНЕЛЬ УПРАВЛЕНИЯ (STICKY)
-// ==========================================
+// --- Панель управления ---
 .control-panel {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: $admin-card-bg;
-    border-bottom: 1px solid $admin-border;
-    padding: 12px 16px;
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
 }
 
 .search-box {
+    flex: 1;
+    min-width: 280px;
     position: relative;
-}
 
-.search-icon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: $admin-text-muted;
-    font-size: 0.9rem;
-}
-
-.search-input {
-    width: 100%;
-    padding: 10px 36px 10px 36px;
-    border: 1px solid $admin-border;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    transition: all 0.2s;
-
-    &:focus {
-        outline: none;
-        border-color: $admin-primary;
-        box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
-    }
-}
-
-.search-clear {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: $admin-border;
-    border: none;
-    color: $admin-text-muted;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-
-    &:active {
-        background: $admin-danger;
-        color: white;
-    }
-}
-
-// ==========================================
-// ТАБЫ
-// ==========================================
-.tabs-container {
-    display: flex;
-    gap: 8px;
-    background: $admin-bg;
-    padding: 4px;
-    border-radius: 10px;
-}
-
-.tab-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 10px 16px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: $admin-text-muted;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    min-height: 44px;
-
-    &:active {
-        transform: scale(0.98);
-    }
-
-    &.is-active {
+    input {
+        width: 100%;
+        padding: 12px 40px 12px 44px;
+        border: 1px solid $admin-border;
+        border-radius: 10px;
+        font-size: 0.95rem;
         background: $admin-card-bg;
-        color: $admin-primary;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s;
+
+        &:focus {
+            outline: none;
+            border-color: $admin-primary;
+            box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+        }
+    }
+
+    i {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: $admin-text-muted;
+    }
+
+    .clear-search {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: transparent;
+        border: none;
+        color: $admin-text-muted;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover {
+            background: $admin-bg;
+            color: $admin-danger;
+        }
     }
 }
 
-// ==========================================
-// ПАНЕЛЬ СОРТИРОВКИ
-// ==========================================
-.sort-panel {
+.modern-select {
     padding: 12px 16px;
-    background: $admin-card-bg;
-    border-bottom: 1px solid $admin-border;
-}
-
-.sort-controls {
-    display: flex;
-    gap: 8px;
-}
-
-.select-modern {
-    flex: 1;
-    padding: 10px 32px 10px 12px;
     border: 1px solid $admin-border;
-    border-radius: 8px;
-    font-size: 0.9rem;
+    border-radius: 10px;
+    font-size: 0.95rem;
     background: $admin-card-bg;
+    color: $admin-text;
     cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236c757d' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
+    min-width: 200px;
 
     &:focus {
         outline: none;
@@ -499,148 +344,162 @@ $admin-danger: #ef4444;
     }
 }
 
-.sort-direction-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: $admin-bg;
+// --- Таблица ---
+.table-wrapper {
+    background: $admin-card-bg;
+    border-radius: 12px;
     border: 1px solid $admin-border;
-    color: $admin-text-muted;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
 
-    &:active {
-        background: $admin-primary;
-        color: white;
-        border-color: $admin-primary;
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th {
+        text-align: left;
+        padding: 16px 20px;
+        background: $admin-bg;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: $admin-text-muted;
+        border-bottom: 1px solid $admin-border;
+
+        &.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.2s;
+
+            &:hover {
+                color: $admin-primary;
+            }
+        }
+    }
+
+    td {
+        padding: 16px 20px;
+        border-bottom: 1px solid $admin-border;
+        vertical-align: middle;
+        font-size: 0.95rem;
+    }
+
+    tbody tr:last-child td {
+        border-bottom: none;
     }
 }
 
-// ==========================================
-// ИНДИКАТОР ЗАГРУЗКИ
-// ==========================================
-.loading-overlay {
+.order-row {
+    transition: background 0.15s;
+
+    &:hover {
+        background: $admin-primary-light;
+    }
+}
+
+.client-info {
     display: flex;
     flex-direction: column;
+    gap: 2px;
+}
+
+.client-name {
+    font-weight: 600;
+    color: $admin-text;
+}
+
+.client-phone {
+    font-size: 0.85rem;
+    color: $admin-text-muted;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+
+    &.new { background: rgba($admin-primary, 0.1); color: $admin-primary; }
+    &.processing { background: rgba($admin-warning, 0.1); color: $admin-warning; }
+    &.completed { background: rgba($admin-success, 0.1); color: $admin-success; }
+    &.cancelled { background: rgba($admin-danger, 0.1); color: $admin-danger; }
+}
+
+.btn-action {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s;
+
+    &.primary {
+        background: $admin-primary-light;
+        color: $admin-primary;
+
+        &:hover {
+            background: $admin-primary;
+            color: white;
+            transform: translateY(-1px);
+        }
+    }
+}
+
+// --- Состояния ---
+.empty-state, .loading-state {
+    text-align: center;
     padding: 60px 20px;
     color: $admin-text-muted;
 }
 
-.loading-spinner {
-    width: 40px;
-    height: 40px;
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: $admin-bg;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin: 0 auto 16px;
+    color: $admin-text-muted;
+}
+
+.spinner {
+    width: 32px;
+    height: 32px;
     border: 3px solid $admin-border;
     border-top-color: $admin-primary;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
-    margin-bottom: 12px;
+    margin: 0 auto 12px;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-// ==========================================
-// КОНТЕЙНЕРЫ
-// ==========================================
-.orders-container,
-.reviews-container {
-    padding: 16px;
-}
-
-// ==========================================
-// ПУСТОЕ СОСТОЯНИЕ
-// ==========================================
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: $admin-text-muted;
-
-    .empty-icon {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        background: $admin-bg;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        margin: 0 auto 16px;
-    }
-
-    h3 {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: $admin-text;
-        margin-bottom: 8px;
-    }
-
-    p {
-        font-size: 0.9rem;
-        margin-bottom: 20px;
-    }
-}
-
-// ==========================================
-// СПИСКИ
-// ==========================================
-.orders-list,
-.reviews-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.review-item {
-    background: $admin-card-bg;
-    border: 1px solid $admin-border;
-    border-radius: 12px;
-    overflow: hidden;
-}
-
-// ==========================================
-// ПАГИНАЦИЯ
-// ==========================================
 .pagination-wrapper {
-    padding: 20px 16px;
+    margin-top: 24px;
     display: flex;
     justify-content: center;
 }
 
-// ==========================================
-// АДАПТИВ
-// ==========================================
-@media (min-width: 768px) {
-    .page-header {
-        padding: 24px;
+// --- Адаптив ---
+@media (max-width: 768px) {
+    .admin-orders-page { padding: 16px; }
+
+    .table-wrapper {
+        overflow-x: auto;
+        border-radius: 8px;
     }
 
-    .header-title {
-        font-size: 1.25rem;
-    }
-
-    .control-panel {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 16px 24px;
-    }
-
-    .sort-panel {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 16px 24px;
-    }
-
-    .orders-container,
-    .reviews-container {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 24px;
+    .admin-table {
+        min-width: 800px; // Чтобы таблица скроллилась горизонтально на мобильных
     }
 }
 </style>

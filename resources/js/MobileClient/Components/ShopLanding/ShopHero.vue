@@ -34,18 +34,26 @@
                 </div>
                 <h1 class="hero-title">{{ config.title }}</h1>
                 <p class="hero-subtitle">{{ config.subtitle }}</p>
+                <slot name="stories"></slot>
                 <button class="btn-primary" @click="$emit('scroll-to-categories')">
                     <i class="fa-solid fa-arrow-down"></i>
                     {{ config.buttonText }}
                 </button>
+
+                <!-- 🆕 СЕКЦИЯ ИСТОРИЙ (Используем новый компонент) -->
+
             </div>
         </div>
     </section>
 </template>
 
 <script>
+
 export default {
     name: "ShopHero",
+    components:{
+
+    },
     props: {
         config: {
             type: Object,

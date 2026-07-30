@@ -1,40 +1,44 @@
-import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRolesStore } from '@/MobileClient/stores/Shop/roles.js';
 
 export function useRoles() {
     const store = useRolesStore();
 
+    // ✅ ИСПРАВЛЕНИЕ: Извлекаем и состояние, и геттеры через storeToRefs.
+    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность геттеров.
     const {
+        // --- Состояние (State) ---
         roles,
         permissions,
         isLoading,
         isSaving,
         lastError,
+
+        // --- Геттеры (Getters) ---
+        sortedRoles,
+        hasRoles,
     } = storeToRefs(store);
 
-    // Getters
-    const sortedRoles = computed(() => store.sortedRoles);
-    const hasRoles = computed(() => store.hasRoles);
-
     return {
-        // State
+        // Состояние (Refs)
         roles,
         permissions,
         isLoading,
         isSaving,
         lastError,
 
-        // Getters
+        // Геттеры (Refs)
         sortedRoles,
         hasRoles,
 
-        // Actions
+        // Методы (Actions)
+        // Прямое маппирование — это отлично и эффективно
         loadRoles: store.loadRoles,
         loadPermissions: store.loadPermissions,
         saveRole: store.saveRole,
         deleteRole: store.deleteRole,
 
+        // Сброс стора
         $reset: store.$reset,
     };
 }

@@ -305,6 +305,7 @@ export default {
             sending: false,
             orderJustPlaced: false,
             lastOrderId: null,
+            lastOrderDialogId: null, // 🆕 Добавляем ID диалога
             lastOrderTotal: 0,
             autoCloseCountdown: 10,
             autoCloseTimer: null,
@@ -567,6 +568,7 @@ export default {
 
                 if (response?.success) {
                     this.lastOrderId = response.order_id;
+                    this.lastOrderDialogId = response.dialog_id || null; // 🆕 Сохраняем ID диалога
                     this.lastOrderTotal = response.summary_price;
 
                     if (this.deliveryForm.payment_type === 4 && response.payment_data?.url) {
@@ -622,10 +624,20 @@ export default {
 
         goToOrderChat() {
             this.clearAutoCloseTimers();
-            this.$router.push({name: 'Chat', params: {orderId: this.lastOrderId}})
-                .catch(() => this.$router.push({name: 'Catalog'}));
+
+            // 🆕 Приоритет отдаем dialog_id, но если его нет, пробуем order_id (на случай, если ChatRoom умеет искать по нему)
+            const targetId = this.lastOrderDialogId || this.lastOrderId;
+
+            this.$router.push({
+                name: 'ChatRoom', // 🆕 Исправлено имя роута на то, что в вашем конфиге
+                params: { id: targetId }
+            }).catch(() => {
+                this.$router.push({ name: 'Catalog' });
+            });
+
             this.orderJustPlaced = false;
             this.lastOrderId = null;
+            this.lastOrderDialogId = null;
             this.lastOrderTotal = 0;
         },
 

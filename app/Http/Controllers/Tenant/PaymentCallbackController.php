@@ -25,7 +25,6 @@ class PaymentCallbackController extends Controller
      */
     public function handleProductsCallback(Request $request, string $bank, string $tenantSlug)
     {
-        // Валидация ключа банка
         $allowedBanks = ['tinkoff', 'sber', 'psb', 'vtb', 'yandex'];
 
         if (!in_array($bank, $allowedBanks)) {
@@ -33,7 +32,6 @@ class PaymentCallbackController extends Controller
             return response()->json(['message' => 'Unknown payment provider'], 400);
         }
 
-        // Находим тенант
         $tenant = Tenant::query()
             ->where('slug', $tenantSlug)
             ->orWhere('id', $tenantSlug)
@@ -44,7 +42,6 @@ class PaymentCallbackController extends Controller
             return response()->json(['message' => 'Tenant not found'], 404);
         }
 
-        // Устанавливаем текущий тенант в контейнер
         app()->instance('tenant', $tenant);
 
         Log::info("[PaymentCallback] {$bank} webhook received", [
@@ -53,7 +50,6 @@ class PaymentCallbackController extends Controller
             'data' => $request->all()
         ]);
 
-        // Вызываем соответствующий метод обработки в зависимости от банка
         return match ($bank) {
             'tinkoff' => $this->tinkoffProductsCallback($request, $tenantSlug),
             'sber' => $this->sberProductsCallback($request, $tenantSlug),
@@ -64,23 +60,32 @@ class PaymentCallbackController extends Controller
         };
     }
 
-    /**
-     * Callback для оплаты товаров/заказов от Т-Банка
-     */
     public function tinkoffProductsCallback(Request $request, string $tenantSlug)
     {
         try {
+            // 🎯 Webhook ДОЛЖЕН вернуть то, что ожидает банк (обычно JSON с подтверждением)
             $result = PaymentService::call()->sbpNotificationProductsPayment($request->all());
+
+            // 🆕 Опционально: Если PaymentService вернул информацию об успешном заказе,
+            // мы можем здесь инициировать событие (например, WebSocket/Pusher),
+            // чтобы фронтенд мгновенно узнал об оплате и сам сделал редирект.
+            // event(new OrderPaidSuccessfully($orderId));
+
             return $result;
+
         } catch (\Throwable $e) {
             Log::error("[TinkoffCallback] Error", [
                 'tenant_slug' => $tenantSlug,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+            // Важно: даже при ошибке иногда нужно вернуть специфичный ответ банку,
+            // чтобы он не спамил вебхуками. Зависит от документации Тинькофф.
             return response()->json(['message' => 'Error processing payment'], 500);
         }
     }
+
+    // Аналогично обновите sberProductsCallback, psbProductsCallback и т.д.
 
     /**
      * Callback для оплаты товаров от Сбера
@@ -443,5 +448,72 @@ class PaymentCallbackController extends Controller
             }
         }
         return false;
+    }
+
+    /**
+     * 🆕 Маршрут, на который банк перенаправляет БРАУЗЕР пользователя после успешной оплаты
+     */
+    public function paymentSuccess(Request $request, string $tenantSlug, int $orderId)
+    {
+        // 1. Находим заказ и сразу подгружаем диалог
+        $order = Order::query()
+            ->where('id', $orderId)
+            ->whereHas('tenant', function ($q) use ($tenantSlug) {
+                $q->where('slug', $tenantSlug)->orWhere('id', $tenantSlug);
+            })
+            ->with('dialog')
+            ->first();
+
+        if (!$order) {
+            Log::warning("[PaymentSuccess] Order not found: {$orderId}");
+            return redirect()->route('catalog'); // Или ваша страница "Что-то пошло не так"
+        }
+
+        // 2. Получаем ID диалога (благодаря OrderObserver он там уже есть)
+        $dialogId = $order->dialog_id;
+
+        // 3. Формируем URL фронтенда
+        $frontendUrl = config('app.frontend_url', 'http://localhost:8080'); // Убедитесь, что это задано в .env
+        $chatUrl = "{$frontendUrl}/chat/{$dialogId}";
+
+        // 4. Если запрос пришел от фронтенда (например, через fetch/axios для проверки статуса)
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'order_id' => $order->id,
+                'redirect_url' => "/chat/{$dialogId}"
+            ]);
+        }
+
+        // 5. Если это прямой редирект от банка (обычный GET запрос браузера)
+        // Возвращаем HTML-страницу с мгновенным JavaScript-редиректом и meta refresh
+        $html = <<<HTML
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+            <meta charset="UTF-8">
+            <meta http-equiv="refresh" content="0;url={$chatUrl}">
+            <title>Перенаправление...</title>
+            <script>
+                window.location.replace("{$chatUrl}");
+            </script>
+            <style>
+                body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f3f4f6; }
+                .loader { text-align: center; }
+                .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            </style>
+        </head>
+        <body>
+            <div class="loader">
+                <div class="spinner"></div>
+                <p>Оплата прошла успешно! Перенаправляем вас в чат заказа...</p>
+                <p><small>Если перенаправление не произошло, <a href="{$chatUrl}">нажмите здесь</a>.</small></p>
+            </div>
+        </body>
+        </html>
+        HTML;
+
+        return response($html)->header('Content-Type', 'text/html');
     }
 }
