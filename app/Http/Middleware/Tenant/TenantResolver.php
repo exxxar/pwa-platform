@@ -27,12 +27,14 @@ class TenantResolver
         }
 
         if ($request->route()) {
+            Log::info("step 7");
             $request->route()->setParameter('tenant', $tenant);
         }
 
         // Сохраняем tenant в контейнер
         app()->instance('tenant', $tenant);
 
+        Log::info("step 8".print_r($tenant->toArray(),true));
         // Делаем доступным через request
         $request->tenant = $tenant;
 
