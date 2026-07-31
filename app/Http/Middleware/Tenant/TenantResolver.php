@@ -60,6 +60,8 @@ class TenantResolver
             }
         }
 
+        Log::info("step 4");
+
         // ---------------------------------------------------------
         // 2. СТАНДАРТНАЯ ЛОГИКА: Поддомены (fatoran.mypwa.ru)
         // ---------------------------------------------------------
@@ -68,11 +70,11 @@ class TenantResolver
             !in_array($host, ['localhost', '127.0.0.1'])
         ) {
             $parts = explode('.', $host);
-
+            Log::info("step 5".print_r($parts, true));
             // Если это поддомен (например, fatoran.mypwa.ru -> count > 2)
             if (count($parts) > 2) {
                 $slug = $parts[0];
-
+                Log::info("step 6".$slug);
                 if ($tenant = Tenant::where('slug', $slug)->first()) {
                     return $tenant;
                 }
