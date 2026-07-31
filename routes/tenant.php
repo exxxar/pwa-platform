@@ -74,7 +74,7 @@ $routes = function () {
     Route::any('/webhook', [WebhookReceiverController::class, 'handle'])
         ->name('webhook.workspace');
 
-    Route::get('/', function (Request $request) {
+    Route::get('/', function (Request $request, $tenant) {
         $agent = new Agent();
 
         if ($agent->isMobile()) {
@@ -82,11 +82,23 @@ $routes = function () {
             return redirect('/pwa', 301);
         }
 
-        return view("landing");
+        \Illuminate\Support\Facades\Session::put("tenant", $tenant ?? null);
+
+        $tenantUser = Auth::guard('tenant')->user();
+
+        $tenant = Tenant::where('slug', $tenant)->firstOrFail();
+        Inertia::setRootView("shop-landing");
+        return Inertia::render('ShopLanding', [
+            'tenant' => $tenant,
+            'tenant_user' => $tenantUser
+        ]);
+
+        //return view("landing");
     })->name("home");
 
     Route::get('/shop/{any?}', [TenantAuthController::class, 'handlerShopLanding'])
-        ->where('any', '.*');
+        ->where('any', '.*')
+        ->name("shop.landing");
 
 
     Route::get('/pwa/{any?}', [TenantAuthController::class, 'handler'])

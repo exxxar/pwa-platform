@@ -25,7 +25,6 @@ export function useOrders() {
         loadRandomOrders,
         changeStatus,
         declineOrder,
-        repeatOrder,
         calculateDeliveryPrice,
 
         sortedOrders,
@@ -61,6 +60,7 @@ export function useOrders() {
 
     // ... (ваши методы loadOrders и т.д. остаются без изменений) ...
 
+    const repeatOrder  = (payload = {}) => store.repeatOrder(payload);
     const loadOrders  = (payload = {}) => store.loadOrders(payload);
     const loadAdminOrders = (payload = {}) => store.loadAdminOrders(payload);
     const loadAdminOrderDetails = (orderId) => store.loadAdminOrderDetails(orderId);

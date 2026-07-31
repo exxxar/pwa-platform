@@ -10,7 +10,8 @@
                     </div>
 
                     <!-- Индикатор статуса (кликабельный) -->
-                    <div class="status-badge" :class="{ 'is-open': isCurrentlyOpen }" @click="showScheduleModal = true" title="Нажмите, чтобы посмотреть график работы">
+                    <div class="status-badge" :class="{ 'is-open': isCurrentlyOpen }" @click="showScheduleModal = true"
+                         title="Нажмите, чтобы посмотреть график работы">
                         <i :class="isCurrentlyOpen ? 'fa-solid fa-door-open' : 'fa-solid fa-door-closed'"></i>
                         <span class="status-text">{{ isCurrentlyOpen ? 'Открыто' : 'Закрыто' }}</span>
                     </div>
@@ -32,30 +33,31 @@
                 </div>
             </div>
         </div>
+        <Teleport to="body">
+            <!-- 🆕 Модалка с графиком работы -->
+            <transition name="modal-fade">
+                <div v-if="showScheduleModal" class="schedule-modal-overlay" @click.self="showScheduleModal = false"
+                     @keydown.esc="showScheduleModal = false">
+                    <div class="schedule-modal-content" tabindex="0" @keydown.esc="showScheduleModal = false">
+                        <div class="modal-header">
+                            <h3><i class="fa-regular fa-clock"></i> Режим работы</h3>
+                            <button class="modal-close" @click="showScheduleModal = false">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
 
-        <!-- 🆕 Модалка с графиком работы -->
-        <transition name="modal-fade">
-            <div v-if="showScheduleModal" class="schedule-modal-overlay" @click.self="showScheduleModal = false" @keydown.esc="showScheduleModal = false">
-                <div class="schedule-modal-content" tabindex="0" @keydown.esc="showScheduleModal = false">
-                    <div class="modal-header">
-                        <h3><i class="fa-regular fa-clock"></i> Режим работы</h3>
-                        <button class="modal-close" @click="showScheduleModal = false">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-
-                    <div class="modal-body">
-                        <div
-                            v-for="(day, index) in schedule"
-                            :key="index"
-                            class="schedule-row"
-                            :class="{ 'is-today': index === currentDayIndex }"
-                        >
+                        <div class="modal-body">
+                            <div
+                                v-for="(day, index) in schedule"
+                                :key="index"
+                                class="schedule-row"
+                                :class="{ 'is-today': index === currentDayIndex }"
+                            >
                             <span class="day-name">
                                 {{ day.day }}
                                 <span v-if="index === currentDayIndex" class="today-badge">Сегодня</span>
                             </span>
-                            <span class="day-time" :class="{ 'is-closed': day.closed }">
+                                <span class="day-time" :class="{ 'is-closed': day.closed }">
                                 <template v-if="day.closed">
                                     <i class="fa-solid fa-ban"></i> {{ day.closed_comment || 'Выходной' }}
                                 </template>
@@ -63,21 +65,22 @@
                                     {{ day.start_at }} — {{ day.end_at }}
                                 </template>
                             </span>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer" v-if="!isCurrentlyOpen && todayScheduleComment">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span>{{ todayScheduleComment }}</span>
                         </div>
                     </div>
-
-                    <div class="modal-footer" v-if="!isCurrentlyOpen && todayScheduleComment">
-                        <i class="fa-solid fa-circle-info"></i>
-                        <span>{{ todayScheduleComment }}</span>
-                    </div>
                 </div>
-            </div>
-        </transition>
+            </transition>
+        </Teleport>
     </nav>
 </template>
 
 <script>
-import { useBasket } from '@/MobileClient/composables/useBasket';
+import {useBasket} from '@/MobileClient/composables/useBasket';
 
 export default {
     name: "ShopNavbar",
@@ -225,7 +228,9 @@ $gray: var(--gray, #6b7280);
     align-items: center;
     gap: 0.5rem;
 
-    i { color: $primary; }
+    i {
+        color: $primary;
+    }
 }
 
 // 🆕 Индикатор статуса
@@ -312,9 +317,15 @@ $gray: var(--gray, #6b7280);
 }
 
 @keyframes popIn {
-    0% { transform: scale(0); }
-    70% { transform: scale(1.2); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(0);
+    }
+    70% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
 }
 
 // ==========================================
@@ -343,8 +354,14 @@ $gray: var(--gray, #6b7280);
 }
 
 @keyframes modalSlideUp {
-    from { opacity: 0; transform: translateY(20px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .modal-header {
@@ -363,7 +380,9 @@ $gray: var(--gray, #6b7280);
         align-items: center;
         gap: 8px;
 
-        i { color: $primary; }
+        i {
+            color: $primary;
+        }
     }
 }
 
@@ -463,14 +482,19 @@ $gray: var(--gray, #6b7280);
 .modal-fade-enter-active, .modal-fade-leave-active {
     transition: opacity 0.3s ease;
 }
+
 .modal-fade-enter-from, .modal-fade-leave-to {
     opacity: 0;
 }
 
 // Адаптив
 @media (max-width: 640px) {
-    .btn-text { display: none; }
-    .nav-btn { padding: 0.6rem; }
+    .btn-text {
+        display: none;
+    }
+    .nav-btn {
+        padding: 0.6rem;
+    }
 
     .navbar-brand {
         font-size: 1.2rem;

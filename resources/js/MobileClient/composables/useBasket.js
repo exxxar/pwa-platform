@@ -30,7 +30,7 @@ export function useBasket() {
         isEmpty,
         inCart,
         inCollectionCart,
-        getItemById,
+
         getCollectionById,
     } = storeToRefs(store);
 
@@ -52,6 +52,7 @@ export function useBasket() {
     // Обработкой ошибок (показом тостов) должен заниматься компонент или глобальный перехватчик.
 
     // Товары (с защитой от спама кликами)
+    const getItemById  = (payload) => store.getItemById (payload);
     const addProduct = withLoadingGuard(store.addProductToCart);
     const removeProduct = withLoadingGuard(store.removeProductFromCart);
     const removeProductCompletely = withLoadingGuard(store.removeProduct);
@@ -60,6 +61,7 @@ export function useBasket() {
 
     // Подборки (коллекции)
     const addCollection = (collection) => store.addCollectionToCart(collection);
+
     const incrementCollection = (payload) => store.incCollectionQuantity(payload);
     const decrementCollection = (payload) => store.decCollectionQuantity(payload);
     const removeCollection = (payload) => store.removeCollectionFromCart(payload);
@@ -92,12 +94,13 @@ export function useBasket() {
         isEmpty,
         inCart,
         inCollectionCart,
-        getItemById,
+
         getCollectionById,
         isProductLoading,
 
         // Методы: Товары
         addProduct,
+        getItemById,
         removeProduct,
         removeProductCompletely,
         incrementQuantity,

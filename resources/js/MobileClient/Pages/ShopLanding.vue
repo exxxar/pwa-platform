@@ -1,66 +1,59 @@
 <template>
     <div class="shop-landing" :style="themeStyles">
-
-        <!-- Навигация -->
-        <ShopNavbar
-            :config="config"
-            :cart-count="basket.cartTotalCount"
-            @open-cart="showCart = true"
-            @open-feedback="showFeedbackModal = true"
-        />
+        <ShopNavbar :config="config" :cart-count="basket.cartTotalCount" @open-cart="showCart = true" @open-feedback="showFeedbackModal = true" />
 
         <!-- Hero -->
-        <ShopHero
-            :config="config.hero"
-            @scroll-to-categories="scrollToPartners"
-        >
+        <ShopHero v-if="config.sectionsVisibility?.hero !== false" :config="config.hero" @scroll-to-categories="scrollToPartners">
             <template #stories>
-
-                <StoryListLanding
-                    :is-admin="isAdmin"
-                    @create-story="openStoryCreator"
-                />
-
+                <StoryListLanding :is-admin="isAdmin" @create-story="openStoryCreator" />
             </template>
         </ShopHero>
 
+        <!-- Партнеры -->
+        <template v-if="config.sectionsVisibility?.partners !== false">
+            <ShopPartners @select-partner="handlePartnerSelect"/>
+            <div class="container" style="margin-top: 2rem;">
+                <ShopSelectedPartnerBanner v-if="selectedPartner" :partner="selectedPartner" @reset="resetPartnerSelection" />
+            </div>
+        </template>
 
-        <!-- Секция партнеров -->
-        <ShopPartners @select-partner="handlePartnerSelect"/>
-
-        <!-- 🆕 НОВАЯ ПЛАЖКА ВЫБРАННОГО ПАРТНЕРА -->
-        <div class="container" style="margin-top: 2rem;">
-            <ShopSelectedPartnerBanner
-                v-if="selectedPartner"
-                :partner="selectedPartner"
-                @reset="resetPartnerSelection"
-            />
-        </div>
-
+        <!-- Товары (обычно всегда нужны, но можно скрыть) -->
         <div id="shop-products-section">
-
-            <!-- Показываем скелетон, пока данные грузятся -->
             <ShopProductsSkeleton v-if="shopStore.isLoading"/>
-
-            <!-- Показываем реальные компоненты, когда данные готовы -->
             <template v-else>
                 <ShopCategories/>
                 <ShopProducts @open-modal="openProductModal"/>
             </template>
-
         </div>
 
-        <ShopPromotions/>
-        <ShopDelivery/>
-        <ShopPwaBanner/>
-        <ShopLoyalty :user-points="2450"/>
-        <ShopWheel/>
-        <ShopReviews :reviews="config.reviews" :config="config.reviewsSection"/>
-        <ShopFaq @open-feedback="showFeedbackModal = true"/>
-        <ShopReservation :address="config.footer.address" :phone="config.footer.phone"/>
+        <!-- Остальные секции с проверкой -->
+        <ShopPromotions v-if="config.sectionsVisibility?.promotions !== false" />
+        <ShopDelivery v-if="config.sectionsVisibility?.delivery !== false" />
+        <ShopPwaBanner v-if="config.sectionsVisibility?.pwaBanner !== false" />
+        <ShopLoyalty v-if="config.sectionsVisibility?.loyalty !== false" :user-points="2450"/>
+        <ShopWheel
+            @open-privacy="showPrivacyModal = true"
+            v-if="config.sectionsVisibility?.wheel !== false" />
+
+        <ShopReviews
+            v-if="config.sectionsVisibility?.reviews !== false"
+            :reviews="config.reviews"
+            :config="config.reviewsSection"
+        />
+
+        <ShopFaq
+            v-if="config.sectionsVisibility?.faq !== false"
+            @open-feedback="showFeedbackModal = true"
+        />
+
+        <ShopReservation
+            v-if="config.sectionsVisibility?.reservation !== false"
+            :address="config.footer.address"
+            :phone="config.footer.phone"
+        />
 
         <!-- CTA -->
-        <section class="cta-section">
+        <section class="cta-section" v-if="config.sectionsVisibility?.cta !== false">
             <div class="container">
                 <div class="cta-content">
                     <h2 class="cta-title">{{ config.cta.title }}</h2>
@@ -74,7 +67,7 @@
         </section>
 
         <!-- Footer -->
-        <ShopFooter :config="config.footer" @open-privacy="showPrivacyModal = true"/>
+        <ShopFooter v-if="config.sectionsVisibility?.footer !== false" :config="config.footer" @open-privacy="showPrivacyModal = true"/>
 
         <!-- 🆕 Обновленная корзина (исправлены пропсы) -->
         <ShopCart

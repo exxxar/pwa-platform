@@ -65,6 +65,7 @@
                     </div>
 
                     <!-- Форма для получения приза -->
+                    <!-- Форма для получения приза -->
                     <div v-if="!hasWon" class="wheel-form">
                         <input
                             type="tel"
@@ -72,9 +73,20 @@
                             placeholder="+7 (___) ___-__-__"
                             class="phone-input"
                         >
-                        <button class="spin-trigger" @click="validateAndSpin" :disabled="!isPhoneValid">
+
+                        <!-- 🆕 ЧЕКБОКС ПОЛИТИКИ КОНФИДЕНЦИАЛЬНОСТИ -->
+                        <label class="policy-checkbox">
+                            <input type="checkbox" v-model="agreeToPolicy">
+                            <span class="checkmark"></span>
+                            <span class="policy-text">
+            Я согласен с <a href="#" @click.prevent="$emit('open-privacy')">политикой конфиденциальности</a> и обработкой персональных данных
+        </span>
+                        </label>
+
+                        <button class="spin-trigger" @click="validateAndSpin" :disabled="!canSpin">
                             Получить приз
                         </button>
+
                         <p class="form-hint">
                             <i class="fa-solid fa-lock"></i>
                             Мы не передаём ваши данные третьим лицам
@@ -123,6 +135,7 @@ export default {
             hasWon: false,
             showWinModal: false,
             phone: '',
+            agreeToPolicy: false, // 🆕 Состояние чекбокса
             currentRotation: 0,
             wonPrize: null,
             // Пересчитанные скидки: максимум 30%
@@ -132,9 +145,9 @@ export default {
                 { label: '5%',  color: '#10b981', code: 'WHEEL5B' },
                 { label: '15%', color: '#3b82f6', code: 'WHEEL15' },
                 { label: '7%',  color: '#ec4899', code: 'WHEEL7' },
-                { label: '20%', color: '#f59e0b', code: 'WHEEL20' },
+                { label: '4%', color: '#f59e0b', code: 'WHEEL20' },
                 { label: '10%', color: '#06b6d4', code: 'WHEEL10B' },
-                { label: '30%', color: '#0f0f14', code: 'WHEEL30' }
+                { label: '17%', color: '#0f0f14', code: 'WHEEL30' }
             ]
         };
     },
@@ -146,6 +159,9 @@ export default {
             const x = this.radius * Math.cos(angle);
             const y = this.radius * Math.sin(angle);
             return `M 0 0 L ${this.radius} 0 A ${this.radius} ${this.radius} 0 0 1 ${x} ${y} Z`;
+        },
+        canSpin() {
+            return this.isPhoneValid && this.agreeToPolicy;
         },
         isPhoneValid() {
             return this.phone.replace(/\D/g, '').length >= 10;
@@ -188,8 +204,13 @@ export default {
             });
         },
         validateAndSpin() {
-            if (!this.isPhoneValid) {
-                this.$notify?.({ title: 'Ошибка', text: 'Введите корректный телефон', type: 'error' });
+            // Двойная проверка для надежности
+            if (!this.canSpin) {
+                if (!this.isPhoneValid) {
+                    this.$notify?.({ title: 'Ошибка', text: 'Введите корректный номер телефона', type: 'error' });
+                } else if (!this.agreeToPolicy) {
+                    this.$notify?.({ title: 'Внимание', text: 'Необходимо согласиться с политикой конфиденциальности', type: 'warning' });
+                }
                 return;
             }
             this.spin();
@@ -429,4 +450,79 @@ export default {
 
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.3s ease; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+
+/* ==========================================
+   🆕 ЧЕКБОКС ПОЛИТИКИ КОНФИДЕНЦИАЛЬНОСТИ
+   ========================================== */
+.policy-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+    line-height: 1.4;
+    margin-top: 4px;
+
+    // Скрываем стандартный чекбокс
+    input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .checkmark {
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        margin-top: 1px;
+        background: rgba(255, 255, 255, 0.05);
+
+        &::after {
+            content: '+'; // Иконка галочки FontAwesome
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            font-size: 12px;
+            color: white;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+    }
+
+    // Состояние: отмечено
+    input[type="checkbox"]:checked + .checkmark {
+        background: var(--primary, #ff7a00);
+        border-color: var(--primary, #ff7a00);
+        box-shadow: 0 0 12px rgba(255, 122, 0, 0.4);
+
+        &::after {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .policy-text {
+        a {
+            color: var(--primary, #ff7a00);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            font-weight: 600;
+            transition: opacity 0.2s;
+
+            &:hover {
+                opacity: 0.8;
+                text-decoration: none;
+            }
+        }
+    }
+}
 </style>

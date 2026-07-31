@@ -38,6 +38,9 @@
             <main class="settings-content">
                 <TabTheme v-if="activeSection === 'theme'" :theme="localConfig.theme"/>
                 <TabHero v-if="activeSection === 'hero'" :hero="localConfig.hero"/>
+                <!-- 🆕 ДОБАВЛЯЕМ СЮДА -->
+                <TabSections v-if="activeSection === 'sections'" :sections="localConfig.sectionsVisibility"/>
+
                 <TabCategories v-if="activeSection === 'categories'" :categories="localConfig.categories"/>
                 <TabProducts
                     v-if="activeSection === 'products'"
@@ -66,10 +69,11 @@ import TabCategories from '@/MobileClient/Components/ShopLanding/Settings/TabCat
 import TabProducts from '@/MobileClient/Components/ShopLanding/Settings/TabProducts.vue';
 import TabReviews from '@/MobileClient/Components/ShopLanding/Settings/TabReviews.vue';
 import TabMisc from '@/MobileClient/Components/ShopLanding/Settings/TabMisc.vue';
+import TabSections from '@/MobileClient/Components/ShopLanding/Settings/TabSections.vue';
 
 export default {
     name: "ShopLandingSettings",
-    components: {TabTheme, TabHero, TabCategories, TabProducts, TabReviews, TabMisc},
+    components: {TabTheme, TabHero, TabCategories, TabProducts, TabReviews, TabMisc, TabSections},
 
     props: {
         initialConfig: {type: Object, default: () => ({})}
@@ -84,6 +88,7 @@ export default {
             sections: [
                 {id: 'theme', label: 'Цвета', icon: 'fa-solid fa-palette'},
                 {id: 'hero', label: 'Hero секция', icon: 'fa-solid fa-image'},
+                { id: 'sections', label: 'Видимость блоков', icon: 'fa-solid fa-eye' },
                 {id: 'categories', label: 'Категории', icon: 'fa-solid fa-layer-group'},
                 {id: 'products', label: 'Товары', icon: 'fa-solid fa-box'},
                 {id: 'reviews', label: 'Отзывы', icon: 'fa-solid fa-star'},
@@ -93,6 +98,8 @@ export default {
                 {id: 'feedback', label: 'Обратная связь', icon: 'fa-solid fa-envelope'},
                 {id: 'privacy', label: 'Конфиденциальность', icon: 'fa-solid fa-shield-halved'},
             ]
+
+
         };
     },
 
@@ -121,6 +128,20 @@ export default {
                     light: '#f9fafb'
                 },
                 hero: {badge: '', title: '', subtitle: '', buttonText: '', backgroundImage: ''},
+                sectionsVisibility: {
+                    hero: true,
+                    partners: true,
+                    promotions: true,
+                    delivery: true,
+                    pwaBanner: true,
+                    loyalty: true,
+                    wheel: true,
+                    reviews: true,
+                    faq: true,
+                    reservation: true,
+                    cta: true,
+                    footer: true
+                },
                 categories: [], items: [], reviews: [],
                 reviewsSection: {title: '', subtitle: ''},
                 cta: {title: '', text: '', buttonText: ''},
