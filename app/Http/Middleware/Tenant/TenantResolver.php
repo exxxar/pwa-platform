@@ -24,6 +24,10 @@ class TenantResolver
             abort(404, 'Tenant not found');
         }
 
+        if ($request->route()) {
+            $request->route()->setParameter('tenant', $tenant);
+        }
+
         // Сохраняем tenant в контейнер
         app()->instance('tenant', $tenant);
 
