@@ -1,5 +1,6 @@
 <template>
-    <section class="shop-products" id="shop-products-section" v-if="hasCategories">
+    <!-- Убрали v-if="hasCategories", чтобы секция всегда рендерилась и показывала красивый empty-state -->
+    <section class="shop-products" id="shop-products-section">
         <div class="container">
 
             <!-- СОСТОЯНИЕ ЗАГРУЗКИ -->
@@ -7,118 +8,146 @@
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Загрузка...</span>
                 </div>
-                <p class="mt-3 text-muted">Загружаем меню...</p>
+                <p class="mt-3 text-muted">Шеф-повар готовит меню...</p>
             </div>
 
             <!-- ОСНОВНОЙ КОНТЕНТ -->
             <template v-else>
-                <!-- ПОИСК -->
-                <div class="search-bar">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <input
-                        type="text"
-                        v-model="searchQueryLocal"
-                        placeholder="Поиск блюд, напитков..."
-                        @input="onSearchInput"
-                    >
+
+                <!-- 🆕 ПОЗИТИВНОЕ ПУСТОЕ СОСТОЯНИЕ: Нет категорий/товаров вообще -->
+                <div v-if="!hasCategories" class="empty-state-positive">
+                    <div class="empty-illustration">
+                        <i class="fa-solid fa-hat-chef"></i>
+                        <div class="floating-steam steam-1"></div>
+                        <div class="floating-steam steam-2"></div>
+                        <div class="floating-steam steam-3"></div>
+                    </div>
+                    <h3>Шеф-повар уже готовит новое меню! 👨‍🍳</h3>
+                    <p>Мы обновляем наши блюда, чтобы порадовать вас чем-то особенным. <br>Загляните к нам чуть позже
+                        или выберите другое заведение.</p>
+                    <button class="btn-positive-action" @click="$emit('go-to-partners')">
+                        <i class="fa-solid fa-store"></i> Посмотреть другие заведения
+                    </button>
                 </div>
 
-                <!-- ГРУППИРОВКА ПО КАТЕГОРИЯМ -->
-                <template v-for="cat in visibleCategories" :key="cat.id">
-                    <div :id="`category-block-${cat.id}`" class="category-section">
-                        <h2 class="category-title">
-                            <i :class="cat.icon || 'fa-solid fa-utensils'"></i>
-                            {{ cat.name }}
-                        </h2>
+                <!-- 🆕 ПОЗИТИВНОЕ ПУСТОЕ СОСТОЯНИЕ: Ничего не найдено по поиску -->
+                <div v-else-if="visibleCategories.length === 0 && searchQueryLocal" class="empty-state-positive">
+                    <div class="empty-illustration">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </div>
+                    <h3>По вашему запросу ничего не найдено 🔍</h3>
+                    <p>Возможно, опечатка? Попробуйте изменить запрос или посмотрите наше полное меню.</p>
+                    <button class="btn-positive-action" @click="searchQueryLocal = ''">
+                        <i class="fa-solid fa-rotate-left"></i> Сбросить поиск
+                    </button>
+                </div>
 
-                        <div class="products-grid">
-                            <div
-                                v-for="product in getFilteredProducts(cat)"
-                                :key="product.id"
-                                class="product-card"
-                            >
-                                <div class="product-image" @click="openModal(product)">
-                                    <img v-lazy="product.images[0]" :alt="product.name" loading="lazy" @error="handleImageError">
-                                    <div v-if="product.badge" class="product-badge">{{ product.badge }}</div>
-                                </div>
+                <!-- ОБЫЧНЫЙ КОНТЕНТ (есть категории и товары) -->
+                <template v-else>
+                    <!-- ПОИСК -->
+                    <div class="search-bar">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input
+                            type="text"
+                            v-model="searchQueryLocal"
+                            placeholder="Поиск блюд, напитков..."
+                            @input="onSearchInput"
+                        >
+                    </div>
 
-                                <div class="product-info">
-                                    <h3 class="product-name" @click="openModal(product)">{{ product.name }}</h3>
+                    <!-- ГРУППИРОВКА ПО КАТЕГОРИЯМ -->
+                    <template v-for="cat in visibleCategories" :key="cat.id">
+                        <div :id="`category-block-${cat.id}`" class="category-section">
+                            <h2 class="category-title">
+                                <i :class="cat.icon || 'fa-solid fa-utensils'"></i>
+                                {{ cat.name }}
+                            </h2>
 
-                                    <div class="product-price">
-                                        <span class="current-price">{{ formatPrice(product.price) }} ₽</span>
-                                        <span v-if="product.oldPrice" class="old-price">{{ formatPrice(product.oldPrice) }} ₽</span>
+                            <div class="products-grid">
+                                <div
+                                    v-for="product in getFilteredProducts(cat)"
+                                    :key="product.id"
+                                    class="product-card"
+                                >
+                                    <div class="product-image" @click="openModal(product)">
+                                        <img v-lazy="product.images[0]" :alt="product.name" loading="lazy"
+                                             @error="handleImageError">
+                                        <div v-if="product.badge" class="product-badge">{{ product.badge }}</div>
                                     </div>
 
-                                    <!-- УПРАВЛЕНИЕ КОРЗИНОЙ -->
-                                    <div class="cart-controls">
-                                        <template v-if="getProductQuantity(product.id) > 0">
-                                            <div class="qty-selector-inline">
-                                                <button
-                                                    class="qty-btn"
-                                                    :disabled="basket.isProductLoading(product.id)"
-                                                    @click.stop="handleDecrement(product.id)"
-                                                >
-                                                    <span v-if="basket.isProductLoading(product.id)" class="spinner-border spinner-border-sm"></span>
-                                                    <span v-else>−</span>
-                                                </button>
+                                    <div class="product-info">
+                                        <h3 class="product-name" @click="openModal(product)">{{ product.name }}</h3>
 
-                                                <span class="qty-value">{{ getProductQuantity(product.id) }}</span>
+                                        <div class="product-price">
+                                            <span class="current-price">{{ formatPrice(product.price) }} ₽</span>
+                                            <span v-if="product.oldPrice"
+                                                  class="old-price">{{ formatPrice(product.oldPrice) }} ₽</span>
+                                        </div>
 
-                                                <button
-                                                    class="qty-btn"
-                                                    :disabled="basket.isProductLoading(product.id)"
-                                                    @click.stop="handleIncrement(product.id)"
-                                                >
-                                                    <span v-if="basket.isProductLoading(product.id)" class="spinner-border spinner-border-sm"></span>
-                                                    <span v-else>+</span>
-                                                </button>
-                                            </div>
-                                        </template>
+                                        <!-- УПРАВЛЕНИЕ КОРЗИНОЙ -->
+                                        <div class="cart-controls">
+                                            <template v-if="getProductQuantity(product.id) > 0">
+                                                <div class="qty-selector-inline">
+                                                    <button
+                                                        class="qty-btn"
+                                                        :disabled="basket.isProductLoading(product.id)"
+                                                        @click.stop="handleDecrement(product.id)"
+                                                    >
+                                                        <span v-if="basket.isProductLoading(product.id)"
+                                                              class="spinner-border spinner-border-sm"></span>
+                                                        <span v-else>−</span>
+                                                    </button>
 
-                                        <button
-                                            v-else
-                                            class="add-btn-card"
-                                            :disabled="basket.isProductLoading(product.id)"
-                                            @click.stop="handleAdd(product.id)"
-                                        >
-                                            <span v-if="basket.isProductLoading(product.id)" class="spinner-border spinner-border-sm me-2"></span>
-                                            <i v-else class="fa-solid fa-cart-plus"></i>
-                                            {{ basket.isProductLoading(product.id) ? 'Добавляем...' : 'В корзину' }}
-                                        </button>
+                                                    <span class="qty-value">{{ getProductQuantity(product.id) }}</span>
+
+                                                    <button
+                                                        class="qty-btn"
+                                                        :disabled="basket.isProductLoading(product.id)"
+                                                        @click.stop="handleIncrement(product.id)"
+                                                    >
+                                                        <span v-if="basket.isProductLoading(product.id)"
+                                                              class="spinner-border spinner-border-sm"></span>
+                                                        <span v-else>+</span>
+                                                    </button>
+                                                </div>
+                                            </template>
+
+                                            <button
+                                                v-else
+                                                class="add-btn-card"
+                                                :disabled="basket.isProductLoading(product.id)"
+                                                @click.stop="handleAdd(product.id)"
+                                            >
+                                                <span v-if="basket.isProductLoading(product.id)"
+                                                      class="spinner-border spinner-border-sm me-2"></span>
+                                                <i v-else class="fa-solid fa-cart-plus"></i>
+                                                {{ basket.isProductLoading(product.id) ? 'Добавляем...' : 'В корзину' }}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </template>
                 </template>
-
-                <!-- ПУСТОЕ СОСТОЯНИЕ -->
-                <div v-if="visibleCategories.length === 0 && searchQueryLocal" class="empty-products">
-                    <i class="fa-solid fa-basket-shopping"></i>
-                    <p>Ничего не найдено по запросу "{{ searchQueryLocal }}"</p>
-                </div>
             </template>
         </div>
     </section>
 </template>
-
 <script>
-import { useShopLandingStore } from '@/MobileClient/stores/ShopLanding/shop';
-import { useBasket } from '@/MobileClient/composables/useBasket';
+import {useShopLandingStore} from '@/MobileClient/stores/ShopLanding/shop';
+import {useBasket} from '@/MobileClient/composables/useBasket';
 
 export default {
     name: "ShopProducts",
-    emits: ['open-modal'],
+    // 🆕 Добавляем событие для возврата к списку партнеров
+    emits: ['open-modal', 'go-to-partners'],
 
     setup() {
         const basket = useBasket();
-
         return {
             shopStore: useShopLandingStore(),
             basket,
-            // 🆕 КРИТИЧЕСКИ ВАЖНО: возвращаем сами Ref-объекты,
-            // чтобы в методах мы могли обратиться к .value и создать реактивную зависимость
             basketItemsRef: basket.basket_items,
             productActionsRef: basket.productActions
         };
@@ -140,31 +169,22 @@ export default {
     },
 
     methods: {
-        // Внутри methods компонента ShopProducts.vue
-
         getProductQuantity(productId) {
-            // Безопасно получаем массив (работает и с Ref, и с обычным массивом)
             const items = Array.isArray(this.basketItemsRef)
                 ? this.basketItemsRef
                 : (this.basketItemsRef?.value || []);
-
-            // Ищем товар по product_id или по вложенному product.id
             const found = items.find(i =>
                 i.product_id === productId ||
                 (i.product && i.product.id === productId) ||
                 i.id === productId
             );
-
-            // 🆕 ВАЖНО: Бэкенд возвращает количество в поле "count", а не "quantity"
             return found ? (found.count || found.quantity || 0) : 0;
         },
 
-        // 🆕 ИСПРАВЛЕННЫЙ МЕТОД: также читаем .value для реактивности состояния загрузки
         isProductLoading(productId) {
             const actions = Array.isArray(this.productActionsRef)
                 ? this.productActionsRef
                 : (this.productActionsRef?.value || {});
-
             return !!actions[productId];
         },
 
@@ -193,9 +213,7 @@ export default {
         },
 
         getFilteredProducts(category) {
-            if (!this.searchQueryLocal.trim()) {
-                return category.products || [];
-            }
+            if (!this.searchQueryLocal.trim()) return category.products || [];
             const q = this.searchQueryLocal.toLowerCase().trim();
             return (category.products || []).filter(p =>
                 p.name.toLowerCase().includes(q) ||
@@ -248,7 +266,7 @@ export default {
     input {
         width: 100%;
         padding: 14px 16px 14px 44px;
-        border: 1px solid rgba(0,0,0,0.08);
+        border: 1px solid rgba(0, 0, 0, 0.08);
         border-radius: 14px;
         font-size: 1rem;
         background: white;
@@ -257,7 +275,7 @@ export default {
         &:focus {
             outline: none;
             border-color: var(--primary, #ff7a00);
-            box-shadow: 0 0 0 3px rgba(255,122,0,0.15);
+            box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.15);
         }
     }
 }
@@ -319,10 +337,18 @@ export default {
     gap: 1.5rem;
     grid-template-columns: repeat(4, 1fr);
 
-    @media (max-width: 1400px) { grid-template-columns: repeat(4, 1fr); }
-    @media (max-width: 1024px) { grid-template-columns: repeat(3, 1fr); }
-    @media (max-width: 768px) { grid-template-columns: repeat(2, 1fr); }
-    @media (max-width: 480px) { grid-template-columns: 1fr; }
+    @media (max-width: 1400px) {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    @media (max-width: 1024px) {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    @media (max-width: 768px) {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    @media (max-width: 480px) {
+        grid-template-columns: 1fr;
+    }
 }
 
 .product-card {
@@ -471,55 +497,393 @@ export default {
     color: var(--dark, #222);
 }
 
-.empty-products {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--gray, #888);
 
-    i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        opacity: 0.3;
-        display: block;
+
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 0;
+}
+
+.search-bar {
+    position: relative;
+    max-width: 600px;
+    margin: 0 auto 40px;
+}
+
+.search-bar i {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray, #999);
+}
+
+.search-bar input {
+    width: 100%;
+    padding: 14px 16px 14px 44px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 14px;
+    font-size: 1rem;
+    background: white;
+}
+
+.shop-products {
+    padding: 40px 0 80px;
+    background: var(--light, #f8f9fa);
+}
+
+.category-section {
+    margin-bottom: 60px;
+    scroll-margin-top: 130px;
+}
+
+.category-title {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--dark, #222);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.category-title i {
+    color: var(--primary, #ff7a00);
+    font-size: 1.5rem;
+}
+
+.products-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1400px) {
+    .products-grid {
+        grid-template-columns: repeat(4, 1fr);
     }
 }
 
-.loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 0; }
-.search-bar { position: relative; max-width: 600px; margin: 0 auto 40px; }
-.search-bar i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--gray, #999); }
-.search-bar input { width: 100%; padding: 14px 16px 14px 44px; border: 1px solid rgba(0,0,0,0.08); border-radius: 14px; font-size: 1rem; background: white; }
-.shop-products { padding: 40px 0 80px; background: var(--light, #f8f9fa); }
-.category-section { margin-bottom: 60px; scroll-margin-top: 130px; }
-.category-title { font-size: 1.8rem; font-weight: 800; color: var(--dark, #222); margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
-.category-title i { color: var(--primary, #ff7a00); font-size: 1.5rem; }
-.products-grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 1400px) { .products-grid { grid-template-columns: repeat(4, 1fr); } }
-@media (max-width: 1024px) { .products-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 768px) { .products-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 480px) { .products-grid { grid-template-columns: 1fr; } }
-.product-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.06); transition: all 0.4s ease; display: flex; flex-direction: column; }
-.product-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12); }
-.product-image { position: relative; aspect-ratio: 1; overflow: hidden; cursor: pointer; }
-.product-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
-.product-image:hover img { transform: scale(1.1); }
-.product-badge { position: absolute; top: 12px; right: 12px; background: linear-gradient(135deg, var(--primary, #ff7a00) 0%, var(--primary-light, #ff9e42) 100%); color: white; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; z-index: 2; }
-.product-info { padding: 1.5rem; display: flex; flex-direction: column; flex-grow: 1; }
-.product-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.8rem; color: var(--dark, #222); cursor: pointer; line-height: 1.3; }
-.product-name:hover { color: var(--primary, #ff7a00); }
-.product-price { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1.2rem; margin-top: auto; }
-.current-price { font-size: 1.5rem; font-weight: 900; color: var(--primary, #ff7a00); }
-.old-price { font-size: 1rem; color: var(--gray, #999); text-decoration: line-through; }
-.add-btn-card { width: 100%; padding: 12px; background: var(--primary, #ff7a00); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease; }
-.add-btn-card:hover:not(:disabled) { background: var(--primary-dark, #e66e00); transform: translateY(-2px); }
-.add-btn-card:disabled { opacity: 0.7; cursor: not-allowed; }
-.qty-selector-inline { display: flex; align-items: center; justify-content: space-between; background: var(--light, #f0f2f5); border-radius: 12px; padding: 4px; width: 100%; }
-.qty-btn { flex: 1; height: 38px; border: none; background: transparent; font-size: 1.2rem; font-weight: 700; cursor: pointer; border-radius: 8px; color: var(--dark, #222); transition: background 0.2s; display: flex; align-items: center; justify-content: center; }
-.qty-btn:hover:not(:disabled) { background: white; }
-.qty-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.qty-value { font-weight: 800; font-size: 1rem; min-width: 30px; text-align: center; color: var(--dark, #222); }
-.empty-products { text-align: center; padding: 60px 20px; color: var(--gray, #888); }
-.empty-products i { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; display: block; }
+@media (max-width: 1024px) {
+    .products-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
 
-.qty-btn { width: 28px; height: 28px; border: none; background: transparent; font-weight: 700; cursor: pointer; border-radius: 6px; }
-.qty-btn:hover { background: white; }
+@media (max-width: 768px) {
+    .products-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .products-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.product-card {
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.06);
+    transition: all 0.4s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.product-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
+.product-image {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+}
+
+.product-image:hover img {
+    transform: scale(1.1);
+}
+
+.product-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: linear-gradient(135deg, var(--primary, #ff7a00) 0%, var(--primary-light, #ff9e42) 100%);
+    color: white;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    z-index: 2;
+}
+
+.product-info {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.product-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.8rem;
+    color: var(--dark, #222);
+    cursor: pointer;
+    line-height: 1.3;
+}
+
+.product-name:hover {
+    color: var(--primary, #ff7a00);
+}
+
+.product-price {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.2rem;
+    margin-top: auto;
+}
+
+.current-price {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--primary, #ff7a00);
+}
+
+.old-price {
+    font-size: 1rem;
+    color: var(--gray, #999);
+    text-decoration: line-through;
+}
+
+.add-btn-card {
+    width: 100%;
+    padding: 12px;
+    background: var(--primary, #ff7a00);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.add-btn-card:hover:not(:disabled) {
+    background: var(--primary-dark, #e66e00);
+    transform: translateY(-2px);
+}
+
+.add-btn-card:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.qty-selector-inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--light, #f0f2f5);
+    border-radius: 12px;
+    padding: 4px;
+    width: 100%;
+}
+
+.qty-btn {
+    flex: 1;
+    height: 38px;
+    border: none;
+    background: transparent;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 8px;
+    color: var(--dark, #222);
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.qty-btn:hover:not(:disabled) {
+    background: white;
+}
+
+.qty-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.qty-value {
+    font-weight: 800;
+    font-size: 1rem;
+    min-width: 30px;
+    text-align: center;
+    color: var(--dark, #222);
+}
+
+
+
+.qty-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.qty-btn:hover {
+    background: white;
+}
+
+/* ... ваши существующие стили ... */
+
+/* 🆕 ПОЗИТИВНОЕ ПУСТОЕ СОСТОЯНИЕ */
+.empty-state-positive {
+    text-align: center;
+    padding: 80px 20px;
+    max-width: 500px;
+    margin: 0 auto;
+    animation: fadeInUp 0.6s ease-out;
+
+    .empty-illustration {
+        position: relative;
+        width: 120px;
+        height: 120px;
+        margin: 0 auto 24px;
+        background: rgba(var(--primary-rgb, 255, 122, 0), 0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        i {
+            font-size: 3.5rem;
+            color: var(--primary, #ff7a00);
+            animation: bounce 2s infinite ease-in-out;
+        }
+
+        /* Анимация пара для иконки шеф-повара */
+        .floating-steam {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: var(--primary, #ff7a00);
+            border-radius: 50%;
+            opacity: 0;
+        }
+
+        .steam-1 {
+            top: 20%;
+            left: 40%;
+            animation: steam 2s infinite 0.2s;
+        }
+
+        .steam-2 {
+            top: 15%;
+            left: 50%;
+            animation: steam 2s infinite 0.6s;
+        }
+
+        .steam-3 {
+            top: 20%;
+            left: 60%;
+            animation: steam 2s infinite 1.0s;
+        }
+    }
+
+    h3 {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--dark, #222);
+        margin-bottom: 12px;
+    }
+
+    p {
+        font-size: 1rem;
+        color: var(--gray, #666);
+        line-height: 1.6;
+        margin-bottom: 32px;
+    }
+
+    .btn-positive-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 28px;
+        background: var(--primary, #ff7a00);
+        color: white;
+        border: none;
+        border-radius: 50px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(255, 122, 0, 0.3);
+
+        &:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 122, 0, 0.4);
+            background: var(--primary-dark, #e66e00);
+        }
+
+        &:active {
+            transform: translateY(-1px);
+        }
+    }
+}
+
+/* Анимации для пустого состояния */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes steam {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 0.6;
+    }
+    100% {
+        transform: translateY(-20px) scale(1.5);
+        opacity: 0;
+    }
+}
+
+
 </style>

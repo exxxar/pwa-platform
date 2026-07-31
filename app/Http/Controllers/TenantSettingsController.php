@@ -206,6 +206,19 @@ class TenantSettingsController extends Controller
         return response()->json(['success' => true, 'message' => 'Главное меню обновлено']);
     }
 
+    public function updateLanding(Request $request)
+    {
+        $tenant = $this->getTenant();
+
+        $data = $request->all();
+
+        $this->mergeIntoMeta($tenant, ['landing' => $data['landing']]);
+
+        return response()->json(['success' => true, 'message' => 'Главное меню обновлено']);
+    }
+
+
+
     public function updateGuests(Request $request)
     {
         $tenant = $this->getTenant();

@@ -22,7 +22,10 @@
             <ShopProductsSkeleton v-if="shopStore.isLoading"/>
             <template v-else>
                 <ShopCategories/>
-                <ShopProducts @open-modal="openProductModal"/>
+                <ShopProducts
+                    @open-modal="openProductModal"
+                    @go-to-partners="scrollToPartners"
+                />
             </template>
         </div>
 
@@ -131,13 +134,13 @@ import ShopLoyalty from '@/MobileClient/Components/ShopLanding/ShopLoyalty.vue';
 import ShopFaq from '@/MobileClient/Components/ShopLanding/ShopFaq.vue';
 import ShopWheel from '@/MobileClient/Components/ShopLanding/ShopWheel.vue';
 import ShopPartners from '@/MobileClient/Components/ShopLanding/ShopPartners.vue';
-import ShopProductsSkeleton from '@/MobileClient/Components/ShopLanding/ShopProductsSkeleton.vue'; // 🆕 Добавлено
-import ShopCheckoutForm from '@/MobileClient/Components/ShopLanding/ShopCheckoutForm.vue'; // 🆕 Добавлено
-import ShopSelectedPartnerBanner from '@/MobileClient/Components/ShopLanding/ShopSelectedPartnerBanner.vue'; // 🆕 Добавлено
+import ShopProductsSkeleton from '@/MobileClient/Components/ShopLanding/ShopProductsSkeleton.vue';
+import ShopCheckoutForm from '@/MobileClient/Components/ShopLanding/ShopCheckoutForm.vue';
+import ShopSelectedPartnerBanner from '@/MobileClient/Components/ShopLanding/ShopSelectedPartnerBanner.vue';
 import StoryListLanding from '@/MobileClient/Components/ShopLanding/StoryListLanding.vue';
 
-import {useShopLandingStore} from "@/MobileClient/stores/ShopLanding/shop";
-import {useBasket} from '@/MobileClient/composables/useBasket';
+import { useShopLandingStore } from "@/MobileClient/stores/ShopLanding/shop";
+import { useBasket } from '@/MobileClient/composables/useBasket';
 
 export default {
     name: "ShopLanding",
@@ -181,6 +184,7 @@ export default {
             default: () => ({}),
         },
     },
+
     setup() {
         return {
             basket: useBasket(),
@@ -195,12 +199,58 @@ export default {
             showProductModal: false,
             showFeedbackModal: false,
             showPrivacyModal: false,
-
             showCheckoutForm: false,
-
             selectedPartner: null,
-            // Конфигурация магазина (тексты, цвета)
-            config: {
+
+            // Инициализируем пустым, заполним в created() после слияния
+            config: {}
+        };
+    },
+
+    created() {
+        // 1. Устанавливаем глобальные переменные
+        window.Tenant = this.tenant;
+        window.TenantUser = this.tenant_user;
+
+        // 2. Получаем настройки лендинга из бэкенда (или пустой объект, если их нет)
+        const backendLandingConfig = this.tenant?.settings?.landing || {};
+
+        // 3. Безопасно сливаем дефолтные настройки с настройками из бэкенда
+        this.config = this.deepMerge(this.getDefaultConfig(), backendLandingConfig);
+    },
+
+    async mounted() {
+        // 1. Загружаем данные магазина
+        const initialPartnerId = typeof window !== 'undefined' ? window.Tenant?.id : null;
+        await this.shopStore.fetchShopData(initialPartnerId);
+
+        // 2. Загружаем корзину с бэкенда
+        await this.basket.loadProductsInBasket();
+    },
+
+    computed: {
+        isAdmin() {
+            const user = window.TenantUser;
+            return user?.is_admin === true || user?.role === 'admin';
+        },
+        themeStyles() {
+            const t = this.config.theme || {};
+            return {
+                '--primary': t.primary || '#ff7a00',
+                '--primary-dark': t.primaryDark || '#e56f00',
+                '--primary-light': t.primaryLight || '#ffb300',
+                '--accent': t.accent || '#f4c542',
+                '--dark': t.dark || '#0f0f14',
+                '--light': t.light || '#fffdf8',
+                '--gray': t.gray || '#6c757d',
+            };
+        }
+    },
+
+    methods: {
+        // 🆕 Метод для получения дефолтных настроек (фоллбэк)
+        getDefaultConfig() {
+            return {
                 theme: {
                     primary: '#ff7a00',
                     primaryDark: '#e56f00',
@@ -217,25 +267,18 @@ export default {
                     backgroundImage: '/images/hero-bg.jpg',
                     buttonText: 'Выбрать заведение',
                 },
+                sectionsVisibility: {
+                    hero: true, partners: true, promotions: true, delivery: true,
+                    pwaBanner: true, loyalty: true, wheel: true, reviews: true,
+                    faq: true, reservation: true, cta: true, footer: true
+                },
                 reviewsSection: {
                     title: 'Что говорят клиенты',
                     subtitle: 'Реальные отзывы наших покупателей',
                 },
                 reviews: [
-                    {
-                        id: 1,
-                        name: 'Анна К.',
-                        text: 'Отличный сервис! Заказываю каждую неделю.',
-                        rating: 5,
-                        avatar: '/images/avatar1.jpg'
-                    },
-                    {
-                        id: 2,
-                        name: 'Дмитрий П.',
-                        text: 'Удобно заказывать через телефон.',
-                        rating: 5,
-                        avatar: '/images/avatar2.jpg'
-                    },
+                    { id: 1, name: 'Анна К.', text: 'Отличный сервис! Заказываю каждую неделю.', rating: 5, avatar: '/images/avatar1.jpg' },
+                    { id: 2, name: 'Дмитрий П.', text: 'Удобно заказывать через телефон.', rating: 5, avatar: '/images/avatar2.jpg' },
                 ],
                 cta: {
                     title: 'Остались вопросы?',
@@ -249,8 +292,8 @@ export default {
                     email: 'info@example.com',
                     address: 'г. Москва, ул. Примерная, 1',
                     socialLinks: [
-                        {icon: 'fa-brands fa-telegram', url: '#'},
-                        {icon: 'fa-brands fa-vk', url: '#'},
+                        { icon: 'fa-brands fa-telegram', url: '#' },
+                        { icon: 'fa-brands fa-vk', url: '#' },
                     ],
                 },
                 cart: {
@@ -271,49 +314,35 @@ export default {
                     title: 'Политика конфиденциальности',
                     content: 'Здесь будет текст политики конфиденциальности...',
                 },
-            },
-        };
-    },
-
-    created() {
-      window.Tenant = this.tenant
-      window.TenantUser = this.tenant_user
-    },
-    async mounted() {
-
-
-        // 1. Загружаем данные магазина
-        const initialPartnerId = typeof window !== 'undefined' ? window.Tenant?.id : null;
-        await this.shopStore.fetchShopData(initialPartnerId);
-
-        // 2. Загружаем корзину с бэкенда
-        await this.basket.loadProductsInBasket();
-    },
-
-    computed: {
-        isAdmin() {
-            const user = window.TenantUser;
-            return user?.is_admin === true || user?.role === 'admin';
-        },
-        themeStyles() {
-            const t = this.config.theme;
-            return {
-                '--primary': t.primary,
-                '--primary-dark': t.primaryDark,
-                '--primary-light': t.primaryLight,
-                '--accent': t.accent,
-                '--dark': t.dark,
-                '--light': t.light,
-                '--gray': t.gray,
             };
-        }
-    },
+        },
 
-    methods: {
+        // 🆕 Функция глубокого слияния объектов
+        // Она гарантирует, что если бэкенд вернет только { theme: { primary: '#000' } },
+        // остальные цвета из дефолтов не потеряются.
+        deepMerge(target, source) {
+            const output = Object.assign({}, target);
+            if (this.isObject(target) && this.isObject(source)) {
+                Object.keys(source).forEach(key => {
+                    if (this.isObject(source[key])) {
+                        if (!(key in target)) {
+                            Object.assign(output, { [key]: source[key] });
+                        } else {
+                            output[key] = this.deepMerge(target[key], source[key]);
+                        }
+                    } else {
+                        Object.assign(output, { [key]: source[key] });
+                    }
+                });
+            }
+            return output;
+        },
+
+        isObject(item) {
+            return (item && typeof item === 'object' && !Array.isArray(item));
+        },
 
         openStoryCreator() {
-            // Здесь можно открыть вашу модалку создания истории
-            // Например: this.showCreateStoryModal = true;
             this.$notify?.({
                 title: 'Создание истории',
                 text: 'Здесь откроется форма добавления новой истории',
@@ -321,58 +350,46 @@ export default {
             });
         },
 
-        // 🆕 Метод для сброса выбора партнера
         resetPartnerSelection() {
             this.selectedPartner = null;
             this.shopStore.partnerId = null;
-
-            // Опционально: можно сбросить товары или загрузить общие
-            // this.shopStore.fetchShopData(null);
-
             this.$notify?.({
                 title: 'Выбор сброшен',
                 text: 'Показаны все доступные заведения',
                 type: 'info',
             });
-
-            // Прокрутка обратно к списку партнеров
             this.scrollToPartners();
         },
-
 
         openCheckoutForm() {
             this.showCart = false;
             this.showCheckoutForm = true;
         },
+
         async handleCheckout(orderData) {
             try {
                 await this.basket.startCheckout(orderData);
-
                 this.$notify?.({
                     title: 'Заказ успешно оформлен!',
                     text: `Сумма: ${orderData.total} ₽. Мы свяжемся с вами.`,
                     type: 'success',
                 });
-
                 this.showCart = false;
             } catch (error) {
                 console.error('Ошибка при оформлении:', error);
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось оформить заказ', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось оформить заказ', type: 'error' });
             }
         },
 
         handlePartnerSelect(partner) {
-            this.selectedPartner = partner; // Сохраняем партнера для отображения плашки
+            this.selectedPartner = partner;
             this.shopStore.partnerId = partner.id;
-
-            // Загружаем данные для этого партнера
             this.shopStore.fetchShopData(partner.id);
 
             this.$nextTick(() => {
                 const productsSection = document.getElementById('shop-products-section');
                 if (productsSection) {
-                    // Плавная прокрутка к товарам (плашка окажется сверху)
-                    productsSection.scrollIntoView({behavior: 'smooth', block: 'start'});
+                    productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             });
 
@@ -386,7 +403,7 @@ export default {
         scrollToPartners() {
             const partnersSection = document.getElementById('partners-section');
             if (partnersSection) {
-                partnersSection.scrollIntoView({behavior: 'smooth'});
+                partnersSection.scrollIntoView({ behavior: 'smooth' });
             }
         },
 
@@ -397,7 +414,7 @@ export default {
 
         submitFeedback(data) {
             console.log('Feedback:', data);
-            this.$notify?.({title: 'Отправлено', text: 'Мы свяжемся с вами в ближайшее время', type: 'success'});
+            this.$notify?.({ title: 'Отправлено', text: 'Мы свяжемся с вами в ближайшее время', type: 'success' });
             this.showFeedbackModal = false;
         }
     }

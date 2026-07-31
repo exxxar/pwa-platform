@@ -61,6 +61,7 @@ export function useBasket() {
 
     // Подборки (коллекции)
     const addCollection = (collection) => store.addCollectionToCart(collection);
+    const requestDeliveryPriceNew = (payload) => store.requestDeliveryPriceNew(payload);
 
     const incrementCollection = (payload) => store.incCollectionQuantity(payload);
     const decrementCollection = (payload) => store.decCollectionQuantity(payload);
@@ -111,6 +112,7 @@ export function useBasket() {
         incrementCollection,
         decrementCollection,
         removeCollection,
+        requestDeliveryPriceNew,
 
         // Методы: Общие
         addComment,

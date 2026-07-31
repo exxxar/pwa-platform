@@ -22,7 +22,7 @@
 
                 <!-- ОБЫЧНЫЙ РЕЖИМ -->
                 <template v-else>
-                    <!-- 1. ШАПКА (не скроллится, фиксирована) -->
+                    <!-- 1. ШАПКА (фиксирована) -->
                     <div class="checkout-modal-header">
                         <div class="header-left">
                             <button v-if="currentStep > 0" class="back-step-btn" @click="currentStep--">
@@ -59,21 +59,86 @@
                                     </div>
                                     <DeliveryForm v-model="localDeliveryForm" :mode="0">
                                         <template #loadingDeliveryData>
-                                            <div v-if="!loadingDelivery" class="delivery-info-card" @click="getDeliveryDetails">
-                                                <div class="delivery-info-row">
-                                                    <div class="info-label"><i class="fa-solid fa-route"></i><span>Расстояние</span></div>
-                                                    <div class="info-value">{{ localDeliveryForm.distance?.toFixed(2) || 0 }} км</div>
+                                            <!-- 🟢 СОСТОЯНИЕ 1: Расчет успешен, показываем карточку и скрытый блок деталей -->
+                                            <template v-if="!loadingDelivery && localDeliveryForm.distance > 0">
+                                                <div class="delivery-info-card" @click="toggleDeliveryDetails">
+                                                    <div class="delivery-info-row">
+                                                        <div class="info-label"><i class="fa-solid fa-route"></i><span>Расстояние</span></div>
+                                                        <div class="info-value">{{ localDeliveryForm.distance.toFixed(2) }} км</div>
+                                                    </div>
+                                                    <div class="delivery-info-divider"></div>
+                                                    <div class="delivery-info-row">
+                                                        <div class="info-label"><i class="fa-solid fa-ruble-sign"></i><span>Стоимость доставки</span></div>
+                                                        <div class="info-value price-value">{{ formatPrice(localDeliveryForm.delivery_price) }}</div>
+                                                    </div>
+                                                    <div class="delivery-info-hint">
+                                                        <div class="hint-text">
+                                                            <i class="fa-solid fa-circle-info"></i>
+                                                            <span>Нажмите для подробностей</span>
+                                                        </div>
+                                                        <i class="fa-solid fa-chevron-down chevron-icon" :class="{ 'rotated': showDeliveryDetailsExpanded }"></i>
+                                                    </div>
                                                 </div>
-                                                <div class="delivery-info-divider"></div>
-                                                <div class="delivery-info-row">
-                                                    <div class="info-label"><i class="fa-solid fa-ruble-sign"></i><span>Стоимость доставки</span></div>
-                                                    <div class="info-value price-value">{{ formatPrice(localDeliveryForm.delivery_price) }}</div>
+
+                                                <!-- Блок деталей (управляется через CSS класс is-expanded) -->
+                                                <div class="delivery-details-expanded" :class="{ 'is-expanded': showDeliveryDetailsExpanded }">
+                                                    <div class="delivery-details-list">
+                                                        <div
+                                                            v-for="(detail, uuid) in localDeliveryForm.delivery_details"
+                                                            :key="uuid"
+                                                            class="detail-item-card"
+                                                        >
+                                                            <div class="detail-header">
+                                                                <div class="detail-icon">
+                                                                    <i class="fa-solid fa-store"></i>
+                                                                </div>
+                                                                <div class="detail-title">{{ detail.title || 'Магазин' }}</div>
+                                                            </div>
+
+                                                            <div class="detail-body">
+                                                                <div class="detail-row">
+                            <span class="detail-label">
+                                <i class="fa-solid fa-route text-muted me-1"></i>
+                                Расстояние
+                            </span>
+                                                                    <span class="detail-value">{{ Number(detail.distance).toFixed(2) }} км</span>
+                                                                </div>
+                                                                <div class="detail-row">
+                            <span class="detail-label">
+                                <i class="fa-solid fa-ruble-sign text-muted me-1"></i>
+                                Стоимость доставки
+                            </span>
+                                                                    <span class="detail-value price-highlight">{{ formatPrice(detail.price) }}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="detail-total-card">
+                                                            <div class="total-row">
+                                                                <span class="total-label">Общее расстояние</span>
+                                                                <span class="total-value">{{ Number(localDeliveryForm.distance).toFixed(2) }} км</span>
+                                                            </div>
+                                                            <div class="total-divider"></div>
+                                                            <div class="total-row main-total">
+                                                                <span class="total-label">Итого к оплате за доставку</span>
+                                                                <span class="total-value text-primary">{{ formatPrice(localDeliveryForm.delivery_price) }}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div class="delivery-info-hint"><i class="fa-solid fa-circle-info"></i><span>Нажмите для подробностей</span></div>
-                                            </div>
-                                            <div v-else class="delivery-loading-card">
+                                            </template>
+
+                                            <!-- 🟡 СОСТОЯНИЕ 2: Идет загрузка -->
+                                            <div v-else-if="loadingDelivery" class="delivery-loading-card">
                                                 <div class="loading-spinner"></div>
-                                                <p class="loading-text">Ищем ваш адрес...</p>
+                                                <p class="loading-text">Рассчитываем стоимость...</p>
+                                            </div>
+
+                                            <!-- 🔴 СОСТОЯНИЕ 3: Пустое (адрес не введен или самовывоз) -->
+                                            <div v-else class="delivery-loading-card" style="padding: 16px;">
+                                                <p class="loading-text" style="font-size: 0.85rem;">
+                                                    {{ localDeliveryForm.need_pickup ? 'При самовывозе доставка бесплатна' : 'Введите адрес для расчета стоимости' }}
+                                                </p>
                                             </div>
                                         </template>
                                     </DeliveryForm>
@@ -134,7 +199,7 @@
                         </form>
                     </div>
 
-                    <!-- 3. ФУТЕР С КНОПКАМИ (не скроллится, фиксирован) -->
+                    <!-- 3. ФУТЕР С КНОПКАМИ (фиксирован) -->
                     <div v-if="offerAgreement" class="checkout-modal-footer">
                         <button v-if="spentTime <= 0" type="submit" form="checkout-form" class="next-btn" @click="handleAction" :disabled="!isActionEnabled || isSubmitting">
                             <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
@@ -192,7 +257,6 @@ export default {
         const basket = useBasket();
         return {
             basket,
-            // 🆕 Деструктурируем методы из composable для работы с оплатой
             startCheckoutAction: basket.startCheckout,
             createCheckoutLink: basket.createCheckoutLink,
             cartTotalPrice: basket.cartTotalPrice,
@@ -202,7 +266,7 @@ export default {
 
     data() {
         return {
-            currentStep: 0, // 0: Данные, 1: Оплата
+            currentStep: 0,
             isSubmitting: false,
             orderSuccess: false,
             openedPaymentTab: false,
@@ -212,14 +276,19 @@ export default {
                 delivery_price: 0,
                 distance: 0,
                 need_pickup: false,
-                payment_type: 2, // По умолчанию: Наличные/Перевод
+                payment_type: 2,
                 persons: 1,
-                when_ready: true
+                when_ready: true,
+                delivery_details: {}
             },
             offerAgreement: true,
             spentTime: 0,
             loadingDelivery: false,
             errorDeliveryPriceMessage: null,
+            lastRequestedCoords: '',
+
+            // 🆕 Состояние для раскрытия деталей
+            showDeliveryDetailsExpanded: false,
         };
     },
 
@@ -238,14 +307,12 @@ export default {
         },
 
         hasSbpEnabled() {
-            // Проверяем, включен ли хоть один банк СБП в настройках
             const sbp = this.settings.shop?.sbp_banks || this.settings.sbp_banks;
             if (!sbp) return false;
             return Object.values(sbp).some(bank => bank.enabled);
         },
 
         isStep1Valid() {
-            // Базовая валидация: имя и телефон обязательны
             return this.localDeliveryForm.name && this.localDeliveryForm.phone;
         },
 
@@ -261,18 +328,31 @@ export default {
         isOpen(newVal) {
             document.body.style.overflow = newVal ? 'hidden' : '';
             if (!newVal) {
-                // Сброс при закрытии
                 this.currentStep = 0;
                 this.orderSuccess = false;
                 this.openedPaymentTab = false;
+                this.lastRequestedCoords = '';
+                this.showDeliveryDetailsExpanded = false; // Сброс при закрытии
             }
         },
         'localDeliveryForm.need_pickup'(newValue) {
             if (newValue) {
                 this.localDeliveryForm.delivery_price = 0;
                 this.localDeliveryForm.distance = 0;
+                this.localDeliveryForm.delivery_details = {};
+                this.lastRequestedCoords = '';
+                this.showDeliveryDetailsExpanded = false;
             }
         }
+    },
+
+    mounted() {
+        window.addEventListener('change-delivery-address', this.handleAddressChange);
+    },
+
+    beforeUnmount() {
+        window.removeEventListener('change-delivery-address', this.handleAddressChange);
+        document.body.style.overflow = '';
     },
 
     methods: {
@@ -284,15 +364,72 @@ export default {
             this.$emit('close');
         },
 
-        getDeliveryDetails() {
-            this.$notify?.({ title: 'Инфо', text: 'Детали доставки', type: 'info' });
+        // 🆕 Метод переключения видимости
+        toggleDeliveryDetails() {
+            this.showDeliveryDetailsExpanded = !this.showDeliveryDetailsExpanded;
+        },
+
+        handleAddressChange(event) {
+            if (this.localDeliveryForm.need_pickup) return;
+
+            const { address, lng, lat, location_id } = event.detail;
+            const currentCoords = `${location_id}`;
+
+            if (this.lastRequestedCoords === currentCoords) {
+                return;
+            }
+
+            this.lastRequestedCoords = currentCoords;
+            this.getDeliveryPriceDataNew(address, lat, lng);
+        },
+
+        async getDeliveryPriceDataNew(address, lat, lng) {
+            this.errorDeliveryPriceMessage = null;
+            this.localDeliveryForm.delivery_price = 0;
+            this.localDeliveryForm.distance = 0;
+            this.loadingDelivery = true;
+
+            try {
+                const resp = await this.basket.requestDeliveryPriceNew({
+                    address,
+                    lat,
+                    lng,
+                });
+
+                this.localDeliveryForm.address = resp.address || address;
+                this.localDeliveryForm.delivery_price = resp.price || 0;
+                this.localDeliveryForm.distance = resp.distance || 0;
+                this.localDeliveryForm.delivery_details = resp.config || {};
+
+                // 🆕 Автоматически раскрываем детали при успешном расчете
+                this.showDeliveryDetailsExpanded = true;
+
+                this.$notify?.({
+                    title: 'Доставка',
+                    text: 'Стоимость доставки успешно рассчитана',
+                    type: 'success',
+                });
+            } catch (error) {
+                console.error('Ошибка расчёта доставки:', error);
+                this.localDeliveryForm.delivery_price = 0;
+                this.localDeliveryForm.distance = 0;
+                this.localDeliveryForm.delivery_details = {};
+                this.errorDeliveryPriceMessage = 'Не удалось рассчитать стоимость. Курьер уточнит цену при доставке.';
+
+                this.$notify?.({
+                    title: 'Внимание',
+                    text: 'Не удалось автоматически рассчитать доставку',
+                    type: 'warning',
+                });
+            } finally {
+                this.loadingDelivery = false;
+            }
         },
 
         async handleAction() {
             if (this.spentTime > 0 || this.isSubmitting) return;
 
             if (this.currentStep === 0) {
-                // Переход к шагу оплаты
                 if (this.isStep1Valid && this.sumIsValid) {
                     this.currentStep = 1;
                 } else if (!this.isStep1Valid) {
@@ -310,7 +447,6 @@ export default {
             this.isSubmitting = true;
 
             try {
-                // 🆕 Формируем FormData, как в PWA-примере, чтобы бэкенд корректно всё принял
                 const data = new FormData();
                 data.append("display_type", this.settings.shop_display_type || 0);
 
@@ -331,34 +467,27 @@ export default {
 
                 const paymentType = this.localDeliveryForm.payment_type;
 
-                // 🆕 ЛОГИКА ОТКРЫТИЯ ОПЛАТЫ В НОВОЙ ВКЛАДКЕ
                 if ((paymentType === 0 || paymentType === 4) && this.settings.can_use_card) {
-                    // Пытаемся использовать createCheckoutLink (как в PWA)
                     const response = await this.createCheckoutLink({ deliveryForm: data });
 
                     if (response?.url) {
-                        // 🎯 ОТКРЫВАЕМ В НОВОЙ ВКЛАДКЕ
                         window.open(response.url, '_blank');
-
                         this.openedPaymentTab = true;
                         this.orderSuccess = true;
                         this.$emit('success');
-                        return; // Завершаем, модалка покажет экран успеха
+                        return;
                     } else {
                         throw new Error('Не получен URL для оплаты от сервера');
                     }
                 }
 
-                // 🆕 ЛОГИКА ДЛЯ НАЛИЧНЫХ / ПОЗВОНКА (обычное создание заказа)
                 const response = await this.startCheckoutAction({ deliveryForm: data });
 
                 if (response?.success || response?.order_id) {
-                    // Если вдруг при наличных тоже вернулась ссылка на оплату (редко, но бывает)
                     if (response.payment_data?.url) {
                         window.open(response.payment_data.url, '_blank');
                         this.openedPaymentTab = true;
                     }
-
                     this.orderSuccess = true;
                     this.$emit('success');
                 } else {
@@ -401,12 +530,12 @@ export default {
     border-radius: 20px;
     width: 100%;
     max-width: 500px;
-    max-height: 90vh; /* Жесткое ограничение высоты */
+    max-height: 90vh;
     display: flex;
-    flex-direction: column; /* Вертикальный стек */
+    flex-direction: column;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     animation: modalSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden; /* Обрезаем всё, что вылезает за скругления */
+    overflow: hidden;
 
     &.is-success {
         max-width: 400px;
@@ -424,7 +553,7 @@ export default {
 // 3. ШАПКА (ФИКСИРОВАННАЯ)
 // ==========================================
 .checkout-modal-header {
-    flex-shrink: 0; /* Запрещаем сжиматься */
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -497,22 +626,21 @@ export default {
 // 4. ТЕЛО МОДАЛКИ (🚀 ЗДЕСЬ ПРОИСХОДИТ СКРОЛЛ)
 // ==========================================
 .checkout-modal-body {
-    flex: 1; /* Занимает всё доступное пространство между шапкой и футером */
-    min-height: 0; /* 🚀 КРИТИЧЕСКИ ВАЖНО: ломает дефолтное поведение flex, разрешая скролл */
-    overflow-y: auto; /* Включаем вертикальный скролл */
-    -webkit-overflow-scrolling: touch; /* Плавный "пружинящий" скролл на iOS */
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .checkout-form-content {
     padding: 20px;
-    /* Убрали overflow отсюда, он теперь на родителе .checkout-modal-body */
 }
 
 // ==========================================
 // 5. ФУТЕР С КНОПКАМИ (ФИКСИРОВАННЫЙ)
 // ==========================================
 .checkout-modal-footer {
-    flex-shrink: 0; /* Запрещаем сжиматься */
+    flex-shrink: 0;
     padding: 20px;
     border-top: 1px solid var(--bs-border-color, #e5e7eb);
     background: var(--bs-body-bg, #ffffff);
@@ -522,7 +650,7 @@ export default {
 }
 
 // ==========================================
-// 6. ВНУТРЕННИЕ ЭЛЕМЕНТЫ (Секции, карточки и т.д.)
+// 6. ВНУТРЕННИЕ ЭЛЕМЕНТЫ
 // ==========================================
 .step-content {
     display: flex;
@@ -578,6 +706,9 @@ export default {
     color: var(--bs-secondary-color, #6b7280);
 }
 
+// ==========================================
+// 🆕 АНИМАЦИЯ И СТИЛИ РАСКРЫВАЮЩЕГОСЯ БЛОКА
+// ==========================================
 .delivery-info-card {
     background: var(--bs-secondary-bg, #f8f9fa);
     border: 1px solid var(--bs-border-color, #e5e7eb);
@@ -623,14 +754,170 @@ export default {
 }
 
 .delivery-info-hint {
-    margin-top: 10px;
-    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--bs-border-color, #e5e7eb);
+    font-size: 0.8rem;
+    color: var(--bs-primary, #3b82f6);
+    font-weight: 600;
+    cursor: pointer;
+
+    .hint-text {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .chevron-icon {
+        transition: transform 0.3s ease;
+        &.rotated {
+            transform: rotate(180deg);
+        }
+    }
+}
+
+.delivery-details-expanded {
+    margin-top: 12px;
+}
+
+.slide-down-enter-active,
+.slide-down-leave-active {
+    transition: all 0.3s ease-out;
+    max-height: 600px;
+    overflow: hidden;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+    transform: translateY(-10px);
+}
+
+.delivery-details-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-item-card {
+    background: var(--bs-body-bg, #ffffff);
+    border: 1px solid var(--bs-border-color, #e5e7eb);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+
+    &:hover {
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--bs-border-color, #e5e7eb);
+}
+
+.detail-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(59, 130, 246, 0.1);
     color: var(--bs-primary, #3b82f6);
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
 }
 
+.detail-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--bs-body-color, #1f2937);
+}
+
+.detail-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.detail-label {
+    color: var(--bs-secondary-color, #6b7280);
+    display: flex;
+    align-items: center;
+    i { font-size: 0.8rem; }
+}
+
+.detail-value {
+    font-weight: 600;
+    color: var(--bs-body-color, #1f2937);
+    &.price-highlight {
+        color: var(--bs-primary, #3b82f6);
+        font-size: 1rem;
+    }
+}
+
+.detail-total-card {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(59, 130, 246, 0.02) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.total-label {
+    color: var(--bs-secondary-color, #6b7280);
+}
+
+.total-value {
+    font-weight: 700;
+    color: var(--bs-body-color, #1f2937);
+}
+
+.total-divider {
+    height: 1px;
+    background: rgba(59, 130, 246, 0.2);
+    margin: 10px 0;
+}
+
+.main-total {
+    .total-label {
+        font-weight: 600;
+        color: var(--bs-body-color, #1f2937);
+        font-size: 0.95rem;
+    }
+    .total-value {
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: var(--bs-primary, #3b82f6) !important;
+    }
+}
+
+// ==========================================
+// ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ
+// ==========================================
 .delivery-loading-card {
     text-align: center;
     padding: 20px;
@@ -866,7 +1153,7 @@ export default {
 @media (max-width: 576px) {
     .checkout-overlay {
         padding: 0;
-        align-items: flex-end; /* Прижимаем к низу на мобильных */
+        align-items: flex-end;
     }
 
     .checkout-modal {
@@ -882,6 +1169,55 @@ export default {
 
     .payment-card-content small {
         display: none;
+    }
+}
+
+// ==========================================
+// 🆕 АНИМАЦИЯ РАСКРЫТИЯ ЧЕРЕЗ CSS
+// ==========================================
+.delivery-details-expanded {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease,
+    margin-top 0.3s ease,
+    transform 0.3s ease;
+    margin-top: 0;
+    transform: translateY(-10px);
+
+    // Состояние: РАСКРЫТО
+    &.is-expanded {
+        max-height: 800px; /* Достаточно большое значение, чтобы вместить любой список */
+        opacity: 1;
+        margin-top: 12px;
+        transform: translateY(0);
+    }
+}
+
+.delivery-info-hint {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--bs-border-color, #e5e7eb);
+    font-size: 0.8rem;
+    color: var(--bs-primary, #3b82f6);
+    font-weight: 600;
+    cursor: pointer;
+
+    .hint-text {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .chevron-icon {
+        transition: transform 0.3s ease;
+        &.rotated {
+            transform: rotate(180deg);
+        }
     }
 }
 </style>

@@ -47,7 +47,7 @@
                 <div class="banner-visual">
                     <div class="phone-showcase">
                         <div class="phone-frame">
-                            <div class="phone-notch"></div>
+<!--                            <div class="phone-notch"></div>-->
 
                             <div class="phone-screen-wrapper">
                                 <!-- 🆕 Iframe с вашим PWA -->
@@ -317,7 +317,7 @@ $light: var(--light, #f8fafc);
 .banner-visual {
     display: flex;
     justify-content: center;
-    perspective: 1000px;
+
 }
 
 .phone-showcase {
@@ -332,8 +332,8 @@ $light: var(--light, #f8fafc);
 
 .phone-frame {
     position: relative;
-    width: 300px;
-    height: 600px;
+    width: 375px;
+    height: 667px;
     background: #000;
     border-radius: 45px;
     padding: 12px;

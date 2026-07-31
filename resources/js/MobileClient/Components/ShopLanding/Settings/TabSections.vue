@@ -117,7 +117,7 @@ $card-bg: #ffffff;
 .settings-panel {
     background: $card-bg;
     border-radius: 16px;
-    padding: 28px;
+    padding: 16px;
     border: 1px solid $border;
 }
 

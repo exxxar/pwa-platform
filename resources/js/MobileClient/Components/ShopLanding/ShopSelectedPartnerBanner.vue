@@ -3,7 +3,7 @@
         <div class="partner-banner" v-if="partner">
             <!-- 1. Обложка (Cover) -->
             <div class="banner-cover">
-                <img :src="partner.cover_image || partner.image || '/images/default-cover.jpg'" alt="Cover" class="cover-image">
+                <img v-lazy="partner.cover_image || partner.image || '/images/default-cover.jpg'" alt="Cover" class="cover-image">
                 <div class="cover-overlay"></div>
 
                 <!-- Кнопка сброса выбора -->
@@ -19,7 +19,7 @@
                     <!-- Логотип -->
                     <div class="partner-logo-wrapper">
                         <div class="partner-logo">
-                            <img :src="partner.logo || partner.image || '/images/default-logo.png'" alt="Logo">
+                            <img v-lazy="partner.logo || partner.image || '/images/default-logo.png'" alt="Logo">
                         </div>
                     </div>
 

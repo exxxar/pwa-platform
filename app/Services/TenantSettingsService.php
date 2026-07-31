@@ -24,6 +24,7 @@ class TenantSettingsService
 
             // PWA
             'pwa' => config('tenant.pwa', []),
+            'landing' => config('tenant.landing', []),
 
             // Пункты меню
             'menu_items' => config('tenant.menu', []),
@@ -56,6 +57,8 @@ class TenantSettingsService
         ];
     }
 
+
+
     /**
      * Получить конкретную секцию настроек
      */
@@ -75,6 +78,7 @@ class TenantSettingsService
             'coffee' => config('tenant.coffee', []),
             'cashback' => config('tenant.cashback', []),
             'misc' => config('tenant.misc', []),
+            'landing' => config('tenant.landing', []),
             default => [],
         };
     }

@@ -87,7 +87,7 @@ export default {
 
 <style lang="scss" scoped>
 $primary: #3b82f6; $danger: #ef4444; $text: #1f2937; $text-muted: #6b7280; $border: #e5e7eb; $bg: #f9fafb; $card-bg: #ffffff;
-.settings-panel { background: $card-bg; border-radius: 16px; padding: 28px; border: 1px solid $border; }
+.settings-panel { background: $card-bg; border-radius: 16px; padding: 16px; border: 1px solid $border; }
 .fade-in { animation: fadeIn 0.3s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .panel-header { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid $border; h3 { font-size: 1.2rem; font-weight: 700; margin: 0 0 6px 0; color: $text; } p { font-size: 0.9rem; color: $text-muted; margin: 0; } }

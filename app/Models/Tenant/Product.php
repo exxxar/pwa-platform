@@ -43,9 +43,9 @@ class Product extends Model
         'is_weight_product' => 'boolean',
     ];
 
-    protected $with = ["categories", "tenant"];
+    protected $with = ["categories", "tenant", "reviews"];
 
-    protected $appends = ["rating","tenant_name"];
+    protected $appends = ["rating","tenant_name" ];
 
     public function tenant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {

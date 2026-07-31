@@ -26,6 +26,7 @@ return [
         'kanban',
         'coffee',
         'cashback',
+        'landing',
         'misc',
         'main_menu'
     ],
