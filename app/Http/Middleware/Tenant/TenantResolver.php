@@ -4,6 +4,7 @@ namespace App\Http\Middleware\Tenant;
 
 use App\Models\Tenant\Tenant;
 use Closure;
+use Illuminate\Support\Facades\Log;
 
 class TenantResolver
 {
@@ -21,6 +22,7 @@ class TenantResolver
         }
 
         if (!$tenant) {
+            Log::info("step 1".print_r($tenant, true));
             abort(404, 'Tenant not found');
         }
 
@@ -41,6 +43,8 @@ class TenantResolver
     {
         $host = $request->getHost();
 
+        Log::info("step 2".$host);
+
         // ---------------------------------------------------------
         // 1. ПРОВЕРКА КАСТОМНЫХ ДОМЕНОВ ИЗ КОНФИГА (Новая логика)
         // ---------------------------------------------------------
@@ -48,6 +52,7 @@ class TenantResolver
 
         if (array_key_exists($host, $customDomains)) {
             $slug = $customDomains[$host];
+            Log::info("step 3".$slug);
             $tenant = Tenant::where('slug', $slug)->first();
 
             if ($tenant) {
