@@ -265,6 +265,7 @@ $routes = function () {
             // 🆕 PWA
             Route::get('/pwa', [TenantPwaController::class, 'getPwaSettings']);
             Route::post('/pwa', [TenantPwaController::class, 'savePwaSettings']);
+            Route::put('/pwa', [TenantPwaController::class, 'savePwaSettings']);
             Route::post('/pwa/upload-icon', [TenantPwaController::class, 'uploadIcon']);
             Route::post('/pwa/upload-screenshot', [TenantPwaController::class, 'uploadScreenshot']);
             Route::delete('/pwa/icon', [TenantPwaController::class, 'deleteIcon']);

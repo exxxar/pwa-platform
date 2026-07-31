@@ -374,7 +374,88 @@ export default {
         };
     },
 
+    computed: {
+        tenant() {
+            return window.Tenant || null;
+        },
+    },
+
+    mounted() {
+        this.initFormFromTenant();
+    },
+
     methods: {
+        /**
+         * Инициализируем форму напрямую из window.Tenant.settings.pwa
+         * Бэкенд уже отдает полностью сформированный объект со всеми дефолтами из конфига
+         */
+        initFormFromTenant() {
+            const pwaSettings = this.tenant?.settings?.pwa;
+            if (!pwaSettings) return;
+
+            // Просто копируем все ключи из settings.pwa в form
+            // В Vue 3 реактивность работает автоматически через Proxy
+            Object.keys(pwaSettings).forEach(key => {
+                const value = pwaSettings[key];
+
+                if (value && typeof value === 'object' && !Array.isArray(value)) {
+                    // Для вложенных объектов делаем глубокое копирование,
+                    // чтобы мутации в form не влияли на исходный tenant
+                    this.form[key] = JSON.parse(JSON.stringify(value));
+                } else {
+                    this.form[key] = value;
+                }
+            });
+
+            // Формируем URL превью для уже загруженных иконок/скриншотов
+            this.initIconPreviews();
+        },
+
+        /**
+         * Формируем URL превью для уже загруженных иконок/скриншотов
+         */
+        initIconPreviews() {
+            if (!this.tenant) return;
+
+            const tenantId = this.tenant.id;
+            const baseUrl = window.location.origin;
+
+            // Инициализируем объекты превью, если их нет
+            if (!this.extraProps.iconPreviews) this.extraProps.iconPreviews = {};
+            if (!this.extraProps.screenshotPreviews) this.extraProps.screenshotPreviews = {};
+            if (!this.extraProps.shortcutIconPreviews) this.extraProps.shortcutIconPreviews = {};
+
+            // Иконки
+            if (this.form.icons) {
+                Object.keys(this.form.icons).forEach(key => {
+                    if (this.form.icons[key]) {
+                        this.extraProps.iconPreviews[key] =
+                            `${baseUrl}/storage/tenants/${tenantId}/icons/${this.form.icons[key]}`;
+                    }
+                });
+            }
+
+            // Скриншоты
+            if (this.form.screenshots) {
+                Object.keys(this.form.screenshots).forEach(key => {
+                    if (this.form.screenshots[key]) {
+                        this.extraProps.screenshotPreviews[key] =
+                            `${baseUrl}/storage/tenants/${tenantId}/screenshots/${this.form.screenshots[key]}`;
+                    }
+                });
+            }
+
+            // Иконки шорткатов
+            if (this.form.shortcuts) {
+                Object.keys(this.form.shortcuts).forEach(key => {
+                    if (this.form.shortcuts[key]?.icon) {
+                        this.extraProps.shortcutIconPreviews[key] =
+                            `${baseUrl}/storage/tenants/${tenantId}/icons/${this.form.shortcuts[key].icon}`;
+                    }
+                });
+            }
+        },
+
         emitDirty() {
             this.$emit('mark-dirty', 'pwa');
         },

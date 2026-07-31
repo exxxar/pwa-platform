@@ -124,60 +124,52 @@ class TenantPwaController extends Controller
             ], 404);
         }
 
-        $updatedSections = [];
-        $allErrors = [];
+        // 1. Получаем данные.
+        // Поддерживаем оба варианта: если фронт шлет { pwa: {...} } или плоский объект {...}
+        $pwaData = $request->input('pwa', $request->all());
 
-        // === 1. ОБРАБОТКА PWA ===
-        if ($request->has('pwa')) {
-            $pwaResult = $this->savePwaSection($tenant, $request->input('pwa', []));
+        // 2. Валидация данных (защищает БД от поломки манифеста)
+        // Мы явно разрешаем все поля, включая *_urls, так как они используются в manifest()
+        $validated = $request->validate([
+            'pwa.name' => 'nullable|string|max:255',
+            'pwa.short_name' => 'nullable|string|max:255',
+            'pwa.description' => 'nullable|string',
+            'pwa.theme_color' => 'nullable|regex:/^#[0-9A-Fa-f]{6}$/',
+            'pwa.background_color' => 'nullable|regex:/^#[0-9A-Fa-f]{6}$/',
+            'pwa.display' => 'nullable|in:fullscreen,standalone,minimal-ui,browser',
+            'pwa.orientation' => 'nullable|in:any,natural,landscape,portrait',
+            'pwa.lang' => 'nullable|string|max:10',
+            'pwa.categories' => 'nullable|array',
 
-            if ($pwaResult['success']) {
-                $updatedSections[] = 'pwa';
-            } else {
-                $allErrors['pwa'] = $pwaResult['errors'];
-            }
-        }
+            // Разрешаем массивы настроек и их URL-представления
+            'pwa.icons' => 'nullable|array',
+            'pwa.screenshots' => 'nullable|array',
+            'pwa.shortcuts' => 'nullable|array',
+            'pwa.icons_urls' => 'nullable|array',
+            'pwa.screenshots_urls' => 'nullable|array',
+            'pwa.shortcuts_icons_urls' => 'nullable|array',
+        ]);
 
-        // === 2. ОБРАБОТКА KANBAN ===
-        if ($request->has('kanban')) {
-            $kanbanResult = $this->saveKanbanSection($tenant, $request->input('kanban', []));
+        // Извлекаем проверенные данные (они будут в ключе 'pwa' из-за правил валидации)
+        $cleanPwaData = $validated['pwa'] ?? $pwaData;
 
-            if ($kanbanResult['success']) {
-                $updatedSections[] = 'kanban';
-            } else {
-                $allErrors['kanban'] = $kanbanResult['errors'];
-            }
-        }
-
-        // === 3. ПРОВЕРКА ОШИБОК ===
-        if (!empty($allErrors)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Ошибки валидации',
-                'errors' => $allErrors,
-                'updated_sections' => $updatedSections,
-            ], 422);
-        }
-
-        if (empty($updatedSections)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Нет данных для сохранения',
-            ], 400);
-        }
-
-        // === 4. СОХРАНЕНИЕ ===
-        $tenant->save();
-
-        // Возвращаем актуальные настройки из meta
+        // 3. Сохранение в meta (или settings, в зависимости от вашей модели)
         $meta = $tenant->meta ?? [];
 
+        // Поскольку фронтенд присылает полное состояние формы PWA,
+        // мы можем безопасно перезаписать секцию 'pwa' целиком.
+        // Это гарантирует, что удаленные на фронте элементы (например, отключенный шорткат)
+        // также удалятся из базы, а не будут висеть мертвым грузом.
+        $meta['pwa'] = $cleanPwaData;
+
+        $tenant->meta = $meta;
+        $tenant->save();
+
+        // 4. Формируем ответ
         return response()->json([
             'success' => true,
-            'message' => 'Настройки сохранены: ' . implode(', ', $updatedSections),
-            'updated_sections' => $updatedSections,
-            'pwa' => $meta['pwa'] ?? null,
-            'kanban' => $meta['kanban'] ?? null,
+            'message' => 'Настройки PWA успешно сохранены',
+            'pwa' => $tenant->meta['pwa'],
         ]);
     }
 

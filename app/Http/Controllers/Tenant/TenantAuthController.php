@@ -326,7 +326,7 @@ class TenantAuthController extends Controller
     public function manifest($tenantSlug)
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
-        $baseUrl = url('/');
+        $baseUrl = request()->getSchemeAndHttpHost();
 
         $tenantIconBase = "{$baseUrl}/storage/tenants/{$tenant->id}/icons";
         $tenantScreenshotBase = "{$baseUrl}/storage/tenants/{$tenant->id}/screenshots";
