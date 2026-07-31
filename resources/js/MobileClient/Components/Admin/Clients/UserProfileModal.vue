@@ -463,6 +463,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
 $primary: #667eea;
 $primary-dark: #5a67d8;
 $success: #10b981;
@@ -788,7 +789,7 @@ $border: #e5e7eb;
 
     &.is-vip {
         background: rgba($warning, 0.1);
-        color: darken($warning, 15%);
+        color: color.adjust($warning, $lightness: -15%);
     }
 
     &.is-blocked {

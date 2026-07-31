@@ -371,6 +371,11 @@ export default {
     color: var(--dark, #0f0f14);
     margin: 0 0 12px 0;
     line-height: 1.2;
+
+    background: #ffffff;
+    border-radius: 10px 10px 0px 0px;
+    padding: 10px 20px;
+    display: inline-block;
 }
 
 .partner-badges {

@@ -202,6 +202,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 $admin-bg: #f8f9fa;
 $admin-card-bg: #ffffff;
 $admin-text: #2c3e50;
@@ -229,7 +231,7 @@ $admin-info: #0ea5e9;
 
     &:hover {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        border-color: darken($admin-border, 8%);
+        border-color: color.adjust($admin-border, $lightness: -8%);
     }
 }
 

@@ -844,6 +844,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
 // ==========================================
 // ПЕРЕМЕННЫЕ
 // ==========================================
@@ -1559,7 +1560,7 @@ $card-bg: #ffffff;
         background: rgba($warning, 0.1);
 
         span, strong {
-            color: darken($warning, 15%);
+            color: color.adjust($warning, $lightness: -15%);
         }
     }
 }

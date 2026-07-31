@@ -144,6 +144,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 $primary: #667eea;
 $bg: var(--bs-body-bg, #ffffff);
 $bg-secondary: var(--bs-secondary-bg, #f8f9fa);
@@ -309,14 +311,14 @@ $warning: #f59e0b;
     background: rgba($warning, 0.08);
     border-radius: 10px;
     font-size: 0.85rem;
-    color: darken($warning, 20%);
+    color: color.adjust($warning, $lightness: -20%);
 
     i:first-child {
         color: $warning;
     }
 
     strong {
-        color: darken($warning, 30%);
+        color: color.adjust($warning, $lightness: -30%) ;
     }
 }
 
@@ -333,7 +335,7 @@ $warning: #f59e0b;
     transition: all 0.2s;
 
     &:hover:not(:disabled) {
-        background: darken($warning, 10%);
+        background:  color.adjust($warning, $lightness: -10%);
         transform: translateY(-1px);
     }
 

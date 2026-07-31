@@ -6,21 +6,16 @@ import { useTenantSettingsStore } from '@/MobileClient/stores/tenantSettings.js'
 export function useTenantSettings() {
     const store = useTenantSettingsStore();
 
-    // ✅ ИСПРАВЛЕНИЕ 1: Извлекаем ВСЁ (состояние и геттеры) через storeToRefs.
-    // Импорт 'ref' для savingSections больше не нужен, используем состояние стора.
     const {
-        // --- Состояние (State) ---
         settings,
         company,
         isLoading,
         isHydrated,
-        isSaving,       // Используем флаг стора вместо локального ref
-        savingSection,  // Используем флаг стора вместо локального ref
+        isSaving,
+        savingSection,  // <-- Это строка (имя секции) или null
         lastError,
         errors,
         dirtySections,
-
-        // --- Геттеры (Getters) ---
         menuItems,
         foodCalculators,
         bonusGames,
@@ -34,9 +29,8 @@ export function useTenantSettings() {
     } = storeToRefs(store);
 
     // ==========================================
-    // ВЫЧИСЛЯЕМЫЕ СВОЙСТВА (CUSTOM GETTERS)
+    // ВЫЧИСЛЯЕМЫЕ СВОЙСТВА
     // ==========================================
-
     const hasUnsavedChanges = computed(() => {
         if (dirtySections.value instanceof Set) {
             return dirtySections.value.size > 0;
@@ -45,9 +39,8 @@ export function useTenantSettings() {
     });
 
     // ==========================================
-    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (Helpers)
+    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
     // ==========================================
-
     const calculatorsByCategory = (category) => {
         return store.calculatorsByCategory ? store.calculatorsByCategory(category) : [];
     };
@@ -63,11 +56,15 @@ export function useTenantSettings() {
         return !!dirtySections.value?.[section];
     };
 
+    // ✅ ИСПРАВЛЕНО: Проверяем, совпадает ли текущая сохраняемая секция с запрошенной
+    const isSectionSaving = (sectionKey) => {
+        return savingSection.value === sectionKey;
+    };
+
     const markDirty = (section) => {
         if (dirtySections.value instanceof Set) {
             dirtySections.value.add(section);
         } else {
-            // ✅ Безопасная мутация реактивного объекта
             dirtySections.value = { ...dirtySections.value, [section]: true };
         }
     };
@@ -76,18 +73,15 @@ export function useTenantSettings() {
         if (dirtySections.value instanceof Set) {
             dirtySections.value.delete(section);
         } else if (dirtySections.value) {
-            // ✅ Безопасная мутация реактивного объекта
             dirtySections.value = { ...dirtySections.value, [section]: false };
         }
     };
 
     // ==========================================
-    // ЯДРО СОХРАНЕНИЯ (DRY Principle)
+    // ЯДРО СОХРАНЕНИЯ
     // ==========================================
-
     const executeSave = async (section, url, payload, method = 'put') => {
-        // ✅ Используем реактивные свойства стора вместо локальных переменных
-        store.savingSection = section;
+        store.savingSection = section; // Устанавливаем имя секции
         store.lastError = null;
 
         try {
@@ -105,42 +99,40 @@ export function useTenantSettings() {
             store.lastError = error.response?.data?.message || 'Не удалось сохранить данные';
             throw error;
         } finally {
-            store.savingSection = null;
+            store.savingSection = null; // Сбрасываем после завершения
         }
     };
 
     // ==========================================
     // МЕТОДЫ СОХРАНЕНИЯ (API Wrappers)
     // ==========================================
-    // Примечание: В идеале эти запросы должны быть внутри actions самого Pinia store.
-    // Но если архитектура требует их здесь, этот подход максимально чистый.
-
     const saveBasicInfo = (data) => executeSave('basic', '/admin/tenant-settings/basic', data);
-    const saveCompanyInfo = (data) => saveBasicInfo(data); // Алиас
+    const saveCompanyInfo = (data) => saveBasicInfo(data);
 
     const saveShopSettings = (data) => executeSave('shop', '/admin/tenant-settings/shop', data);
     const saveCashbackSettings = (data) => executeSave('cashback', '/admin/tenant-settings/cashback', data);
     const saveInteractiveSettings = (data) => executeSave('interactive', '/admin/tenant-settings/interactive', data);
     const saveTablesSettings = (data) => executeSave('tables', '/admin/tenant-settings/tables', data);
 
+    // 🆕 Добавляем метод для сохранения FAQ
+    const saveFaqSettings = (data) => executeSave('faq', '/admin/tenant-settings/faq', { faq: data });
+
     const saveMenuSettings = (data) => executeSave('menu', '/admin/tenant-settings/menu', { menu_items: data });
     const saveCalculatorsSettings = (data) => executeSave('calculators', '/admin/tenant-settings/calculators', { food_calculators: data });
-    const saveFoodCalculatorsSettings = (data) => saveCalculatorsSettings(data); // Алиас
+    const saveFoodCalculatorsSettings = (data) => saveCalculatorsSettings(data);
 
     const saveGamesSettings = (data) => executeSave('games', '/admin/tenant-settings/games', { bonus_games: data });
-    const saveBonusGamesSettings = (data) => saveGamesSettings(data); // Алиас
+    const saveBonusGamesSettings = (data) => saveGamesSettings(data);
 
     const saveCrmSettings = (data) => executeSave('crm', '/admin/tenant-settings/crm', { crm: data });
     const savePwaSettings = (data) => executeSave('pwa', '/admin/tenant-settings/pwa', data);
-
     const saveIconsSettings = (formData) => executeSave('icons', '/admin/tenant-settings/pwa/upload-icon', formData, 'post');
-
     const saveMainMenuSettings = (data) => executeSave('main_menu_items', '/admin/tenant-settings/main-menu', { main_menu_items: data });
+    const saveGuestsSettings = (data) => executeSave('guests', '/admin/tenant-settings/guests', data);
 
     // ==========================================
     // МЕТОДЫ ЗАГРУЗКИ
     // ==========================================
-
     const loadSettings = async () => {
         try {
             return await store.loadSettings();
@@ -154,57 +146,22 @@ export function useTenantSettings() {
     // ВОЗВРАЩАЕМЫЕ ЗНАЧЕНИЯ
     // ==========================================
     return {
-        // Состояние (Refs)
-        settings,
-        company,
-        isLoading,
-        isHydrated,
-        isSaving,
-        savingSection,
-        lastError,
-        errors,
-        dirtySections,
-
-        // Геттеры (Refs)
-        menuItems,
-        foodCalculators,
-        bonusGames,
-        visibleFoodCalculators,
-        visibleBonusGames,
-        coffeeSettings,
-        deliverySettings,
-        cashbackSettings,
-        features,
-        icons,
-        hasUnsavedChanges,
-
+        // Состояние
+        settings, company, isLoading, isHydrated, isSaving, savingSection, lastError, errors, dirtySections,
+        // Геттеры
+        menuItems, foodCalculators, bonusGames, visibleFoodCalculators, visibleBonusGames, coffeeSettings, deliverySettings, cashbackSettings, features, icons, hasUnsavedChanges,
         // Фильтры
-        calculatorsByCategory,
-        gamesByCategory,
-
-        // Управление состоянием "грязных" секций
+        calculatorsByCategory, gamesByCategory,
+        // Управление состоянием
         isSectionDirty,
+        isSectionSaving, // ✅ Теперь корректно экспортируется
         markDirty,
         markClean,
-
         // Методы
         loadSettings,
-        saveBasicInfo,
-        saveCompanyInfo,
-        saveShopSettings,
-        saveCashbackSettings,
-        saveInteractiveSettings,
-        saveTablesSettings,
-        saveMenuSettings,
-        saveCalculatorsSettings,
-        saveFoodCalculatorsSettings,
-        saveGamesSettings,
-        saveBonusGamesSettings,
-        saveCrmSettings,
-        savePwaSettings,
-        saveIconsSettings,
-        saveMainMenuSettings,
-
+        saveBasicInfo, saveCompanyInfo, saveShopSettings, saveCashbackSettings, saveInteractiveSettings, saveTablesSettings,
+        saveFaqSettings, // ✅ Экспортируем новый метод
+        saveMenuSettings, saveCalculatorsSettings, saveFoodCalculatorsSettings, saveGamesSettings, saveBonusGamesSettings, saveCrmSettings, savePwaSettings, saveIconsSettings, saveMainMenuSettings, saveGuestsSettings,
         // Сброс
         $reset: store.$reset,
     };

@@ -303,6 +303,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 $primary: #667eea;
 $bg: var(--bs-body-bg, #ffffff);
 $bg-secondary: var(--bs-secondary-bg, #f8f9fa);
@@ -561,7 +563,7 @@ $warning: #f59e0b;
     white-space: nowrap;
 
     &:hover:not(:disabled) {
-        background: darken($warning, 10%);
+        background: color.adjust($warning, $lightness: -10%);
         transform: translateY(-2px);
     }
 

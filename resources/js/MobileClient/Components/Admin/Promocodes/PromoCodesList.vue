@@ -223,6 +223,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 $primary: #667eea;
 $primary-dark: #5a67d8;
 $success: #10b981;
@@ -286,7 +288,7 @@ $border: var(--bs-border-color, #e5e7eb);
     background: linear-gradient(
             90deg,
             $bg-secondary 0%,
-            darken($bg-secondary, 3%) 50%,
+            color.adjust($bg-secondary, $lightness: -3%) 50%,
             $bg-secondary 100%
     );
     background-size: 200% 100%;
@@ -389,7 +391,7 @@ $border: var(--bs-border-color, #e5e7eb);
 
     &.expired {
         background: rgba($warning, 0.1);
-        color: darken($warning, 15%);
+        color: color.adjust($warning, $lightness: -15%);
         border-color: rgba($warning, 0.2);
     }
 
@@ -583,7 +585,7 @@ $border: var(--bs-border-color, #e5e7eb);
 
         &.expired {
             background: rgba($warning, 0.1);
-            color: darken($warning, 15%);
+            color: color.adjust($warning, $lightness: -15%);
         }
     }
 }

@@ -513,6 +513,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
 // ==========================================
 // SCSS-ПЕРЕМЕННЫЕ (для функций lighten/darken)
 // ==========================================
@@ -618,7 +619,7 @@ $bg-secondary: #f8f9fa;
 // Бейдж скидки
 .discount-badge {
     padding: 4px 10px;
-    background: linear-gradient(135deg, $danger 0%, darken($danger, 10%) 100%);
+    background: linear-gradient(135deg, $danger 0%, color.adjust($danger, $lightness: -10%) 100%);
     color: white;
     border-radius: 8px;
     font-size: 0.75rem;
@@ -803,7 +804,7 @@ $bg-secondary: #f8f9fa;
 .add-btn {
     width: 100%;
     padding: 10px 12px;
-    background: linear-gradient(135deg, $primary 0%, lighten($primary, 10%) 100%);
+    background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
     border: none;
     border-radius: 12px;
     color: white;
@@ -831,7 +832,8 @@ $bg-secondary: #f8f9fa;
     }
 
     &.is-loading {
-        background: linear-gradient(135deg, lighten($primary, 15%) 0%, lighten($primary, 25%) 100%);
+        background: linear-gradient(135deg, color.adjust($primary, $lightness: 15%) 0%,
+            color.adjust($primary, $lightness: 25%) 100%);
     }
 }
 
@@ -901,7 +903,7 @@ $bg-secondary: #f8f9fa;
     transition: all 0.2s ease;
 
     &.is-updating {
-        border-color: lighten($primary, 20%);
+        border-color: color.adjust($primary, $lightness: 20%);
         background: rgba($primary, 0.03);
     }
 }
@@ -982,7 +984,7 @@ $bg-secondary: #f8f9fa;
     }
 
     &.selected {
-        background: linear-gradient(135deg, $primary 0%, lighten($primary, 10%) 100%);
+        background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
         border-color: $primary;
         color: white;
         box-shadow: 0 4px 12px rgba($primary, 0.3);

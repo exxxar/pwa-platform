@@ -41,6 +41,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 $success: #22c55e;
 $warning: #f59e0b;
 
@@ -131,7 +133,7 @@ $warning: #f59e0b;
 .notification-label {
     font-size: 0.75rem;
     font-weight: 600;
-    color: darken($warning, 20%);
+    color: color.adjust($warning, $lightness: -20%);
     margin-bottom: 2px;
 }
 

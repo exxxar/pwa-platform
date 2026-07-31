@@ -103,6 +103,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 $primary: #667eea;
 $primary-dark: #5a67d8;
 $success: #10b981;
@@ -206,7 +208,7 @@ $border: var(--bs-border-color, #e5e7eb);
 
     &.level-1 {
         background: rgba($success, 0.15);
-        color: darken($success, 15%);
+        color: color.adjust($success, $lightness: -15%);
     }
 
     &.level-2 {

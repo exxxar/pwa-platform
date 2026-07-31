@@ -174,6 +174,20 @@ export default {
         ShopWheel,
     },
 
+    props: {
+        tenant: {
+            type: Object,
+            required: true
+        },
+        tenant_user: {
+            type: Object,
+            default: null
+        },
+        initial_data: {
+            type: Object,
+            default: () => ({}),
+        },
+    },
     setup() {
         return {
             basket: useBasket(),
@@ -268,7 +282,13 @@ export default {
         };
     },
 
+    created() {
+      window.Tenant = this.tenant
+      window.TenantUser = this.tenant_user
+    },
     async mounted() {
+
+
         // 1. Загружаем данные магазина
         const initialPartnerId = typeof window !== 'undefined' ? window.Tenant?.id : null;
         await this.shopStore.fetchShopData(initialPartnerId);

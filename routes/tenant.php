@@ -235,6 +235,7 @@ $routes = function () {
             // Основные настройки
             Route::put('/basic', [TenantSettingsController::class, 'updateBasic']);
             Route::put('/shop', [TenantSettingsController::class, 'updateShop']);
+            Route::put('/faq', [TenantSettingsController::class, 'updateFaq']);
 
             Route::put('/wheel', [TenantSettingsController::class, 'updateWheel']);
             Route::put('/guests', [TenantSettingsController::class, 'updateGuests']);

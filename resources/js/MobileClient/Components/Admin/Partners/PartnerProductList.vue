@@ -426,6 +426,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 $admin-bg: #f4f6f9;
 $admin-card-bg: #ffffff;
 $admin-text: #2c3e50;
@@ -633,7 +635,7 @@ $admin-danger: #ef4444;
 }
 
 .shimmer {
-    background: linear-gradient(90deg, $admin-bg 0%, darken($admin-bg, 3%) 50%, $admin-bg 100%);
+    background: linear-gradient(90deg, $admin-bg 0%, color.adjust($admin-bg, $lightness: -3%) 50%, $admin-bg 100%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
 }

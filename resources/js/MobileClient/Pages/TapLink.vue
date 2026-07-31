@@ -295,7 +295,7 @@ $shadow-glow: 0 0 20px rgba(255, 255, 255, 0.15);
 // ==========================================
 .taplink-page {
     min-height: 100vh;
-    min-height: 100 dvh; // Для мобильных браузеров
+    min-height: 100 dvh;
     position: relative;
     overflow-x: hidden;
     display: flex;
@@ -407,7 +407,7 @@ $shadow-glow: 0 0 20px rgba(255, 255, 255, 0.15);
     position: relative;
     z-index: 1;
     width: 100%;
-    max-width: 520px; // Чуть шире для современного вида
+    max-width: 520px;
 }
 
 // ==========================================
@@ -657,7 +657,7 @@ $shadow-glow: 0 0 20px rgba(255, 255, 255, 0.15);
 .social-btn {
     width: 52px;
     height: 52px;
-    border-radius: 16px; // Скругленный квадрат современнее круга
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -745,7 +745,7 @@ $shadow-glow: 0 0 20px rgba(255, 255, 255, 0.15);
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 0; // Для корректной работы text-truncate
+    min-width: 0;
 }
 
 .link-title {

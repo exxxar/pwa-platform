@@ -537,6 +537,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
 $admin-bg: #f4f6f9;
 $admin-card-bg: #ffffff;
 $admin-text: #2c3e50;
@@ -873,7 +874,7 @@ $admin-warning: #f59e0b;
     background: linear-gradient(
             90deg,
             $admin-bg 0%,
-            darken($admin-bg, 3%) 50%,
+            color.adjust($admin-bg, $lightness: -3%) 50%,
             $admin-bg 100%
     );
     background-size: 200% 100%;
@@ -993,7 +994,7 @@ $admin-warning: #f59e0b;
     transition: all 0.2s;
 
     &:hover {
-        background: darken($admin-primary, 10%);
+        background:  color.adjust($admin-primary, $lightness: -10%);
     }
 }
 
@@ -1181,7 +1182,7 @@ $admin-warning: #f59e0b;
     color: white;
 
     &:hover {
-        background: darken($admin-danger, 10%);
+        background: color.adjust($admin-danger, $lightness: -10%);
     }
 }
 

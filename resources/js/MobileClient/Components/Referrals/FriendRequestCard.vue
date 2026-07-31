@@ -129,6 +129,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
 $primary: #667eea;
 $primary-dark: #5a67d8;
 $success: #10b981;
@@ -212,7 +213,7 @@ $border: var(--bs-border-color, #e5e7eb);
     gap: 4px;
     padding: 2px 8px;
     background: rgba($warning, 0.15);
-    color: darken($warning, 15%);
+    color: color.adjust($warning, $lightness: -15%);
     border-radius: 10px;
     font-size: 0.65rem;
     font-weight: 700;

@@ -21,9 +21,9 @@
                         </defs>
                         <rect width="500" height="500" fill="url(#grid)"/>
 
-                        <!-- Зоны доставки -->
+                        <!-- Зоны доставки (используем mappedZones) -->
                         <circle
-                            v-for="zone in zones"
+                            v-for="(zone, index) in mappedZones"
                             :key="zone.id"
                             cx="250" cy="250"
                             :r="zone.radius"
@@ -51,8 +51,8 @@
 
                     <!-- Легенда -->
                     <div class="map-legend">
-                        <div v-for="zone in zones" :key="'legend-' + zone.id" class="legend-item">
-                            <span class="legend-dot" :style="{ background: zone.color }"></span>
+                        <div v-for="zone in mappedZones" :key="'legend-' + zone.id" class="legend-item">
+                            <span class="legend-dot" :style="{ background: zone.borderColor }"></span>
                             <span>{{ zone.name }}</span>
                         </div>
                     </div>
@@ -61,12 +61,12 @@
                 <!-- Информация о зонах -->
                 <div class="delivery-info">
                     <div
-                        v-for="zone in zones"
+                        v-for="zone in mappedZones"
                         :key="'info-' + zone.id"
                         class="zone-card"
                         :class="{ 'active': activeZone === zone.id }"
                     >
-                        <div class="zone-color" :style="{ background: zone.color }"></div>
+                        <div class="zone-color" :style="{ background: zone.borderColor }"></div>
                         <div class="zone-details">
                             <h4>{{ zone.name }}</h4>
                             <div class="zone-meta">
@@ -86,26 +86,17 @@
                         </div>
                     </div>
 
-                    <div class="delivery-features">
-                        <div class="feature">
-                            <i class="fa-solid fa-temperature-low"></i>
+                    <!-- 🆕 Динамические сервисы и преимущества -->
+                    <div class="delivery-features" v-if="mappedServices.length > 0">
+                        <div
+                            v-for="(service, index) in mappedServices"
+                            :key="service.id"
+                            class="feature"
+                        >
+                            <i :class="getServiceIcon(service.title, index)"></i>
                             <div>
-                                <strong>Термосумки</strong>
-                                <span>Сохраняем температуру блюд</span>
-                            </div>
-                        </div>
-                        <div class="feature">
-                            <i class="fa-solid fa-bell-concierge"></i>
-                            <div>
-                                <strong>Бесплатная доставка</strong>
-                                <span>При заказе от 2000 ₽</span>
-                            </div>
-                        </div>
-                        <div class="feature">
-                            <i class="fa-solid fa-location-crosshairs"></i>
-                            <div>
-                                <strong>Отслеживание</strong>
-                                <span>Курьер на карте в реальном времени</span>
+                                <strong>{{ service.title }}</strong>
+                                <span>{{ service.description }}</span>
                             </div>
                         </div>
                     </div>
@@ -118,42 +109,97 @@
 <script>
 export default {
     name: "ShopDelivery",
+
+    // Ожидаем данные от родительского компонента (который получает их из API)
+    props: {
+        zonesData: {
+            type: Array,
+            default: () => []
+        },
+        servicesData: {
+            type: Array,
+            default: () => []
+        }
+    },
+
     data() {
         return {
             activeZone: null,
-            zones: [
-                {
-                    id: 1,
-                    name: 'Центр',
-                    radius: 100,
-                    color: 'rgba(16, 185, 129, 0.2)',
-                    borderColor: '#10b981',
-                    time: '30-40 мин',
-                    price: 'Бесплатно',
-                    minOrder: '1000'
-                },
-                {
-                    id: 2,
-                    name: 'Спальные районы',
-                    radius: 170,
-                    color: 'rgba(59, 130, 246, 0.15)',
-                    borderColor: '#3b82f6',
-                    time: '40-60 мин',
-                    price: '150 ₽',
-                    minOrder: '1500'
-                },
-                {
-                    id: 3,
-                    name: 'Пригород',
-                    radius: 230,
-                    color: 'rgba(245, 158, 11, 0.12)',
-                    borderColor: '#f59e0b',
-                    time: '60-90 мин',
-                    price: '300 ₽',
-                    minOrder: '2000'
-                }
+
+            // 🛡️ Значения по умолчанию (если с бэкенда ничего не пришло)
+            defaultZones: [
+                { id: 1, name: 'Центр', time: '30-40 мин', price: 'Бесплатно', minOrder: 1000 },
+                { id: 2, name: 'Спальные районы', time: '40-60 мин', price: '150 ₽', minOrder: 1500 },
+                { id: 3, name: 'Пригород', time: '60-90 мин', price: '300 ₽', minOrder: 2000 }
+            ],
+            defaultServices: [
+                { id: 1, title: 'Термосумки', description: 'Сохраняем температуру блюд' },
+                { id: 2, title: 'Бесплатная доставка', description: 'При заказе от 2000 ₽' },
+                { id: 3, title: 'Отслеживание', description: 'Курьер на карте в реальном времени' }
+            ],
+
+            // 🎨 Визуальные стили для SVG-карты (администратору не нужно думать о радиусах и HEX-кодах)
+            zoneVisuals: [
+                { radius: 100, color: 'rgba(16, 185, 129, 0.2)', borderColor: '#10b981' }, // Зеленый (Центр)
+                { radius: 170, color: 'rgba(59, 130, 246, 0.15)', borderColor: '#3b82f6' }, // Синий (Спальные)
+                { radius: 230, color: 'rgba(245, 158, 11, 0.12)', borderColor: '#f59e0b' }, // Оранжевый (Пригород)
+                { radius: 280, color: 'rgba(139, 92, 246, 0.12)', borderColor: '#8b5cf6' }, // Фиолетовый (запасной)
+                { radius: 330, color: 'rgba(236, 72, 153, 0.12)', borderColor: '#ec4899' }  // Розовый (запасной)
             ]
         };
+    },
+
+    computed: {
+        // Объединяем данные из пропсов с дефолтными и добавляем визуальные стили для SVG
+        mappedZones() {
+            const source = (this.zonesData && this.zonesData.length > 0)
+                ? this.zonesData
+                : this.defaultZones;
+
+            return source.map((zone, index) => {
+                // Берем визуальный стиль по индексу, или дефолтный, если зон больше 5
+                const visual = this.zoneVisuals[index] || {
+                    radius: 100 + (index * 40),
+                    color: 'rgba(100, 116, 139, 0.1)',
+                    borderColor: '#64748b'
+                };
+
+                return {
+                    ...zone,
+                    radius: visual.radius,
+                    color: visual.color,
+                    borderColor: visual.borderColor
+                };
+            });
+        },
+
+        // Возвращаем сервисы из пропсов или дефолтные
+        mappedServices() {
+            return (this.servicesData && this.servicesData.length > 0)
+                ? this.servicesData
+                : this.defaultServices;
+        }
+    },
+
+    methods: {
+        // Умный подбор иконок: если название совпадает с классикой, берем её, иначе даем красивую запасную
+        getServiceIcon(title, index) {
+            const lowerTitle = title.toLowerCase();
+            if (lowerTitle.includes('термо') || lowerTitle.includes('температур')) return 'fa-solid fa-temperature-low';
+            if (lowerTitle.includes('бесплатн') || lowerTitle.includes('подарок')) return 'fa-solid fa-bell-concierge';
+            if (lowerTitle.includes('отслежив') || lowerTitle.includes('карт')) return 'fa-solid fa-location-crosshairs';
+            if (lowerTitle.includes('упаковк') || lowerTitle.includes('эко')) return 'fa-solid fa-leaf';
+
+            // Запасные иконки, которые будут чередоваться для новых сервисов
+            const fallbackIcons = [
+                'fa-solid fa-circle-check',
+                'fa-solid fa-star',
+                'fa-solid fa-shield-halved',
+                'fa-solid fa-truck-fast',
+                'fa-solid fa-hand-holding-heart'
+            ];
+            return fallbackIcons[index % fallbackIcons.length];
+        }
     }
 };
 </script>

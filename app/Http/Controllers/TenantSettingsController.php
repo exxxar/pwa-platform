@@ -267,6 +267,17 @@ class TenantSettingsController extends Controller
         return response()->json(['success' => true, 'message' => 'Настройки магазина обновлены']);
     }
 
+
+    public function updateFaq(Request $request)
+    {
+        $tenant = $this->getTenant();
+
+        $this->mergeIntoMeta($tenant, ['faq' => $request->input('faq', [])]);
+
+
+        return response()->json(['success' => true, 'message' => 'Настройки магазина обновлены']);
+    }
+
     /**
      * 3. Обновление кэшбэка и сертификатов
      */

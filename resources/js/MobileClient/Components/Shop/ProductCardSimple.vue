@@ -559,6 +559,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
 // ==========================================
 // ПЕРЕМЕННЫЕ
 // ==========================================
@@ -650,7 +651,7 @@ $bg-secondary: #f8f9fa;
 }
 
 .discount-badge {
-    background: linear-gradient(135deg, $danger 0%, darken($danger, 10%) 100%);
+    background: linear-gradient(135deg, $danger 0%, color.adjust($danger, $lightness: -10%)  100%);
     color: white;
 }
 
@@ -818,7 +819,7 @@ $bg-secondary: #f8f9fa;
     justify-content: center;
     gap: 10px;
     padding: 10px 14px;
-    background: linear-gradient(135deg, $primary 0%, lighten($primary, 10%) 100%);
+    background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
     border: none;
     border-radius: 12px;
     color: white;
@@ -847,7 +848,8 @@ $bg-secondary: #f8f9fa;
     }
 
     &.is-loading {
-        background: linear-gradient(135deg, lighten($primary, 15%) 0%, lighten($primary, 25%) 100%);
+        background: linear-gradient(135deg, color.adjust($primary, $lightness: 15%) 0%,
+            color.adjust($primary, $lightness: 25%) 100%);
     }
 }
 
@@ -878,7 +880,7 @@ $bg-secondary: #f8f9fa;
     transition: all 0.2s ease;
 
     &.is-updating {
-        border-color: lighten($primary, 20%);
+        border-color: color.adjust($primary, $lightness: 20%);
         background: rgba($primary, 0.03);
     }
 }
@@ -1147,7 +1149,7 @@ $bg-secondary: #f8f9fa;
     height: 32px;
     border-radius: 8px;
     background: rgba($warning, 0.15);
-    color: darken($warning, 20%);
+    color: color.adjust($warning, $lightness: -20%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1163,7 +1165,7 @@ $bg-secondary: #f8f9fa;
 .notice-title {
     font-size: 0.75rem;
     font-weight: 700;
-    color: darken($warning, 20%);
+    color:  color.adjust($warning, $lightness: -20%);
     margin-bottom: 2px;
     text-transform: uppercase;
     letter-spacing: 0.3px;

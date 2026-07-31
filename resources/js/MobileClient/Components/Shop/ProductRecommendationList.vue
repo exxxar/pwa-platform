@@ -496,7 +496,7 @@ $danger: #ef4444;
     background: linear-gradient(
             90deg,
             $bg-secondary 0%,
-            darken($bg-secondary, 3%) 50%,
+            color.adjust($bg-secondary, $lightness: -3%) 50%,
             $bg-secondary 100%
     );
     background-size: 200% 100%;

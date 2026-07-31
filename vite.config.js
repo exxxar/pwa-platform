@@ -17,6 +17,8 @@ export default defineConfig({
             host: 'pwa-platform.test'
         }
     },*/
+
+
     css: {
         preprocessorOptions: {
 
@@ -52,6 +54,17 @@ export default defineConfig({
         alias: {
             'AdminPanel@':path.resolve(__dirname, './resources/js/AdminPanel'),
             'Mobile@': path.resolve(__dirname, './resources/js/MobileClient'),
+        },
+    },
+    build: {
+        rollupOptions: {
+            onwarn(warning, warn) {
+                // Игнорируем предупреждения об eval из node_modules
+                if (warning.code === 'EVAL' && warning.id?.includes('node_modules')) {
+                    return;
+                }
+                warn(warning);
+            },
         },
     },
 })
