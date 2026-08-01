@@ -6,9 +6,11 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithEvents; // 🔥 1. Добавляем интерфейс событий
+use Maatwebsite\Excel\Events\AfterSheet;   // 🔥 2. Добавляем класс события
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, WithStyles
+class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, WithStyles, WithEvents // 🔥 3. Реализуем WithEvents
 {
     protected $orders;
 
@@ -26,10 +28,11 @@ class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, Wi
     {
         return [
             'ID Заказа',
-            'Заведение',          // 🔥 НОВАЯ КОЛОНКА
+            'Заведение',
             'Дата и время',
             'Клиент',
             'Телефон',
+            'Состав заказа',
             'Сумма (₽)',
             'Статус',
         ];
@@ -37,12 +40,32 @@ class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, Wi
 
     public function map($order): array
     {
+        $productsString = 'Не указано';
+
+        if (!empty($order->product_details)) {
+            $details = is_array($order->product_details)
+                ? ($order->product_details[0] ?? $order->product_details)
+                : $order->product_details;
+
+            if (isset($details['products']) && is_array($details['products'])) {
+                $items = [];
+                foreach ($details['products'] as $product) {
+                    $count = $product['count'] ?? 1;
+                    $name = $product['name'] ?? 'Товар';
+                    $price = $product['price'] ?? 0;
+                    $items[] = "{$count}x {$name} (" . number_format($price, 0, '.', ' ') . " ₽)";
+                }
+                $productsString = implode("; ", $items);
+            }
+        }
+
         return [
             $order->id,
-                $order->tenant->name ?? 'Не указано', // 🔥 Берем название заведения
+                $order->tenant->name ?? 'Не указано',
             $order->created_at ? $order->created_at->format('d.m.Y H:i') : '—',
                 $order->tenantUser->name ?? 'Гость',
                 $order->tenantUser->phone ?? 'Нет телефона',
+            $productsString,
             number_format($order->summary_price, 2, '.', ' '),
             $this->getStatusName($order->status),
         ];
@@ -62,7 +85,39 @@ class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, Wi
     public function styles(Worksheet $sheet)
     {
         return [
-            1 => ['font' => ['bold' => true, 'color' => ['argb' => 'FFFFFF']], 'fill' => ['fillType' => 'solid', 'startColor' => ['argb' => '3B82F6']]],
+            // Стиль шапки
+            1 => [
+                'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFF']],
+                'fill' => ['fillType' => 'solid', 'startColor' => ['argb' => '3B82F6']]
+            ],
+            // Перенос текста для колонки "Состав заказа" (F)
+            'F' => [
+                'alignment' => [
+                    'wrapText' => true,
+                    'vertical' => 'top'
+                ]
+            ]
+        ];
+    }
+
+    // 🔥 4. Добавляем метод настройки ширины колонок после генерации листа
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function(AfterSheet $event) {
+                // Проходим по всем колонкам от A до H (у нас 8 колонок)
+                foreach (range('A', 'H') as $column) {
+                    // Включаем автоподбор ширины под контент
+                    $event->sheet->getColumnDimension($column)->setAutoSize(true);
+                }
+
+                // 🔥 Опционально: задаем минимальную гарантированную ширину для важных колонок,
+                // чтобы авто-размер не сделал их слишком узкими (например, если там только "ID")
+                $event->sheet->getColumnDimension('A')->setWidth(12);  // ID Заказа
+                $event->sheet->getColumnDimension('C')->setWidth(18);  // Дата и время
+                $event->sheet->getColumnDimension('G')->setWidth(15);  // Сумма
+                $event->sheet->getColumnDimension('H')->setWidth(18);  // Статус
+            },
         ];
     }
 }

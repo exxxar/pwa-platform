@@ -70,9 +70,17 @@
                     </td>
 
                     <td class="text-end">
-                        <router-link :to="{ name: 'AdminOrderDetails', params: { id: order.id } }" class="btn-action primary" title="Открыть детали">
-                            <i class="fa-solid fa-eye"></i>
-                        </router-link>
+                        <div class="action-buttons">
+                            <router-link :to="{ name: 'AdminOrderDetails', params: { id: order.id } }" class="btn-action primary" title="Открыть детали">
+                                <i class="fa-solid fa-eye"></i>
+                            </router-link>
+                            <button @click="openProductsModal(order)" class="btn-action info" title="Состав заказа">
+                                <i class="fa-solid fa-receipt"></i>
+                            </button>
+                            <button @click="openQuickActionModal(order)" class="btn-action warning" title="Быстрые действия">
+                                <i class="fa-solid fa-bolt"></i>
+                            </button>
+                        </div>
                     </td>
                     <td class="text-muted">{{ formatDate(order.created_at) }}</td>
                     <td>
@@ -111,6 +119,94 @@
                 @pagination_page="handlePageChange"
             />
         </div>
+
+        <!-- 🔥 МОДАЛЬНОЕ ОКНО: СОСТАВ ЗАКАЗА -->
+        <div v-if="showProductsModal && currentOrderForProducts" class="modal-overlay" @click.self="closeProductsModal">
+            <div class="modal-content modal-content-sm">
+                <div class="modal-header">
+                    <h3>🛒 Состав заказа #{{ currentOrderForProducts.id }}</h3>
+                    <button @click="closeProductsModal" class="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <div class="modal-body">
+                    <div v-if="modalOrderProducts.length > 0" class="products-list-modal">
+                        <div v-for="(item, idx) in modalOrderProducts" :key="idx" class="product-row-modal">
+                            <span class="prod-qty">{{ item.count }}×</span>
+                            <span class="prod-name">{{ item.name || 'Товар' }}</span>
+                            <span class="prod-price">{{ formatPrice(item.price) }} ₽</span>
+                        </div>
+                    </div>
+
+                    <div v-else class="text-muted text-center py-4">
+                        <i class="fa-solid fa-box-open" style="font-size: 2rem; margin-bottom: 12px; display: block; opacity: 0.5;"></i>
+                        <p>Состав заказа не указан или пуст</p>
+                    </div>
+
+                    <div class="modal-total">
+                        <span>Итого к оплате:</span>
+                        <span class="total-value">{{ formatPrice(currentOrderForProducts.summary_price) }} ₽</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 🔥 МОДАЛЬНОЕ ОКНО БЫСТРЫХ ДЕЙСТВИЙ -->
+        <div v-if="showQuickModal && currentOrder" class="modal-overlay" @click.self="closeQuickActionModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>⚡ Быстрые действия: Заказ #{{ currentOrder.id }}</h3>
+                    <button @click="closeQuickActionModal" class="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <div class="modal-body">
+                    <!-- Мини-инфо о заказе -->
+                    <div class="order-mini-info">
+                        <span><i class="fa-solid fa-user me-1"></i> {{ currentOrder.tenant_user?.name || 'Гость' }}</span>
+                        <span class="divider">|</span>
+                        <span><i class="fa-solid fa-coins me-1"></i> {{ formatPrice(currentOrder.summary_price) }} ₽</span>
+                    </div>
+
+                    <!-- Смена статуса -->
+                    <div class="modal-section">
+                        <label class="section-label">Изменить статус</label>
+                        <div class="status-control-row">
+                            <select v-model="quickStatus" class="modern-select">
+                                <option :value="0">🆕 Новый</option>
+                                <option :value="1">⏳ В обработке</option>
+                                <option :value="4">🍳 Передан на кухню</option>
+                                <option :value="5">🚗 Готов к доставке</option>
+                                <option :value="2">✅ Выполнен</option>
+                                <option :value="3">❌ Отменен</option>
+                            </select>
+                            <button @click="saveQuickStatus" :disabled="isSavingStatus || !isQuickStatusChanged" class="btn-save-sm">
+                                <i v-if="isSavingStatus" class="fa-solid fa-spinner fa-spin"></i>
+                                <span v-else>Применить</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Сообщение (только если есть dialog_id) -->
+                    <div class="modal-section" v-if="currentOrder.dialog_id">
+                        <label class="section-label">Сообщение клиенту</label>
+                        <textarea v-model="quickMessage" rows="3" placeholder="Например: Курьер уже выехал..." class="message-input-sm" :disabled="isSendingMessage"></textarea>
+
+                        <div class="quick-templates-sm">
+                            <button @click="quickMessage = 'Ваш заказ принят и передан на кухню! 👨‍🍳'" :disabled="isSendingMessage" class="template-chip">На кухне</button>
+                            <button @click="quickMessage = 'Курьер уже выехал к вам! 🚗'" :disabled="isSendingMessage" class="template-chip">Курьер едет</button>
+                            <button @click="quickMessage = 'Заказ успешно доставлен. Приятного аппетита! ✅'" :disabled="isSendingMessage" class="template-chip">Доставлен</button>
+                        </div>
+
+                        <button @click="sendQuickMessageFromModal" :disabled="isSendingMessage || !quickMessage.trim()" class="btn-send-sm">
+                            <i v-if="isSendingMessage" class="fa-solid fa-spinner fa-spin"></i>
+                            <span v-else><i class="fa-solid fa-paper-plane me-1"></i> Отправить сообщение</span>
+                        </button>
+                    </div>
+
+                    <div v-else class="modal-section text-muted text-center py-3">
+                        <i class="fa-solid fa-comment-slash me-1"></i> У этого заказа нет привязанного чата
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -136,17 +232,24 @@ export default {
     components: { Pagination },
 
     setup() {
-        const ordersData = useOrders();
+        // 🔥 ДОБАВИЛИ функции обновления статуса и отправки сообщений
+        const {
+            loadAdminOrders,
+            adminOrders,
+            adminOrdersPaginate,
+            isLoadingAdmin,
+            updateAdminOrderStatus,
+            sendAdminOrderMessage
+        } = useOrders();
 
-        // 🔥 ЛОГ 1: Проверяем, что именно возвращает composable
-        console.log('[AdminOrdersList] setup - useOrders вернул:', {
-            loadAdminOrdersType: typeof ordersData.loadAdminOrders,
-            loadAdminOrdersValue: ordersData.loadAdminOrders,
-            isLoadingAdminType: typeof ordersData.isLoadingAdmin,
-        });
-
-        const { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin } = ordersData;
-        return { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin };
+        return {
+            loadAdminOrders,
+            adminOrders,
+            adminOrdersPaginate,
+            isLoadingAdmin,
+            updateAdminOrderStatus,
+            sendAdminOrderMessage
+        };
     },
 
     data() {
@@ -156,20 +259,114 @@ export default {
             sort: { param: 'id', direction: 'desc' },
             currentPage: 1,
             isExporting: false,
+
+            // Быстрые действия
+            showQuickModal: false,
+            currentOrder: null,
+            quickStatus: null,
+            quickMessage: '',
+            isSavingStatus: false,
+            isSendingMessage: false,
+
+            // 🔥 НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ МОДАЛКИ ТОВАРОВ
+            showProductsModal: false,
+            currentOrderForProducts: null,
         };
     },
 
-    mounted() {
-        // 🔥 ЛОГ 2: Проверяем тип функции в контексте компонента (this) перед вызовом
-        console.log('[AdminOrdersList] mounted - typeof this.loadAdminOrders:', typeof this.loadAdminOrders);
-        console.log('[AdminOrdersList] mounted - значение this.loadAdminOrders:', this.loadAdminOrders);
+    computed: {
+        isQuickStatusChanged() {
+            return this.currentOrder && String(this.currentOrder.status) !== String(this.quickStatus);
+        },
 
+        // 🔥 Безопасное извлечение товаров для модалки (та же логика, что и в деталях заказа)
+        modalOrderProducts() {
+            if (!this.currentOrderForProducts?.product_details) return [];
+            const details = Array.isArray(this.currentOrderForProducts.product_details)
+                ? this.currentOrderForProducts.product_details[0]
+                : this.currentOrderForProducts.product_details;
+            return Array.isArray(details?.products) ? details.products : [];
+        }
+    },
+
+    mounted() {
         this.loadData(1);
     },
 
     methods: {
+        openProductsModal(order) {
+            this.currentOrderForProducts = order;
+            this.showProductsModal = true;
+        },
+
+        closeProductsModal() {
+            this.showProductsModal = false;
+            this.currentOrderForProducts = null;
+        },
+
+        // ==========================================
+        // 🔥 МЕТОДЫ МОДАЛЬНОГО ОКНА
+        // ==========================================
+        openQuickActionModal(order) {
+            this.currentOrder = order;
+            this.quickStatus = Number(order.status);
+            this.quickMessage = '';
+            this.showQuickModal = true;
+        },
+
+        closeQuickActionModal() {
+            this.showQuickModal = false;
+            this.currentOrder = null;
+            this.quickMessage = '';
+        },
+
+        async saveQuickStatus() {
+            if (!this.isQuickStatusChanged) return;
+
+            this.isSavingStatus = true;
+            try {
+                await this.updateAdminOrderStatus(this.currentOrder.id, Number(this.quickStatus));
+
+                // Обновляем статус локально в текущем заказе
+                this.currentOrder.status = Number(this.quickStatus);
+
+                // 🔥 Обновляем статус в общей таблице, чтобы изменения были видны сразу
+                const index = this.adminOrders.findIndex(o => o.id === this.currentOrder.id);
+                if (index !== -1) {
+                    this.adminOrders[index].status = Number(this.quickStatus);
+                }
+
+                this.$notify?.({ title: 'Успех', text: 'Статус заказа обновлен', type: 'success' });
+            } catch (e) {
+                console.error(e);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось изменить статус', type: 'error' });
+                // Откат при ошибке
+                this.quickStatus = Number(this.currentOrder.status);
+            } finally {
+                this.isSavingStatus = false;
+            }
+        },
+
+        async sendQuickMessageFromModal() {
+            if (!this.currentOrder?.dialog_id || !this.quickMessage.trim()) return;
+
+            this.isSendingMessage = true;
+            try {
+                await this.sendAdminOrderMessage(this.currentOrder.id, this.quickMessage);
+                this.$notify?.({ title: 'Отправлено', text: 'Сообщение доставлено клиенту', type: 'success' });
+                this.quickMessage = ''; // Очищаем поле после успешной отправки
+            } catch (e) {
+                console.error(e);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось отправить сообщение', type: 'error' });
+            } finally {
+                this.isSendingMessage = false;
+            }
+        },
+
+        // ==========================================
+        // СУЩЕСТВУЮЩИЕ МЕТОДЫ (без изменений)
+        // ==========================================
         async exportToExcel() {
-            console.log('[AdminOrdersList] exportToExcel - начало');
             this.isExporting = true;
             try {
                 const response = await axios.get('/admin/orders/export', {
@@ -200,10 +397,9 @@ export default {
                 link.click();
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(url);
-                console.log('[AdminOrdersList] exportToExcel - успешно');
 
             } catch (error) {
-                console.error('[AdminOrdersList] exportToExcel - ОШИБКА:', error);
+                console.error('Ошибка экспорта:', error);
                 alert('Не удалось выгрузить файл. Попробуйте позже.');
             } finally {
                 this.isExporting = false;
@@ -220,35 +416,20 @@ export default {
         },
 
         async loadData(page = 1) {
-            console.log(`[AdminOrdersList] loadData - вызван для страницы ${page}`);
             this.currentPage = page;
-
-            // 🔥 ЛОГ 3: КРИТИЧЕСКАЯ ПРОВЕРКА перед await
-            console.log('[AdminOrdersList] loadData - typeof this.loadAdminOrders:', typeof this.loadAdminOrders);
-
-            if (typeof this.loadAdminOrders !== 'function') {
-                console.error('🚨 [AdminOrdersList] КРИТИЧЕСКАЯ ОШИБКА: loadAdminOrders НЕ является функцией!');
-                console.error('🚨 Текущее значение:', this.loadAdminOrders);
-                console.error('🚨 Проверьте файл useOrders.js и orders.js (Pinia store)');
-                return; // Прерываем выполнение, чтобы не упало на await
-            }
-
-            const payload = {
-                page: page,
-                size: 20,
-                search: this.search || null,
-                status: this.filterStatus || null,
-                order_by: this.sort.param,
-                direction: this.sort.direction
-            };
-            console.log('[AdminOrdersList] loadData - отправляем payload:', payload);
+            if (typeof this.loadAdminOrders !== 'function') return;
 
             try {
-                console.log('[AdminOrdersList] loadData - вызываем await this.loadAdminOrders...');
-                const result = await this.loadAdminOrders(payload);
-                console.log('[AdminOrdersList] loadData - успешно завершено. Результат:', result);
+                await this.loadAdminOrders({
+                    page: page,
+                    size: 20,
+                    search: this.search || null,
+                    status: this.filterStatus || null,
+                    order_by: this.sort.param,
+                    direction: this.sort.direction
+                });
             } catch (err) {
-                console.error('🚨 [AdminOrdersList] loadData - ОШИБКА в try/catch:', err);
+                console.error('Ошибка загрузки:', err);
             }
         },
 
@@ -613,5 +794,364 @@ $admin-danger: #ef4444;
     align-items: center;
     font-weight: 500;
     color: #0f172a;
+}
+
+// --- Кнопки действий в таблице ---
+.action-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.btn-action {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    border: none;
+    transition: all 0.2s;
+
+    &.primary {
+        background: $admin-primary-light;
+        color: $admin-primary;
+
+        &:hover {
+            background: $admin-primary;
+            color: white;
+            transform: translateY(-1px);
+        }
+    }
+
+    &.warning {
+        background: rgba($admin-warning, 0.1);
+        color: $admin-warning;
+
+        &:hover {
+            background: $admin-warning;
+            color: white;
+            transform: translateY(-1px);
+        }
+    }
+}
+
+// --- Стили модального окна ---
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+    background: $admin-card-bg;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    animation: slideUp 0.3s ease-out;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid $admin-border;
+
+    h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: $admin-text;
+    }
+}
+
+.btn-close-modal {
+    background: transparent;
+    border: none;
+    color: $admin-text-muted;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: all 0.2s;
+
+    &:hover {
+        background: $admin-bg;
+        color: $admin-danger;
+    }
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.order-mini-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: $admin-bg;
+    border-radius: 10px;
+    margin-bottom: 24px;
+    font-size: 0.95rem;
+    color: $admin-text;
+
+    .divider {
+        color: $admin-border;
+    }
+}
+
+.modal-section {
+    margin-bottom: 24px;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+}
+
+.section-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: $admin-text-muted;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-control-row {
+    display: flex;
+    gap: 12px;
+}
+
+.btn-save-sm {
+    padding: 10px 20px;
+    background: $admin-success;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+
+    &:hover:not(:disabled) {
+        background: #0b9c6c;
+        transform: translateY(-1px);
+    }
+
+    &:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+}
+
+.message-input-sm {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid $admin-border;
+    border-radius: 10px;
+    resize: none;
+    font-family: inherit;
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+    transition: all 0.2s;
+    background: $admin-card-bg;
+    box-sizing: border-box;
+
+    &:focus {
+        outline: none;
+        border-color: $admin-primary;
+        box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+    }
+}
+
+.quick-templates-sm {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.template-chip {
+    padding: 6px 12px;
+    background: $admin-bg;
+    border: 1px solid $admin-border;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: $admin-text;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover:not(:disabled) {
+        background: $admin-primary-light;
+        border-color: $admin-primary;
+        color: $admin-primary;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+.btn-send-sm {
+    width: 100%;
+    padding: 12px;
+    background: $admin-primary;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover:not(:disabled) {
+        background: #2563eb;
+        transform: translateY(-1px);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+// --- Новая кнопка в таблице ---
+.btn-action {
+    // ... ваши существующие стили .primary и .warning ...
+
+    &.info {
+        background: rgba($admin-primary, 0.1);
+        color: $admin-primary;
+
+        &:hover {
+            background: $admin-primary;
+            color: white;
+            transform: translateY(-1px);
+        }
+    }
+}
+
+// --- Стили модалки состава заказа ---
+.modal-content-sm {
+    max-width: 450px; // Чуть уже, так как тут только список
+}
+
+.products-list-modal {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px; // Место для скроллбара
+
+    // Кастомный скроллбар для красоты
+    &::-webkit-scrollbar {
+        width: 6px;
+    }
+    &::-webkit-scrollbar-track {
+        background: $admin-bg;
+        border-radius: 3px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: $admin-border;
+        border-radius: 3px;
+        &:hover {
+            background: $admin-text-muted;
+        }
+    }
+}
+
+.product-row-modal {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    background: $admin-bg;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+}
+
+.prod-qty {
+    font-weight: 700;
+    color: $admin-primary;
+    min-width: 32px;
+    text-align: center;
+    background: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid $admin-border;
+}
+
+.prod-name {
+    flex: 1;
+    color: $admin-text;
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+.prod-price {
+    font-weight: 700;
+    color: $admin-text;
+    white-space: nowrap;
+}
+
+.modal-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0 4px;
+    margin-top: 16px;
+    border-top: 1px dashed $admin-border;
+    font-size: 1.1rem;
+
+    span:first-child {
+        font-weight: 600;
+        color: $admin-text-muted;
+    }
+
+    .total-value {
+        font-weight: 800;
+        font-size: 1.25rem;
+        color: $admin-primary;
+    }
 }
 </style>

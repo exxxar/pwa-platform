@@ -198,18 +198,29 @@
 </template>
 
 <script>
-import {useOrders} from '@/MobileClient/composables/useOrders';
+import { useOrders } from '@/MobileClient/composables/useOrders';
+import axios from 'axios'; // На всякий случай, если используется в экспорте
 
 export default {
     name: 'AdminOrderDetails',
     setup() {
-        const {loadAdminOrderDetails, updateAdminOrderStatus, sendAdminOrderMessage} = useOrders();
-        return {loadAdminOrderDetails, updateAdminOrderStatus, sendAdminOrderMessage};
+        const ordersData = useOrders();
+
+        // 🔥 ЛОГ 1: Проверяем, что приходит из composable на странице деталей
+        console.log('[AdminOrderDetails] setup - useOrders вернул:', {
+            loadAdminOrderDetailsType: typeof ordersData.loadAdminOrderDetails,
+            loadAdminOrderDetailsValue: ordersData.loadAdminOrderDetails,
+            updateAdminOrderStatusType: typeof ordersData.updateAdminOrderStatus,
+            sendAdminOrderMessageType: typeof ordersData.sendAdminOrderMessage,
+        });
+
+        const { loadAdminOrderDetails, updateAdminOrderStatus, sendAdminOrderMessage } = ordersData;
+        return { loadAdminOrderDetails, updateAdminOrderStatus, sendAdminOrderMessage };
     },
     data() {
         return {
             order: null,
-            newStatus: null, // Инициализируем null, чтобы не мигало до загрузки
+            newStatus: null,
             quickMessage: '',
             isSaving: false,
             isSending: false,
@@ -218,58 +229,62 @@ export default {
         };
     },
     computed: {
-        // 🔥 ИСПРАВЛЕНО: Более надежное извлечение продуктов
         orderProducts() {
             if (!this.order?.product_details) return [];
-
-            // Если это массив, берем первый элемент (или объединяем все, если их несколько)
             const details = Array.isArray(this.order.product_details)
                 ? this.order.product_details[0]
                 : this.order.product_details;
-
             return Array.isArray(details?.products) ? details.products : [];
         },
-
         isDelivery() {
             return (Number(this.order?.delivery_price) > 0) || (Number(this.order?.delivery_range) > 0);
         },
-
-        // 🔥 UX: Блокируем кнопку, если статус не менялся
         isStatusChanged() {
             return String(this.order?.status) !== String(this.newStatus);
         }
     },
     async mounted() {
+        console.log('[AdminOrderDetails] mounted - начало загрузки');
         this.isLoadingDetails = true;
+
+        // 🔥 ЛОГ 2: Проверяем тип функции ПЕРЕД вызовом
+        console.log('[AdminOrderDetails] mounted - typeof this.loadAdminOrderDetails:', typeof this.loadAdminOrderDetails);
+        console.log('[AdminOrderDetails] mounted - значение this.loadAdminOrderDetails:', this.loadAdminOrderDetails);
+
         try {
             const orderId = this.$route.params.id;
-            this.order = await this.loadAdminOrderDetails(orderId);
+            console.log(`[AdminOrderDetails] mounted - запрашиваем заказ с ID: ${orderId}`);
 
-            // Приводим к числу, чтобы select корректно выбрал option
+            if (typeof this.loadAdminOrderDetails !== 'function') {
+                throw new Error('loadAdminOrderDetails не является функцией! Проверьте useOrders.js');
+            }
+
+            // 🔥 ЛОГ 3: Ловим момент вызова
+            console.log('[AdminOrderDetails] mounted - вызываем await this.loadAdminOrderDetails...');
+            this.order = await this.loadAdminOrderDetails(orderId);
+            console.log('[AdminOrderDetails] mounted - заказ успешно загружен:', this.order);
+
             this.newStatus = Number(this.order.status);
         } catch (e) {
-            console.error('Ошибка загрузки заказа:', e);
-            this.$notify?.({title: 'Ошибка', text: 'Заказ не найден', type: 'error'});
+            console.error('🚨 [AdminOrderDetails] mounted - КРИТИЧЕСКАЯ ОШИБКА:', e);
+            this.$notify?.({ title: 'Ошибка', text: 'Заказ не найден или произошла ошибка загрузки', type: 'error' });
             this.$router.push('/admin/orders');
         } finally {
             this.isLoadingDetails = false;
+            console.log('[AdminOrderDetails] mounted - загрузка завершена, isLoadingDetails = false');
         }
     },
     methods: {
         async exportToExcel() {
             if (!this.order?.id) return;
-
             this.isExporting = true;
             try {
                 const response = await axios.get(`/admin/orders/${this.order.id}/export`, {
-                    responseType: 'blob' // Важно для скачивания файлов
+                    responseType: 'blob'
                 });
-
                 const url = window.URL.createObjectURL(new Blob([response.data]));
                 const link = document.createElement('a');
                 link.href = url;
-
-                // Пытаемся получить имя файла из заголовков, иначе генерируем
                 const disposition = response.headers['content-disposition'];
                 let filename = `order_${this.order.id}.xlsx`;
                 if (disposition && disposition.indexOf('filename=') !== -1) {
@@ -278,62 +293,52 @@ export default {
                         filename = decodeURIComponent(matches[1].replace(/['"]/g, ''));
                     }
                 }
-
                 link.setAttribute('download', filename);
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(url);
-
             } catch (error) {
                 console.error('Ошибка экспорта:', error);
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось скачать файл', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось скачать файл', type: 'error' });
             } finally {
                 this.isExporting = false;
             }
         },
         async changeStatus() {
-            if (!this.isStatusChanged) return; // Защита от лишних запросов
-
+            if (!this.isStatusChanged) return;
             this.isSaving = true;
             try {
-                // Отправляем число, как требует модель Order
                 await this.updateAdminOrderStatus(this.order.id, Number(this.newStatus));
-
-                // Локальное обновление для мгновенного UI-отклика
                 this.order.status = Number(this.newStatus);
-                this.$notify?.({title: 'Успех', text: 'Статус заказа обновлен', type: 'success'});
+                this.$notify?.({ title: 'Успех', text: 'Статус заказа обновлен', type: 'success' });
             } catch (e) {
                 console.error(e);
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось изменить статус', type: 'error'});
-                // Откат на старый статус при ошибке
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось изменить статус', type: 'error' });
                 this.newStatus = Number(this.order.status);
             } finally {
                 this.isSaving = false;
             }
         },
-
         setTemplate(text) {
             this.quickMessage = text;
         },
-
         async sendQuickMessage() {
             if (!this.order.dialog_id) {
-                return this.$notify?.({title: 'Ошибка', text: 'У заказа нет привязанного чата', type: 'warning'});
+                return this.$notify?.({ title: 'Ошибка', text: 'У заказа нет привязанного чата', type: 'warning' });
             }
             this.isSending = true;
             try {
                 await this.sendAdminOrderMessage(this.order.id, this.quickMessage);
-                this.$notify?.({title: 'Отправлено', text: 'Сообщение доставлено клиенту', type: 'success'});
+                this.$notify?.({ title: 'Отправлено', text: 'Сообщение доставлено клиенту', type: 'success' });
                 this.quickMessage = '';
             } catch (e) {
                 console.error(e);
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось отправить сообщение', type: 'error'});
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось отправить сообщение', type: 'error' });
             } finally {
                 this.isSending = false;
             }
         },
-
         formatPrice(price) {
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
@@ -341,7 +346,6 @@ export default {
                 minimumFractionDigits: 0,
             }).format(price || 0).replace('RUB', '₽').trim();
         },
-
         getStatusClass(order) {
             const status = String(order.status ?? '').toLowerCase();
             const statusMap = {
@@ -354,7 +358,6 @@ export default {
             if (status.includes('process') || status.includes('готов') || status.includes('в пути') || status.includes('кухн')) return 'status-processing';
             return 'status-new';
         },
-
         getStatusText(order) {
             const status = String(order.status ?? '').toLowerCase();
             const statusTextMap = {
