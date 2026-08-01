@@ -64,10 +64,11 @@ export const useMenuStore = defineStore('menu', {
         },
 
         // Загрузка дополнительных товаров (пагинация внутри категории)
+        // В вашем store (menuStore)
         async loadMoreProducts(categoryId, offset, partnerId = null) {
             this.isLoadingMore = true;
             try {
-                const response = await axios.get('/api/products/more', {
+                const response = await axios.get('products/more-by-category', {
                     params: {
                         category_id: categoryId,
                         offset: offset,
@@ -75,10 +76,12 @@ export const useMenuStore = defineStore('menu', {
                     }
                 });
 
-                const newProducts = response.data.data;
+                // 🆕 Защита: если data нет, берем пустой массив
+                const newProducts = response.data?.data || [];
                 const category = this.products.find(p => p.id === categoryId);
 
-                if (category) {
+                if (category && Array.isArray(newProducts)) {
+                    // Vue 3 реактивно отследит push в массив
                     category.products.push(...newProducts);
                 }
 
@@ -95,7 +98,7 @@ export const useMenuStore = defineStore('menu', {
         async loadCollections(page = 1, partnerId = null) {
             this.isLoading = true;
             try {
-                const response = await axios.get('/api/collections', {
+                const response = await axios.get('/collections', {
                     params: { page, partner_id: partnerId }
                 });
                 this.collections = response.data.data;

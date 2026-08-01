@@ -42,36 +42,28 @@ class ProductService
         return new ProductCollection($products);
     }
 
-    public function loadMoreProductsByCategories($categoryId, $offset, $partnerId = null)
+    // В ProductService или контроллере
+    public function loadMoreProductsByCategories(int $categoryId, int $offset, ?int $partnerId = null)
     {
         $tenant = app('tenant');
-
         $tenantId = $partnerId ?? $tenant->id;
 
-        $category = Category::query()
-            ->where("tenant_id", $tenantId)
-            ->where("is_active", true)
-            ->withCount('products')
-            ->has("products", ">", 0)
-            ->orderBy("order_position", "ASC")
-            ->where("id", $categoryId)
-            ->first();
+        // Загружаем следующие 4 товара (или сколько вам нужно, например, take(4))
+        $products = Product::query()
+            ->select('products.*', 'ppc.category_id')
+            ->join('product_categories as ppc', 'ppc.product_id', '=', 'products.id')
+            ->where('ppc.category_id', $categoryId)
+            ->where('products.tenant_id', $tenantId)
+            ->whereNull('products.deleted_at')
+            ->where('products.in_stop_list', false)
+            ->orderBy('products.order_position', 'asc')
+            ->skip($offset)
+            ->take(4) // 🎯 Грузим порциями по 4 штуки
+            ->get();
 
-        if (is_null($category))
-            return [];
-
-        $category->setRelation(
-            'products',
-            $category->products()
-                ->where("in_stop_list",false)
-                ->where("tenant_id", $tenantId)
-                ->take(8)
-                ->offset($offset)
-                ->get()
-        );
-
-
-        return $category->products ?? [];
+        return (object)[
+            "data" => $products->toArray()
+        ];
     }
 
     /**

@@ -36,6 +36,7 @@
                         </div>
 
                         <!-- Кнопка "Загрузить ещё" -->
+                        <!-- Кнопка "Загрузить ещё" -->
                         <LoadMoreButton
                             v-if="cat.products_count > cat.products.length"
                             :remaining="cat.products_count - cat.products.length"
@@ -54,6 +55,7 @@
                             />
                         </ol>
 
+                        <!-- Кнопка "Загрузить ещё" -->
                         <LoadMoreButton
                             v-if="cat.products_count > cat.products.length"
                             :remaining="cat.products_count - cat.products.length"
