@@ -23,21 +23,19 @@ trait BasketHelper
      */
     private function sendTelegramNotification(Order $order, array $context, array $basketData): void
     {
-        // 1. Получаем настройки Telegram из настроек тенанта
         $tgSettings = $this->tenant->settings['telegram'] ?? [];
         $token = $tgSettings['token'] ?? null;
         $channelId = $tgSettings['channel_id'] ?? null;
 
-        Log::info("telegram send:".print_r($tgSettings, true));
-
-        // Если настройки не заполнены, тихо выходим, не ломая процесс оформления
         if (!$token || !$channelId) {
             return;
         }
 
-        // 2. Формируем красивое HTML-сообщение для канала
         $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
-        $addressText = $context['need_pickup'] ? 'Не требуется' : $this->fsPrepareAddress();
+
+        // 🆕 Используем умное получение адреса
+        $addr = $this->getResolvedAddress();
+        $addressText = $context['need_pickup'] ? 'Не требуется' : $addr['address'];
 
         $message = "🔔 <b>НОВЫЙ ЗАКАЗ #{$order->id}</b>\n";
         $message .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
@@ -47,15 +45,19 @@ trait BasketHelper
 
         if (!$context['need_pickup']) {
             $message .= "📍 <b>Адрес:</b> {$addressText}\n";
-            if (!empty($this->data['entrance_number'])) $message .= "🚪 Подъезд: {$this->data['entrance_number']}\n";
-            if (!empty($this->data['floor_number'])) $message .= "🏢 Этаж: {$this->data['floor_number']}\n";
-            if (!empty($this->data['flat_number'])) $message .= "🏠 Кв/Офис: {$this->data['flat_number']}\n";
+            if (!empty($addr['entrance_number'])) $message .= "🚪 Подъезд: {$addr['entrance_number']}\n";
+            if (!empty($addr['floor_number'])) $message .= "🏢 Этаж: {$addr['floor_number']}\n";
+            if (!empty($addr['flat_number'])) $message .= "🏠 Кв/Офис: {$addr['flat_number']}\n";
         }
 
+        // 🆕 Выводим товары, сгруппированные по партнерам (берем из partner_boxes)
         $message .= "\n🛒 <b>Состав заказа:</b>\n";
-        foreach ($basketData['product_info'] as $product) {
-            $priceFormatted = number_format($product['price'], 0, '.', ' ');
-            $message .= "• {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
+        foreach ($basketData['partner_boxes'] as $box) {
+            $message .= "\n🏪 <b>{$box['name']}:</b>\n";
+            foreach ($box['products'] as $product) {
+                $priceFormatted = number_format($product['price'], 0, '.', ' ');
+                $message .= "  • {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
+            }
         }
 
         $totalToPay = $order->summary_price + $order->delivery_price;
@@ -73,7 +75,6 @@ trait BasketHelper
             $message .= "\n📝 <b>Комментарий:</b> {$this->data['info']}\n";
         }
 
-        // 3. Формируем payload для Telegram API
         $payload = [
             'chat_id' => $channelId,
             'text' => $message,
@@ -81,15 +82,12 @@ trait BasketHelper
             'disable_web_page_preview' => true,
         ];
 
-        // Если в настройках указан ID темы (треда) в канале/группе
         if (!empty($tgSettings['thread_id'])) {
-            $payload['message_thread_id'] = $tgSettings['thread_id'];
+            $payload['message_thread_id'] = (int) $tgSettings['thread_id'];
         }
 
-        // 4. Отправляем запрос через cURL
         $this->sendTelegramCurlRequest($token, $payload);
     }
-
     /**
      * Вспомогательный метод для отправки запроса в Telegram API через cURL
      */
@@ -115,6 +113,43 @@ trait BasketHelper
         }
 
         return true;
+    }
+
+    /**
+     * 🆕 Получает данные адреса: сначала из БД по location_id, иначе из данных формы
+     */
+    private function getResolvedAddress(): array
+    {
+        $locationId = $this->safeInt($this->data["location_id"] ?? null);
+
+        // Резервные данные из формы
+        $fallback = [
+            'address' => $this->data["address"] ?? '',
+            'city' => $this->data["city"] ?? '',
+            'lat' => $this->safeFloat($this->data["lat"] ?? 0),
+            'lng' => $this->safeFloat($this->data["lng"] ?? 0),
+            'entrance_number' => $this->data["entrance_number"] ?? null,
+            'floor_number' => $this->data["floor_number"] ?? null,
+            'flat_number' => $this->data["flat_number"] ?? null,
+        ];
+
+        if ($locationId) {
+            $location = \App\Models\Tenant\TenantUserAddress::find($locationId);
+            if ($location) {
+                // Объединяем: данные из формы имеют приоритет (вдруг пользователь что-то изменил в момент заказа)
+                return array_merge($fallback, [
+                    'address' => $location->address ?: $fallback['address'],
+                    'city' => $location->city ?: $fallback['city'],
+                    'lat' => $location->lat ?: $fallback['lat'],
+                    'lng' => $location->lng ?: $fallback['lng'],
+                    'entrance_number' => $this->data["entrance_number"] ?? ($location->meta['entrance_number'] ?? null),
+                    'floor_number' => $this->data["floor_number"] ?? ($location->meta['floor_number'] ?? null),
+                    'flat_number' => $this->data["flat_number"] ?? ($location->meta['flat_number'] ?? null),
+                ]);
+            }
+        }
+
+        return $fallback;
     }
 
     protected function safeInt($value): ?int
@@ -165,22 +200,24 @@ trait BasketHelper
         $timeText = $whenReady ? "По готовности" : Carbon::parse($time)->format('Y-m-d H:i');
         $statusIcon = $whenReady ? "🟢" : "🟡";
 
+        // 🆕 Получаем корректный адрес
+        $addr = $this->getResolvedAddress();
+
         if (!$needPickup) {
             return sprintf(
                 "\n%s Заказ №: <b>%s</b>\nИдентификатор клиента: <b>%s</b>\n\n" .
                 "<b>Данные для доставки:</b>\n" .
                 "Ф.И.О.: <b>%s</b>\nНомер телефона: <b>%s</b>\n" .
-                "Адрес: <code>%s,%s</code><code>(%s, %s)</code>\n" .
+                "Адрес: <code>%s</code><code> (%s, %s)</code>\n" .
                 "Цена доставки: %s руб.\nДистанция: %s км\n" .
                 "Подъезд: %s\nЭтаж: %s\nТип оплаты: <b>%s</b>\n" .
                 "Сдача с: %s руб.\nДоп.инфо: %s\n" .
                 "Кэшбэк: %s\nДоставить ко времени: %s\nПерсон: <b>%s</b>\n",
                 $statusIcon, $orderId, $userId, $name, $phone,
-                $this->data["address"] ?? "", $this->data["flat_number"] ?? "",
-                $this->data["lat"] ?? 0, $this->data["lng"] ?? 0,
+                $addr['address'], $addr['lat'], $addr['lng'],
                 $order->delivery_price ?? 0, $order->delivery_range ?? 0,
-                $this->data["entrance_number"] ?? 'Не указано',
-                $this->data["floor_number"] ?? 'Не указано',
+                $addr['entrance_number'] ?? 'Не указано',
+                $addr['floor_number'] ?? 'Не указано',
                 $cash, $money, $info, $cashbackText, $timeText, $persons
             );
         }
@@ -216,7 +253,15 @@ trait BasketHelper
 
     private function fsPrepareAddress(): string
     {
-        $city = $this->ensureCityPrefix($this->data["city"] ?? "");
+        $addr = $this->getResolvedAddress();
+
+        // Если в базе уже сохранен полный адрес, используем его
+        if (!empty($addr['address'])) {
+            return $addr['address'];
+        }
+
+        // Иначе собираем из частей (для обратной совместимости)
+        $city = $this->ensureCityPrefix($addr["city"] ?? "");
         $street = $this->ensureStreetPrefix($this->data["street"] ?? "");
         return "$city, $street, " . ($this->data["building"] ?? "");
     }
@@ -345,6 +390,8 @@ trait BasketHelper
         $maxUserCashback = $this->tenantUser->cashback?->amount ?? 0;
         return min(($summaryPrice * ($maxPercent / 100)), $maxUserCashback);
     }
+
+
 
     private function sendPaidReceiptToChannel($order, $message): void
     {
