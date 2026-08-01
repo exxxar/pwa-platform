@@ -19,7 +19,7 @@
                     <AppDivider :text="cat.name || '-'" :id="'cat-' + cat.id" />
 
                     <!-- Сетка карточек -->
-                    <div class="row row-cols-2 row-cols-sm-2 row-cols-md-3 g-2 mb-3">
+                    <div class="row row-cols-2 row-cols-sm-2 row-cols-lg-6 row-cols-md-4 g-2 mb-3">
                         <div class="col" v-for="product in cat.products" :key="product?.id || Math.random()">
                             <ProductCard :item="product" />
                         </div>

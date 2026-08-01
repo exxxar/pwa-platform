@@ -163,12 +163,8 @@
                 <div v-else class="partners-list">
                     <div class="partners-grid" :class="{ 'grid-view': viewMode === 'grid' }">
 
-
-                        <div class="mb-2" v-for="partner in filteredPartners">
-
+                        <div v-for="partner in filteredPartners" :key="partner.id">
                             <PartnerCard
-
-                                :key="partner.id"
                                 :partner="partner"
                                 :is-favorite="isFavorite(partner.id)"
                                 :view-mode="viewMode"
@@ -2011,5 +2007,65 @@ $info: #3b82f6;
     .repeat-btn {
         width: 100%;
     }
+}
+
+// ==========================================
+// 🆕 АДАПТИВНАЯ СЕТКА ПАРТНЕРОВ (List / Grid)
+// ==========================================
+.partners-list {
+    width: 100%;
+}
+
+.partners-grid {
+    display: grid;
+    gap: 16px; // Отступы между карточками (заменяет необходимость в mb-2, но можно оставить для совместимости)
+
+    // 📱 МОБИЛЬНЫЕ УСТРОЙСТВА (по умолчанию, < 768px)
+    // Список: 1 карточка в ряд
+    // Сетка: 2 карточки в ряд (чтобы на телефоне это все еще выглядело как сетка)
+    grid-template-columns: 1fr;
+
+    &.grid-view {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    // 💻 ПЛАНШЕТЫ (md >= 768px)
+    @media (min-width: 768px) {
+        // Список: 2 карточки в ряд
+        grid-template-columns: repeat(2, 1fr);
+
+        &.grid-view {
+            // Сетка: 3 карточки в ряд
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    // 🖥️ ДЕСКТОП (lg >= 992px)
+    @media (min-width: 992px) {
+        // Список: 3 карточки в ряд
+        grid-template-columns: repeat(3, 1fr);
+
+        &.grid-view {
+            // Сетка: 5 карточек в ряд
+            grid-template-columns: repeat(5, 1fr);
+        }
+    }
+
+    // 🖥️ БОЛЬШИЕ ДЕСКТОПЫ (xl >= 1200px) - опционально, чтобы не растягивались слишком сильно
+    @media (min-width: 1200px) {
+        &.grid-view {
+            grid-template-columns: repeat(5, 1fr); // Можно оставить 5 или увеличить до 6
+        }
+    }
+}
+
+// Небольшая оптимизация для карточки внутри грида, чтобы она занимала всю высоту ячейки
+.partners-grid > div {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    // Убираем лишний нижний отступ, так как gap в grid уже дает пространство
+    margin-bottom: 0 !important;
 }
 </style>
