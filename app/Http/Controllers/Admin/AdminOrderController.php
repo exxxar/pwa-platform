@@ -126,7 +126,7 @@ class AdminOrderController extends Controller
     /**
      * Быстрая смена статуса заказа
      */
-    public function updateStatus(Request $request,  $id)
+    public function updateStatus(Request $request, $tenant,  $id)
     {
         $request->validate(['status' => 'required']);
 
