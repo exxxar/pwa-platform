@@ -126,9 +126,9 @@ class AdminOrderController extends Controller
     /**
      * Быстрая смена статуса заказа
      */
-    public function updateStatus(Request $request, $id)
+    public function updateStatus(Request $request,  $id)
     {
-        $request->validate(['status' => 'required|string']);
+        $request->validate(['status' => 'required']);
 
         $order = Order::findOrFail($id);
         $oldStatus = $order->status;
