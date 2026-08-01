@@ -109,6 +109,7 @@ export function useTenantSettings() {
     const saveBasicInfo = (data) => executeSave('basic', '/admin/tenant-settings/basic', data);
     const saveCompanyInfo = (data) => saveBasicInfo(data);
 
+    const saveTelegramSettings = (data) => executeSave('telegram', '/admin/tenant-settings/telegram', data);
     const saveShopSettings = (data) => executeSave('shop', '/admin/tenant-settings/shop', data);
     const saveCashbackSettings = (data) => executeSave('cashback', '/admin/tenant-settings/cashback', data);
     const saveInteractiveSettings = (data) => executeSave('interactive', '/admin/tenant-settings/interactive', data);
@@ -159,6 +160,7 @@ export function useTenantSettings() {
         markClean,
         // Методы
         loadSettings,
+        saveTelegramSettings,
         saveBasicInfo, saveCompanyInfo, saveShopSettings, saveCashbackSettings, saveInteractiveSettings, saveTablesSettings,
         saveFaqSettings, // ✅ Экспортируем новый метод
         saveMenuSettings, saveCalculatorsSettings, saveFoodCalculatorsSettings, saveGamesSettings, saveBonusGamesSettings, saveCrmSettings, savePwaSettings, saveIconsSettings, saveMainMenuSettings, saveGuestsSettings,
