@@ -23,32 +23,112 @@
         <div class="details-grid">
             <!-- ЛЕВАЯ КОЛОНКА: Информация о заказе -->
             <div class="info-panel">
-                <!-- Карточка клиента -->
+
+                <!-- Карточка клиента и получателя -->
                 <div class="panel-card">
-                    <h3><i class="fa-solid fa-user me-2"></i>Клиент</h3>
-                    <div class="client-block">
-                        <div class="client-avatar">
-                            <i class="fa-solid fa-user"></i>
+                    <h3><i class="fa-solid fa-users me-2"></i>Информация о клиенте</h3>
+
+                    <div class="customer-sections">
+                        <!-- 🔥 БЛОК 1: ПОЛУЧАТЕЛЬ ЗАКАЗА (Самое важное для доставки) -->
+                        <div class="customer-section receiver-section">
+                            <div class="section-header">
+                                <i class="fa-solid fa-location-dot"></i>
+                                <span class="section-title">Получатель заказа</span>
+                                <span class="section-hint">Кому доставить</span>
+                            </div>
+
+                            <div class="customer-data">
+                                <div class="customer-avatar primary">
+                                    <i class="fa-solid fa-user-tag"></i>
+                                </div>
+                                <div class="customer-info">
+                                    <div class="customer-name">
+                                        {{ order.receiver_name || 'Имя не указано' }}
+                                    </div>
+                                    <a
+                                        v-if="order.receiver_phone"
+                                        :href="'tel:' + order.receiver_phone"
+                                        class="customer-phone"
+                                    >
+                                        <i class="fa-solid fa-phone"></i>
+                                        {{ order.receiver_phone }}
+                                    </a>
+                                    <div v-else class="customer-phone empty">
+                                        <i class="fa-solid fa-phone-slash"></i>
+                                        Телефон не указан
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="client-data">
-                            <div class="name">{{ order.receiver_name || order.tenant_user?.name || 'Гость' }}</div>
-                            <a :href="'tel:' + (order.receiver_phone || order.tenant_user?.phone)" class="phone"
-                               v-if="order.receiver_phone || order.tenant_user?.phone">
-                                <i class="fa-solid fa-phone me-1"></i>{{
-                                    order.receiver_phone || order.tenant_user?.phone
-                                }}
-                            </a>
-                            <div v-else class="text-muted">Телефон не указан</div>
+
+                        <!-- 🔥 БЛОК 2: ДАННЫЕ АККАУНТА (Зарегистрированный пользователь) -->
+                        <div class="customer-section account-section" v-if="order.tenant_user">
+                            <div class="section-header">
+                                <i class="fa-solid fa-user-circle"></i>
+                                <span class="section-title">Данные аккаунта</span>
+                                <span class="section-hint">Кто оформил заказ</span>
+                            </div>
+
+                            <div class="customer-data">
+                                <div class="customer-avatar secondary">
+                                    <i class="fa-solid fa-user"></i>
+                                </div>
+                                <div class="customer-info">
+                                    <div class="customer-name">
+                                        {{ order.tenant_user.name || 'Гость' }}
+                                    </div>
+                                    <a
+                                        v-if="order.tenant_user.phone"
+                                        :href="'tel:' + order.tenant_user.phone"
+                                        class="customer-phone"
+                                    >
+                                        <i class="fa-solid fa-phone"></i>
+                                        {{ order.tenant_user.phone }}
+                                    </a>
+                                    <div v-else class="customer-phone empty">
+                                        <i class="fa-solid fa-phone-slash"></i>
+                                        Телефон не указан
+                                    </div>
+
+                                    <!-- Дополнительно: ссылка на профиль пользователя -->
+                                    <router-link
+                                        v-if="order.tenant_user.id"
+                                        :to="{ name: 'AdminUserDetails', params: { id: order.tenant_user.id } }"
+                                        class="profile-link"
+                                        target="_blank"
+                                    >
+                                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                        Открыть профиль
+                                    </router-link>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Заглушка, если заказ сделал неавторизованный гость -->
+                        <div class="customer-section account-section" v-else>
+                            <div class="section-header">
+                                <i class="fa-solid fa-user-secret"></i>
+                                <span class="section-title">Гость</span>
+                            </div>
+                            <div class="customer-data">
+                                <div class="customer-avatar muted">
+                                    <i class="fa-solid fa-user-slash"></i>
+                                </div>
+                                <div class="customer-info">
+                                    <div class="customer-name text-muted">Заказ оформлен без регистрации</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
+                    <!-- Кнопка открытия чата (без изменений) -->
                     <router-link
                         v-if="order.dialog_id"
                         :to="{ name: 'ChatRoom', params: { id: order.dialog_id } }"
                         target="_blank"
                         class="btn-chat"
                     >
-                        <i class="fa-solid fa-comments me-1"></i> Открыть чат
+                        <i class="fa-solid fa-comments me-1"></i> Открыть чат с клиентом
                     </router-link>
                 </div>
 
@@ -903,6 +983,145 @@ export default {
 
     .template-btn {
         width: 100%; // Кнопки шаблонов на всю ширину на очень маленьких экранах
+    }
+}
+
+// --- Разделенная карточка клиента ---
+.customer-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.customer-section {
+    background: var(--bs-secondary-bg);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+
+    &:hover {
+        border-color: var(--bs-border-color);
+    }
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+
+    i {
+        color: var(--bs-primary);
+        font-size: 0.9rem;
+    }
+
+    .section-title {
+        color: var(--bs-body-color);
+    }
+
+    .section-hint {
+        margin-left: auto;
+        color: var(--bs-secondary-color);
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: normal;
+    }
+}
+
+// Выделяем блок получателя (он важнее для доставки)
+.receiver-section {
+    background: rgba(var(--bs-primary-rgb), 0.04);
+    border: 1px solid rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.customer-data {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.customer-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+
+    &.primary {
+        background: var(--bs-primary);
+        color: white;
+    }
+
+    &.secondary {
+        background: var(--bs-body-bg);
+        color: var(--bs-secondary-color);
+        border: 1px solid var(--bs-border-color);
+    }
+
+    &.muted {
+        background: var(--bs-border-color);
+        color: var(--bs-secondary-color);
+    }
+}
+
+.customer-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.customer-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--bs-body-color);
+    margin-bottom: 4px;
+    word-break: break-word;
+    line-height: 1.3;
+}
+
+.customer-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--bs-primary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 6px;
+    transition: opacity 0.2s;
+
+    &:hover {
+        opacity: 0.8;
+    }
+
+    &.empty {
+        color: var(--bs-secondary-color);
+        cursor: default;
+        font-weight: 400;
+    }
+}
+
+.profile-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: 4px;
+    transition: color 0.2s;
+
+    &:hover {
+        color: var(--bs-primary);
     }
 }
 </style>
