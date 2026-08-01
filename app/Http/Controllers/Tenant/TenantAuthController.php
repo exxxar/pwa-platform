@@ -42,13 +42,13 @@ class TenantAuthController extends Controller
 
     }
 
-    public function loginPage($tenant)
+    public function loginPage(Request $request)
     {
 
-        $tenantModel = Tenant::query()->where('slug', $tenant)->first();
+        $tenantModel = $request->tenant;
 
         if (is_null($tenantModel)) {
-            return redirect()->route('public.landing')->with('requested_slug', $tenant);
+            return redirect()->route('public.landing')->with('requested_slug', $tenantModel->name);
         }
 
         Session::put("tenant", $tenantModel);
@@ -168,14 +168,14 @@ class TenantAuthController extends Controller
     }
 
 
-    public function handlerShopLanding($tenant)
+    public function handlerShopLanding(Request $request)
     {
 
-        \Illuminate\Support\Facades\Session::put("tenant", $tenant ?? null);
+        $tenant = $request->tanant;
+        \Illuminate\Support\Facades\Session::put("tenant", $tenant->name ?? null);
 
         $tenantUser = Auth::guard('tenant')->user();
 
-        $tenant = Tenant::where('slug', $tenant)->firstOrFail();
         Inertia::setRootView("shop-landing");
         return Inertia::render('ShopLanding', [
             'tenant' => $tenant,
@@ -184,14 +184,14 @@ class TenantAuthController extends Controller
 
     }
 
-    public function handlerAgent($tenant)
+    public function handlerAgent(Request $request)
     {
 
-        \Illuminate\Support\Facades\Session::put("tenant", $tenant ?? null);
+        $tenant = $request->tenant;
+        \Illuminate\Support\Facades\Session::put("tenant", $tenant->name ?? null);
 
         $tenantUser = Auth::guard('tenant')->user();
 
-        $tenant = Tenant::where('slug', $tenant)->firstOrFail();
         Inertia::setRootView("mobile");
         return Inertia::render('AgentDashboard', [
             'tenant' => $tenant,

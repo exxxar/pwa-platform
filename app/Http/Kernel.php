@@ -48,6 +48,8 @@ class Kernel extends HttpKernel
         ],
 
         'tenant' => [
+            TenantResolver::class,
+
             \App\Http\Middleware\Tenant\TenantContext::class,
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
@@ -57,7 +59,7 @@ class Kernel extends HttpKernel
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-            TenantResolver::class,
+
             TenantUserResolver::class,
         ],
 
@@ -94,5 +96,7 @@ class Kernel extends HttpKernel
         'track.stats' => \App\Http\Middleware\Tenant\TrackUserStats::class,
         'track.order' => \App\Http\Middleware\Tenant\TrackOrderStats::class,
 
+        'tenant.resolve' => \App\Http\Middleware\Tenant\TenantResolver::class,
+        'tenant.user' => \App\Http\Middleware\Tenant\TenantUserResolver::class,
     ];
 }

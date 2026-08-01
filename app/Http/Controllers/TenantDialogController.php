@@ -55,7 +55,7 @@ class TenantDialogController extends Controller
     /**
      * Сообщения диалога
      */
-    public function messages(Request $request, $tenant, $dialogId )
+    public function messages(Request $request, $dialogId )
     {
 
         $tenant = app('tenant');
@@ -99,7 +99,7 @@ class TenantDialogController extends Controller
         return response()->json($messages);
     }
 
-    public function sendMessage(Request $request, $tenant, $dialogId)
+    public function sendMessage(Request $request, $dialogId)
     {
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
@@ -114,7 +114,6 @@ class TenantDialogController extends Controller
             return response()->json(['message' => 'Диалог не найден'], 404);
         }
 
-        // 2. Валидация
         $validated = $request->validate([
             'text' => 'nullable|string|max:2000',
             'message' => 'nullable|string|max:2000',

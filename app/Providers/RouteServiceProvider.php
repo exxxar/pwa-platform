@@ -31,7 +31,6 @@ class RouteServiceProvider extends ServiceProvider
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
 
-
             Route::middleware(['tenant'])
                 ->group(base_path('routes/tenant.php'));
 

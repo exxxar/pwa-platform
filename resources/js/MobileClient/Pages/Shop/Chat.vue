@@ -64,12 +64,6 @@
                             }"
                     >
 
-                        <!-- 🆕 ИМЯ ОТПРАВИТЕЛЯ (показываем, если сообщение не мое, или если это админ/система) -->
-                        <div v-if="!isMine(message) && getSenderName(message)" class="message-sender-name">
-                            {{ getSenderName(message) }}
-                        </div>
-
-
                         <!-- ✅ 1. СООБЩЕНИЕ С ЗАКАЗОМ (Восстановлено) -->
                         <template v-if="isOrderMessage(message)">
                             <div class="order-card">
@@ -130,10 +124,20 @@
                                 </a>
 
                                 <div class="message-meta">
+                                    <!-- 🆕 Имя отправителя (теперь внизу, кликабельное) -->
+                                    <span
+                                        v-if="!isMine(message) && getSenderName(message)"
+                                        class="sender-name-inline"
+                                        @click="openInterlocutorInfo"
+                                        title="Показать информацию о собеседнике"
+                                    >
+                                        {{ getSenderName(message) }}
+                                    </span>
+
                                     <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
                                     <span v-if="isMine(message)" class="message-status">
-                    <i :class="getStatusIcon(message)"></i>
-                </span>
+                                        <i :class="getStatusIcon(message)"></i>
+                                    </span>
                                 </div>
                             </div>
                         </template>
@@ -152,10 +156,20 @@
                                 <div class="message-text" v-if="message.text || message.message"
                                      v-html="message.text || message.message"></div>
                                 <div class="message-meta">
+                                    <!-- 🆕 Имя отправителя (теперь внизу, кликабельное) -->
+                                    <span
+                                        v-if="!isMine(message) && getSenderName(message)"
+                                        class="sender-name-inline"
+                                        @click="openInterlocutorInfo"
+                                        title="Показать информацию о собеседнике"
+                                    >
+                                        {{ getSenderName(message) }}
+                                    </span>
+
                                     <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
                                     <span v-if="isMine(message)" class="message-status">
-                                            <i :class="getStatusIcon(message)"></i>
-                                        </span>
+                                        <i :class="getStatusIcon(message)"></i>
+                                    </span>
                                 </div>
                             </div>
                         </template>
@@ -301,6 +315,49 @@
                 </div>
             </transition>
         </teleport>
+
+        <!-- 🆕 МОДАЛКА ИНФОРМАЦИИ О СОБЕСЕДНИКЕ -->
+        <teleport to="body">
+            <transition name="fade">
+                <div v-if="showInterlocutorModal" class="modal-overlay" @click.self="closeInterlocutorInfo">
+                    <div class="interlocutor-modal">
+                        <div class="modal-header">
+                            <h3><i class="fa-solid fa-user"></i> Собеседник</h3>
+                            <button class="modal-close" @click="closeInterlocutorInfo">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="interlocutor-avatar" :style="avatarGradientStyle">
+                                <img v-if="currentInterlocutor?.avatar" :src="currentInterlocutor.avatar" :alt="currentInterlocutor?.name">
+                                <span v-else class="avatar-initials">{{ getInitials(currentInterlocutor?.name) }}</span>
+                            </div>
+
+                            <h4 class="interlocutor-name">{{ currentInterlocutor?.name || 'Неизвестно' }}</h4>
+                            <p class="interlocutor-role">
+                                <i class="fa-solid fa-shield-halved" v-if="getSenderType() === 'admin'"></i>
+                                {{ getSenderType() === 'admin' ? 'Администратор / Поддержка' : 'Клиент' }}
+                            </p>
+
+                            <div class="interlocutor-details">
+                                <div class="detail-row" v-if="currentInterlocutor?.phone">
+                                    <i class="fa-solid fa-phone"></i>
+                                    <span>{{ currentInterlocutor.phone }}</span>
+                                </div>
+                                <div class="detail-row" v-if="currentInterlocutor?.email">
+                                    <i class="fa-solid fa-envelope"></i>
+                                    <span>{{ currentInterlocutor.email }}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <i class="fa-solid fa-clock"></i>
+                                    <span>{{ currentInterlocutor?.is_online ? 'В сети' : 'Был(а) недавно' }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </teleport>
     </div>
 </template>
 
@@ -342,6 +399,7 @@ export default {
             isTyping: false,
             showDialogMenu: false,
             showAttachmentsModal: false,
+            showInterlocutorModal: false, // 🆕 НОВОЕ СОСТОЯНИ
             attachments: [],
             isLoadingAttachments: false,
             attachmentsCount: 0,
@@ -529,6 +587,22 @@ export default {
                     }
                 },
             });
+        },
+
+        // 🆕 Методы для модального окна собеседника
+        openInterlocutorInfo() {
+            this.showInterlocutorModal = true;
+        },
+        closeInterlocutorInfo() {
+            this.showInterlocutorModal = false;
+        },
+
+        // 🆕 Определяем тип собеседника для отображения в модалке
+        getSenderType() {
+            // Если текущий диалог имеет флаг или мы знаем, что это админ-чат
+            // В простой реализации: если сообщение не мое, и это не системное,
+            // мы можем проверить meta или просто вернуть 'admin' для поддержки
+            return 'admin'; // Можно доработать логику, если есть четкое поле is_admin у currentInterlocutor
         },
         getSenderName(message) {
             if (message.sender_type === 'admin') {
@@ -2337,6 +2411,188 @@ $warning: #f59e0b;
         font-weight: 900;
         font-size: 0.7rem;
         opacity: 0.7;
+    }
+}
+
+
+// ==========================================
+// 🆕 ОБНОВЛЕННЫЕ СТИЛИ META (ВРЕМЯ + ИМЯ)
+// ==========================================
+.message-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-end;
+    margin-top: 4px;
+    flex-wrap: wrap; // Позволяет перенос, если имя длинное
+
+    .sender-name-inline {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: $primary;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-right: auto; // Прижимает время и статус вправо, а имя влево
+
+        &::before {
+            content: '\f023'; // fa-user-shield
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            font-size: 0.65rem;
+            opacity: 0.8;
+        }
+
+        &:hover {
+            background: rgba($primary, 0.15);
+            text-decoration: underline;
+        }
+
+        // Скрываем для своих сообщений (на всякий случай)
+        .is-mine & {
+            display: none;
+        }
+
+        // Для системных сообщений делаем нейтральным
+        .is-system & {
+            color: $text-muted;
+            font-weight: 500;
+
+            &::before {
+                content: '\f023'; // или fa-robot \f544
+                opacity: 0.5;
+            }
+
+            &:hover {
+                background: rgba($text-muted, 0.1);
+                text-decoration: none;
+            }
+        }
+    }
+
+    .message-time {
+        font-size: 0.7rem;
+        opacity: 0.7;
+        white-space: nowrap;
+    }
+
+    .message-status {
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+
+        .status-read { color: #60a5fa; }
+        .status-delivered { color: rgba(255, 255, 255, 0.9); }
+        .status-sent { color: rgba(255, 255, 255, 0.7); }
+        .error-icon { color: $danger; }
+    }
+}
+
+// ==========================================
+// 🆕 МОДАЛКА ИНФОРМАЦИИ О СОБЕСЕДНИКЕ
+// ==========================================
+.interlocutor-modal {
+    background: $bg;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 360px;
+    overflow: hidden;
+    animation: modalSlideUp 0.3s ease;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid $border;
+
+        h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1rem;
+            margin: 0;
+
+            i { color: $primary; }
+        }
+    }
+
+    .modal-body {
+        padding: 24px;
+    }
+
+    .interlocutor-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        color: white;
+        font-weight: 700;
+        border: 3px solid white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    }
+
+    .interlocutor-name {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 0 0 4px;
+        color: $text;
+    }
+
+    .interlocutor-role {
+        font-size: 0.85rem;
+        color: $primary;
+        font-weight: 600;
+        margin: 0 0 20px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .interlocutor-details {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        text-align: left;
+        background: $bg-secondary;
+        padding: 16px;
+        border-radius: 12px;
+
+        .detail-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            color: $text;
+
+            i {
+                width: 20px;
+                text-align: center;
+                color: $text-muted;
+                font-size: 0.9rem;
+            }
+        }
     }
 }
 </style>

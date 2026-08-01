@@ -64,7 +64,7 @@ Route::get('/pricing', function () {
     ])->header('Cache-Control', 'public, max-age=300');
 });
 
-Route::get('/', function () {
+/*Route::get('/', function () {
     Inertia::setRootView("app");
 
     return Inertia::render('Welcome', [
@@ -73,7 +73,7 @@ Route::get('/', function () {
         'laravelVersion' => '1',//Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);
-});
+});*/
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');

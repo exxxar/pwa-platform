@@ -45,7 +45,7 @@ use App\Http\Controllers\Tenant\TenantEmailVerificationController;
 use Inertia\Inertia;
 use Jenssegers\Agent\Agent;
 
-$routesManager = function () {
+/*function managerRoutes() {
     Route::get('/job', function (Request $request) {
 
         $agent = new Agent();
@@ -63,18 +63,12 @@ $routesManager = function () {
     Route::get('/sw.js', [TenantAuthController::class, 'serviceWorker']);
 
     Route::get('/manifest.json', [TenantAuthController::class, 'manifest']);
-};
+};*/
 
-$routes = function () {
+function routes() {
 
-    Route::get('/taplink', [TenantTapLinkController::class, 'index']);
-    Route::get('/auth/login', [TenantAuthController::class, 'loginPage']);
-    Route::get('/auth/register', [TenantAuthController::class, 'registrationPage']);
+    Route::get('/', function (Request $request) {
 
-    Route::any('/webhook', [WebhookReceiverController::class, 'handle'])
-        ->name('webhook.workspace');
-
-    Route::get('/', function (Request $request, $tenant) {
         $agent = new Agent();
 
         if ($agent->isMobile()) {
@@ -82,11 +76,9 @@ $routes = function () {
             return redirect('/pwa', 301);
         }
 
-        \Illuminate\Support\Facades\Session::put("tenant", $tenant ?? null);
-
+        $tenant = $request->tenant;
+        \Illuminate\Support\Facades\Session::put("tenant", $tenant->name);
         $tenantUser = Auth::guard('tenant')->user();
-
-        $tenant = Tenant::where('slug', $tenant)->firstOrFail();
         Inertia::setRootView("shop-landing");
         return Inertia::render('ShopLanding', [
             'tenant' => $tenant,
@@ -96,10 +88,16 @@ $routes = function () {
         //return view("landing");
     })->name("home");
 
+    Route::get('/taplink', [TenantTapLinkController::class, 'index']);
+    Route::get('/auth/login', [TenantAuthController::class, 'loginPage']);
+    Route::get('/auth/register', [TenantAuthController::class, 'registrationPage']);
+
+    Route::any('/webhook', [WebhookReceiverController::class, 'handle'])
+        ->name('webhook.workspace');
+
     Route::get('/shop/{any?}', [TenantAuthController::class, 'handlerShopLanding'])
         ->where('any', '.*')
         ->name("shop.landing");
-
 
     Route::get('/pwa/{any?}', [TenantAuthController::class, 'handler'])
         ->where('any', '.*');
@@ -559,7 +557,7 @@ $routes = function () {
 
 };
 
-if (config('app.debug') ?? false) {
+/*if (config('app.debug') ?? false) {
     Route::domain('localhost')->group($routes);
     Route::domain('127.0.0.1')->group($routes);
 }
@@ -571,7 +569,11 @@ Route::domain('{tenant}.mypwa.ru')->group($routes);
 Route::domain('{tenant}.pwa-platform.test')->group($routes);
 
 Route::domain('fastoran.com')->group($routes);
-Route::domain('fastoran.ru')->group($routes);
+Route::domain('fastoran.ru')->group($routes);*/
+
+Route::middleware(['tenant'])->group(function () {
+    routes();
+});
 
 
 Route::get("/m", function (){
