@@ -76,32 +76,7 @@ export const useShopLandingStore = defineStore('shop-landing', {
             }
         },
 
-        async loadMoreProducts(categoryId, offset, payloadPartnerId = null) {
-            const category = this.categories.find(c => c.id === categoryId);
-            if (!category || category.isLoadingMore) return;
 
-            category.isLoadingMore = true;
-            try {
-                const partnerId = payloadPartnerId || this.partnerId;
-
-                // ⚠️ ПРОВЕРЬ ЭТОТ URL для пагинации!
-                const response = await axios.post('/shop/products/load-more-by-category', {
-                    category_id: categoryId,
-                    offset: offset,
-                    partner_id: partnerId
-                });
-
-                const newProducts = response.data || []; // Или response.data.data, зависит от твоего контроллера
-
-                if (newProducts.length > 0) {
-                    category.products = [...(category.products || []), ...newProducts];
-                }
-            } catch (err) {
-                console.error(`❌ Ошибка подгрузки для категории ${categoryId}:`, err);
-            } finally {
-                category.isLoadingMore = false;
-            }
-        },
 
         setActiveCategory(id) {
             this.activeCategoryId = id;

@@ -68,9 +68,9 @@
 
 <script>
 import ProductCard from '@/MobileClient/Components/Shop/ProductCard.vue';
-import CollectionCard from '@/MobileClient/Components/Shop/CollectionCard.vue'; // Раскомментировал, если нужен
+//import CollectionCard from '@/MobileClient/Components/Shop/CollectionCard.vue'; // Раскомментировал, если нужен
 import StoryList from '@/MobileClient/Components/Shop/Stories/StoryList.vue';
-import ProductListItem from '@/MobileClient/Components/Shop/ProductListItem.vue'; // Раскомментировал, если нужен
+//import ProductListItem from '@/MobileClient/Components/Shop/ProductListItem.vue'; // Раскомментировал, если нужен
 import Preloader from '@/MobileClient/Components/Shop/Preloader.vue';
 import LoadMoreButton from './LoadMoreButton.vue';
 import AppDivider from '@/MobileClient/Components/AppDivider.vue';
@@ -80,9 +80,9 @@ export default {
 
     components: {
         ProductCard,
-        CollectionCard,
+
         StoryList,
-        ProductListItem,
+
         Preloader,
         AppDivider,
         LoadMoreButton,
