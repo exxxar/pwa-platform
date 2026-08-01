@@ -2,65 +2,44 @@
     <div class="product-grid">
         <div class="container g-2">
 
-            <!-- 1. Комбо-меню -->
-            <section v-if="collections.length > 0" class="mb-4">
-                <h5 class="divider mb-3" id="cat-combo">Комбо меню</h5>
-                <div class="row row-cols-2 row-cols-sm-2 row-cols-md-3 g-2">
+            <!-- Комбо-меню (если есть) -->
+            <template v-if="collections && collections.length > 0">
+                <h5 class="divider my-4" id="cat-combo">Комбо меню</h5>
+                <div class="row row-cols-2 row-cols-sm-2 row-cols-md-3 g-2 mb-4">
                     <div class="col" v-for="collection in collections" :key="collection.id">
-                        <CollectionCard :item="collection" />
+                        <!-- <CollectionCard :item="collection" /> -->
                     </div>
                 </div>
-            </section>
+            </template>
 
-            <!-- 2. Новинки (Истории) -->
-            <section v-if="stories.length > 0" class="mb-4">
-                <h5 class="divider mb-3">Наши новинки</h5>
-                <StoryList :stories="stories" />
-            </section>
+            <!-- 🆕 ИСПРАВЛЕНИЕ: Безопасная итерация по категориям -->
+            <template v-for="cat in (categories || [])" :key="cat?.id || Math.random()">
 
-            <!-- 3. Товары по категориям -->
-            <section v-for="cat in categories" :key="cat.id" class="category-section mb-4">
+                <template v-if="cat && cat.products && cat.products.length > 0">
+                    <AppDivider :text="cat.name || '-'" :id="'cat-' + cat.id" />
 
-                <!-- Показываем блок только если есть товары -->
-                <template v-if="cat.products && cat.products.length > 0">
-
-                    <AppDivider :text="cat.name || 'Без названия'" :id="'cat-' + cat.id" />
-
-                    <!-- Вариант А: Сетка карточек -->
-                    <div
-                        v-if="!isProductList"
-                        class="row row-cols-2 row-cols-sm-2 row-cols-md-3 g-2 mb-3"
-                        @touchstart="onTouchStart"
-                        @touchend="onTouchEnd"
-                    >
-                        <div class="col" v-for="product in cat.products" :key="product.id">
+                    <!-- Сетка карточек -->
+                    <div class="row row-cols-2 row-cols-sm-2 row-cols-md-3 g-2 mb-3">
+                        <div class="col" v-for="product in cat.products" :key="product?.id || Math.random()">
                             <ProductCard :item="product" />
                         </div>
                     </div>
 
-                    <!-- Вариант Б: Список -->
-                    <ol v-else class="list-group list-group-numbered mb-3">
-                        <ProductListItem
-                            v-for="product in cat.products"
-                            :key="product.id"
-                            :item="product"
-                        />
-                    </ol>
-
-                    <!-- 4. Кнопка "Загрузить ещё" (Вынесена из сетки, чтобы не ломать колонки) -->
+                    <!-- Кнопка "Загрузить ещё" -->
+                    <!-- Кнопка "Загрузить ещё" -->
                     <div v-if="cat.products_count > cat.products.length" class="load-more-wrapper">
                         <LoadMoreButton
                             :remaining="cat.products_count - cat.products.length"
                             :is-loading="isLoadingMore"
+                            :disabled="isLoadingMore"
                             @load-more="$emit('load-more', cat.id, cat.products.length)"
                         />
                     </div>
-
                 </template>
-            </section>
+            </template>
 
-            <!-- 5. Прелоадер (если категорий нет) -->
-            <Preloader v-if="categories.length === 0" />
+            <!-- Прелоадер, если категорий нет -->
+            <Preloader v-if="!categories || categories.length === 0" />
 
         </div>
     </div>
@@ -68,9 +47,7 @@
 
 <script>
 import ProductCard from '@/MobileClient/Components/Shop/ProductCard.vue';
-//import CollectionCard from '@/MobileClient/Components/Shop/CollectionCard.vue'; // Раскомментировал, если нужен
 import StoryList from '@/MobileClient/Components/Shop/Stories/StoryList.vue';
-//import ProductListItem from '@/MobileClient/Components/Shop/ProductListItem.vue'; // Раскомментировал, если нужен
 import Preloader from '@/MobileClient/Components/Shop/Preloader.vue';
 import LoadMoreButton from './LoadMoreButton.vue';
 import AppDivider from '@/MobileClient/Components/AppDivider.vue';
@@ -80,35 +57,18 @@ export default {
 
     components: {
         ProductCard,
-
         StoryList,
-
         Preloader,
         AppDivider,
         LoadMoreButton,
     },
 
     props: {
-        categories: {
-            type: Array,
-            default: () => []
-        },
-        collections: {
-            type: Array,
-            default: () => []
-        },
-        stories: {
-            type: Array,
-            default: () => []
-        },
-        isProductList: {
-            type: Boolean,
-            default: false
-        },
-        isLoadingMore: {
-            type: Boolean,
-            default: false
-        },
+        categories: { type: Array, default: () => [] },
+        collections: { type: Array, default: () => [] },
+        stories: { type: Array, default: () => [] },
+        isProductList: { type: Boolean, default: false },
+        isLoadingMore: { type: Boolean, default: false },
     },
 
     emits: ['load-more', 'swipe-left', 'swipe-right'],
@@ -121,26 +81,19 @@ export default {
     },
 
     methods: {
-        // Обработка свайпов (замена v-touch)
         onTouchStart(e) {
             this.touchStartX = e.changedTouches[0].screenX;
         },
-
         onTouchEnd(e) {
             this.touchEndX = e.changedTouches[0].screenX;
             this.handleSwipe();
         },
-
         handleSwipe() {
             const swipeThreshold = 50;
             const diff = this.touchStartX - this.touchEndX;
-
             if (Math.abs(diff) > swipeThreshold) {
-                if (diff > 0) {
-                    this.$emit('swipe-left');
-                } else {
-                    this.$emit('swipe-right');
-                }
+                if (diff > 0) this.$emit('swipe-left');
+                else this.$emit('swipe-right');
             }
         },
     },
@@ -150,10 +103,9 @@ export default {
 <style scoped>
 .product-grid {
     min-height: 100vh;
-    padding-bottom: 2rem; /* Заменяет pb-5, но в CSS надежнее */
+    padding-bottom: 2rem;
 }
 
-/* Стиль разделителя с линиями по бокам */
 .divider {
     display: flex;
     align-items: center;
@@ -165,13 +117,12 @@ export default {
 .divider::after {
     flex: 1;
     content: '';
-    height: 1px; /* Лучше использовать height вместо padding для линий */
+    height: 1px;
     background-color: var(--bs-primary);
     margin: 0 12px;
     opacity: 0.5;
 }
 
-/* Обертка для кнопки "Загрузить ещё", чтобы она была по центру и не ломала сетку Bootstrap */
 .load-more-wrapper {
     display: flex;
     justify-content: center;
@@ -179,8 +130,7 @@ export default {
     margin-bottom: 1rem;
 }
 
-/* Небольшие отступы для секций категорий */
 .category-section {
-    scroll-margin-top: 80px; /* Чтобы при якорной ссылке заголовок не прятался под шапкой */
+    scroll-margin-top: 80px;
 }
 </style>

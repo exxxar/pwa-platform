@@ -20,10 +20,12 @@
 
             <!-- Основной контент -->
             <template v-else>
+
+                <!-- 🆕 ИСПРАВЛЕНИЕ: Используем переменные напрямую, без productsStore. -->
                 <MenuHeader
                     :settings="settings"
-                    :categories="productsStore.filteredProducts"
-                    :collections="productsStore.collections"
+                    :categories="filteredProducts"
+                    :collections="collections"
                     :show-back-button="hasPartners"
                     @select-category="onCategorySelect"
                     @search="onSearch"
@@ -31,6 +33,11 @@
                 />
 
                 <div class="menu-content d-flex flex-column">
+
+
+
+
+
                     <!-- Предупреждение о блокировке -->
                     <div v-if="settings?.is_disabled" class="p-2 mt-2">
                         <div class="alert alert-danger mb-0">
@@ -44,15 +51,20 @@
                     <!-- Контент в зависимости от таба -->
                     <CategoryList
                         v-show="activeTab === 'categories'"
-                        :categories="productsStore.filteredProducts"
-                        :collections-count="productsStore.collections.length"
+                        :categories="filteredProducts"
+                        :collections-count="collections.length"
                         @select-category="onCategorySelect"
                     />
 
                     <template v-if="activeTab === 'products'">
+                        <!-- 🆕 ПРАВИЛЬНЫЙ ДЕБАГ (покажет реальные числа, а не undefined) -->
+                        <div v-if="false" style="background: #ffeb3b; color: #000; padding: 10px; font-weight: bold;">
+                            DEBUG: Отфильтровано категорий: {{ filteredProducts.length }}
+                        </div>
+
                         <ProductGrid
-                            :categories="productsStore.filteredProducts"
-                            :collections="productsStore.collections"
+                            :categories="filteredProducts"
+                            :collections="collections"
                             :stories="storiesStore.stories"
                             :is-product-list="settings?.is_product_list"
                             @load-more="onLoadMore"
@@ -71,36 +83,59 @@
 <script>
 import { useProducts } from '@/MobileClient/composables/useProducts.js';
 import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
-import PartnersList from '@/MobileClient/Components/Partners/PartnerList.vue';
 import MenuHeader from '@/MobileClient/Components/Shop/Menu/MenuHeader.vue';
+import PartnersList from '@/MobileClient/Components/Partners/PartnerList.vue';
 import CategoryList from '@/MobileClient/Components/Shop/Menu/CategoryList.vue';
 import ProductGrid from '@/MobileClient/Components/Shop/Menu/ProductGrid.vue';
 import BookingDropdown from '@/MobileClient/Components/Shop/Booking/BookingDropdown.vue';
-import SkeletonLoader from '@/MobileClient/Components/Common/SkeletonLoader.vue'
 
 export default {
     name: 'Menu',
 
     components: {
         PartnersList,
-        MenuHeader,
         CategoryList,
-        SkeletonLoader,
         ProductGrid,
         BookingDropdown,
+        MenuHeader,
     },
 
     setup() {
-        const productsStore = useProducts();
+        // 🆕 ДЕСТРУКТУРИЗИРУЕМ НУЖНЫЕ РЕАКТИВНЫЕ ПЕРЕМЕННЫЕ И МЕТОДЫ НА ВЕРХНИЙ УРОВЕНЬ
+        const {
+            filteredProducts,
+            collections,
+            selectedPartner,
+            loadProductsByCategory,
+            setPartner,
+            clearMenuData,
+            setSearch,
+            loadMoreProducts
+        } = useProducts();
+
         const storiesStore = useStoriesStore();
-        return { productsStore, storiesStore };
+
+        return {
+            // 🆕 Возвращаем их напрямую. Vue автоматически "развернет" (unwraps) их в шаблоне и в this.methods!
+            filteredProducts,
+            collections,
+            selectedPartner,
+            storiesStore,
+
+            // Методы тоже возвращаем для удобства
+            loadProductsByCategory,
+            setPartner,
+            clearMenuData,
+            setSearch,
+            loadMoreProducts
+        };
     },
 
     data() {
         return {
             shopMode: 'partners',
             activeTab: 'categories',
-            isLoading: false, // Флаг загрузки
+            isLoading: false,
         };
     },
 
@@ -123,32 +158,34 @@ export default {
 
     methods: {
         async loadInitialData() {
-            this.isLoading = true; // Включаем индикатор
+            this.isLoading = true;
             try {
+                // 🆕 this.selectedPartner теперь корректно развернут Vue, .value не нужен
+                const partnerId = this.selectedPartner?.tenant_partner_id || null;
+
                 await Promise.all([
-                    this.productsStore.loadProductsByCategory(this.productsStore.selectedPartner?.tenant_partner_id),
-                    this.storiesStore.loadPartnersStories(this.productsStore.selectedPartner?.tenant_partner_id),
+                    this.loadProductsByCategory(partnerId),
+                    this.storiesStore.loadPartnersStories(partnerId),
                 ]);
+
                 this.activeTab = 'products';
             } catch (error) {
-                console.error('Ошибка загрузки данных:', error);
+                console.error('❌ Ошибка загрузки данных:', error);
             } finally {
-                this.isLoading = false; // Выключаем индикатор
+                this.isLoading = false;
             }
         },
 
         async onPartnerSelect(partner) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            console.log("partner", partner)
-            this.productsStore.setPartner(partner);
+            this.setPartner(partner);
             this.shopMode = 'shop';
             await this.loadInitialData();
-
         },
 
         backToPartners() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            this.productsStore.clearData();
+            this.clearMenuData();
             this.shopMode = 'partners';
         },
 
@@ -164,16 +201,13 @@ export default {
         },
 
         onSearch(query) {
-            this.productsStore.setSearch(query);
+            this.setSearch(query);
         },
 
         async onLoadMore(categoryId, offset) {
             try {
-                await this.productsStore.loadMoreProducts(
-                    categoryId,
-                    offset,
-                    this.productsStore.selectedPartner?.tenant_partner_id
-                );
+                const partnerId = this.selectedPartner?.tenant_partner_id || null;
+                await this.loadMoreProducts(categoryId, offset, partnerId);
             } catch (error) {
                 console.error('Ошибка загрузки:', error);
             }
@@ -204,32 +238,11 @@ export default {
 </script>
 
 <style scoped>
-.menu-container {
-    min-height: 100vh;
-}
-
-.loading-container {
-    min-height: 75vh;
-    background: transparent;
-}
-
-.loading-content {
-    max-width: 400px;
-    padding: 2rem;
-}
-
-.loading-title {
-    color: #2c3e50;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-}
-
-.loading-subtitle {
-    font-size: 0.9rem;
-}
-
-.spinner-border {
-    width: 3rem;
-    height: 3rem;
-}
+/* Ваши стили остаются без изменений */
+.menu-container { min-height: 100vh; }
+.loading-container { min-height: 75vh; background: transparent; }
+.loading-content { max-width: 400px; padding: 2rem; }
+.loading-title { color: #2c3e50; font-weight: 600; margin-bottom: 0.5rem; }
+.loading-subtitle { font-size: 0.9rem; }
+.spinner-border { width: 3rem; height: 3rem; }
 </style>

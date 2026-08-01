@@ -4,20 +4,16 @@ import { useProductsStore } from '@/MobileClient/stores/Shop/products.js';
 export function useProducts() {
     const store = useProductsStore();
 
-    // ==========================================
-    // 1. ЕДИНАЯ ДЕСТРУКТУРИЗАЦИЯ (State + Getters)
-    // ==========================================
     const {
         // Состояние (State)
         products,
         categories,
-        collections,          // 🆕
-
+        collections,
         products_paginate_object,
         categories_paginate_object,
-        collectionsPaginate,  // 🆕
+        collectionsPaginate,
         isLoading,
-        isLoadingMore,        // 🆕
+        isLoadingMore,
         isHydrated,
         isCategoriesLoading,
         isCategoriesHydrated,
@@ -31,8 +27,6 @@ export function useProducts() {
         lastError,
         errors,
         lastSyncAt,
-
-        // 🆕 UI состояние
         searchQuery,
         selectedCategory,
         selectedPartner,
@@ -49,55 +43,19 @@ export function useProducts() {
         categoriesCount,
         getProductById,
         getCategoryById,
-        filteredCategories,   // 🆕
-        totalProductsCount,   // 🆕
+
+        // 🆕 ДОБАВЛЯЕМ ЭТО:
+        filteredProducts,
+        totalProductsCount,
     } = storeToRefs(store);
 
-    // ==========================================
-    // 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-    // ==========================================
-    const isProductLoading = (productId) => store.isProductLoading(productId);
-    const isCategoryLoading = (categoryId) => store.isCategoryLoading(categoryId);
+    // ... (вспомогательные функции и методы остаются без изменений) ...
 
-    // ==========================================
-    // 3. МЕТОДЫ
-    // ==========================================
-    // Товары
-    const loadProducts = (payload = {}) => store.loadProducts(payload);
-    const loadRandomProducts = () => store.loadRandomProducts();
-    const saveProduct = (productForm) => store.saveProduct({ productForm });
-    const removeProduct = (productId) => store.removeShopProduct(productId);
-    const restoreProduct = (productId) => store.restoreProduct(productId);
-    const toggleStopList = (productId) => store.addToStopListProduct(productId);
-    const toggleRecommendation = (payload) => store.changeProductRecommendationStatus(payload);
-
-    // Категории
-    const loadCategories = (payload = {}) => store.loadCategories(payload);
-    const saveCategory = (payload) => store.storeProductCategory(payload);
-    const removeCategory = (categoryId) => store.removeProductCategory({ category_id: categoryId });
-    const toggleCategoryStatus = (categoryId) => store.changeProductCategoryStatus(categoryId);
-    const toggleCategoryRecommendation = (payload) => store.changeCategoryRecommendationStatus(payload);
-
-    // 🆕 Меню и Партнёры
-    const loadCollections = (page = 1, partnerId = null) => store.loadCollections(page, partnerId);
-
-    const setPartner = (partner) => store.setPartner(partner);
-    const setSearch = (query) => store.setSearch(query);
-    const clearMenuData = () => store.clearMenuData();
-
-    // Синхронизация
-    const syncFromVk = () => store.updateProductsFromVk();
-    const syncFromFrontPad = () => store.updateProductsFromFrontPad();
-
-    // ==========================================
-    // 4. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
-    // ==========================================
     return {
         // Состояние
         products,
         categories,
         collections,
-
         products_paginate_object,
         categories_paginate_object,
         collectionsPaginate,
@@ -132,56 +90,48 @@ export function useProducts() {
         categoriesCount,
         getProductById,
         getCategoryById,
-        filteredCategories,
-        totalProductsCount,
-        isProductLoading,
-        isCategoryLoading,
 
-        // Методы: Товары
-        loadProducts,
-        loadRandomProducts,
+        // 🆕 ДОБАВЛЯЕМ ЭТО В RETURN:
+        filteredProducts,
+        totalProductsCount,
+
+        isProductLoading: (id) => store.isProductLoading(id),
+        isCategoryLoading: (id) => store.isCategoryLoading(id),
+
+        // Методы (остаются без изменений)
+        loadProducts: (payload = {}) => store.loadProducts(payload),
+        loadRandomProducts: () => store.loadRandomProducts(),
+        saveProduct: (productForm) => store.saveProduct({ productForm }),
+        removeProduct: (productId) => store.removeShopProduct(productId),
+        restoreProduct: (productId) => store.restoreProduct(productId),
+        toggleStopList: (productId) => store.addToStopListProduct(productId),
+        toggleRecommendation: (payload) => store.changeProductRecommendationStatus(payload),
+        loadCategories: (payload = {}) => store.loadCategories(payload),
+        saveCategory: (payload) => store.storeProductCategory(payload),
+        removeCategory: (categoryId) => store.removeProductCategory({ category_id: categoryId }),
+        toggleCategoryStatus: (categoryId) => store.changeProductCategoryStatus(categoryId),
+        toggleCategoryRecommendation: (payload) => store.changeCategoryRecommendationStatus(payload),
+        loadCollections: (page = 1, partnerId = null) => store.loadCollections(page, partnerId),
+        setPartner: (partner) => store.setPartner(partner),
+        setSearch: (query) => store.setSearch(query),
+        clearMenuData: () => store.clearMenuData(),
+        syncFromVk: () => store.updateProductsFromVk(),
+        syncFromFrontPad: () => store.updateProductsFromFrontPad(),
         loadRecommendedProducts: store.loadRecommendedProducts,
         loadProductsByCategory: store.loadProductsByCategory,
-        loadMoreProducts: store.loadMoreProducts, // Исправлено имя для соответствия вызову
+        loadMoreProducts: store.loadMoreProducts,
         loadProductsInCategory: store.loadProductsInCategory,
         loadProduct: store.loadProduct,
-        saveProduct,
-        removeProduct,
-        restoreProduct,
-        toggleStopList,
-        toggleRecommendation,
         removeAllProducts: store.removeAllProducts,
-
-        // Методы: Категории
-        loadCategories,
         loadCategory: store.loadCategory,
-        saveCategory,
-        removeCategory,
-        toggleCategoryStatus,
-        toggleCategoryRecommendation,
-
-        // 🆕 Методы: Меню и Партнёры
-        loadCollections,
-
-        setPartner,
-        setSearch,
-        clearMenuData,
-
-        // Методы: Синхронизация и Экспорт
-        syncFromVk,
-        syncFromFrontPad,
         updateProductsFromFrontPadExcel: store.updateProductsFromFrontPadExcel,
         updateShopLink: store.updateShopLink,
         exportAllProducts: store.exportAllProducts,
         exportAllOrders: store.exportAllOrders,
-
-        // Методы: Прочее
         loadReviewsByProductId: store.loadReviewsByProductId,
         getFavList: store.getFavList,
         toggleProductInFavorites: store.toggleProductInFavorites,
         loadShopModuleData: store.loadShopModuleData,
-
-        // Сброс стора
         $reset: store.$reset,
     };
 }

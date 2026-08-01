@@ -58,7 +58,7 @@ class ProductService
             ->where('products.in_stop_list', false)
             ->orderBy('products.order_position', 'asc')
             ->skip($offset)
-            ->take(4) // 🎯 Грузим порциями по 4 штуки
+            ->take(12) // 🎯 Грузим порциями по 4 штуки
             ->get();
 
         return (object)[

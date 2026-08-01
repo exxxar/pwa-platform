@@ -31,7 +31,7 @@
                     <span class="pill-badge combo-badge">{{ collections.length }}</span>
                 </button>
 
-                <template v-for="item in categories">
+                <template v-for="item in (categories||[])">
                     <button
                         v-if="item.products?.length>0"
                         :key="item.id"

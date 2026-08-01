@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import {defineStore} from 'pinia';
 import axios from 'axios';
 
 const BASE = '/shop/products';
@@ -53,6 +53,7 @@ export const useProductsStore = defineStore('products', {
     // GETTERS
     // ==========================================
     getters: {
+        getSelectedPartner: (state) => state.selectedPartner || null,
         getProducts: (state) => state.products || [],
         getCategories: (state) => state.categories || [],
         getProductsPaginateObject: (state) => state.products_paginate_object || null,
@@ -87,6 +88,23 @@ export const useProductsStore = defineStore('products', {
         /**
          * Фильтрация категорий и товаров внутри них по поисковому запросу
          */
+        filteredProducts: (state) => {
+            if (!state.searchQuery) return state.categories || [];
+
+            const query = state.searchQuery.toLowerCase();
+            return (state.categories || [])
+                .map(cat => {
+                    const filteredProducts = (cat.products || []).filter(product =>
+                        product.name?.toLowerCase().includes(query)
+                    );
+                    return {
+                        ...cat,
+                        products: filteredProducts,
+                        products_count: filteredProducts.length
+                    };
+                })
+                .filter(cat => cat.products.length > 0);
+        },
         filteredCategories: (state) => {
             if (!state.searchQuery) return state.categories;
 
@@ -138,7 +156,7 @@ export const useProductsStore = defineStore('products', {
         /**
          * Загрузка списка товаров
          */
-        async loadProducts(payload = { dataObject: {}, page: 0, size: 20 }) {
+        async loadProducts(payload = {dataObject: {}, page: 0, size: 20}) {
             this.isLoading = true;
             this.lastError = null;
 
@@ -151,7 +169,7 @@ export const useProductsStore = defineStore('products', {
                 const dataObject = response.data;
 
                 this.products = dataObject.data || [];
-                const { data, ...paginate } = dataObject;
+                const {data, ...paginate} = dataObject;
                 this.products_paginate_object = paginate;
 
                 this.isHydrated = true;
@@ -193,7 +211,7 @@ export const useProductsStore = defineStore('products', {
                 const dataObject = response.data;
 
                 this.products = dataObject.data || [];
-                const { data, ...paginate } = dataObject;
+                const {data, ...paginate} = dataObject;
                 this.products_paginate_object = paginate;
 
                 return paginate;
@@ -223,7 +241,13 @@ export const useProductsStore = defineStore('products', {
         },
 
         /**
-         * Загрузка товаров по партнёру
+         * Загрузка товаров по категориям (для меню)
+         */
+        /**
+         * Загрузка товаров по категориям (для меню)
+         */
+        /**
+         * Загрузка товаров по категориям (для меню)
          */
         async loadProductsByCategory(partnerId = null) {
             this.isLoading = true;
@@ -231,83 +255,79 @@ export const useProductsStore = defineStore('products', {
                 const response = await axios.post('/shop/products/by-category', {
                     partner_id: partnerId
                 });
-                this.products = response.data.data;
+
+                // 🔥 ЖЕСТКИЙ ДЕБАГ: смотрим, что вернул сервер
+                console.log('🔥 RAW RESPONSE:', response);
+                console.log('🔥 response.data:', response.data);
+
+                // Пытаемся извлечь массив, проверяя оба возможных варианта структуры
+                const payload = response.data?.data || response.data || [];
+
+                console.log('🔥 ИТОГОВЫЙ МАССИВ ДЛЯ CATEGORIES:', payload);
+
+                // Гарантируем, что это именно массив
+                this.categories = Array.isArray(payload) ? payload : [];
+
             } catch (error) {
-                console.error('Ошибка загрузки товаров:', error);
+                console.error('[Products Store] Ошибка загрузки товаров по категориям:', error);
                 throw error;
             } finally {
                 this.isLoading = false;
             }
         },
 
-        // Загрузка дополнительных товаров (пагинация внутри категории)
-        // В вашем store (menuStore)
+        /**
+         * Загрузка дополнительных товаров (пагинация внутри категории)
+         */
+        /**
+         * Загрузка дополнительных товаров (пагинация внутри категории)
+         */
         async loadMoreProducts(categoryId, offset, partnerId = null) {
             this.isLoadingMore = true;
             try {
-                const response = await axios.get('/shop/products/more-by-category', {
-                    params: {
+                const response = await axios.post('/shop/products/more-by-category',
+                    {
                         category_id: categoryId,
                         offset: offset,
                         partner_id: partnerId
-                    }
-                });
 
-                // 🆕 Защита: если data нет, берем пустой массив
-                const newProducts = response.data?.data || [];
-                const category = this.products.find(p => p.id === categoryId);
+                    });
 
-                if (category && Array.isArray(newProducts)) {
-                    // Vue 3 реактивно отследит push в массив
+                // 🆕 Безопасное извлечение массива (учитываем вложенность Axios)
+                const responseData = response.data?.data || response.data || [];
+                const newProducts = Array.isArray(responseData) ? responseData : [];
+
+                console.log('🔄 [Store] Загружено новых товаров:', newProducts.length);
+
+                // 🆕 Ищем категорию. Приводим к строке для 100% совпадения ID
+                const category = this.categories.find(c => String(c.id) === String(categoryId));
+
+                if (category) {
+                    console.log('✅ [Store] Категория найдена:', category.name);
+                    console.log('📊 [Store] Было товаров:', category.products.length, 'Всего на сервере:', category.products_count);
+
+                    // 1. Добавляем новые товары в реактивный массив
                     category.products.push(...newProducts);
+
+                    // 2. 🚨 ВАЖНО: Мы НЕ меняем category.products_count!
+                    // products_count - это общее число товаров на сервере (константа для этой сессии).
+                    // Остаток пересчитается в шаблоне автоматически:
+                    // remaining = cat.products_count (например, 10) - cat.products.length (стало 8) = 2
+
+                    console.log('🎉 [Store] Стало товаров:', category.products.length, 'Осталось загрузить:', category.products_count - category.products.length);
+                } else {
+                    console.error('❌ [Store] Категория с ID', categoryId, 'не найдена в массиве categories!');
                 }
 
                 return newProducts.length;
             } catch (error) {
-                console.error('Ошибка загрузки доп. товаров:', error);
+                console.error('[Products Store] Ошибка загрузки доп. товаров:', error);
                 throw error;
             } finally {
                 this.isLoadingMore = false;
             }
         },
 
-        /**
-         * Загрузка товаров в категории (с Telegram-данными)
-         */
-        async loadProductsInCategory(payload) {
-            this.isInCategoryLoading = true;
-
-            try {
-                const tgData = window.Telegram?.WebApp?.initData || null;
-                const botDomain = window.currentBot?.bot_domain || null;
-                const slugId = window.currentScript || null;
-
-                const data = {
-                    tgData,
-                    slug_id: slugId,
-                    botDomain,
-                    ...(payload.dataObject || {}),
-                };
-
-                const page = data.page || 0;
-                const size = 12;
-                const link = `${BASE}/in-category?page=${page}&size=${size}`;
-
-                const response = await axios.post(link, data);
-                const dataObject = response.data;
-
-                this.products = dataObject.data || [];
-                const { data: items, ...paginate } = dataObject;
-                this.products_paginate_object = paginate;
-
-                return paginate;
-            } catch (err) {
-                console.error('[Products Store] Ошибка загрузки товаров категории:', err);
-                throw err;
-            } finally {
-                this.isInCategoryLoading = false;
-            }
-        },
 
         // ==========================================
         // ТОВАРЫ: CRUD
@@ -316,7 +336,7 @@ export const useProductsStore = defineStore('products', {
         /**
          * Создание товара
          */
-        async saveProduct(payload = { productForm: null }) {
+        async saveProduct(payload = {productForm: null}) {
             this.lastError = null;
 
             try {
@@ -386,7 +406,7 @@ export const useProductsStore = defineStore('products', {
                 if (restored) {
                     const index = this.products.findIndex(p => String(p.id) === String(id));
                     if (index !== -1) {
-                        this.products[index] = { ...this.products[index], ...restored };
+                        this.products[index] = {...this.products[index], ...restored};
                     } else {
                         this.products.unshift(restored);
                     }
@@ -539,7 +559,7 @@ export const useProductsStore = defineStore('products', {
             }
         },
 
-        async updateShopLink(payload = { botForm: null }) {
+        async updateShopLink(payload = {botForm: null}) {
             try {
                 const response = await axios.post(`${BASE}/update-shop-link`, payload.botForm);
                 return response.data;
@@ -570,14 +590,14 @@ export const useProductsStore = defineStore('products', {
         /**
          * Синхронизация с FrontPad через Excel
          */
-        async updateProductsFromFrontPadExcel(payload = { form: null }) {
+        async updateProductsFromFrontPadExcel(payload = {form: null}) {
             this.isLoading = true;
 
             try {
                 const response = await axios.post(
                     `${BASE}/update-from-frontpad-excel`,
                     payload.form,
-                    { headers: { 'Content-Type': 'multipart/form-data' } }
+                    {headers: {'Content-Type': 'multipart/form-data'}}
                 );
                 this.lastSyncAt = new Date();
                 return response.data;
@@ -593,7 +613,7 @@ export const useProductsStore = defineStore('products', {
         // ОТЗЫВЫ
         // ==========================================
 
-        async loadReviewsByProductId(payload = { dataObject: {}, page: 0, size: 30 }) {
+        async loadReviewsByProductId(payload = {dataObject: {}, page: 0, size: 30}) {
             try {
                 const page = payload.page || 0;
                 const size = payload.size || 30;
@@ -620,7 +640,7 @@ export const useProductsStore = defineStore('products', {
             }
         },
 
-        async toggleProductInFavorites(payload = { form: null }) {
+        async toggleProductInFavorites(payload = {form: null}) {
             try {
                 const response = await axios.post(`${BASE}/toggle-favorite`, payload.form);
                 return response.data;
@@ -655,7 +675,7 @@ export const useProductsStore = defineStore('products', {
         /**
          * Загрузка категорий
          */
-        async loadCategories(payload = { dataObject: {}, page: 0, size: 5 }) {
+        async loadCategories(payload = {dataObject: {}, page: 0, size: 5}) {
             this.isCategoriesLoading = true;
 
             try {
@@ -667,7 +687,7 @@ export const useProductsStore = defineStore('products', {
                 const dataObject = response.data;
 
                 this.categories = dataObject.data || [];
-                const { data, ...paginate } = dataObject;
+                const {data, ...paginate} = dataObject;
                 this.categories_paginate_object = paginate;
 
                 this.isCategoriesHydrated = true;
@@ -834,7 +854,7 @@ export const useProductsStore = defineStore('products', {
             this.isLoading = true;
             try {
                 const response = await axios.get('/shop/collections', {
-                    params: { page, partner_id: partnerId }
+                    params: {page, partner_id: partnerId}
                 });
                 this.collections = response.data.data || [];
                 this.collectionsPaginate = response.data.meta || null;
@@ -845,7 +865,6 @@ export const useProductsStore = defineStore('products', {
                 this.isLoading = false;
             }
         },
-
 
 
         /**
