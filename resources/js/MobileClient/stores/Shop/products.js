@@ -10,10 +10,14 @@ export const useProductsStore = defineStore('products', {
     state: () => ({
         // Данные
         products: [],
-        recommendations: [],
         categories: [],
         products_paginate_object: null,
         categories_paginate_object: null,
+
+        // 🆕 Данные меню (из старого стора)
+        collections: [],
+
+        collectionsPaginate: null,
 
         // Состояния загрузки по секциям
         isLoading: false,
@@ -25,8 +29,9 @@ export const useProductsStore = defineStore('products', {
         isByCategoryLoading: false,
         isInCategoryLoading: false,
         isModuleDataLoading: false,
+        isLoadingMore: false, // 🆕 Добавлено для пагинации внутри категории
 
-        // Действия над конкретными товарами: { [productId]: 'delete' | 'stop-list' | 'recommend' }
+        // Действия над конкретными товарами/категориями
         productActions: {},
         categoryActions: {},
 
@@ -36,119 +41,76 @@ export const useProductsStore = defineStore('products', {
 
         // Время последней синхронизации
         lastSyncAt: null,
+
+        // 🆕 UI состояние меню
+        searchQuery: '',
+        selectedCategory: null,
+        selectedPartner: null,
+        extraCharge: 0,
     }),
 
     // ==========================================
     // GETTERS
     // ==========================================
     getters: {
-        /**
-         * Все товары
-         */
         getProducts: (state) => state.products || [],
-
-        /**
-         * Все категории
-         */
         getCategories: (state) => state.categories || [],
-
-        /**
-         * Пагинация товаров
-         */
         getProductsPaginateObject: (state) => state.products_paginate_object || null,
-
-        /**
-         * Пагинация категорий
-         */
         getCategoriesPaginateObject: (state) => state.categories_paginate_object || null,
 
-        /**
-         * Найти товар по ID
-         */
-        getProductById: (state) => (id) => {
-            return state.products.find(item => String(item.id) === String(id)) || null;
-        },
+        getProductById: (state) => (id) => state.products.find(item => String(item.id) === String(id)) || null,
+        getCategoryById: (state) => (id) => state.categories.find(item => String(item.id) === String(id)) || null,
 
-        /**
-         * Найти категорию по ID
-         */
-        getCategoryById: (state) => (id) => {
-            return state.categories.find(item => String(item.id) === String(id)) || null;
-        },
-
-        /**
-         * Товары отсортированные (сначала рекомендуемые, затем по дате)
-         */
         sortedProducts: (state) => {
             return [...(state.products || [])].sort((a, b) => {
-                // Рекомендуемые сверху
                 if (a.is_recommended && !b.is_recommended) return -1;
                 if (!a.is_recommended && b.is_recommended) return 1;
-                // Затем по дате создания (новые сверху)
                 const dateA = new Date(a.created_at || 0);
                 const dateB = new Date(b.created_at || 0);
                 return dateB - dateA;
             });
         },
 
-        /**
-         * Активные товары (не в стоп-листе)
-         */
-        activeProducts: (state) => {
-            return (state.products || []).filter(p => !p.in_stop_list_at);
-        },
+        activeProducts: (state) => (state.products || []).filter(p => !p.in_stop_list_at),
+        stopListProducts: (state) => (state.products || []).filter(p => !!p.in_stop_list_at),
+        recommendedProducts: (state) => (state.products || []).filter(p => p.is_recommended),
+        activeCategories: (state) => (state.categories || []).filter(c => c.is_active !== false),
+        recommendedCategories: (state) => (state.categories || []).filter(c => c.is_recommended),
 
-        /**
-         * Товары в стоп-листе
-         */
-        stopListProducts: (state) => {
-            return (state.products || []).filter(p => !!p.in_stop_list_at);
-        },
+        isProductLoading: (state) => (id) => !!state.productActions[String(id)],
+        isCategoryLoading: (state) => (id) => !!state.categoryActions[String(id)],
 
-        /**
-         * Рекомендуемые товары
-         */
-        recommendedProducts: (state) => {
-            return (state.products || []).filter(p => p.is_recommended);
-        },
-
-        /**
-         * Активные категории
-         */
-        activeCategories: (state) => {
-            return (state.categories || []).filter(c => c.is_active !== false);
-        },
-
-        /**
-         * Рекомендуемые категории
-         */
-        recommendedCategories: (state) => {
-            return (state.categories || []).filter(c => c.is_recommended);
-        },
-
-        /**
-         * Проверка, загружается ли конкретный товар
-         */
-        isProductLoading: (state) => (id) => {
-            return !!state.productActions[String(id)];
-        },
-
-        /**
-         * Проверка, загружается ли конкретная категория
-         */
-        isCategoryLoading: (state) => (id) => {
-            return !!state.categoryActions[String(id)];
-        },
-
-        /**
-         * Общее количество товаров
-         */
         productsCount: (state) => state.products?.length || 0,
+        categoriesCount: (state) => state.categories?.length || 0,
+
+        // 🆕 ГЕТТЕРЫ ИЗ СТАРОГО СТОРА
+        /**
+         * Фильтрация категорий и товаров внутри них по поисковому запросу
+         */
+        filteredCategories: (state) => {
+            if (!state.searchQuery) return state.categories;
+
+            const query = state.searchQuery.toLowerCase();
+            return state.categories
+                .map(cat => {
+                    const filteredProducts = (cat.products || []).filter(product =>
+                        product.name?.toLowerCase().includes(query)
+                    );
+                    return {
+                        ...cat,
+                        products: filteredProducts,
+                        products_count: filteredProducts.length
+                    };
+                })
+                .filter(cat => cat.products.length > 0);
+        },
 
         /**
-         * Общее количество категорий
+         * Общее количество товаров во всех категориях
          */
-        categoriesCount: (state) => state.categories?.length || 0,
+        totalProductsCount: (state) => {
+            return state.categories.reduce((sum, cat) => sum + (cat.products_count || 0), 0);
+        },
     },
 
     // ==========================================
@@ -263,32 +225,49 @@ export const useProductsStore = defineStore('products', {
         /**
          * Загрузка товаров по партнёру
          */
-        async loadProductsByCategory(payload) {
-            this.isByCategoryLoading = true;
-
+        async loadProductsByCategory(partnerId = null) {
+            this.isLoading = true;
             try {
-                const response = await axios.post(`${BASE}/by-category`, {
-                    partner_id: payload.partner_id,
+                const response = await axios.post('/shop/products/by-category', {
+                    partner_id: partnerId
                 });
-                return response.data;
-            } catch (err) {
-                console.error('[Products Store] Ошибка загрузки товаров партнёра:', err);
-                throw err;
+                this.products = response.data.data;
+            } catch (error) {
+                console.error('Ошибка загрузки товаров:', error);
+                throw error;
             } finally {
-                this.isByCategoryLoading = false;
+                this.isLoading = false;
             }
         },
 
-        /**
-         * Подгрузка товаров по категории (пагинация)
-         */
-        async loadMoreProductsByCategory(payload) {
+        // Загрузка дополнительных товаров (пагинация внутри категории)
+        // В вашем store (menuStore)
+        async loadMoreProducts(categoryId, offset, partnerId = null) {
+            this.isLoadingMore = true;
             try {
-                const response = await axios.post(`${BASE}/more-by-category`, payload);
-                return response.data;
-            } catch (err) {
-                console.error('[Products Store] Ошибка подгрузки товаров:', err);
-                throw err;
+                const response = await axios.get('/shop/products/more-by-category', {
+                    params: {
+                        category_id: categoryId,
+                        offset: offset,
+                        partner_id: partnerId
+                    }
+                });
+
+                // 🆕 Защита: если data нет, берем пустой массив
+                const newProducts = response.data?.data || [];
+                const category = this.products.find(p => p.id === categoryId);
+
+                if (category && Array.isArray(newProducts)) {
+                    // Vue 3 реактивно отследит push в массив
+                    category.products.push(...newProducts);
+                }
+
+                return newProducts.length;
+            } catch (error) {
+                console.error('Ошибка загрузки доп. товаров:', error);
+                throw error;
+            } finally {
+                this.isLoadingMore = false;
             }
         },
 
@@ -848,15 +827,70 @@ export const useProductsStore = defineStore('products', {
             }
         },
 
+        /**
+         * 🆕 Загрузка коллекций (комбо-меню)
+         */
+        async loadCollections(page = 1, partnerId = null) {
+            this.isLoading = true;
+            try {
+                const response = await axios.get('/shop/collections', {
+                    params: { page, partner_id: partnerId }
+                });
+                this.collections = response.data.data || [];
+                this.collectionsPaginate = response.data.meta || null;
+            } catch (error) {
+                console.error('[Products Store] Ошибка загрузки коллекций:', error);
+                throw error;
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+
+
+        /**
+         * 🆕 Установка выбранного партнёра и его наценки
+         */
+        setPartner(partner) {
+            this.selectedPartner = partner;
+            this.extraCharge = partner?.extra_charge || 0;
+        },
+
+        /**
+         * 🆕 Установка поискового запроса
+         */
+        setSearch(query) {
+            this.searchQuery = query;
+        },
+
+        /**
+         * 🆕 Очистка данных меню (при смене партнёра или выходе)
+         */
+        clearMenuData() {
+            this.products = [];
+            this.collections = [];
+
+            this.categories = [];
+            this.selectedPartner = null;
+            this.extraCharge = 0;
+            this.searchQuery = '';
+            this.selectedCategory = null;
+        },
+
+        // ... (ваши существующие методы saveProduct, removeShopProduct, loadCategories и т.д. остаются без изменений) ...
+
         // ==========================================
         // СБРОС
         // ==========================================
-
         $reset() {
             this.products = [];
             this.categories = [];
+            this.collections = [];
+
             this.products_paginate_object = null;
             this.categories_paginate_object = null;
+            this.collectionsPaginate = null;
+
             this.isLoading = false;
             this.isHydrated = false;
             this.isCategoriesLoading = false;
@@ -866,11 +900,18 @@ export const useProductsStore = defineStore('products', {
             this.isByCategoryLoading = false;
             this.isInCategoryLoading = false;
             this.isModuleDataLoading = false;
+            this.isLoadingMore = false;
+
             this.productActions = {};
             this.categoryActions = {};
             this.lastError = null;
             this.errors = [];
             this.lastSyncAt = null;
+
+            this.searchQuery = '';
+            this.selectedCategory = null;
+            this.selectedPartner = null;
+            this.extraCharge = 0;
         },
     },
 });

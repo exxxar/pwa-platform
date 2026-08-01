@@ -22,8 +22,8 @@
             <template v-else>
                 <MenuHeader
                     :settings="settings"
-                    :categories="menuStore.filteredProducts"
-                    :collections="menuStore.collections"
+                    :categories="productsStore.filteredProducts"
+                    :collections="productsStore.collections"
                     :show-back-button="hasPartners"
                     @select-category="onCategorySelect"
                     @search="onSearch"
@@ -44,16 +44,16 @@
                     <!-- Контент в зависимости от таба -->
                     <CategoryList
                         v-show="activeTab === 'categories'"
-                        :categories="menuStore.filteredProducts"
-                        :collections-count="menuStore.collections.length"
+                        :categories="productsStore.filteredProducts"
+                        :collections-count="productsStore.collections.length"
                         @select-category="onCategorySelect"
                     />
 
                     <template v-if="activeTab === 'products'">
                         <ProductGrid
-                            :categories="menuStore.filteredProducts"
-                            :collections="menuStore.collections"
-                            :stories="menuStore.stories"
+                            :categories="productsStore.filteredProducts"
+                            :collections="productsStore.collections"
+                            :stories="storiesStore.stories"
                             :is-product-list="settings?.is_product_list"
                             @load-more="onLoadMore"
                             @swipe-left="onSwipeLeft"
@@ -69,7 +69,7 @@
 </template>
 
 <script>
-import { useMenuStore } from '@/MobileClient/stores/Shop/menu.js';
+import { useProducts } from '@/MobileClient/composables/useProducts.js';
 import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
 import PartnersList from '@/MobileClient/Components/Partners/PartnerList.vue';
 import MenuHeader from '@/MobileClient/Components/Shop/Menu/MenuHeader.vue';
@@ -91,9 +91,9 @@ export default {
     },
 
     setup() {
-        const menuStore = useMenuStore();
+        const productsStore = useProducts();
         const storiesStore = useStoriesStore();
-        return { menuStore, storiesStore };
+        return { productsStore, storiesStore };
     },
 
     data() {
@@ -126,8 +126,8 @@ export default {
             this.isLoading = true; // Включаем индикатор
             try {
                 await Promise.all([
-                    this.menuStore.loadProductsByCategory(this.menuStore.selectedPartner?.tenant_partner_id),
-                    this.storiesStore.loadPartnersStories(this.menuStore.selectedPartner?.tenant_partner_id),
+                    this.productsStore.loadProductsByCategory(this.productsStore.selectedPartner?.tenant_partner_id),
+                    this.storiesStore.loadPartnersStories(this.productsStore.selectedPartner?.tenant_partner_id),
                 ]);
                 this.activeTab = 'products';
             } catch (error) {
@@ -140,7 +140,7 @@ export default {
         async onPartnerSelect(partner) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
             console.log("partner", partner)
-            this.menuStore.setPartner(partner);
+            this.productsStore.setPartner(partner);
             this.shopMode = 'shop';
             await this.loadInitialData();
 
@@ -148,7 +148,7 @@ export default {
 
         backToPartners() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            this.menuStore.clearData();
+            this.productsStore.clearData();
             this.shopMode = 'partners';
         },
 
@@ -164,15 +164,15 @@ export default {
         },
 
         onSearch(query) {
-            this.menuStore.setSearch(query);
+            this.productsStore.setSearch(query);
         },
 
         async onLoadMore(categoryId, offset) {
             try {
-                await this.menuStore.loadMoreProducts(
+                await this.productsStore.loadMoreProducts(
                     categoryId,
                     offset,
-                    this.menuStore.selectedPartner?.tenant_partner_id
+                    this.productsStore.selectedPartner?.tenant_partner_id
                 );
             } catch (error) {
                 console.error('Ошибка загрузки:', error);
@@ -180,10 +180,10 @@ export default {
         },
 
         onSwipeLeft() {
-            this.$router.push({ name: 'MenuV2' });
+            this.$router.push({ name: 'Menu' });
         },
         onSwipeRight() {
-            this.$router.push({ name: 'ShopCartV2' });
+            this.$router.push({ name: 'ShopCart' });
         },
 
         scrollToCategory(categoryId) {

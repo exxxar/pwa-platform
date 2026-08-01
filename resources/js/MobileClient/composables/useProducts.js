@@ -1,10 +1,6 @@
 import { storeToRefs } from 'pinia';
 import { useProductsStore } from '@/MobileClient/stores/Shop/products.js';
 
-/**
- * Composable для работы с товарами и категориями.
- * Оптимизирован: убраны лишние computed-обертки и бесполезные try/catch.
- */
 export function useProducts() {
     const store = useProductsStore();
 
@@ -15,9 +11,13 @@ export function useProducts() {
         // Состояние (State)
         products,
         categories,
+        collections,          // 🆕
+
         products_paginate_object,
         categories_paginate_object,
+        collectionsPaginate,  // 🆕
         isLoading,
+        isLoadingMore,        // 🆕
         isHydrated,
         isCategoriesLoading,
         isCategoriesHydrated,
@@ -32,7 +32,13 @@ export function useProducts() {
         errors,
         lastSyncAt,
 
-        // Геттеры (Getters) - они УЖЕ реактивны, берем их напрямую!
+        // 🆕 UI состояние
+        searchQuery,
+        selectedCategory,
+        selectedPartner,
+        extraCharge,
+
+        // Геттеры (Getters)
         sortedProducts,
         activeProducts,
         stopListProducts,
@@ -43,6 +49,8 @@ export function useProducts() {
         categoriesCount,
         getProductById,
         getCategoryById,
+        filteredCategories,   // 🆕
+        totalProductsCount,   // 🆕
     } = storeToRefs(store);
 
     // ==========================================
@@ -52,11 +60,8 @@ export function useProducts() {
     const isCategoryLoading = (categoryId) => store.isCategoryLoading(categoryId);
 
     // ==========================================
-    // 3. МЕТОДЫ (Без избыточного try/catch)
+    // 3. МЕТОДЫ
     // ==========================================
-    // Мы просто возвращаем вызов метода стора.
-    // Обработкой ошибок должен заниматься компонент, вызывающий эти методы.
-
     // Товары
     const loadProducts = (payload = {}) => store.loadProducts(payload);
     const loadRandomProducts = () => store.loadRandomProducts();
@@ -73,6 +78,13 @@ export function useProducts() {
     const toggleCategoryStatus = (categoryId) => store.changeProductCategoryStatus(categoryId);
     const toggleCategoryRecommendation = (payload) => store.changeCategoryRecommendationStatus(payload);
 
+    // 🆕 Меню и Партнёры
+    const loadCollections = (page = 1, partnerId = null) => store.loadCollections(page, partnerId);
+
+    const setPartner = (partner) => store.setPartner(partner);
+    const setSearch = (query) => store.setSearch(query);
+    const clearMenuData = () => store.clearMenuData();
+
     // Синхронизация
     const syncFromVk = () => store.updateProductsFromVk();
     const syncFromFrontPad = () => store.updateProductsFromFrontPad();
@@ -84,9 +96,13 @@ export function useProducts() {
         // Состояние
         products,
         categories,
+        collections,
+
         products_paginate_object,
         categories_paginate_object,
+        collectionsPaginate,
         isLoading,
+        isLoadingMore,
         isHydrated,
         isCategoriesLoading,
         isCategoriesHydrated,
@@ -100,6 +116,10 @@ export function useProducts() {
         lastError,
         errors,
         lastSyncAt,
+        searchQuery,
+        selectedCategory,
+        selectedPartner,
+        extraCharge,
 
         // Геттеры
         sortedProducts,
@@ -112,6 +132,8 @@ export function useProducts() {
         categoriesCount,
         getProductById,
         getCategoryById,
+        filteredCategories,
+        totalProductsCount,
         isProductLoading,
         isCategoryLoading,
 
@@ -120,7 +142,7 @@ export function useProducts() {
         loadRandomProducts,
         loadRecommendedProducts: store.loadRecommendedProducts,
         loadProductsByCategory: store.loadProductsByCategory,
-        loadMoreProductsByCategory: store.loadMoreProductsByCategory,
+        loadMoreProducts: store.loadMoreProducts, // Исправлено имя для соответствия вызову
         loadProductsInCategory: store.loadProductsInCategory,
         loadProduct: store.loadProduct,
         saveProduct,
@@ -138,6 +160,13 @@ export function useProducts() {
         toggleCategoryStatus,
         toggleCategoryRecommendation,
 
+        // 🆕 Методы: Меню и Партнёры
+        loadCollections,
+
+        setPartner,
+        setSearch,
+        clearMenuData,
+
         // Методы: Синхронизация и Экспорт
         syncFromVk,
         syncFromFrontPad,
@@ -146,7 +175,7 @@ export function useProducts() {
         exportAllProducts: store.exportAllProducts,
         exportAllOrders: store.exportAllOrders,
 
-        // Методы: Прочее (Отзывы, Избранное, Модули)
+        // Методы: Прочее
         loadReviewsByProductId: store.loadReviewsByProductId,
         getFavList: store.getFavList,
         toggleProductInFavorites: store.toggleProductInFavorites,
