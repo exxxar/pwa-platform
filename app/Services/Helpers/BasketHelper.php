@@ -21,20 +21,24 @@ trait BasketHelper
     /**
      * 🎯 ОТПРАВКА УВЕДОМЛЕНИЯ О НОВОМ ЗАКАЗЕ В TELEGRAM КАНАЛ
      */
+    /**
+     * 🎯 ОТПРАВКА УВЕДОМЛЕНИЯ О НОВОМ ЗАКАЗЕ В TELEGRAM КАНАЛ
+     */
     private function sendTelegramNotification(Order $order, array $context, array $basketData): void
     {
+        // 1. Получаем настройки Telegram из настроек тенанта
         $tgSettings = $this->tenant->settings['telegram'] ?? [];
         $token = $tgSettings['token'] ?? null;
         $channelId = $tgSettings['channel_id'] ?? null;
 
+        // Если настройки не заполнены, тихо выходим, не ломая процесс оформления
         if (!$token || !$channelId) {
             return;
         }
 
-        $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
-
-        // 🆕 Используем умное получение адреса
+        // 2. Получаем умный адрес (из БД или из формы)
         $addr = $this->getResolvedAddress();
+        $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
         $addressText = $context['need_pickup'] ? 'Не требуется' : $addr['address'];
 
         $message = "🔔 <b>НОВЫЙ ЗАКАЗ #{$order->id}</b>\n";
@@ -50,21 +54,37 @@ trait BasketHelper
             if (!empty($addr['flat_number'])) $message .= "🏠 Кв/Офис: {$addr['flat_number']}\n";
         }
 
-        // 🆕 Выводим товары, сгруппированные по партнерам (берем из partner_boxes)
+        // 🆕 3. Формируем состав заказа с группировкой по заведениям, суммой и доставкой для каждого
         $message .= "\n🛒 <b>Состав заказа:</b>\n";
+
         foreach ($basketData['partner_boxes'] as $box) {
             $message .= "\n🏪 <b>{$box['name']}:</b>\n";
+
+            // Товары конкретного заведения
             foreach ($box['products'] as $product) {
                 $priceFormatted = number_format($product['price'], 0, '.', ' ');
                 $message .= "  • {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
             }
+
+            // 🆕 Сумма по этому заведению
+            $boxSubtotal = number_format($box['summary_price'], 0, '.', ' ');
+            $message .= "  └─ <b>Итого по заведению:</b> {$boxSubtotal} ₽\n";
+
+            // 🆕 Доставка по этому заведению (только если это не самовывоз и доставка > 0)
+            if (!$context['need_pickup'] && ($box['delivery_price'] ?? 0) > 0) {
+                $boxDelivery = number_format($box['delivery_price'], 0, '.', ' ');
+                $distText = ($box['distance'] > 0) ? " ({$box['distance']} км)" : "";
+                $message .= "  └─ <b>Доставка:</b> {$boxDelivery} ₽{$distText}\n";
+            }
         }
 
+        // 4. Общий итог по всему заказу
         $totalToPay = $order->summary_price + $order->delivery_price;
-        $message .= "\n💰 <b>Итого к оплате:</b> " . number_format($totalToPay, 0, '.', ' ') . " ₽\n";
+        $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "💰 <b>ВСЕГО К ОПЛАТЕ:</b> " . number_format($totalToPay, 0, '.', ' ') . " ₽\n";
 
-        if ($order->delivery_price > 0) {
-            $message .= "🚚 Доставка: " . number_format($order->delivery_price, 0, '.', ' ') . " ₽";
+        if ($order->delivery_price > 0 && !$context['need_pickup']) {
+            $message .= "🚚 <b>Общая доставка:</b> " . number_format($order->delivery_price, 0, '.', ' ') . " ₽";
             if ($context['distance'] > 0) {
                 $message .= " ({$context['distance']} км)";
             }
@@ -75,6 +95,7 @@ trait BasketHelper
             $message .= "\n📝 <b>Комментарий:</b> {$this->data['info']}\n";
         }
 
+        // 5. Формируем payload для Telegram API
         $payload = [
             'chat_id' => $channelId,
             'text' => $message,
@@ -82,12 +103,15 @@ trait BasketHelper
             'disable_web_page_preview' => true,
         ];
 
+        // Если в настройках указан ID темы (треда) в канале/группе
         if (!empty($tgSettings['thread_id'])) {
             $payload['message_thread_id'] = (int) $tgSettings['thread_id'];
         }
 
+        // 6. Отправляем запрос через cURL (или Http фасад, если вы его уже заменили)
         $this->sendTelegramCurlRequest($token, $payload);
     }
+
     /**
      * Вспомогательный метод для отправки запроса в Telegram API через cURL
      */
