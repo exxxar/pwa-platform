@@ -28,6 +28,8 @@ trait BasketHelper
         $token = $tgSettings['token'] ?? null;
         $channelId = $tgSettings['channel_id'] ?? null;
 
+        Log::info("telegram send:".print_r($tgSettings, true));
+
         // Если настройки не заполнены, тихо выходим, не ломая процесс оформления
         if (!$token || !$channelId) {
             return;

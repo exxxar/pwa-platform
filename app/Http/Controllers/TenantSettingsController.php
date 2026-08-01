@@ -213,7 +213,7 @@ class TenantSettingsController extends Controller
 
         $data = $request->all();
 
-        $this->mergeIntoMeta($tenant, ['telegram' => $data]);
+        $this->mergeIntoMeta($tenant, ['telegram' => $data["telegram"] ?? $data ?? null]);
 
         return response()->json(['success' => true, 'message' => 'Настройки телеграм обновлены']);
     }
