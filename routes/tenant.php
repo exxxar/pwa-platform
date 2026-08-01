@@ -251,6 +251,7 @@ $routes = function () {
             Route::put('/shop', [TenantSettingsController::class, 'updateShop']);
             Route::put('/faq', [TenantSettingsController::class, 'updateFaq']);
             Route::put('/landing', [TenantSettingsController::class, 'updateLanding']);
+            Route::put('/telegram', [TenantSettingsController::class, 'updateTelegram']);
 
             Route::put('/wheel', [TenantSettingsController::class, 'updateWheel']);
             Route::put('/guests', [TenantSettingsController::class, 'updateGuests']);

@@ -206,6 +206,18 @@ class TenantSettingsController extends Controller
         return response()->json(['success' => true, 'message' => 'Главное меню обновлено']);
     }
 
+
+    public function updateTelegram(Request $request)
+    {
+        $tenant = $this->getTenant();
+
+        $data = $request->all();
+
+        $this->mergeIntoMeta($tenant, ['telegram' => $data['telegram']]);
+
+        return response()->json(['success' => true, 'message' => 'Настройки телеграм обновлены']);
+    }
+
     public function updateLanding(Request $request)
     {
         $tenant = $this->getTenant();

@@ -66,6 +66,7 @@ import TabGames from '@/MobileClient/components/settings/TabGames.vue';
 import TabMainMenu from '@/MobileClient/components/settings/TabMainMenu.vue';
 import TabGuests from '@/MobileClient/components/settings/TabGuests.vue';
 import TabFaq from '@/MobileClient/components/settings/TabFaq.vue';
+import TabTelegram from '@/MobileClient/components/settings/TabTelegram.vue';
 
 export default {
     name: 'TenantSettingsPage',
@@ -101,6 +102,7 @@ export default {
                 { key: 'main_menu', title: 'Пункты главного меню', icon: 'fa-solid fa-bars', section: 'main-menu', component: TabMainMenu, saveAction: 'saveMainMenuSettings' },
                 { key: 'guests', title: 'Гости', icon: 'fa-solid fa-user-astronaut', section: 'guests', component: TabGuests, saveAction: 'saveGuestsSettings' },
                 { key: 'faq', title: 'FAQ', icon: 'fa-solid fa-circle-question', section: 'faq', component: TabFaq, saveAction: 'saveFaqSettings' },
+                { key: 'telegram', title: 'Telegram', icon: 'fa-brands fa-telegram', section: 'telegram', component: TabTelegram, saveAction: 'saveTelegramSettings' },
             ],
 
             // ==========================================
@@ -120,7 +122,12 @@ export default {
                     { day: 'Воскресенье', start_at: '08:00', end_at: '20:00', closed: false, closed_comment: 'Выходной' }
                 ]
             },
-
+            telegramForm: {
+                enabled: false,
+                token: '',
+                channel_id: '',
+                thread_id: ''
+            },
             pwaForm: {
                 name: null, short_name: null, description: null,
                 theme_color: '#ff8a00', background_color: '#ffffff',
@@ -232,6 +239,7 @@ export default {
                 main_menu: this.mainMenuForm,
                 guests: this.guestsForm,
                 faq: this.faqForm,
+                telegram: this.telegramForm,
             };
             return map[this.currentTab.key];
         },
@@ -354,6 +362,14 @@ export default {
             if (settings.faq && Array.isArray(settings.faq)) {
                 this.faqForm = settings.faq;
             }
+
+            const tgSettings = settings.telegram || {};
+            this.telegramForm = {
+                enabled: tgSettings.enabled ?? false,
+                token: tgSettings.token || '',
+                channel_id: tgSettings.channel_id || '',
+                thread_id: tgSettings.thread_id || ''
+            };
 
             try {
                 const response = await axios.get('/admin/tenant-settings/pwa');

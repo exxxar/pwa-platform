@@ -2,7 +2,6 @@
 
 namespace App\Models\Tenant;
 
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
@@ -13,8 +12,10 @@ class TenantMessage extends Model
 
     protected $fillable = [
         'tenant_id',
-        'tenant_user_id',
+        'tenant_user_id', // Оставляем для обратной совместимости
         'dialog_id',
+        'sender_type',    // 🆕 'user', 'admin', 'system'
+        'sender_id',      // 🆕 ID отправителя
         'message',
         'meta',
         'is_read',
@@ -27,7 +28,13 @@ class TenantMessage extends Model
         'read_at' => 'datetime',
     ];
 
-    protected $appends = ["has_attachment","attachment","message_type","attachment_size_formatted"];
+    protected $appends = [
+        "has_attachment",
+        "attachment",
+        "message_type",
+        "attachment_size_formatted",
+        "sender_name", // 🆕 Добавляем в аппенды, чтобы имя сразу приходило с сообщением
+    ];
 
     public function dialog()
     {
@@ -39,22 +46,36 @@ class TenantMessage extends Model
         return $this->belongsTo(TenantUser::class, 'tenant_user_id');
     }
 
-
     // ==========================================
-    // 🆕 АКСЕССОРЫ ДЛЯ ВЛОЖЕНИЙ
+    // 🆕 АКСЕССОРЫ ДЛЯ ОТПРАВИТЕЛЯ
     // ==========================================
 
     /**
-     * Есть ли вложение у сообщения
+     * Определяем имя отправителя для отображения на фронте
      */
+    public function getSenderNameAttribute(): string
+    {
+        if ($this->sender_type === 'admin') {
+            return $this->meta['sender_name'] ?? 'Администратор';
+        }
+
+        if ($this->sender_type === 'system') {
+            return 'Система';
+        }
+
+        // По умолчанию считаем, что это пользователь
+        return $this->user?->name ?? 'Пользователь';
+    }
+
+    // ==========================================
+    // 🆕 АКСЕССОРЫ ДЛЯ ВЛОЖЕНИЙ (ваш существующий код)
+    // ==========================================
+
     public function getHasAttachmentAttribute(): bool
     {
         return isset($this->meta['attachment']);
     }
 
-    /**
-     * Получить данные вложения
-     */
     public function getAttachmentAttribute(): ?array
     {
         $attachment = $this->meta['attachment'] ?? null;
@@ -63,7 +84,6 @@ class TenantMessage extends Model
             return null;
         }
 
-        // Обновляем URL (на случай, если домен изменился)
         if (isset($attachment['path'])) {
             try {
                 $attachment['url'] = Storage::disk('public')->url($attachment['path']);
@@ -76,17 +96,11 @@ class TenantMessage extends Model
         return $attachment;
     }
 
-    /**
-     * Тип сообщения (для удобства на фронте)
-     */
     public function getMessageTypeAttribute(): string
     {
         return $this->meta['type'] ?? 'text';
     }
 
-    /**
-     * Размер файла в читаемом виде
-     */
     public function getAttachmentSizeFormattedAttribute(): ?string
     {
         $size = $this->meta['attachment']['size'] ?? null;
@@ -104,5 +118,4 @@ class TenantMessage extends Model
 
         return round($size, 2) . ' ' . $units[$i];
     }
-
 }

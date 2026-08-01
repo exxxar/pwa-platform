@@ -104,17 +104,17 @@ class TenantDialogController extends Controller
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
 
+        // 1. Находим диалог.
+        // ВАЖНО: Мы убрали ->where('tenant_user_id', $user->id), чтобы администраторы тоже могли находить этот диалог и писать в него.
         $dialog = TenantDialog::where('id', $dialogId)
             ->where('tenant_id', $tenant->id)
-            ->where('tenant_user_id', $user->id)
             ->first();
 
         if (!$dialog) {
             return response()->json(['message' => 'Диалог не найден'], 404);
         }
 
-        // 🛠️ ИСПРАВЛЕНИЕ 1: Убрали dialog_id из валидации (он уже есть в URL),
-        // или изменили exists на tenant_dialogs, если оставляете.
+        // 2. Валидация
         $validated = $request->validate([
             'text' => 'nullable|string|max:2000',
             'message' => 'nullable|string|max:2000',
@@ -122,44 +122,81 @@ class TenantDialogController extends Controller
             'attachments.*' => 'nullable|file|mimes:jpeg,png,jpg,gif,webm,mp3,mp4,pdf,doc,docx|max:10240',
         ]);
 
-        // 🛠️ ИСПРАВЛЕНИЕ 2: Берем текст из любого поля (text или message)
         $textContent = $request->input('text') ?: $request->input('message', '');
-        $attachmentUrls = [];
 
-        // 🛠️ ИСПРАВЛЕНИЕ 3: Реальное сохранение файлов
+        // 3. 🆕 ОПРЕДЕЛЯЕМ ОТПРАВИТЕЛЯ
+        // Если ID текущего пользователя совпадает с ID клиента в диалоге, значит пишет клиент. Иначе - админ/менеджер.
+        $isClientSender = $user->id === $dialog->tenant_user_id;
+
+        $senderType = $isClientSender ? 'user' : 'admin';
+        $senderId = $user->id;
+        $senderName = $user->name ?? ($isClientSender ? 'Клиент' : 'Администратор');
+
+        // 4. Подготовка мета-данных (в формате, который ожидает ваша модель TenantMessage)
+        $metaData = [
+            'sender_name' => $senderName, // 🆕 Имя для отображения на фронте
+            'type' => 'text',
+        ];
+
+        // 5. 🆕 ОБРАБОТКА ВЛОЖЕНИЙ (исправлено под формат модели)
         if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
-                // Генерируем уникальное имя файла
-                $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file = $request->file('attachments')[0]; // Берем первый файл (можно расширить на цикл, если нужно несколько)
 
-                // Сохраняем в public disk (storage/app/public/messages/attachments)
-                $path = $file->storeAs('public/messages/attachments', $filename);
+            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            // Сохраняем относительно диска 'public' (storage/app/public/...)
+            $path = $file->storeAs('messages/attachments', $filename, 'public');
 
-                // Генерируем публичную ссылку для фронтенда
-                $attachmentUrls[] = asset('storage/messages/attachments/' . $filename);
-            }
+            // Формируем массив ровно так, как ожидает аксессор getAttachmentAttribute в модели
+            $metaData['attachment'] = [
+                'path' => $path,
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+            ];
+
+            // Определяем тип сообщения для фронтенда
+            $metaData['type'] = $this->getFileType($file->getClientOriginalExtension());
         }
 
-        // 🛠️ ИСПРАВЛЕНИЕ 4: Сохраняем ссылки в meta (или в отдельную колонку attachments, если она есть)
+        // 6. Создание сообщения
         $message = TenantMessage::create([
             'tenant_id' => $tenant->id,
+            'tenant_user_id' => $dialog->tenant_user_id, // Всегда привязываем к клиенту диалога для корректных связей (relations)
             'dialog_id' => $dialog->id,
-            'sender_id' => $user->id, // Рекомендуется добавить, если есть такое поле
+            'sender_type' => $senderType,   // 🆕 'user' или 'admin'
+            'sender_id' => $senderId,       // 🆕 ID того, кто реально написал
             'message' => $textContent,
-            'meta' => [
-                'attachments' => $attachmentUrls,
-                'has_voice' => !empty($attachmentUrls) && str_contains($attachmentUrls[0], 'webm'), // Флаг для фронтенда
-            ],
+            'meta' => $metaData,
             'is_read' => false,
         ]);
 
-        // Обновляем время последнего сообщения
-        $dialog->update(['last_message_at' => now()]);
+        // 7. Обновляем диалог
+        $dialog->update([
+            'last_message_at' => now(),
+            // Опционально: если пишет админ, можно пометить диалог как "непрочитанный" для клиента
+            // 'is_client_read' => !$isClientSender ? false : true,
+        ]);
 
         return response()->json([
             'success' => true,
-            'data' => $message
+            'data' => $message // Благодаря $appends в модели, сюда автоматически добавятся sender_name и данные вложения
         ], 201);
+    }
+
+    /**
+     * 🆕 Вспомогательный метод для определения типа файла (соответствует иконкам на фронте)
+     */
+    private function getFileType(string $extension): string
+    {
+        $map = [
+            'jpeg' => 'image', 'jpg' => 'image', 'png' => 'image', 'gif' => 'image', 'webp' => 'image',
+            'pdf' => 'pdf',
+            'doc' => 'doc', 'docx' => 'doc',
+            'xls' => 'xls', 'xlsx' => 'xls',
+            'zip' => 'zip', 'rar' => 'zip',
+            'mp4' => 'video', 'webm' => 'video',
+            'mp3' => 'audio',
+        ];
+        return $map[strtolower($extension)] ?? 'file';
     }
 
     /**

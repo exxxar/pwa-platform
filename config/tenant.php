@@ -28,6 +28,7 @@ return [
         'cashback',
         'landing',
         'misc',
-        'main_menu'
+        'main_menu',
+        'telegram'
     ],
 ];

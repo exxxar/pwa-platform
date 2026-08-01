@@ -12,6 +12,7 @@ class TenantSettingsService
         return [
             // Основные
             ...config('tenant.general', []),
+            ...config('tenant.telegram', []),
 
             // Доставка
             ...config('tenant.delivery', []),
@@ -79,6 +80,7 @@ class TenantSettingsService
             'cashback' => config('tenant.cashback', []),
             'misc' => config('tenant.misc', []),
             'landing' => config('tenant.landing', []),
+            'telegram' => config('tenant.telegram', []),
             default => [],
         };
     }

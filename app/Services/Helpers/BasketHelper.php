@@ -17,6 +17,104 @@ use Illuminate\Support\Str;
 
 trait BasketHelper
 {
+
+    /**
+     * 🎯 ОТПРАВКА УВЕДОМЛЕНИЯ О НОВОМ ЗАКАЗЕ В TELEGRAM КАНАЛ
+     */
+    private function sendTelegramNotification(Order $order, array $context, array $basketData): void
+    {
+        // 1. Получаем настройки Telegram из настроек тенанта
+        $tgSettings = $this->tenant->settings['telegram'] ?? [];
+        $token = $tgSettings['token'] ?? null;
+        $channelId = $tgSettings['channel_id'] ?? null;
+
+        // Если настройки не заполнены, тихо выходим, не ломая процесс оформления
+        if (!$token || !$channelId) {
+            return;
+        }
+
+        // 2. Формируем красивое HTML-сообщение для канала
+        $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
+        $addressText = $context['need_pickup'] ? 'Не требуется' : $this->fsPrepareAddress();
+
+        $message = "🔔 <b>НОВЫЙ ЗАКАЗ #{$order->id}</b>\n";
+        $message .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
+        $message .= "👤 <b>Клиент:</b> {$order->receiver_name}\n";
+        $message .= "📞 <b>Телефон:</b> <code>{$order->receiver_phone}</code>\n";
+        $message .= "📦 <b>Тип:</b> {$orderType}\n";
+
+        if (!$context['need_pickup']) {
+            $message .= "📍 <b>Адрес:</b> {$addressText}\n";
+            if (!empty($this->data['entrance_number'])) $message .= "🚪 Подъезд: {$this->data['entrance_number']}\n";
+            if (!empty($this->data['floor_number'])) $message .= "🏢 Этаж: {$this->data['floor_number']}\n";
+            if (!empty($this->data['flat_number'])) $message .= "🏠 Кв/Офис: {$this->data['flat_number']}\n";
+        }
+
+        $message .= "\n🛒 <b>Состав заказа:</b>\n";
+        foreach ($basketData['product_info'] as $product) {
+            $priceFormatted = number_format($product['price'], 0, '.', ' ');
+            $message .= "• {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
+        }
+
+        $totalToPay = $order->summary_price + $order->delivery_price;
+        $message .= "\n💰 <b>Итого к оплате:</b> " . number_format($totalToPay, 0, '.', ' ') . " ₽\n";
+
+        if ($order->delivery_price > 0) {
+            $message .= "🚚 Доставка: " . number_format($order->delivery_price, 0, '.', ' ') . " ₽";
+            if ($context['distance'] > 0) {
+                $message .= " ({$context['distance']} км)";
+            }
+            $message .= "\n";
+        }
+
+        if (!empty($this->data['info'])) {
+            $message .= "\n📝 <b>Комментарий:</b> {$this->data['info']}\n";
+        }
+
+        // 3. Формируем payload для Telegram API
+        $payload = [
+            'chat_id' => $channelId,
+            'text' => $message,
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        // Если в настройках указан ID темы (треда) в канале/группе
+        if (!empty($tgSettings['thread_id'])) {
+            $payload['message_thread_id'] = $tgSettings['thread_id'];
+        }
+
+        // 4. Отправляем запрос через cURL
+        $this->sendTelegramCurlRequest($token, $payload);
+    }
+
+    /**
+     * Вспомогательный метод для отправки запроса в Telegram API через cURL
+     */
+    private function sendTelegramCurlRequest(string $token, array $payload): bool
+    {
+        $ch = curl_init();
+        $url = "https://api.telegram.org/bot{$token}/sendMessage";
+
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($payload));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Таймаут 10 секунд, чтобы не вешать оформление заказа
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            Log::warning('[Telegram Notification] Ошибка отправки. HTTP: ' . $httpCode . ' | Error: ' . $curlError . ' | Response: ' . $response);
+            return false;
+        }
+
+        return true;
+    }
+
     protected function safeInt($value): ?int
     {
         if (is_null($value) || $value === '' || $value === false) return null;
@@ -627,6 +725,9 @@ trait BasketHelper
                 'recipients' => ['partners' => true],
             ]);
         }
+
+        // 🎯 НОВЫЙ ВЫЗОВ: Отправка уведомления в Telegram канал
+        $this->sendTelegramNotification($order, $context, $basketData);
 
         return $kanbanTaskId;
     }

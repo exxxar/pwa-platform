@@ -63,6 +63,13 @@
                                 'is-system': isSystemMessage(message),
                             }"
                     >
+
+                        <!-- 🆕 ИМЯ ОТПРАВИТЕЛЯ (показываем, если сообщение не мое, или если это админ/система) -->
+                        <div v-if="!isMine(message) && getSenderName(message)" class="message-sender-name">
+                            {{ getSenderName(message) }}
+                        </div>
+
+
                         <!-- ✅ 1. СООБЩЕНИЕ С ЗАКАЗОМ (Восстановлено) -->
                         <template v-if="isOrderMessage(message)">
                             <div class="order-card">
@@ -523,7 +530,16 @@ export default {
                 },
             });
         },
-
+        getSenderName(message) {
+            if (message.sender_type === 'admin') {
+                return message.meta?.sender_name || 'Администратор';
+            }
+            if (message.sender_type === 'system') {
+                return 'Система';
+            }
+            // Если это пользователь (на случай групповых чатов в будущем)
+            return message.user?.name || message.sender_name || 'Пользователь';
+        },
         deleteCurrentDialog() {
             this.closeDialogMenu();
             this.showConfirm({
@@ -2292,4 +2308,35 @@ $warning: #f59e0b;
     z-index: 20;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.03); // Легкая тень сверху для разделения
 }*/
+// ==========================================
+// 🆕 ИМЯ ОТПРАВИТЕЛЯ НАД СООБЩЕНИЕМ
+// ==========================================
+.message-sender-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: $primary; // Цвет для администратора
+    margin-bottom: 4px;
+    margin-left: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    // Если отправитель система, делаем текст серым и нейтральным
+    .message-bubble.is-system & {
+        color: $text-muted;
+        font-weight: 500;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    // Добавляем маленькую иконку короны для админа (опционально, через CSS)
+    .message-bubble:not(.is-system) &::before {
+        content: '\f023'; // Иконка щита/админа из FontAwesome (fa-solid fa-user-shield)
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 0.7rem;
+        opacity: 0.7;
+    }
+}
 </style>
