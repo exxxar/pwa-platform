@@ -70,7 +70,6 @@
 
 <script>
 import { useMenuStore } from '@/MobileClient/stores/Shop/menu.js';
-import { useProductsStore } from '@/MobileClient/stores/Shop/products.js';
 import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
 import PartnersList from '@/MobileClient/Components/Partners/PartnerList.vue';
 import MenuHeader from '@/MobileClient/Components/Shop/Menu/MenuHeader.vue';
@@ -94,8 +93,7 @@ export default {
     setup() {
         const menuStore = useMenuStore();
         const storiesStore = useStoriesStore();
-        const productsStore = useProductsStore();
-        return { menuStore, storiesStore, productsStore };
+        return { menuStore, storiesStore };
     },
 
     data() {
@@ -128,7 +126,7 @@ export default {
             this.isLoading = true; // Включаем индикатор
             try {
                 await Promise.all([
-                    this.productsStore.loadProductsByCategory(this.menuStore.selectedPartner?.tenant_partner_id),
+                    this.menuStore.loadProductsByCategory(this.menuStore.selectedPartner?.tenant_partner_id),
                     this.storiesStore.loadPartnersStories(this.menuStore.selectedPartner?.tenant_partner_id),
                 ]);
                 this.activeTab = 'products';
@@ -171,7 +169,7 @@ export default {
 
         async onLoadMore(categoryId, offset) {
             try {
-                await this.productsStore.loadMoreProducts(
+                await this.menuStore.loadMoreProducts(
                     categoryId,
                     offset,
                     this.menuStore.selectedPartner?.tenant_partner_id
