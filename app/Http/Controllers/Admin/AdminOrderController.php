@@ -56,7 +56,7 @@ class AdminOrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::query()->with(['tenantUser', 'dialog']);
+        $query = Order::query()->with(['tenant','tenantUser', 'dialog']);
 
         // 1. Поиск по ID, имени или телефону
         if ($request->filled('search')) {
