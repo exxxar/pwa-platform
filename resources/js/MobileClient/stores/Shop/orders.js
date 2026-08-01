@@ -632,8 +632,8 @@ export const useOrdersStore = defineStore('orders', {
                 this.isLoadingAdmin = false;
             }
 
-            // 🔥 УДАЛИТЕ ЭТОТ БЛОК ОТСЮДА. Он не нужен и возвращает undefined.
-            // async функция и так вернет Promise, который разрешится успешно.
+            // 🔥 УДАЛИТЕ ОТСЮДА ЭТОТ БЛОК, ЕСЛИ ОН ТАМ ЕСТЬ:
+            // return { adminOrders, adminOrdersPaginate, isLoadingAdmin, loadAdminOrders };
         },
 
         async loadAdminOrderDetails(orderId) {
@@ -641,7 +641,7 @@ export const useOrdersStore = defineStore('orders', {
             try {
                 const response = await axios.get(`/admin/orders/${orderId}`);
                 this.currentOrder = response.data;
-                return response.data;
+                return response.data; // 🔥 Должен возвращать данные или Promise
             } catch (error) {
                 console.error('Ошибка загрузки деталей заказа:', error);
                 throw error;

@@ -117,7 +117,7 @@
 <script>
 import { useOrders } from '@/MobileClient/composables/useOrders';
 import Pagination from '@/MobileClient/Components/Shop/Helpers/Pagination.vue';
-import axios from 'axios'; // 🔥 Добавили axios для экспорта
+import axios from 'axios';
 
 const debounce = (func, wait) => {
     let timeout;
@@ -136,7 +136,16 @@ export default {
     components: { Pagination },
 
     setup() {
-        const { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin } = useOrders();
+        const ordersData = useOrders();
+
+        // 🔥 ЛОГ 1: Проверяем, что именно возвращает composable
+        console.log('[AdminOrdersList] setup - useOrders вернул:', {
+            loadAdminOrdersType: typeof ordersData.loadAdminOrders,
+            loadAdminOrdersValue: ordersData.loadAdminOrders,
+            isLoadingAdminType: typeof ordersData.isLoadingAdmin,
+        });
+
+        const { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin } = ordersData;
         return { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin };
     },
 
@@ -146,17 +155,21 @@ export default {
             filterStatus: '',
             sort: { param: 'id', direction: 'desc' },
             currentPage: 1,
-            isExporting: false, // 🔥 Состояние для кнопки экспорта
+            isExporting: false,
         };
     },
 
     mounted() {
+        // 🔥 ЛОГ 2: Проверяем тип функции в контексте компонента (this) перед вызовом
+        console.log('[AdminOrdersList] mounted - typeof this.loadAdminOrders:', typeof this.loadAdminOrders);
+        console.log('[AdminOrdersList] mounted - значение this.loadAdminOrders:', this.loadAdminOrders);
+
         this.loadData(1);
     },
 
     methods: {
-        // 🔥 НОВЫЙ МЕТОД ЭКСПОРТА
         async exportToExcel() {
+            console.log('[AdminOrdersList] exportToExcel - начало');
             this.isExporting = true;
             try {
                 const response = await axios.get('/admin/orders/export', {
@@ -166,15 +179,13 @@ export default {
                         order_by: this.sort.param,
                         direction: this.sort.direction
                     },
-                    responseType: 'blob' // 🔥 ВАЖНО: указываем, что ждем файл
+                    responseType: 'blob'
                 });
 
-                // Создаем ссылку для скачивания
                 const url = window.URL.createObjectURL(new Blob([response.data]));
                 const link = document.createElement('a');
                 link.href = url;
 
-                // Имя файла берем из заголовков ответа или генерируем
                 const disposition = response.headers['content-disposition'];
                 let filename = 'orders.xlsx';
                 if (disposition && disposition.indexOf('filename=') !== -1) {
@@ -189,9 +200,10 @@ export default {
                 link.click();
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(url);
+                console.log('[AdminOrdersList] exportToExcel - успешно');
 
             } catch (error) {
-                console.error('Ошибка экспорта:', error);
+                console.error('[AdminOrdersList] exportToExcel - ОШИБКА:', error);
                 alert('Не удалось выгрузить файл. Попробуйте позже.');
             } finally {
                 this.isExporting = false;
@@ -208,20 +220,35 @@ export default {
         },
 
         async loadData(page = 1) {
+            console.log(`[AdminOrdersList] loadData - вызван для страницы ${page}`);
             this.currentPage = page;
-            if (typeof this.loadAdminOrders !== 'function') return;
+
+            // 🔥 ЛОГ 3: КРИТИЧЕСКАЯ ПРОВЕРКА перед await
+            console.log('[AdminOrdersList] loadData - typeof this.loadAdminOrders:', typeof this.loadAdminOrders);
+
+            if (typeof this.loadAdminOrders !== 'function') {
+                console.error('🚨 [AdminOrdersList] КРИТИЧЕСКАЯ ОШИБКА: loadAdminOrders НЕ является функцией!');
+                console.error('🚨 Текущее значение:', this.loadAdminOrders);
+                console.error('🚨 Проверьте файл useOrders.js и orders.js (Pinia store)');
+                return; // Прерываем выполнение, чтобы не упало на await
+            }
+
+            const payload = {
+                page: page,
+                size: 20,
+                search: this.search || null,
+                status: this.filterStatus || null,
+                order_by: this.sort.param,
+                direction: this.sort.direction
+            };
+            console.log('[AdminOrdersList] loadData - отправляем payload:', payload);
 
             try {
-                await this.loadAdminOrders({
-                    page: page,
-                    size: 20,
-                    search: this.search || null,
-                    status: this.filterStatus || null,
-                    order_by: this.sort.param,
-                    direction: this.sort.direction
-                });
+                console.log('[AdminOrdersList] loadData - вызываем await this.loadAdminOrders...');
+                const result = await this.loadAdminOrders(payload);
+                console.log('[AdminOrdersList] loadData - успешно завершено. Результат:', result);
             } catch (err) {
-                console.error('Ошибка загрузки:', err);
+                console.error('🚨 [AdminOrdersList] loadData - ОШИБКА в try/catch:', err);
             }
         },
 

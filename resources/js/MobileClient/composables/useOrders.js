@@ -75,7 +75,7 @@ export function useOrders() {
         repeatOrder,
 
         // Прямые прокси для остальных действий
-        changeStatus: store.changeStatus, // или как оно у вас называется в store
+        changeStatus: store.changeStatus,
         declineOrder: store.declineOrder,
         calculateDeliveryPrice: store.calculateDeliveryPrice,
         requestDeliveryPrice: store.requestDeliveryPrice,
