@@ -68,7 +68,7 @@ export const useMenuStore = defineStore('menu', {
         async loadMoreProducts(categoryId, offset, partnerId = null) {
             this.isLoadingMore = true;
             try {
-                const response = await axios.get('products/more-by-category', {
+                const response = await axios.get('/shop/products/more-by-category', {
                     params: {
                         category_id: categoryId,
                         offset: offset,
@@ -98,7 +98,7 @@ export const useMenuStore = defineStore('menu', {
         async loadCollections(page = 1, partnerId = null) {
             this.isLoading = true;
             try {
-                const response = await axios.get('/collections', {
+                const response = await axios.get('/shop/collections', {
                     params: { page, partner_id: partnerId }
                 });
                 this.collections = response.data.data;
