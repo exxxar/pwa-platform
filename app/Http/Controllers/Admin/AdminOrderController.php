@@ -39,7 +39,7 @@ class AdminOrderController extends Controller
         return Excel::download(new AdminOrdersExport($orders), 'orders_' . now()->format('Y-m-d_H-i') . '.xlsx');
     }
 
-    public function exportSingle($id)
+    public function exportSingle($tenant, $id)
     {
         // Загружаем заказ со всеми нужными связями
         $order = Order::with(['tenant', 'tenantUser'])->findOrFail($id);
