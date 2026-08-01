@@ -214,7 +214,7 @@ const routes = [
     {
         path: '/admin/orders/:id',
         name: 'AdminOrderDetails',
-        component: () => AdminOrderDetails,
+        component: AdminOrderDetails,
         meta: {  auth: true, roles: ['admin', 'super_admin', 'worker'], permission: 'manage_orders'}
     },
 
