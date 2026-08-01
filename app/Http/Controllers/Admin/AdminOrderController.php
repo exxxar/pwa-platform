@@ -114,7 +114,7 @@ class AdminOrderController extends Controller
     /**
      * Получить детализацию одного заказа
      */
-    public function show($id)
+    public function show($tenant, $id)
     {
         $order = Order::with(['tenantUser', 'dialog', 'dialog.messages' => function ($q) {
             $q->latest()->limit(20); // Последние 20 сообщений для контекста
