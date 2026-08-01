@@ -161,7 +161,7 @@
                 </div>
 
                 <div v-else class="partners-list">
-                    <div class="partners-grid" :class="{ 'grid-view': viewMode === 'grid' }">
+                    <div class="partners-grid mb-3" :class="{ 'grid-view': viewMode === 'grid' }">
 
                         <div v-for="partner in filteredPartners" :key="partner.id">
                             <PartnerCard
@@ -513,7 +513,8 @@ export default {
             // 1. ФИЛЬТР ПО ВКЛАДКЕ (Все / Избранные / Акции / Популярные)
             // ==========================================
             if (this.filter === 'favorites') {
-                list = list.filter(p => this.favoriteIds.includes(p.id));
+                // 🆕 Преобразуем p.id в строку для корректного сравнения
+                list = list.filter(p => this.favoriteIds.includes(String(p.id)));
             } else if (this.filter === 'promo') {
                 list = list.filter(p => {
                     // Проверяем наличие тега 'promo' или 'sale', либо флага has_promo

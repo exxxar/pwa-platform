@@ -1,5 +1,5 @@
 <template>
-    <div class="product-grid mb-3">
+    <div class="product-grid">
         <div class="container g-2">
 
             <!-- Комбо-меню (если есть) -->
