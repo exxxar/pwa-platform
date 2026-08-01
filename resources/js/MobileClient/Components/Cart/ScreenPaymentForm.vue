@@ -393,6 +393,19 @@ export default {
     },
 
     methods: {
+        async validate() {
+            const form = this.modelValue || this.deliveryForm;
+            // Проверяем, что файл действительно выбран и является объектом File
+            if (!form.image || !(form.image instanceof File)) {
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Пожалуйста, загрузите скриншот чека об оплате',
+                    type: 'error'
+                });
+                return false;
+            }
+            return true;
+        },
         // Универсальное обновление поля формы
         updateField(field, value) {
             this.$emit('update:modelValue', { ...this.form, [field]: value });

@@ -6,11 +6,11 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\WithEvents; // 🔥 1. Добавляем интерфейс событий
-use Maatwebsite\Excel\Events\AfterSheet;   // 🔥 2. Добавляем класс события
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, WithStyles, WithEvents // 🔥 3. Реализуем WithEvents
+class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, WithStyles, WithEvents
 {
     protected $orders;
 
@@ -53,9 +53,13 @@ class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, Wi
                     $count = $product['count'] ?? 1;
                     $name = $product['name'] ?? 'Товар';
                     $price = $product['price'] ?? 0;
+
+                    // Формируем строку для каждой позиции
                     $items[] = "{$count}x {$name} (" . number_format($price, 0, '.', ' ') . " ₽)";
                 }
-                $productsString = implode("; ", $items);
+
+                // 🔥 ИЗМЕНЕНИЕ ЗДЕСЬ: используем перенос строки (\n) вместо "; "
+                $productsString = implode("\n", $items);
             }
         }
 
@@ -90,33 +94,34 @@ class AdminOrdersExport implements FromCollection, WithHeadings, WithMapping, Wi
                 'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFF']],
                 'fill' => ['fillType' => 'solid', 'startColor' => ['argb' => '3B82F6']]
             ],
-            // Перенос текста для колонки "Состав заказа" (F)
+            // Перенос текста для колонки "Состав заказа" (F) - это критически важно для \n
             'F' => [
                 'alignment' => [
                     'wrapText' => true,
-                    'vertical' => 'top'
+                    'vertical' => 'top' // Выравнивание по верхнему краю, чтобы список начинался сверху
                 ]
             ]
         ];
     }
 
-    // 🔥 4. Добавляем метод настройки ширины колонок после генерации листа
     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function(AfterSheet $event) {
-                // Проходим по всем колонкам от A до H (у нас 8 колонок)
+                // Автоподбор ширины колонок
                 foreach (range('A', 'H') as $column) {
-                    // Включаем автоподбор ширины под контент
                     $event->sheet->getColumnDimension($column)->setAutoSize(true);
                 }
 
-                // 🔥 Опционально: задаем минимальную гарантированную ширину для важных колонок,
-                // чтобы авто-размер не сделал их слишком узкими (например, если там только "ID")
+                // Минимальная гарантированная ширина для важных колонок
                 $event->sheet->getColumnDimension('A')->setWidth(12);  // ID Заказа
                 $event->sheet->getColumnDimension('C')->setWidth(18);  // Дата и время
                 $event->sheet->getColumnDimension('G')->setWidth(15);  // Сумма
                 $event->sheet->getColumnDimension('H')->setWidth(18);  // Статус
+
+                // 🔥 Дополнительно: можно немного увеличить ширину колонки F (Состав заказа),
+                // чтобы длинные названия товаров не переносились слишком часто
+                $event->sheet->getColumnDimension('F')->setWidth(45);
             },
         ];
     }

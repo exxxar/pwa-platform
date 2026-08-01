@@ -70,21 +70,48 @@
                 <div class="info-card">
                     <h3 class="card-title"><i class="fa-solid fa-address-book"></i> Контактная информация</h3>
                     <div class="info-list">
-                        <div class="info-item" v-if="user.phone">
+                        <!-- Телефон -->
+                        <div class="info-item">
                             <i class="fa-solid fa-phone"></i>
-                            <div><span class="label">Телефон</span><span class="value">{{ user.phone }}</span></div>
+                            <div>
+                                <span class="label">Телефон</span>
+                                <span class="value" :class="{ 'value-empty': !user.phone }">
+                    {{ user.phone || 'Не указано' }}
+                </span>
+                            </div>
                         </div>
-                        <div class="info-item" v-if="user.email">
+
+                        <!-- Email -->
+                        <div class="info-item">
                             <i class="fa-solid fa-envelope"></i>
-                            <div><span class="label">Email</span><span class="value">{{ user.email }}</span></div>
+                            <div>
+                                <span class="label">Email</span>
+                                <span class="value" :class="{ 'value-empty': !user.email }">
+                    {{ user.email || 'Не указано' }}
+                </span>
+                            </div>
                         </div>
-                        <div class="info-item" v-if="user.birthday">
+
+                        <!-- День рождения -->
+                        <div class="info-item">
                             <i class="fa-solid fa-cake-candles"></i>
-                            <div><span class="label">День рождения</span><span class="value">{{ formatDate(user.birthday) }}</span></div>
+                            <div>
+                                <span class="label">День рождения</span>
+                                <span class="value" :class="{ 'value-empty': !user.birthday }">
+                    {{ user.birthday ? formatDate(user.birthday) : 'Не указано' }}
+                </span>
+                            </div>
                         </div>
-                        <div class="info-item" v-if="user.sex">
+
+                        <!-- Пол -->
+                        <div class="info-item">
                             <i class="fa-solid fa-venus-mars"></i>
-                            <div><span class="label">Пол</span><span class="value">{{ getSexLabel(user.sex) }}</span></div>
+                            <div>
+                                <span class="label">Пол</span>
+                                <span class="value" :class="{ 'value-empty': !user.sex }">
+                    {{ user.sex ? getSexLabel(user.sex) : 'Не указано' }}
+                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1014,5 +1041,20 @@ $border: #e2e8f0;
     .header-actions { width: 100%; .btn-action { flex: 1; justify-content: center; } }
     .form-row { grid-template-columns: 1fr; }
     .edit-tab span { display: none; }
+}
+
+.value {
+    display: block;
+    font-size: 0.9rem;
+    color: $text;
+    font-weight: 600;
+    word-break: break-all;
+
+    // 🔥 Новый класс для пустых значений
+    &.value-empty {
+        color: $text-muted;
+        font-weight: 400;
+        font-style: italic;
+    }
 }
 </style>

@@ -147,6 +147,7 @@
                 <!-- ШАГ 1: ДАННЫЕ ДОСТАВКИ -->
                 <div v-else-if="currentStep === 1" key="checkout" class="step-content">
                     <CheckoutProductForm
+                        ref="step1Form"
                         v-if="settings.shop_display_type === 0"
                         v-model="deliveryForm"
                         @start-checkout="startCheckout"
@@ -194,6 +195,7 @@
                 <!-- 🆕 ШАГ 3: ЗАГРУЗКА ЧЕКА (Только если payment_type === 2) -->
                 <div v-else-if="currentStep === 3" key="receipt" class="step-content">
                     <ScreenPaymentForm
+                        ref="step3Form"
                         v-model="deliveryForm"
                         @start-checkout="startCheckout"
                     />
@@ -491,27 +493,45 @@ export default {
             this.deliveryForm.action_prize = item;
         },
 
-        handleActionClick() {
-            const pt = this.deliveryForm.payment_type;
+        async handleActionClick() {
             const label = this.currentStepConfig?.label;
 
             if (label === 'Корзина') {
                 this.currentStep = 1;
                 return;
             }
+
             if (label === 'Данные') {
+                // 🔥 ВЫЗЫВАЕМ ВАЛИДАЦИЮ У КОМПОНЕНТА ШАГА 1
+                const formRef = this.$refs.step1Form;
+                if (formRef && typeof formRef.validate === 'function') {
+                    const isValid = await formRef.validate();
+                    if (!isValid) {
+                        // Валидация не прошла. Дочерний компонент сам должен показать ошибки (красные поля или notify)
+                        return;
+                    }
+                }
                 this.currentStep = 2;
                 return;
             }
+
             if (label === 'Оплата') {
-                if (pt === 2) {
+                if (this.deliveryForm.payment_type === 2) {
                     this.currentStep = 3;
                     return;
                 }
+                // Если выбран другой тип оплаты, сразу пытаемся оформить
                 this.startCheckout();
                 return;
             }
+
             if (label === 'Чек') {
+                // 🔥 ВЫЗЫВАЕМ ВАЛИДАЦИЮ У КОМПОНЕНТА ШАГА 3 (проверка, что чек прикреплен)
+                const formRef = this.$refs.step3Form;
+                if (formRef && typeof formRef.validate === 'function') {
+                    const isValid = await formRef.validate();
+                    if (!isValid) return;
+                }
                 this.startCheckout();
                 return;
             }

@@ -376,6 +376,67 @@ export default {
     },
 
     methods: {
+        // В CheckoutProductForm.vue
+
+        async validate() {
+            // 1. Проверка минимальной суммы заказа
+            if (!this.sumIsValid) {
+                const minPrice = this.settings.shop?.min_price ?? this.settings.min_price ?? 0;
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: `Минимальная сумма заказа: ${this.formatPrice(minPrice)}`,
+                    type: 'error'
+                });
+                return false;
+            }
+
+            // 2. Проверка обязательных полей в форме
+            const form = this.deliveryForm || this.modelValue;
+
+            if (!form.name || form.name.trim().length < 2) {
+                this.$notify?.({ title: 'Ошибка', text: 'Укажите корректное имя получателя', type: 'error' });
+                return false;
+            }
+
+            // Простая проверка телефона (убираем все не-цифры и проверяем длину)
+            const cleanPhone = form.phone ? form.phone.replace(/\D/g, '') : '';
+            if (cleanPhone.length < 10) {
+                this.$notify?.({ title: 'Ошибка', text: 'Укажите корректный номер телефона', type: 'error' });
+                return false;
+            }
+
+            // Если это не самовывоз, проверяем наличие адреса или координат
+            if (!form.need_pickup) {
+                const hasAddress = form.address && form.address.trim().length > 0;
+                const hasCoords = form.lat && form.lng;
+
+                if (!hasAddress && !hasCoords) {
+                    this.$notify?.({ title: 'Ошибка', text: 'Укажите адрес доставки', type: 'error' });
+                    return false;
+                }
+            }
+
+            // 3. Дополнительная проверка через Vuelidate (если он подключен глобально или в дочерних компонентах)
+            if (this.$v) {
+                const isVuelidateValid = await this.$v.$validate();
+                if (!isVuelidateValid) {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: 'Пожалуйста, проверьте правильность заполнения полей',
+                        type: 'error'
+                    });
+                    // Прокрутка к первой ошибке
+                    const firstError = document.querySelector('.is-invalid, .has-error, .v-invalid');
+                    if (firstError) {
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return false;
+                }
+            }
+
+            return true;
+        },
+
         handleAddressChange(event) {
 
 
