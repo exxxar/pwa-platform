@@ -170,7 +170,9 @@ $routes = function () {
 
         Route::prefix('orders')->group(function () {
             Route::get('/', [AdminOrderController::class, 'index']);
+            Route::get("/export", [AdminOrderController::class, "export"]);
             Route::get('/{id}', [AdminOrderController::class, 'show']);
+            Route::get('/{id}/export', [AdminOrderController::class, 'exportSingle']);
             Route::post('/{id}/status', [AdminOrderController::class, 'updateStatus']);
             Route::post('/{id}/message', [AdminOrderController::class, 'sendMessage']);
         });
@@ -428,6 +430,7 @@ $routes = function () {
             Route::prefix("orders")
                 ->group(function () {
                     Route::post("/", [OrderController::class, "getOrders"]);
+
                     Route::post('/rr', [OrderController::class, 'getRandomRecentOrders']);
                     Route::post("/send-sbp-invoice", [OrderController::class, "sendSBPInvoice"]);
                     Route::post("/all", [OrderController::class, "getAllOrders"]);
@@ -568,6 +571,11 @@ Route::domain('{tenant}.pwa-platform.test')->group($routes);
 
 Route::domain('fastoran.com')->group($routes);
 Route::domain('fastoran.ru')->group($routes);
+
+
+Route::get("/m", function (){
+    return redirect('/pwa', 301);
+});
 
 
 Route::get('/auth/vk/redirect', [TenantSocialAuthController::class, 'redirect']);

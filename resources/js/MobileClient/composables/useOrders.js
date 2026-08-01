@@ -1,138 +1,96 @@
 import { storeToRefs } from 'pinia';
-import {useOrdersStore} from "@/MobileClient/stores/Shop/orders";
+import { useOrdersStore } from "@/MobileClient/stores/Shop/orders";
 
 export function useOrders() {
     const store = useOrdersStore();
 
     // ==========================================
-    // 1. ЕДИНАЯ ДЕСТРУКТУРИЗАЦИЯ РЕАКТИВНЫХ ССЫЛОК
+    // 1. ТОЛЬКО STATE И GETTERS идут в storeToRefs!
     // ==========================================
-    const {
-        orders,
-        orders_paginate_object,
-        isLoading,
-        isHydrated,
-        isStatusChanging,
-        isDeliveryLoading,
-        orderActions,
-        lastError,
-        errors,
-        lastSyncAt,
-        randomRecentOrders,
-        isLoadingRandom,
-        isOrderLoading,
+    const refs = storeToRefs(store);
 
-        loadRandomOrders,
-        changeStatus,
-        declineOrder,
-        calculateDeliveryPrice,
-
-        sortedOrders,
-        pendingOrders,
-        completedOrders,
-        cancelledOrders,
-        todayOrders,
-        weekOrders,
-        totalRevenue,
-        todayRevenue,
-        ordersCount,
-        pendingOrdersCount,
-        getOrderById,
-        ordersByStatus,
-
-        reviews,
-        reviews_paginate_object,
-        isLoadingReviews,
-        reviewsCount,
-
-        // 🆕 ДОБАВЬТЕ ЭТИ ТРИ СТРОКИ СЮДА:
-        adminOrders,
-        adminOrdersPaginate,
-        isLoadingAdmin,
-        loadAllOrders ,
-        loadOrderById  ,
-
-        loadReviews,
-        storeReview,
-        getReviewsByProductId,
-
-    } = storeToRefs(store);
-
-    // ... (ваши методы loadOrders и т.д. остаются без изменений) ...
-
-    const repeatOrder  = (payload = {}) => store.repeatOrder(payload);
-    const loadOrders  = (payload = {}) => store.loadOrders(payload);
+    // ==========================================
+    // 2. ACTIONS берем напрямую из store или делаем обертки
+    // ==========================================
     const loadAdminOrders = (payload = {}) => store.loadAdminOrders(payload);
     const loadAdminOrderDetails = (orderId) => store.loadAdminOrderDetails(orderId);
     const updateAdminOrderStatus = (orderId, status) => store.updateAdminOrderStatus(orderId, status);
     const sendAdminOrderMessage = (orderId, message) => store.sendAdminOrderMessage(orderId, message);
 
+    const loadOrders = (payload = {}) => store.loadOrders(payload);
+    const loadAllOrders = (payload = {}) => store.loadAllOrders(payload);
+    const loadOrderById = (payload = {}) => store.loadOrderById(payload);
+    const repeatOrder = (payload = {}) => store.repeatOrder(payload);
+
     // ==========================================
     // 3. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
     // ==========================================
     return {
-        // 🆕 УДАЛИТЕ отсюда store.adminOrders и верните просто переменные из storeToRefs:
-        adminOrders,
-        adminOrdersPaginate,
-        isLoadingAdmin,
+        // --- Реактивные данные (Refs) ---
+        adminOrders: refs.adminOrders,
+        adminOrdersPaginate: refs.adminOrdersPaginate,
+        isLoadingAdmin: refs.isLoadingAdmin,
 
-        orders,
-        orders_paginate_object,
-        isLoading,
-        isHydrated,
-        isStatusChanging,
-        isDeliveryLoading,
-        orderActions,
-        lastError,
-        errors,
-        lastSyncAt,
-        randomRecentOrders,
-        isLoadingRandom,
+        orders: refs.orders,
+        orders_paginate_object: refs.orders_paginate_object,
+        isLoading: refs.isLoading,
+        isHydrated: refs.isHydrated,
+        isStatusChanging: refs.isStatusChanging,
+        isDeliveryLoading: refs.isDeliveryLoading,
+        orderActions: refs.orderActions,
+        lastError: refs.lastError,
+        errors: refs.errors,
+        lastSyncAt: refs.lastSyncAt,
+        randomRecentOrders: refs.randomRecentOrders,
+        isLoadingRandom: refs.isLoadingRandom,
+        isOrderLoading: refs.isOrderLoading,
 
-        sortedOrders,
-        pendingOrders,
-        completedOrders,
-        cancelledOrders,
-        todayOrders,
-        weekOrders,
-        totalRevenue,
-        todayRevenue,
-        ordersCount,
-        pendingOrdersCount,
-        getOrderById,
-        ordersByStatus,
-        isOrderLoading,
+        sortedOrders: refs.sortedOrders,
+        pendingOrders: refs.pendingOrders,
+        completedOrders: refs.completedOrders,
+        cancelledOrders: refs.cancelledOrders,
+        todayOrders: refs.todayOrders,
+        weekOrders: refs.weekOrders,
+        totalRevenue: refs.totalRevenue,
+        todayRevenue: refs.todayRevenue,
+        ordersCount: refs.ordersCount,
+        pendingOrdersCount: refs.pendingOrdersCount,
+        getOrderById: refs.getOrderById,
+        ordersByStatus: refs.ordersByStatus,
 
-        reviews,
-        reviews_paginate_object,
-        isLoadingReviews,
-        reviewsCount,
+        reviews: refs.reviews,
+        reviews_paginate_object: refs.reviews_paginate_object,
+        isLoadingReviews: refs.isLoadingReviews,
+        reviewsCount: refs.reviewsCount,
+
+        // --- Функции (Actions) ---
+        loadAdminOrders,
+        loadAdminOrderDetails,
+        updateAdminOrderStatus,
+        sendAdminOrderMessage,
 
         loadOrders,
         loadAllOrders,
         loadOrderById,
-        loadRandomOrders,
-        changeStatus,
-        declineOrder,
         repeatOrder,
-        calculateDeliveryPrice,
+
+        // Прямые прокси для остальных действий
+        changeStatus: store.changeStatus, // или как оно у вас называется в store
+        declineOrder: store.declineOrder,
+        calculateDeliveryPrice: store.calculateDeliveryPrice,
         requestDeliveryPrice: store.requestDeliveryPrice,
         sendSBPInvoice: store.sendSBPInvoice,
         addCashBackToOrder: store.addCashBackToOrder,
         exportAllOrders: store.exportAllOrders,
         getRandomRecentOrders: store.getRandomRecentOrders,
+        loadRandomOrders: store.loadRandomOrders,
 
-        loadReviews,
-        storeReview,
-        getReviewsByProductId,
+        loadReviews: store.loadReviews,
+        storeReview: store.storeReview,
+        getReviewsByProductId: store.getReviewsByProductId,
         updateReview: store.updateReview,
         deleteReview: store.deleteReview,
         canReviewOrder: store.canReviewOrder,
-
-        loadAdminOrders,
-        loadAdminOrderDetails,
-        updateAdminOrderStatus,
-        sendAdminOrderMessage,
 
         $reset: store.$reset,
     };

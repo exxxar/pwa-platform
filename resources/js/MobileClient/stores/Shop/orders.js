@@ -43,6 +43,8 @@ export const useOrdersStore = defineStore('orders', {
 
         adminOrders:[],
         adminOrdersPaginate:null,
+
+        isLoadingAdmin: false, // 🔥 ДОБАВИТЬ СЮДА!
     }),
 
     // ==========================================
@@ -614,14 +616,10 @@ export const useOrdersStore = defineStore('orders', {
 
                 const responseData = response.data;
 
-                // 🎯 Четко под ваш JSON формат: { data: [...], paginate: {...} }
                 if (responseData && Array.isArray(responseData.data)) {
                     this.adminOrders = responseData.data;
                     this.adminOrdersPaginate = responseData.paginate || null;
-
-                    console.log(`[Admin Orders] Успешно загружено: ${this.adminOrders.length} заказов`);
                 } else {
-                    console.warn('[Admin Orders] Неожиданный формат ответа от API:', responseData);
                     this.adminOrders = [];
                     this.adminOrdersPaginate = null;
                 }
@@ -633,6 +631,9 @@ export const useOrdersStore = defineStore('orders', {
             } finally {
                 this.isLoadingAdmin = false;
             }
+
+            // 🔥 УДАЛИТЕ ЭТОТ БЛОК ОТСЮДА. Он не нужен и возвращает undefined.
+            // async функция и так вернет Promise, который разрешится успешно.
         },
 
         async loadAdminOrderDetails(orderId) {

@@ -2,14 +2,55 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\AdminOrdersExport;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\Order;
 use App\Models\Tenant\TenantDialog;
 use App\Services\MessageService;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AdminOrderController extends Controller
 {
+
+    // 🔥 НОВЫЙ МЕТОД ДЛЯ ЭКСПОРТА
+    public function export(Request $request)
+    {
+        $query = Order::with(['tenant', 'tenantUser']);
+
+        // Применяем те же фильтры, что и в index, но без пагинации (->get())
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('id', 'like', "%{$search}%")
+                    ->orWhereHas('tenantUser', function($q) use ($search) {
+                        $q->where('name', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($request->has('status') && $request->status) {
+            $query->where('status', $request->status);
+        }
+
+        $orders = $query->orderBy($request->order_by ?? 'id', $request->direction ?? 'desc')->get();
+
+        return Excel::download(new AdminOrdersExport($orders), 'orders_' . now()->format('Y-m-d_H-i') . '.xlsx');
+    }
+
+    public function exportSingle($id)
+    {
+        // Загружаем заказ со всеми нужными связями
+        $order = Order::with(['tenant', 'tenantUser'])->findOrFail($id);
+
+        // 🔥 Хитрость: передаем коллекцию из одного элемента в наш существующий класс экспорта
+        // Ему не важно, 100 там заказов или 1, он сработает идеально.
+        return Excel::download(
+            new AdminOrdersExport(collect([$order])),
+            "order_{$id}.xlsx"
+        );
+    }
     /**
      * Получить список всех заказов (с пагинацией, поиском и фильтрами)
      */

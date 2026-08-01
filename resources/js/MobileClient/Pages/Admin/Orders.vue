@@ -30,19 +30,24 @@
                     <option value="completed">✅ Завершенные</option>
                     <option value="cancelled">❌ Отмененные</option>
                 </select>
+
+                <!-- 🔥 КНОПКА ЭКСПОРТА -->
+                <button class="btn-export" @click="exportToExcel" :disabled="isExporting">
+                    <i class="fa-solid fa-file-excel" :class="{ 'fa-spin': isExporting }"></i>
+                    <span>{{ isExporting ? 'Формирование...' : 'Выгрузить в Excel' }}</span>
+                </button>
             </div>
         </div>
 
         <!-- Таблица заказов -->
         <div class="table-wrapper">
-
-
             <table class="admin-table" v-if="!isLoadingAdmin && adminOrders?.length > 0">
                 <thead>
                 <tr>
                     <th @click="toggleSort('id')" class="sortable">
                         № Заказа <i :class="sortIcon('id')"></i>
                     </th>
+                    <th>Заведение</th> <!-- 🔥 НОВАЯ КОЛОНКА -->
                     <th class="text-end">Действия</th>
                     <th>Дата и время</th>
                     <th>Клиент</th>
@@ -50,12 +55,20 @@
                         Сумма <i :class="sortIcon('summary_price')"></i>
                     </th>
                     <th>Статус</th>
-
                 </tr>
                 </thead>
                 <tbody>
                 <tr v-for="order in adminOrders" :key="order.id" class="order-row">
                     <td class="font-monospace fw-bold text-primary">#{{ order.id }}</td>
+
+                    <!-- 🔥 ДАННЫЕ ЗАВЕДЕНИЯ -->
+                    <td>
+                        <div class="tenant-info">
+                            <i class="fa-solid fa-store text-muted me-1"></i>
+                            {{ order.tenant?.name || '—' }}
+                        </div>
+                    </td>
+
                     <td class="text-end">
                         <router-link :to="{ name: 'AdminOrderDetails', params: { id: order.id } }" class="btn-action primary" title="Открыть детали">
                             <i class="fa-solid fa-eye"></i>
@@ -74,26 +87,23 @@
                             {{ getStatusInfo(order.status).label }}
                         </span>
                     </td>
-
                 </tr>
                 </tbody>
             </table>
 
-            <!-- Пустое состояние -->
+            <!-- Пустое состояние и загрузка (без изменений) -->
             <div v-else-if="!isLoadingAdmin" class="empty-state">
                 <div class="empty-icon"><i class="fa-solid fa-inbox"></i></div>
                 <h3>Заказы не найдены</h3>
                 <p>Попробуйте изменить параметры поиска или фильтры</p>
             </div>
-
-            <!-- Загрузка -->
             <div v-if="isLoadingAdmin" class="loading-state">
                 <div class="spinner"></div>
                 <p>Загрузка данных...</p>
             </div>
         </div>
 
-        <!-- Пагинация -->
+        <!-- Пагинация (без изменений) -->
         <div v-if="adminOrdersPaginate && adminOrdersPaginate.last_page > 1" class="pagination-wrapper">
             <Pagination
                 :simple="false"
@@ -107,8 +117,8 @@
 <script>
 import { useOrders } from '@/MobileClient/composables/useOrders';
 import Pagination from '@/MobileClient/Components/Shop/Helpers/Pagination.vue';
+import axios from 'axios'; // 🔥 Добавили axios для экспорта
 
-// Простая реализация debounce, если lodash не установлен
 const debounce = (func, wait) => {
     let timeout;
     return function executedFunction(...args) {
@@ -126,9 +136,7 @@ export default {
     components: { Pagination },
 
     setup() {
-        // Деструктуризируем и возвращаем с теми же именами, что используются в шаблоне
         const { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin } = useOrders();
-
         return { loadAdminOrders, adminOrders, adminOrdersPaginate, isLoadingAdmin };
     },
 
@@ -138,6 +146,7 @@ export default {
             filterStatus: '',
             sort: { param: 'id', direction: 'desc' },
             currentPage: 1,
+            isExporting: false, // 🔥 Состояние для кнопки экспорта
         };
     },
 
@@ -146,8 +155,51 @@ export default {
     },
 
     methods: {
+        // 🔥 НОВЫЙ МЕТОД ЭКСПОРТА
+        async exportToExcel() {
+            this.isExporting = true;
+            try {
+                const response = await axios.get('/admin/orders/export', {
+                    params: {
+                        search: this.search || null,
+                        status: this.filterStatus || null,
+                        order_by: this.sort.param,
+                        direction: this.sort.direction
+                    },
+                    responseType: 'blob' // 🔥 ВАЖНО: указываем, что ждем файл
+                });
+
+                // Создаем ссылку для скачивания
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+
+                // Имя файла берем из заголовков ответа или генерируем
+                const disposition = response.headers['content-disposition'];
+                let filename = 'orders.xlsx';
+                if (disposition && disposition.indexOf('filename=') !== -1) {
+                    const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+                    if (matches != null && matches[1]) {
+                        filename = decodeURIComponent(matches[1].replace(/['"]/g, ''));
+                    }
+                }
+
+                link.setAttribute('download', filename);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error('Ошибка экспорта:', error);
+                alert('Не удалось выгрузить файл. Попробуйте позже.');
+            } finally {
+                this.isExporting = false;
+            }
+        },
+
         debounceSearch: debounce(function () {
-            this.loadData(1); // Сброс на 1 страницу при поиске
+            this.loadData(1);
         }, 400),
 
         clearSearch() {
@@ -157,6 +209,8 @@ export default {
 
         async loadData(page = 1) {
             this.currentPage = page;
+            if (typeof this.loadAdminOrders !== 'function') return;
+
             try {
                 await this.loadAdminOrders({
                     page: page,
@@ -173,7 +227,6 @@ export default {
 
         handlePageChange(page) {
             this.loadData(page);
-            // Прокрутка наверх при смене страницы
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
@@ -210,14 +263,12 @@ export default {
 
         getStatusInfo(status) {
             const map = {
-                // Числовые статусы (из вашей БД)
                 0: { label: 'Новый', class: 'new' },
                 1: { label: 'В обработке', class: 'processing' },
                 2: { label: 'Выполнен', class: 'completed' },
                 3: { label: 'Отменен', class: 'cancelled' },
                 4: { label: 'Готов к доставке', class: 'processing' },
                 5: { label: 'Передан на кухню', class: 'processing' },
-                // Строковые статусы (на случай миграции)
                 'new': { label: 'Новый', class: 'new' },
                 'processing': { label: 'В работе', class: 'processing' },
                 'completed': { label: 'Выполнен', class: 'completed' },
@@ -225,15 +276,9 @@ export default {
             };
             return map[status] || { label: status || 'Неизвестно', class: 'new' };
         },
-
-        // Оставьте старый метод для обратной совместимости
-        getStatusLabel(status) {
-            return this.getStatusInfo(status).label;
-        },
     }
 };
 </script>
-
 <style lang="scss" scoped>
 $admin-bg: #f8fafc;
 $admin-card-bg: #ffffff;
@@ -501,5 +546,45 @@ $admin-danger: #ef4444;
     .admin-table {
         min-width: 800px; // Чтобы таблица скроллилась горизонтально на мобильных
     }
+}
+
+// 🔥 ДОБАВЬТЕ ЭТИ СТИЛИ ДЛЯ КНОПКИ ЭКСПОРТА И НОВОЙ КОЛОНКИ
+.filters {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.btn-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #10b981; // Зеленый цвет Excel
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover:not(:disabled) {
+        background: #059669;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    &:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+}
+
+.tenant-info {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+    color: #0f172a;
 }
 </style>

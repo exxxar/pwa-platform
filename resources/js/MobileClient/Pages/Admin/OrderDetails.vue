@@ -11,6 +11,13 @@
                     {{ getStatusText(order) }}
                 </span>
             </div>
+
+            <!-- 🔥 НОВАЯ КНОПКА ЭКСПОРТА -->
+            <button @click="exportToExcel" :disabled="isExporting" class="btn-export-header"
+                    title="Скачать детали заказа в Excel">
+                <i :class="isExporting ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-file-excel'"></i>
+                <span>{{ isExporting ? 'Скачивание...' : 'Скачать чек (Excel)' }}</span>
+            </button>
         </div>
 
         <div class="details-grid">
@@ -24,13 +31,15 @@
                             <i class="fa-solid fa-user"></i>
                         </div>
                         <div class="client-data">
-                            <div class="name">{{ order.receiver_name || 'Гость' }}</div>
-                            <div class="base">{{ order.tenant_user?.name || 'Не указано' }}</div>
-                            <a :href="'tel:' + (order.receiver_phone || order.tenant_user?.phone)" class="phone">
-                                <i class="fa-solid fa-phone me-1"></i>{{ order.receiver_phone || order.tenant_user?.phone || 'Не указан' }}
+                            <div class="name">{{ order.receiver_name || order.tenant_user?.name || 'Гость' }}</div>
+                            <a :href="'tel:' + (order.receiver_phone || order.tenant_user?.phone)" class="phone"
+                               v-if="order.receiver_phone || order.tenant_user?.phone">
+                                <i class="fa-solid fa-phone me-1"></i>{{
+                                    order.receiver_phone || order.tenant_user?.phone
+                                }}
                             </a>
+                            <div v-else class="text-muted">Телефон не указан</div>
                         </div>
-
                     </div>
 
                     <router-link
@@ -39,11 +48,11 @@
                         target="_blank"
                         class="btn-chat"
                     >
-                        <i class="fa-solid fa-comments me-1"></i> В чат
+                        <i class="fa-solid fa-comments me-1"></i> Открыть чат
                     </router-link>
                 </div>
 
-                <!-- 🆕 Карточка деталей доставки (на основе данных из BasketHelper) -->
+                <!-- Карточка деталей доставки -->
                 <div class="panel-card">
                     <h3><i class="fa-solid fa-truck-fast me-2"></i>Детали доставки</h3>
                     <div class="delivery-details-grid">
@@ -56,21 +65,33 @@
                         </div>
 
                         <template v-if="isDelivery">
+                            <!-- 🔥 ИСПРАВЛЕНО: Безопасное получение адреса (проверяем и корень, и delivery_service_info) -->
                             <div class="detail-item full-width">
                                 <span class="detail-label">Адрес</span>
-                                <span class="detail-value">{{ order.address || 'Не указан' }}</span>
+                                <span class="detail-value">{{
+                                        order.address || order.delivery_service_info?.address || 'Не указан'
+                                    }}</span>
                             </div>
-                            <div class="detail-item" v-if="order.flat_number">
+                            <div class="detail-item"
+                                 v-if="order.flat_number || order.delivery_service_info?.flat_number">
                                 <span class="detail-label">Кв. / Офис</span>
-                                <span class="detail-value">{{ order.flat_number }}</span>
+                                <span class="detail-value">{{
+                                        order.flat_number || order.delivery_service_info?.flat_number
+                                    }}</span>
                             </div>
-                            <div class="detail-item" v-if="order.entrance_number">
+                            <div class="detail-item"
+                                 v-if="order.entrance_number || order.delivery_service_info?.entrance_number">
                                 <span class="detail-label">Подъезд</span>
-                                <span class="detail-value">{{ order.entrance_number }}</span>
+                                <span class="detail-value">{{
+                                        order.entrance_number || order.delivery_service_info?.entrance_number
+                                    }}</span>
                             </div>
-                            <div class="detail-item" v-if="order.floor_number">
+                            <div class="detail-item"
+                                 v-if="order.floor_number || order.delivery_service_info?.floor_number">
                                 <span class="detail-label">Этаж</span>
-                                <span class="detail-value">{{ order.floor_number }}</span>
+                                <span class="detail-value">{{
+                                        order.floor_number || order.delivery_service_info?.floor_number
+                                    }}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="detail-label">Стоимость доставки</span>
@@ -84,7 +105,9 @@
 
                         <div class="detail-item full-width">
                             <span class="detail-label">Комментарий / Детали</span>
-                            <span class="detail-value note">{{ order.delivery_note || 'Нет дополнительного комментария' }}</span>
+                            <span class="detail-value note">{{
+                                    order.delivery_note || 'Нет дополнительного комментария'
+                                }}</span>
                         </div>
                     </div>
                 </div>
@@ -93,18 +116,14 @@
                 <div class="panel-card">
                     <h3><i class="fa-solid fa-receipt me-2"></i>Состав заказа</h3>
 
-                    <div class="order-products">
-                        <!-- 🆕 Используем вычисляемое свойство orderProducts для безопасного доступа -->
-                        <div
-                            v-for="(item, idx) in orderProducts"
-                            :key="idx"
-                            class="product-item"
-                        >
+                    <div class="order-products" v-if="orderProducts.length > 0">
+                        <div v-for="(item, idx) in orderProducts" :key="idx" class="product-item">
                             <span class="product-qty">{{ item.count }}×</span>
-                            <span class="product-name">{{ item.name }}</span>
+                            <span class="product-name">{{ item.name || 'Товар' }}</span>
                             <span class="product-price">{{ formatPrice(item.price) }} ₽</span>
                         </div>
                     </div>
+                    <div v-else class="text-muted text-center py-3">Состав заказа не указан</div>
 
                     <div class="order-total">
                         <span>Итого:</span>
@@ -116,13 +135,16 @@
                 <div class="panel-card">
                     <h3><i class="fa-solid fa-sliders me-2"></i>Управление статусом</h3>
                     <div class="status-control">
-                        <select v-model="newStatus" class="modern-select">
-                            <option value="new">Новый</option>
-                            <option value="processing">В обработке</option>
-                            <option value="completed">Выполнен</option>
-                            <option value="cancelled">Отменен</option>
+                        <!-- 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем числовые значения, как в БД -->
+                        <select v-model="newStatus" class="modern-select" :disabled="isSaving">
+                            <option :value="0">🆕 Новый</option>
+                            <option :value="1">⏳ В обработке</option>
+                            <option :value="4">🍳 Передан на кухню</option>
+                            <option :value="5">🚗 Готов к доставке</option>
+                            <option :value="2">✅ Выполнен</option>
+                            <option :value="3">❌ Отменен</option>
                         </select>
-                        <button @click="changeStatus" :disabled="isSaving" class="btn-save">
+                        <button @click="changeStatus" :disabled="isSaving || !isStatusChanged" class="btn-save">
                             <i v-if="isSaving" class="fa-solid fa-spinner fa-spin"></i>
                             <span v-else>Сохранить</span>
                         </button>
@@ -141,16 +163,20 @@
                         rows="4"
                         placeholder="Например: Ваш заказ уже передан курьеру..."
                         class="message-input"
+                        :disabled="isSending"
                     ></textarea>
 
                     <div class="quick-templates">
-                        <button @click="setTemplate('Ваш заказ принят и передан на кухню! 👨‍🍳')" class="template-btn">
+                        <button @click="setTemplate('Ваш заказ принят и передан на кухню! 👨‍🍳')" class="template-btn"
+                                :disabled="isSending">
                             На кухне
                         </button>
-                        <button @click="setTemplate('Курьер уже выехал к вам! 🚗')" class="template-btn">
+                        <button @click="setTemplate('Курьер уже выехал к вам! 🚗')" class="template-btn"
+                                :disabled="isSending">
                             Курьер едет
                         </button>
-                        <button @click="setTemplate('Заказ успешно доставлен. Приятного аппетита! ✅')" class="template-btn">
+                        <button @click="setTemplate('Заказ успешно доставлен. Приятного аппетита! ✅')"
+                                class="template-btn" :disabled="isSending">
                             Доставлен
                         </button>
                     </div>
@@ -163,80 +189,151 @@
             </div>
         </div>
     </div>
+
+    <!-- Заглушка, если заказ не найден -->
+    <div v-else-if="!isLoadingDetails" class="empty-state">
+        <h3>Заказ не найден или удален</h3>
+        <router-link to="/admin/orders" class="btn-back">Вернуться к списку</router-link>
+    </div>
 </template>
 
 <script>
-import { useOrders } from '@/MobileClient/composables/useOrders';
+import {useOrders} from '@/MobileClient/composables/useOrders';
 
 export default {
     name: 'AdminOrderDetails',
     setup() {
-        const { loadAdminOrderDetails, updateAdminOrderStatus, sendAdminOrderMessage } = useOrders();
-        return { loadAdminOrderDetails, updateAdminOrderStatus, sendAdminOrderMessage };
+        const {loadAdminOrderDetails, updateAdminOrderStatus, sendAdminOrderMessage} = useOrders();
+        return {loadAdminOrderDetails, updateAdminOrderStatus, sendAdminOrderMessage};
     },
     data() {
         return {
             order: null,
-            newStatus: '',
+            newStatus: null, // Инициализируем null, чтобы не мигало до загрузки
             quickMessage: '',
             isSaving: false,
             isSending: false,
+            isLoadingDetails: true,
+            isExporting: false,
         };
     },
     computed: {
-        // 🆕 Безопасно извлекаем массив товаров, так как product_details приходит как [{ from: "...", products: [...] }]
+        // 🔥 ИСПРАВЛЕНО: Более надежное извлечение продуктов
         orderProducts() {
             if (!this.order?.product_details) return [];
+
+            // Если это массив, берем первый элемент (или объединяем все, если их несколько)
             const details = Array.isArray(this.order.product_details)
                 ? this.order.product_details[0]
                 : this.order.product_details;
-            return details?.products || [];
+
+            return Array.isArray(details?.products) ? details.products : [];
         },
-        // 🆕 Определяем тип заказа на основе наличия стоимости доставки или дистанции
+
         isDelivery() {
-            return (this.order?.delivery_price > 0) || (this.order?.delivery_range > 0);
+            return (Number(this.order?.delivery_price) > 0) || (Number(this.order?.delivery_range) > 0);
+        },
+
+        // 🔥 UX: Блокируем кнопку, если статус не менялся
+        isStatusChanged() {
+            return String(this.order?.status) !== String(this.newStatus);
         }
     },
     async mounted() {
+        this.isLoadingDetails = true;
         try {
-            this.order = await this.loadAdminOrderDetails(this.$route.params.id);
-            this.newStatus = this.order.status;
+            const orderId = this.$route.params.id;
+            this.order = await this.loadAdminOrderDetails(orderId);
+
+            // Приводим к числу, чтобы select корректно выбрал option
+            this.newStatus = Number(this.order.status);
         } catch (e) {
-            this.$notify?.({ title: 'Ошибка', text: 'Заказ не найден', type: 'error' });
+            console.error('Ошибка загрузки заказа:', e);
+            this.$notify?.({title: 'Ошибка', text: 'Заказ не найден', type: 'error'});
             this.$router.push('/admin/orders');
+        } finally {
+            this.isLoadingDetails = false;
         }
     },
     methods: {
+        async exportToExcel() {
+            if (!this.order?.id) return;
+
+            this.isExporting = true;
+            try {
+                const response = await axios.get(`/admin/orders/${this.order.id}/export`, {
+                    responseType: 'blob' // Важно для скачивания файлов
+                });
+
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+
+                // Пытаемся получить имя файла из заголовков, иначе генерируем
+                const disposition = response.headers['content-disposition'];
+                let filename = `order_${this.order.id}.xlsx`;
+                if (disposition && disposition.indexOf('filename=') !== -1) {
+                    const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+                    if (matches != null && matches[1]) {
+                        filename = decodeURIComponent(matches[1].replace(/['"]/g, ''));
+                    }
+                }
+
+                link.setAttribute('download', filename);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error('Ошибка экспорта:', error);
+                this.$notify?.({title: 'Ошибка', text: 'Не удалось скачать файл', type: 'error'});
+            } finally {
+                this.isExporting = false;
+            }
+        },
         async changeStatus() {
+            if (!this.isStatusChanged) return; // Защита от лишних запросов
+
             this.isSaving = true;
             try {
-                await this.updateAdminOrderStatus(this.order.id, this.newStatus);
-                this.order.status = this.newStatus;
-                this.$notify?.({ title: 'Успех', text: 'Статус обновлен', type: 'success' });
+                // Отправляем число, как требует модель Order
+                await this.updateAdminOrderStatus(this.order.id, Number(this.newStatus));
+
+                // Локальное обновление для мгновенного UI-отклика
+                this.order.status = Number(this.newStatus);
+                this.$notify?.({title: 'Успех', text: 'Статус заказа обновлен', type: 'success'});
             } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось изменить статус', type: 'error' });
+                console.error(e);
+                this.$notify?.({title: 'Ошибка', text: 'Не удалось изменить статус', type: 'error'});
+                // Откат на старый статус при ошибке
+                this.newStatus = Number(this.order.status);
             } finally {
                 this.isSaving = false;
             }
         },
+
         setTemplate(text) {
             this.quickMessage = text;
         },
+
         async sendQuickMessage() {
             if (!this.order.dialog_id) {
-                return this.$notify?.({ title: 'Ошибка', text: 'У заказа нет привязанного чата', type: 'warning' });
+                return this.$notify?.({title: 'Ошибка', text: 'У заказа нет привязанного чата', type: 'warning'});
             }
             this.isSending = true;
             try {
                 await this.sendAdminOrderMessage(this.order.id, this.quickMessage);
-                this.$notify?.({ title: 'Отправлено', text: 'Сообщение доставлено клиенту', type: 'success' });
+                this.$notify?.({title: 'Отправлено', text: 'Сообщение доставлено клиенту', type: 'success'});
                 this.quickMessage = '';
             } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось отправить', type: 'error' });
+                console.error(e);
+                this.$notify?.({title: 'Ошибка', text: 'Не удалось отправить сообщение', type: 'error'});
             } finally {
                 this.isSending = false;
             }
         },
+
         formatPrice(price) {
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
@@ -244,6 +341,7 @@ export default {
                 minimumFractionDigits: 0,
             }).format(price || 0).replace('RUB', '₽').trim();
         },
+
         getStatusClass(order) {
             const status = String(order.status ?? '').toLowerCase();
             const statusMap = {
@@ -253,9 +351,10 @@ export default {
             if (statusMap[status]) return statusMap[status];
             if (status.includes('cancel') || status.includes('отмен')) return 'status-cancelled';
             if (status.includes('complet') || status.includes('выполн') || status.includes('доставлен')) return 'status-completed';
-            if (status.includes('process') || status.includes('готов') || status.includes('в пути')) return 'status-processing';
+            if (status.includes('process') || status.includes('готов') || status.includes('в пути') || status.includes('кухн')) return 'status-processing';
             return 'status-new';
         },
+
         getStatusText(order) {
             const status = String(order.status ?? '').toLowerCase();
             const statusTextMap = {
@@ -265,26 +364,32 @@ export default {
             if (statusTextMap[status]) return statusTextMap[status];
             if (status.includes('cancel') || status.includes('отмен')) return 'Отменён';
             if (status.includes('complet') || status.includes('выполн') || status.includes('доставлен')) return 'Выполнен';
-            if (status.includes('process') || status.includes('готов') || status.includes('в пути')) return 'В обработке';
+            if (status.includes('process') || status.includes('готов') || status.includes('в пути') || status.includes('кухн')) return 'В обработке';
             return 'Новый';
         }
     }
 };
 </script>
 
-<style scoped>
+<!-- Ваши стили <style lang="scss" scoped> остаются без изменений -->
+
+<style scoped lang="scss">
 .order-details-page {
     padding: 24px;
     max-width: 1200px;
     margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box; // Гарантирует, что padding не увеличивает ширину
+    overflow-x: hidden;
 }
 
 /* ===== ШАПКА ===== */
 .details-header {
     display: flex;
     align-items: center;
-    gap: 20px;
-    margin-bottom: 28px;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
     flex-wrap: wrap;
 }
 
@@ -298,6 +403,7 @@ export default {
     padding: 8px 16px;
     border-radius: 8px;
     transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .btn-back:hover {
@@ -309,13 +415,65 @@ export default {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 1 1 auto;
+    min-width: 0; // 🔥 КРИТИЧЕСКИ ВАЖНО: позволяет сжиматься
+
+    h2 {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--bs-body-color);
+        word-break: break-word;
+        line-height: 1.2;
+    }
 }
 
-.header-title-block h2 {
-    margin: 0;
-    font-size: 1.5rem;
+.order-status {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
     font-weight: 700;
-    color: var(--bs-body-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.status-new { background: rgba(13, 110, 253, 0.1); color: #0d6efd; }
+.status-processing { background: rgba(255, 193, 7, 0.15); color: #b8860b; }
+.status-completed { background: rgba(25, 135, 84, 0.1); color: #198754; }
+.status-cancelled { background: rgba(220, 53, 69, 0.1); color: #dc3545; }
+
+/* ===== КНОПКА ЭКСПОРТА ===== */
+.btn-export-header {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--bs-body-bg);
+    color: #10b981;
+    border: 1px solid #10b981;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+
+    &:hover:not(:disabled) {
+        background: #10b981;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        border-color: var(--bs-border-color);
+        color: var(--bs-secondary-color);
+    }
 }
 
 /* ===== СЕТКА ===== */
@@ -323,12 +481,6 @@ export default {
     display: grid;
     grid-template-columns: 1.5fr 1fr;
     gap: 24px;
-}
-
-@media (max-width: 900px) {
-    .details-grid {
-        grid-template-columns: 1fr;
-    }
 }
 
 /* ===== КАРТОЧКИ ===== */
@@ -339,6 +491,8 @@ export default {
     padding: 20px;
     margin-bottom: 20px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    overflow-wrap: break-word;
+    word-wrap: break-word;
 }
 
 .panel-card h3 {
@@ -357,7 +511,7 @@ export default {
 /* ===== КЛИЕНТ ===== */
 .client-block {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 16px;
 }
 
@@ -376,6 +530,7 @@ export default {
 
 .client-data {
     flex: 1;
+    min-width: 0; // 🔥 Позволяет сжиматься
 }
 
 .client-data .base {
@@ -383,7 +538,8 @@ export default {
     font-size: 0.9rem;
     color: var(--bs-body-color);
     margin-bottom: 4px;
-    line-height: 100%;
+    line-height: 1.2;
+    word-break: break-word;
 }
 
 .client-data .name {
@@ -391,6 +547,7 @@ export default {
     font-size: 1.05rem;
     color: var(--bs-body-color);
     margin-bottom: 4px;
+    word-break: break-word;
 }
 
 .client-data .phone {
@@ -399,6 +556,7 @@ export default {
     font-size: 0.9rem;
     font-weight: 500;
     transition: opacity 0.2s;
+    word-break: break-all;
 }
 
 .client-data .phone:hover {
@@ -426,7 +584,7 @@ export default {
     border-color: var(--bs-primary);
 }
 
-/* 🆕 ===== ДЕТАЛИ ДОСТАВКИ ===== */
+/* ===== ДЕТАЛИ ДОСТАВКИ ===== */
 .delivery-details-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -452,6 +610,7 @@ export default {
     display: flex;
     align-items: center;
     gap: 6px;
+    word-break: break-word;
 }
 
 .detail-value.note {
@@ -462,17 +621,12 @@ export default {
     background: var(--bs-secondary-bg);
     padding: 12px;
     border-radius: 8px;
-    white-space: pre-wrap; /* Сохраняет переносы строк из delivery_note */
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .detail-value.highlight {
     color: var(--bs-primary);
-}
-
-@media (max-width: 768px) {
-    .delivery-details-grid {
-        grid-template-columns: 1fr;
-    }
 }
 
 /* ===== ТОВАРЫ ===== */
@@ -490,6 +644,8 @@ export default {
     padding: 8px 0;
     font-size: 0.95rem;
     border-bottom: 1px solid var(--bs-border-color);
+    min-width: 0;
+    flex-wrap: wrap; // 🔥 ДОБАВЛЕНО: позволяет переносить строку, если название очень длинное
 }
 
 .product-item:last-child {
@@ -500,18 +656,22 @@ export default {
     font-weight: 700;
     color: var(--bs-primary);
     min-width: 28px;
+    flex-shrink: 0;
 }
 
 .product-name {
     flex: 1;
     color: var(--bs-body-color);
     line-height: 1.4;
+    min-width: 0;
+    word-break: break-word;
 }
 
 .product-price {
     font-weight: 600;
     color: var(--bs-body-color);
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .order-total {
@@ -532,9 +692,10 @@ export default {
     font-weight: 800;
     font-size: 1.25rem;
     color: var(--bs-primary);
+    white-space: nowrap;
 }
 
-/* ===== СТАТУСЫ ===== */
+/* ===== СТАТУСЫ И УПРАВЛЕНИЕ ===== */
 .status-control {
     display: flex;
     gap: 12px;
@@ -549,6 +710,7 @@ export default {
     color: var(--bs-body-color);
     font-size: 0.95rem;
     transition: border-color 0.2s;
+    min-width: 0;
 }
 
 .modern-select:focus {
@@ -568,6 +730,7 @@ export default {
     font-size: 0.95rem;
     transition: all 0.2s;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .btn-save:hover:not(:disabled) {
@@ -579,20 +742,6 @@ export default {
     opacity: 0.7;
     cursor: not-allowed;
 }
-
-.order-status {
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.status-new { background: rgba(13, 110, 253, 0.1); color: #0d6efd; }
-.status-processing { background: rgba(255, 193, 7, 0.15); color: #b8860b; }
-.status-completed { background: rgba(25, 135, 84, 0.1); color: #198754; }
-.status-cancelled { background: rgba(220, 53, 69, 0.1); color: #dc3545; }
 
 /* ===== ЧАТ ПАНЕЛЬ ===== */
 .chat-card .hint {
@@ -613,6 +762,7 @@ export default {
     margin-bottom: 16px;
     transition: all 0.2s;
     background: var(--bs-body-bg);
+    box-sizing: border-box;
 }
 
 .message-input:focus {
@@ -638,6 +788,9 @@ export default {
     color: var(--bs-body-color);
     cursor: pointer;
     transition: all 0.2s;
+    flex: 1 1 auto; // 🔥 Равномерно распределяет кнопки на мобильных
+    text-align: center;
+    min-width: 120px;
 }
 
 .template-btn:hover {
@@ -659,6 +812,7 @@ export default {
     cursor: pointer;
     transition: all 0.3s;
     box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.25);
+    box-sizing: border-box;
 }
 
 .btn-send:hover:not(:disabled) {
@@ -670,5 +824,82 @@ export default {
     opacity: 0.6;
     cursor: not-allowed;
     transform: none;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--bs-secondary-color);
+}
+
+/* =========================================================
+   🔥 МОБИЛЬНЫЕ АДАПТИВЫ (ИСПРАВЛЕНИЕ ВЫЛЕЗАНИЯ)
+   ========================================================= */
+
+@media (max-width: 900px) {
+    .details-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .order-details-page {
+        padding: 16px; // Уменьшаем отступы на мобильных
+    }
+
+    .details-header {
+        flex-direction: column;
+        align-items: stretch; // Растягиваем элементы на всю ширину
+    }
+
+    .header-title-block {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .header-title-block h2 {
+        font-size: 1.25rem; // Чуть меньше шрифт заголовка
+    }
+
+    .btn-export-header {
+        width: 100%;
+        margin-top: 8px;
+    }
+
+    .delivery-details-grid {
+        grid-template-columns: 1fr; // Одна колонка для деталей доставки
+    }
+
+    // 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Ставим select и кнопку друг под другом
+    .status-control {
+        flex-direction: column;
+    }
+
+    .btn-save {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .client-block {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .client-data {
+        width: 100%;
+    }
+
+    .btn-chat {
+        width: 100%;
+        text-align: center;
+        margin-top: 16px;
+    }
+
+    .template-btn {
+        width: 100%; // Кнопки шаблонов на всю ширину на очень маленьких экранах
+    }
 }
 </style>
