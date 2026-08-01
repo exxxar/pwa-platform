@@ -64,7 +64,7 @@ class TenantDialogController extends Controller
         $dialog = TenantDialog::query()
             ->where('id', $dialogId)
             ->where('tenant_id', $tenant->id)
-            ->where('tenant_user_id', $user->id)
+          //  ->where('tenant_user_id', $user->id)
             ->first();
 
 
