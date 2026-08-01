@@ -72,6 +72,7 @@ const TransactionsAdmin = defineAsyncComponent(() =>import('@/MobileClient/Pages
 const AdminTablesManager = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/Tables/TablesManager.vue')); // Укажите ваш реальный путь
 const AdminTableDetails = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/Tables/Table.vue')); // Укажите ваш реальный путь
 const AdminTableSettings = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/Tables/TableSettings.vue')); // Укажите ваш реальный путь
+const AdminUserDetails = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/UserDetails.vue')); // Укажите ваш реальный путь
 const WheelAdmin = defineAsyncComponent(() =>import('@/MobileClient/Pages/Admin/WheelAdmin.vue')); // Укажите ваш реальный путь
 
 // --- Юридические страницы и 404 ---
@@ -128,6 +129,14 @@ const routes = [
         component: ChatRoom,
         meta: { auth: true, hideBottomMenu: true, hideFooter: true }
     },
+
+    {
+        path: '/admin/users/:id',
+        name: 'AdminUserDetails',
+        component: AdminUserDetails, // Укажите правильный путь
+        meta: { auth: true}
+    },
+
     { path: '/cart', name: 'Cart', component: ShopCart, meta: { hideBottomMenu: true } },
     { path: '/grocery-order', name: 'GroceryOrder', component: GroceryOrder, meta: { auth: true, hideBottomMenu: true, title: 'Заказ продуктов' } },
     { path: '/calculator', name: 'Calculator', component: CalculatorPage, meta: { auth: true, hideBottomMenu: true, title: 'Калькулятор стоимости' } },
