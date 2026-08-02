@@ -44,7 +44,7 @@
     <!-- Scripts -->
     @routes
 
-    @vite(['resources/js/MobileClient/app.js?version'.env('APP_VERSION'),'resources/css/MobileClient/app.css?version'.env('APP_VERSION'),
+    @vite(['resources/js/MobileClient/app.js','resources/css/MobileClient/app.css',
     "resources/js/MobileClient/Pages/{$page['component']}.vue"])
     @inertiaHead
 
