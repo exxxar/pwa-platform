@@ -112,8 +112,8 @@ class ProductController extends Controller
         // 1. Валидация и получение данных
         $validated = $request->validate([
             "address" => "required|string",
-            "lat"     => "required|numeric",
-            "lng"     => "required|numeric",
+            "lat" => "required|numeric",
+            "lng" => "required|numeric",
         ]);
 
         $tenant = app('tenant');
@@ -155,15 +155,15 @@ class ProductController extends Controller
             $partners[$tenant->id] = $tenant;
         }
 
-        $clientLat = (float) $validated['lat'];
-        $clientLng = (float) $validated['lng'];
+        $clientLat = (float)$validated['lat'];
+        $clientLng = (float)$validated['lng'];
         $address = $validated['address'];
 
-        $pricePerKm = (float) ($config["price_per_km"] ?? 100);
-        $minBaseDeliveryPrice = (float) ($config["min_base_delivery_price"] ?? 100);
+        $pricePerKm = (float)($config["price_per_km"] ?? 80);
+        $minBaseDeliveryPrice = (float)($config["min_base_delivery_price"] ?? 100);
 
-        $isPartnersActive = (bool) ($config["partners"]["is_active"] ?? false);
-        $isPartnersDisplaySelf = (bool) ($config["partners"]["display_self"] ?? false);
+        $isPartnersActive = (bool)($config["partners"]["is_active"] ?? false);
+        $isPartnersDisplaySelf = (bool)($config["partners"]["display_self"] ?? false);
 
         $sumDistance = 0.0;
         $sumPrice = 0.0;
@@ -180,7 +180,10 @@ class ProductController extends Controller
 
             // Считаем расстояние, передавая координаты конкретного магазина
             $distanceInMeters = GEOService::call()->getDistance($clientLat, $clientLng, $shopCoords);
-            $distanceInKm = round($distanceInMeters / 1000, 2);
+
+            $distCoef = env("DISTANCE_COEF") ?? 1;
+
+            $distanceInKm = round($distanceInMeters / 1000, 2) * $distCoef;
 
             // Если расстояние 0 (нет координат), цена равна базовой, иначе базовая + км * цена_за_км
             $deliveryPrice = round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
@@ -188,11 +191,11 @@ class ProductController extends Controller
             $partnerUuid = $partner->uuid ?? 'partner_' . $partner->id;
 
             $partnerBoxConfig[$partnerUuid] = [
-                "id"          => $partner->id,
-                "price"       => $deliveryPrice,
-                "title"       => $partner->name ?? $partner->slug ?? 'Неизвестный магазин',
-                "distance"    => $distanceInKm,
-                "address"     => $address,
+                "id" => $partner->id,
+                "price" => $deliveryPrice,
+                "title" => $partner->name ?? $partner->slug ?? 'Неизвестный магазин',
+                "distance" => $distanceInKm,
+                "address" => $address,
                 "shop_coords" => $shopCoords,
                 "client_coords" => $clientLat . ", " . $clientLng,
             ];
@@ -204,9 +207,9 @@ class ProductController extends Controller
 
         return response()->json([
             "distance" => round($sumDistance, 2),
-            "price"    => round($sumPrice, 2),
-            "address"  => $address,
-            "config"   => $partnerBoxConfig,
+            "price" => round($sumPrice, 2),
+            "address" => $address,
+            "config" => $partnerBoxConfig,
         ]);
     }
 

@@ -84,7 +84,7 @@ class LocationController extends Controller
     /**
      * Сделать адрес дефолтным
      */
-    public function setDefault($tenant, $id)
+    public function setDefault( $id)
     {
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();

@@ -582,6 +582,7 @@ $admin-danger: #ef4444;
 }
 
 .modern-select {
+    width: 100%;
     padding: 12px 16px;
     border: 1px solid $admin-border;
     border-radius: 10px;
@@ -761,9 +762,12 @@ $admin-danger: #ef4444;
     display: flex;
     gap: 12px;
     align-items: center;
+    flex-direction: column;
+    width: 100%;
 }
 
 .btn-export {
+    width: 100%;
     display: inline-flex;
     align-items: center;
     gap: 8px;

@@ -39,7 +39,7 @@ class AdminOrderController extends Controller
         return Excel::download(new AdminOrdersExport($orders), 'orders_' . now()->format('Y-m-d_H-i') . '.xlsx');
     }
 
-    public function exportSingle($tenant, $id)
+    public function exportSingle( $id)
     {
         // Загружаем заказ со всеми нужными связями
         $order = Order::with(['tenant', 'tenantUser'])->findOrFail($id);
@@ -114,7 +114,7 @@ class AdminOrderController extends Controller
     /**
      * Получить детализацию одного заказа
      */
-    public function show($tenant, $id)
+    public function show( $id)
     {
         $order = Order::with(['tenantUser', 'dialog', 'dialog.messages' => function ($q) {
             $q->latest()->limit(20); // Последние 20 сообщений для контекста
@@ -126,7 +126,7 @@ class AdminOrderController extends Controller
     /**
      * Быстрая смена статуса заказа
      */
-    public function updateStatus(Request $request, $tenant,  $id)
+    public function updateStatus(Request $request,   $id)
     {
         $request->validate(['status' => 'required']);
 

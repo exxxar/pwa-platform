@@ -359,13 +359,7 @@ import PartnerLocationModal from "@/MobileClient/Components/Partners/PartnerLoca
 
 export default {
     name: "PartnerListModern",
-
-    components: {
-        PartnerLocationModal,
-        PartnerCard,
-        ReviewCard,
-    },
-
+    components: {PartnerLocationModal, PartnerCard, ReviewCard},
     emits: ['select'],
 
     setup() {
@@ -376,20 +370,16 @@ export default {
 
     data() {
         return {
-
             showLocationModal: false,
             selectedPartnerForMap: null,
-
             activeMainTab: 'establishments',
             searchQuery: '',
-            selectedCategory: null, // 🆕 ID выбранной категории
-            selectedCuisine: null,  // 🆕 Slug выбранной кухни (тега)
-
-            filter: 'nearby', // Будет перезаписано в mounted, если есть настройки
+            selectedCategory: null,
+            selectedCuisine: null,
+            filter: 'all',
             viewMode: 'list',
             partnerList: [],
             isPartnersLoading: false,
-
             ordersTab: 0,
             reviewsLoaded: false,
             showCuisinesModal: false,
@@ -397,14 +387,14 @@ export default {
     },
 
     computed: {
-        // 🆕 Безопасное получение UI настроек
         uiSettings() {
             return window.Tenant?.settings?.partners?.ui || {};
         },
+
+        // ✅ УСТОЙЧИВОСТЬ: Всегда возвращаем массив
         dynamicCuisines() {
-            if (this.uiSettings.cuisines && this.uiSettings.cuisines.length > 0) {
-                return this.uiSettings.cuisines;
-            }
+            const cuisines = this.uiSettings.cuisines;
+            if (Array.isArray(cuisines) && cuisines.length > 0) return cuisines;
             return [
                 {id: 1, name: 'Итальянская', slug: 'italian', image: this.getDefaultImage('pizza')},
                 {id: 2, name: 'Японская', slug: 'japanese', image: this.getDefaultImage('sushi')},
@@ -412,36 +402,22 @@ export default {
             ];
         },
 
-        // 🆕 Динамические категории (вместо кухонь)
         dynamicCategories() {
-            const settings = this.uiSettings.categories || this.uiSettings.cuisines; // обратная совместимость
-            if (settings && settings.length > 0) {
-                return settings;
-            }
-            // Fallback список, если в настройках пусто
+            const settings = this.uiSettings.categories || this.uiSettings.cuisines;
+            if (Array.isArray(settings) && settings.length > 0) return settings;
             return [
-                {id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza'},
-                {id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers'},
-                {id: 3, name: 'Шаурма', icon: '🌯', slug: 'shawarma'},
-                {id: 4, name: 'Суши и роллы', icon: '🍣', slug: 'sushi'},
-                {id: 5, name: 'Шашлык', icon: '🍖', slug: 'shashlik'},
-                {id: 6, name: 'Хинкали', icon: '🥟', slug: 'khinkali'},
-                {id: 7, name: 'Хачапури', icon: '🫓', slug: 'khachapuri'},
-                {id: 8, name: 'Лапша / Wok', icon: '🍜', slug: 'wok'},
-                {id: 9, name: 'Паста', icon: '🍝', slug: 'pasta'},
-                {id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner'},
-                {id: 11, name: 'Тако и буррито', icon: '🌮', slug: 'taco'},
-                {id: 12, name: 'Пельмени и вареники', icon: '🥟', slug: 'dumplings'},
-                {id: 13, name: 'Обеды', icon: '🍱', slug: 'lunch'},
-                {id: 14, name: 'Морепродукты', icon: '🦞', slug: 'seafood'},
-                {id: 15, name: 'Закуски', icon: '🍟', slug: 'snacks'},
-                {id: 16, name: 'Пивные закуски', icon: '🍺', slug: 'beer_snacks'},
-                {id: 17, name: 'Салаты', icon: '🥗', slug: 'salads'},
-                {id: 18, name: 'ПП', icon: '🥑', slug: 'pp'}
+                {id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza'}, {id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers'},
+                {id: 3, name: 'Шаурма', icon: '🌯', slug: 'shawarma'}, {id: 4, name: 'Суши и роллы', icon: '🍣', slug: 'sushi'},
+                {id: 5, name: 'Шашлык', icon: '🍖', slug: 'shashlik'}, {id: 6, name: 'Хинкали', icon: '🥟', slug: 'khinkali'},
+                {id: 7, name: 'Хачапури', icon: '🫓', slug: 'khachapuri'}, {id: 8, name: 'Лапша / Wok', icon: '🍜', slug: 'wok'},
+                {id: 9, name: 'Паста', icon: '🍝', slug: 'pasta'}, {id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner'},
+                {id: 11, name: 'Тако и буррито', icon: '🌮', slug: 'taco'}, {id: 12, name: 'Пельмени', icon: '🥟', slug: 'dumplings'},
+                {id: 13, name: 'Обеды', icon: '🍱', slug: 'lunch'}, {id: 14, name: 'Морепродукты', icon: '🦞', slug: 'seafood'},
+                {id: 15, name: 'Закуски', icon: '🍟', slug: 'snacks'}, {id: 16, name: 'Пивные закуски', icon: '🍺', slug: 'beer_snacks'},
+                {id: 17, name: 'Салаты', icon: '🥗', slug: 'salads'}, {id: 18, name: 'ПП', icon: '🥑', slug: 'pp'}
             ];
         },
 
-        // 🆕 Динамические настройки Hero
         dynamicHeroSettings() {
             const hero = this.uiSettings.hero || {};
             return {
@@ -452,7 +428,7 @@ export default {
                 backgroundColor: 'linear-gradient(165deg, rgba(255, 248, 240, 0.95) 0%, rgba(255, 179, 138, 0.85) 30%, rgba(255, 140, 97, 0.75) 60%, rgba(118, 75, 162, 0.65) 100%)'
             };
         },
-        // 🆕 Динамические картинки Hero
+
         dynamicHeroImages() {
             const hero = this.uiSettings.hero || {};
             return {
@@ -474,12 +450,9 @@ export default {
             return {background: this.dynamicHeroSettings.backgroundColor};
         },
 
-
-        // 🆕 Динамические сервисы
         dynamicServices() {
-            if (this.uiSettings.services && this.uiSettings.services.length > 0) {
-                return this.uiSettings.services;
-            }
+            const services = this.uiSettings.services;
+            if (Array.isArray(services) && services.length > 0) return services;
             return [
                 {id: 1, label: 'Быстрая доставка', icon: 'fa-solid fa-bolt'},
                 {id: 2, label: 'Большой выбор', icon: 'fa-solid fa-bag-shopping'},
@@ -488,101 +461,90 @@ export default {
             ];
         },
 
-        // 🆕 Динамические фильтры (уровень ПАРТНЕРА, а не товара)
         dynamicFilters() {
-            if (this.uiSettings.filters && this.uiSettings.filters.length > 0) {
-                return this.uiSettings.filters;
-            }
+            const filters = this.uiSettings.filters;
+            if (Array.isArray(filters) && filters.length > 0) return filters;
             return [
-                {id: 1, name: 'Все', slug: 'all'},
-                {id: 2, name: 'Избранные', slug: 'favorites'},
-                {id: 3, name: 'С акциями', slug: 'promo'},
-                {id: 4, name: 'Популярные', slug: 'popular'}
+                {id: 1, name: 'Все', slug: 'all'}, {id: 2, name: 'Избранные', slug: 'favorites'},
+                {id: 3, name: 'С акциями', slug: 'promo'}, {id: 4, name: 'Популярные', slug: 'popular'}
             ];
         },
 
         activePartners() {
-            return (this.partnerList || []).filter(p => p.is_active);
+            const list = Array.isArray(this.partnerList) ? this.partnerList : [];
+            return list.filter(p => p && p.is_active);
         },
 
         filteredPartners() {
-            // Начинаем со всех активных партнеров
             let list = [...this.activePartners];
 
-            // ==========================================
-            // 1. ФИЛЬТР ПО ВКЛАДКЕ (Все / Избранные / Акции / Популярные)
-            // ==========================================
+            // 1. Фильтр по вкладке
             if (this.filter === 'favorites') {
-                // 🆕 Преобразуем p.id в строку для корректного сравнения
-                list = list.filter(p => this.favoriteIds.includes(String(p.id)));
+                const favIds = Array.isArray(this.favoriteIds) ? this.favoriteIds.map(String) : [];
+                list = list.filter(p => favIds.includes(String(p.id)));
             } else if (this.filter === 'promo') {
                 list = list.filter(p => {
-                    // Проверяем наличие тега 'promo' или 'sale', либо флага has_promo
-                    const hasPromoTag = Array.isArray(p.tags) && (p.tags.includes('promo') || p.tags.includes('sale') || p.tags.includes('акция'));
-                    return hasPromoTag || p.has_promo === true || p.discount > 0;
+                    const tags = Array.isArray(p.tags) ? p.tags.map(String) : [];
+                    const hasPromoTag = tags.includes('promo') || tags.includes('sale') || tags.includes('акция');
+                    return hasPromoTag || p.has_promo === true || (p.discount || 0) > 0;
                 });
             } else if (this.filter === 'popular') {
+                list = list.filter(p => (p.rating || 0) >= 4.5 || (p.order_position || 0) > 0);
+            }
+
+            // 2. Поиск
+            if (this.searchQuery && this.searchQuery.trim()) {
+                const query = this.searchQuery.toLowerCase().trim();
                 list = list.filter(p => {
-                    // Популярные: высокий рейтинг (>= 4.5) или заданная позиция в выдаче (order_position > 0)
-                    return (p.rating || 0) >= 4.5 || (p.order_position || 0) > 0;
+                    const name = (p.name || '').toLowerCase();
+                    const address = (p.address || '').toLowerCase();
+                    const description = (p.description || '').toLowerCase();
+                    return name.includes(query) || address.includes(query) || description.includes(query);
                 });
             }
 
-            // ==========================================
-            // 2. ФИЛЬТР ПО ПОИСКОВОМУ ЗАПРОСУ
-            // ==========================================
-            if (this.searchQuery.trim()) {
-                const query = this.searchQuery.toLowerCase();
-                list = list.filter(p =>
-                    p.name?.toLowerCase().includes(query) ||
-                    p.address?.toLowerCase().includes(query) ||
-                    p.description?.toLowerCase().includes(query)
-                );
-            }
-
-            // ==========================================
-            // 3. ФИЛЬТР ПО КАТЕГОРИИ (если выбрана)
-            // ==========================================
+            // 3. Категория (Защита от разных типов данных: объект, число, строка)
             if (this.selectedCategory) {
+                const selCatStr = String(this.selectedCategory);
                 list = list.filter(p => {
-                    if (Array.isArray(p.categories)) {
-                        // Поддержка массива объектов {id: 1} или массива ID [1, 2]
-                        return p.categories.some(c => c.id === this.selectedCategory || c === this.selectedCategory);
+                    const categories = Array.isArray(p.categories) ? p.categories : [];
+                    if (categories.length > 0) {
+                        return categories.some(c => {
+                            const cId = (typeof c === 'object' && c !== null) ? c.id : c;
+                            return String(cId) === selCatStr;
+                        });
                     }
-                    // Поддержка одиночного значения
-                    return p.category_id === this.selectedCategory || p.category === this.selectedCategory;
+                    const pCatId = p.category_id || p.category;
+                    return String(pCatId) === selCatStr;
                 });
             }
 
-            // ==========================================
-            // 4. ФИЛЬТР ПО КУХНЕ/ТЕГУ (если выбран)
-            // ==========================================
+            // 4. Кухня
             if (this.selectedCuisine) {
+                const selCuisineStr = String(this.selectedCuisine);
                 list = list.filter(p => {
-                    return Array.isArray(p.tags) && p.tags.includes(this.selectedCuisine);
+                    const tags = Array.isArray(p.tags) ? p.tags.map(String) : [];
+                    return tags.includes(selCuisineStr);
                 });
             }
 
-            // ==========================================
-            // 5. ФИНАЛЬНАЯ СОРТИРОВКА
-            // ==========================================
+            // 5. Сортировка
             return list.sort((a, b) => {
-                // Сначала по order_position (чем выше, тем выше в списке), затем по имени
-                if ((b.order_position || 0) !== (a.order_position || 0)) {
-                    return (b.order_position || 0) - (a.order_position || 0);
-                }
+                const posA = a.order_position || 0;
+                const posB = b.order_position || 0;
+                if (posB !== posA) return posB - posA;
                 return (a.name || '').localeCompare(b.name || '');
             });
         },
+
         favoriteIds() {
             const self = window.TenantUser || null;
-
-
-            return self?.settings?.fav_partners || [];
+            const favs = self?.settings?.fav_partners;
+            return Array.isArray(favs) ? favs : [];
         },
 
         totalOrdersCount() {
-            return this.orders_paginate_object?.total || (this.orders || []).length;
+            return this.orders_paginate_object?.total || (Array.isArray(this.orders) ? this.orders.length : 0);
         },
 
         groupedOrders() {
@@ -590,27 +552,25 @@ export default {
             const today = new Date();
             const yesterday = new Date(today);
             yesterday.setDate(yesterday.getDate() - 1);
-            const ordersList = this.orders || [];
+            const ordersList = Array.isArray(this.orders) ? this.orders : [];
 
             ordersList.forEach(order => {
+                if (!order || !order.created_at) return;
                 const date = new Date(order.created_at);
-                let key, label;
+                if (isNaN(date.getTime())) return; // Защита от невалидных дат
 
+                let key, label;
                 if (date.toDateString() === today.toDateString()) {
-                    key = 'today';
-                    label = 'Сегодня';
+                    key = 'today'; label = 'Сегодня';
                 } else if (date.toDateString() === yesterday.toDateString()) {
-                    key = 'yesterday';
-                    label = 'Вчера';
+                    key = 'yesterday'; label = 'Вчера';
                 } else {
                     key = date.toISOString().split('T')[0];
                     label = date.toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'long',
+                        day: 'numeric', month: 'long',
                         year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
                     });
                 }
-
                 if (!groups[key]) groups[key] = {key, label, orders: []};
                 groups[key].orders.push(order);
             });
@@ -626,21 +586,13 @@ export default {
     },
 
     mounted() {
-
+        // Инициализируем фильтр первым элементом из динамических настроек
         this.filter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
-
-        // 🆕 Инициализируем фильтр первым элементом из динамических настроек
-        if (this.dynamicFilters.length > 0) {
-            this.filter = this.dynamicFilters[0].slug;
-        }
-
         this.loadInitialData();
-        if (this.loadOrders)
-            this.loadOrders({page: 0, size: 20});
+        if (this.loadOrders) this.loadOrders({page: 0, size: 20});
     },
 
     methods: {
-
         showPartnerLocation(partner) {
             this.selectedPartnerForMap = partner;
             this.showLocationModal = true;
@@ -648,12 +600,9 @@ export default {
 
         getDefaultImage(type) {
             const images = {
-                pizza: '/images/fastoran/pizza.png',
-                salad: '/images/fastoran/salad.png',
-                pasta: '/images/fastoran/pasta.png',
-                dessert: '/images/fastoran/dessert.png',
-                sushi: '/images/fastoran/suschi.png',
-                burger: '/images/fastoran/burger.png',
+                pizza: '/images/fastoran/pizza.png', salad: '/images/fastoran/salad.png',
+                pasta: '/images/fastoran/pasta.png', dessert: '/images/fastoran/dessert.png',
+                sushi: '/images/fastoran/suschi.png', burger: '/images/fastoran/burger.png',
                 khachapuri: '/images/fastoran/khachapuri.png'
             };
             return images[type] || images.pizza;
@@ -661,7 +610,7 @@ export default {
 
         async loadInitialData() {
             const tenant = window.Tenant || null;
-            if (tenant?.partners?.length > 0) {
+            if (Array.isArray(tenant?.partners) && tenant.partners.length > 0) {
                 this.partnerList = tenant.partners;
             } else {
                 await this.loadPartners();
@@ -672,7 +621,7 @@ export default {
             this.isPartnersLoading = true;
             try {
                 await this.partnerStore.loadPartners({dataObject: {}, page: pageIndex});
-                this.partnerList = this.partnerStore.getPartners || [];
+                this.partnerList = Array.isArray(this.partnerStore.getPartners) ? this.partnerStore.getPartners : [];
             } catch (error) {
                 console.error('Ошибка загрузки партнёров:', error);
             } finally {
@@ -680,23 +629,21 @@ export default {
             }
         },
 
-        // 🆕 Выбор категории (сбрасывает выбор кухни, чтобы фильтры не конфликтовали)
         selectCategory(categoryId) {
             if (this.selectedCategory === categoryId) {
-                this.selectedCategory = null; // Повторный клик сбрасывает фильтр
+                this.selectedCategory = null;
             } else {
                 this.selectedCategory = categoryId;
-                this.selectedCuisine = null; // Сбрасываем другой фильтр
+                this.selectedCuisine = null;
             }
         },
 
-        // 🆕 Выбор кухни/тега (сбрасывает выбор категории)
         selectCuisine(cuisine) {
             if (this.selectedCuisine === cuisine.slug) {
-                this.selectedCuisine = null; // Повторный клик сбрасывает фильтр
+                this.selectedCuisine = null;
             } else {
                 this.selectedCuisine = cuisine.slug;
-                this.selectedCategory = null; // Сбрасываем другой фильтр
+                this.selectedCategory = null;
             }
         },
 
@@ -729,15 +676,15 @@ export default {
         },
 
         isFavorite(partnerId) {
-            return this.favoriteIds.some(id => Number(id) === partnerId);
+            const favs = Array.isArray(this.favoriteIds) ? this.favoriteIds : [];
+            return favs.some(id => String(id) === String(partnerId));
         },
 
-        // 🆕 Обновленный сброс всех фильтров
         resetFilters() {
             this.searchQuery = '';
             this.selectedCategory = null;
             this.selectedCuisine = null;
-            this.filter = 'all'; // 🆕 Сбрасываем динамический фильтр на "Все"
+            this.filter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
         },
 
         async switchOrdersTab(index) {
@@ -751,10 +698,13 @@ export default {
         async repeatOrderHandler(item) {
             if (this.repeatOrder && this.clearCart && this.addProductToCart) {
                 try {
-                    const productTitles = (item.product_details?.[0]?.products || []).map(p => p.name || p.title);
+                    // ✅ Используем устойчивый метод получения товаров
+                    const products = this.getOrderProducts(item);
+                    const productTitles = products.map(p => p.name || p.title).filter(Boolean);
                     const resp = await this.repeatOrder({products: productTitles});
                     const currentProducts = resp?.data || resp || [];
-                    if (currentProducts.length === 0) {
+
+                    if (!Array.isArray(currentProducts) || currentProducts.length === 0) {
                         this.$notify?.({title: 'Корзина', text: 'Нет доступных к заказу товаров', type: 'warning'});
                         return;
                     }
@@ -798,26 +748,46 @@ export default {
 
         formatDateTime(dateString) {
             if (!dateString) return '';
-            return new Date(dateString).toLocaleString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleString('ru-RU', {hour: '2-digit', minute: '2-digit'});
         },
 
         formatPrice(price) {
+            const num = parseFloat(price) || 0;
             return new Intl.NumberFormat('ru-RU', {
-                style: 'currency',
-                currency: 'RUB',
-                minimumFractionDigits: 0
-            }).format(price || 0);
+                style: 'currency', currency: 'RUB', minimumFractionDigits: 0
+            }).format(num);
         },
 
+        // ✅ УСТОЙЧИВОСТЬ: Поддержка обоих форматов JSON из бэкенда
         getOrderProducts(order) {
-            return order.product_details?.[0]?.products || [];
+            if (!order || !order.product_details) return [];
+            const details = order.product_details;
+
+            // Вариант 1: Массив групп (стандартный)
+            if (Array.isArray(details)) {
+                for (const group of details) {
+                    if (group && Array.isArray(group.products)) {
+                        return group.products;
+                    }
+                }
+            }
+            // Вариант 2: Плоский объект (Fallback, как в бэкенде)
+            else if (typeof details === 'object' && details !== null && Array.isArray(details.products)) {
+                return details.products;
+            }
+            return [];
         },
+
         getProductQty(product) {
             return product.count || product.quantity || 1;
         },
+
         getProductName(product) {
             return product.name || product.title || 'Товар';
         },
+
         getOrderTotal(order) {
             return order.summary_price || order.total || 0;
         },
@@ -2068,5 +2038,149 @@ $info: #3b82f6;
 
     // Убираем лишний нижний отступ, так как gap в grid уже дает пространство
     margin-bottom: 0 !important;
+}
+
+// ==========================================
+// 🆕 BOTTOM SHEET MODAL (CUISINES)
+// ==========================================
+.cuisine-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.cuisine-modal-sheet {
+    background: #ffffff;
+    width: 100%;
+    max-width: 600px;
+    max-height: 85vh;
+    border-radius: 24px 24px 0 0;
+    padding: 16px;
+    overflow-y: auto;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-handle {
+    width: 40px;
+    height: 4px;
+    background: #d1d5db;
+    border-radius: 2px;
+    margin: 0 auto 16px;
+    flex-shrink: 0;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+
+.modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.modal-close-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    border: none;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.2s;
+
+    &:hover {
+        background: #e2e8f0;
+        color: #1e293b;
+    }
+}
+
+.cuisine-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    overflow-y: auto;
+
+    @media (max-width: 480px) {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.cuisine-modal-card {
+    cursor: pointer;
+    transition: transform 0.2s;
+
+    &.active {
+        transform: scale(1.05);
+    }
+}
+
+.cuisine-modal-image-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-bottom: 8px;
+}
+
+.cuisine-modal-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cuisine-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.4) 0%, transparent 60%);
+}
+
+.cuisine-modal-info {
+    text-align: center;
+}
+
+.cuisine-modal-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+// Transition для bottom sheet
+.bottom-sheet-enter-active,
+.bottom-sheet-leave-active {
+    transition: opacity 0.3s ease;
+
+    .cuisine-modal-sheet {
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+}
+
+.bottom-sheet-enter-from,
+.bottom-sheet-leave-to {
+    opacity: 0;
+
+    .cuisine-modal-sheet {
+        transform: translateY(100%);
+    }
 }
 </style>

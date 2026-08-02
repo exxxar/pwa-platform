@@ -33,32 +33,43 @@ class OrderController extends Controller
         $tenant = app('tenant');
 
         // 1. Берем 10 последних заказов в активных статусах
-        // ⚠️ ВАЖНО: Замените [1, 2, 3] на реальные значения ваших статусов из OrderStatusEnum
-        // (например, [OrderStatusEnum::NewOrder->value, OrderStatusEnum::Completed->value])
-        // Мы не показываем отмененные заказы (status = cancelled), чтобы не отпугивать клиентов.
+        // ⚠️ ВАЖНО: Раскомментируйте и настройте фильтр статусов!
+        // В вашем dd у всех заказов "status" => 0. Если 0 - это "отменен" или "черновик",
+        // вы показываете клиентам некорректные данные.
         $recentOrders = Order::where('tenant_id', $tenant->id)
-           // ->whereIn('status', [2])
+            // ->whereIn('status', [OrderStatusEnum::NewOrder->value, OrderStatusEnum::Completed->value])
             ->latest()
             ->limit(10)
             ->get()
-            ->shuffle() // Перемешиваем эти 10 заказов в памяти (это мгновенно)
-            ->take(5);  // Берем 5 случайных
+            ->shuffle() // Для 10 записей shuffle в памяти действительно быстр и безопасен
+            ->take(5);
 
-        // 2. Форматируем данные для фронтенда, доставая их из JSON-поля product_details
+        // 2. Форматируем данные для фронтенда
         $formattedOrders = $recentOrders->map(function ($order) {
             $extractedItems = [];
+            $productDetails = $order->product_details;
 
-            // Парсим массив product_details
-            if (!empty($order->product_details) && is_array($order->product_details)) {
-                foreach ($order->product_details as $detailGroup) {
-                    if (isset($detailGroup['products']) && is_array($detailGroup['products'])) {
-                        foreach ($detailGroup['products'] as $productData) {
-                            $extractedItems[] = [
-                                'product' => [
-                                    'title' => $productData['name'] ?? 'Товар',
-                                ],
-                                'quantity' => $productData['count'] ?? 1,
-                            ];
+            if (!empty($productDetails)) {
+                // ✅ ИСПРАВЛЕНИЕ: Нормализация структуры JSON
+                // Если ключ 'products' находится на верхнем уровне, оборачиваем весь массив в еще один массив,
+                // чтобы привести его к единому формату "массив групп".
+                if (isset($productDetails['products']) && is_array($productDetails['products'])) {
+                    $productDetails = [$productDetails];
+                }
+
+                // Теперь мы гарантированно работаем со списком групп
+                if (is_array($productDetails)) {
+                    foreach ($productDetails as $detailGroup) {
+                        if (is_array($detailGroup) && isset($detailGroup['products']) && is_array($detailGroup['products'])) {
+                            foreach ($detailGroup['products'] as $productData) {
+                                $extractedItems[] = [
+                                    'product' => [
+                                        'title' => $productData['name'] ?? 'Товар',
+                                    ],
+                                    // ✅ Приводим к int, чтобы фронтенд всегда получал число, а не строку
+                                    'quantity' => (int) ($productData['count'] ?? 1),
+                                ];
+                            }
                         }
                     }
                 }
@@ -66,7 +77,8 @@ class OrderController extends Controller
 
             return [
                 'id' => $order->id,
-                'created_at' => $order->created_at->toISOString(),
+                // ✅ Добавлена проверка на случай, если created_at по какой-то причине null
+                'created_at' => $order->created_at ? $order->created_at->toISOString() : null,
                 'total' => (float) $order->summary_price,
                 'items' => $extractedItems,
             ];

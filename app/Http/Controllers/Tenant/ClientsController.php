@@ -12,7 +12,7 @@ class ClientsController extends Controller
     /**
      * 🆕 Получить данные пользователя
      */
-    public function show($tenant, int $userId)
+    public function show( int $userId)
     {
         $tenant = app('tenant');
 
