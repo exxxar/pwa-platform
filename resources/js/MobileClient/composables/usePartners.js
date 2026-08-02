@@ -56,6 +56,16 @@ export function usePartners() {
         }
     };
 
+    const loadAdminPartners = async (payload = {}) => {
+        try {
+            return await store.loadAdminPartners(payload);
+        } catch (error) {
+            console.error('[usePartners] Ошибка загрузки партнёров:', error);
+            throw error;
+        }
+    };
+
+
     const loadCategories = async (payload = {}) => {
         try {
             return await store.loadCategories(payload);
@@ -169,6 +179,7 @@ export function usePartners() {
 
         // Методы (Actions)
         loadPartners,
+        loadAdminPartners,
         loadCategories,
         loadPartnersStats,
         loadSelfPartner: store.loadSelfPartner,

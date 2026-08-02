@@ -524,6 +524,7 @@ function routes() {
         ->controller(PartnersController::class)
         ->group(function () {
             Route::post("/", "index");
+            Route::post("/full-partners", "fullIndex");
             Route::post("/store", "store");
 
             Route::post("/toggle-favorite", "togglePartnersInFavorites");

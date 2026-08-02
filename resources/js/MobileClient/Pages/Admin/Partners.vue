@@ -321,7 +321,7 @@ export default {
 
     async mounted() {
         // Загружаем данные
-        await this.loadPartners()
+        await this.loadAdminPartners()
         await this.loadCategories()
 
         // Инициализируем форму

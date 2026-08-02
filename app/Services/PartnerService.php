@@ -140,6 +140,68 @@ class PartnerService
         return new PartnerCollection($partners);
     }
 
+    public function listForAdmins(?array $data = [], bool $isForApi = false): PartnerCollection
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        // 1. Валидация доступа
+        if (!$isForApi && !$tenantUser) {
+            throw new HttpException(404, "Бот и пользователь не найдены!");
+        }
+
+        // 2. Извлечение избранных партнеров (только для не-API запросов, если нужно)
+        $favPartners = !$isForApi && $tenantUser ? ($tenantUser->meta['fav_partners'] ?? []) : [];
+
+        // 3. Базовый запрос с использованием скоупов модели
+        $query = Partner::query()
+            ->where('tenant_id', $tenant->id); // 🆕 Используем скоуп active() из модели
+
+        // 4. 🆕 Фильтрация по тегам
+        if (!empty($data['tag'])) {
+            $query =   $query->whereTag($data['tag']);
+        } elseif (!empty($data['tags']) && is_array($data['tags'])) {
+            $query =  $query->whereTags($data['tags']);
+        }
+
+        // 5. 🆕 DRY: Выносим повторяющееся условие активных товаров в переменную
+        $activeProductsCondition = function ($q) {
+            $q->where('is_active', true)
+                ->where(function ($subQuery) {
+                    $subQuery->whereNull('in_stop_list')
+                        ->orWhere('in_stop_list', false);
+                });
+        };
+
+        // 6. Агрегация данных (количество и сумма)
+        $query = $query->withCount([
+            'partnerProducts as products_count' => $activeProductsCondition
+        ])
+            ->withSum([
+                'partnerProducts as products_sum' => $activeProductsCondition
+            ], 'price');
+
+        // 7. 🆕 Умная и безопасная сортировка
+        if (!empty($favPartners)) {
+            // Защита от SQL-инъекций: приводим все ID к целым числам
+            $safeIds = implode(',', array_map('intval', $favPartners));
+
+            // Сортируем так, чтобы избранные были вверху (FIELD возвращает 0, если ID нет в списке)
+            $query =   $query->orderByRaw("FIELD(id, {$safeIds}) DESC");
+        }
+
+        // Вторичная сортировка всегда применяется (даже если есть избранные)
+        $query =  $query->orderBy('id', 'DESC')
+            ->orderBy('order_position', 'DESC'); // Дополнительная стабилизация сортировки
+
+        // 8. Выполнение запроса
+        // Примечание: если нужна пагинация, замените ->get() на ->paginate($data['per_page'] ?? 15)
+        // и измените возвращаемый тип на \Illuminate\Pagination\LengthAwarePaginator
+        $partners = $query->get();
+
+        return new PartnerCollection($partners);
+    }
+
     public function listOfPartnersCategories(): \Illuminate\Database\Eloquent\Collection|array
     {
 

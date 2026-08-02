@@ -269,6 +269,34 @@ export const usePartnersStore = defineStore('partners', {
         // ЗАГРУЗКА ДАННЫХ
         // ------------------------------------------
 
+
+        async loadAdminPartners(payload = {}) {
+            this.isLoading = true;
+            this.lastError = null;
+            this.errors = [];
+
+            try {
+                const response = await axios.post(`${BASE}/full-partners`, payload);
+                const dataObject = response.data;
+
+                this.partners = dataObject.data || [];
+
+                const {data, ...pagination} = dataObject;
+                this.partners_paginate_object = pagination;
+
+                this.isHydrated = true;
+                this.lastSyncAt = new Date();
+
+                return dataObject;
+            } catch (err) {
+                console.error('[Partners Store] Ошибка загрузки партнёров:', err);
+                this.lastError = err.response?.data?.message || 'Не удалось загрузить партнёров';
+                this.errors = err.response?.data?.errors || [];
+                throw err;
+            } finally {
+                this.isLoading = false;
+            }
+        },
         /**
          * Загрузка списка партнёров
          */

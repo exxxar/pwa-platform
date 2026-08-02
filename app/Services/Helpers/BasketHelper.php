@@ -41,11 +41,22 @@ trait BasketHelper
         $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
         $addressText = $context['need_pickup'] ? 'Не требуется' : $addr['address'];
 
-        $message = "🔔 <b>НОВЫЙ ЗАКАЗ #{$order->id}</b>\n";
+        $persons = $context["persons"] ?? 1;
+
+        $money = $context["money"] ?? 'Не указано';
+        $info = $context["info"] ?? 'Не указано';
+
+        $baseUrl = request()->getSchemeAndHttpHost() ?? 'не указано';
+
+        $message = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";
         $message .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
         $message .= "👤 <b>Клиент:</b> {$order->receiver_name}\n";
         $message .= "📞 <b>Телефон:</b> <code>{$order->receiver_phone}</code>\n";
         $message .= "📦 <b>Тип:</b> {$orderType}\n";
+        $message .= "💵 <b>Сдачи с:</b> {$money}\n";
+        $message .= "🙍🏻‍♂️ <b>Число людей:</b> {$persons}\n";
+        $message .= "🌐 <b>Источник:</b> {$baseUrl}\n";
+        $message .= "🛈 <b>Доп. инфа:</b> {$info}\n";
 
         if (!$context['need_pickup']) {
             $message .= "📍 <b>Адрес:</b> {$addressText}\n";

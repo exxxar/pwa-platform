@@ -16,6 +16,12 @@ class PartnersController extends Controller
             ->list($request->all());
     }
 
+    public function fullIndex(Request $request): \App\Http\Resources\PartnerCollection
+    {
+        return PartnerService::call()
+            ->listForAdmins($request->all());
+    }
+
     public function togglePartnersInFavorites(Request $request)
     {
         $request->validate([

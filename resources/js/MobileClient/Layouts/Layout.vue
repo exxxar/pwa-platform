@@ -1,10 +1,8 @@
 <template>
     <div class="app-layout">
-        <Head>
-            <title>CashMan - система твоего бизнеса внутри</title>
-            <meta name="description" content="CashMan - система твоего бизнеса внутри"/>
-        </Head>
 
+
+        <Head :title="pageTitle" />
         <!-- ========================================== -->
         <!-- MODERN HEADER -->
         <!-- ========================================== -->
@@ -211,7 +209,7 @@
 </template>
 
 <script>
-import {Head} from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3'; // Обязательно импортируем
 import ScheduleList from "@/MobileClient/Components/Shop/ScheduleList.vue";
 import ProductInfo from "@/MobileClient/Components/Shop/ProductInfo.vue";
 import Preloader from "@/MobileClient/Components/Shop/Preloader.vue";
@@ -267,7 +265,9 @@ export default {
         tenant() {
             return window.Tenant || null;
         },
-
+        pageTitle(){
+          return this.tenant?.name || 'Мини-магазин'
+        },
         self() {
             return window.TenantUser || null;
         },
