@@ -301,11 +301,22 @@
 
             <div class="toggle-row">
                 <div class="toggle-info">
-                    <h4>Наличные и перевод</h4>
-                    <p>Разрешить оплату наличными или переводом</p>
+                    <h4>Наличные</h4>
+                    <p>Разрешить оплату наличными</p>
                 </div>
                 <label class="toggle-switch">
                     <input type="checkbox" v-model="form.can_use_cash" @change="emitDirty">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="toggle-row">
+                <div class="toggle-info">
+                    <h4>Перевод</h4>
+                    <p>Разрешить оплату переводом или qr</p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" v-model="form.can_use_qr" @change="emitDirty">
                     <span class="toggle-slider"></span>
                 </label>
             </div>

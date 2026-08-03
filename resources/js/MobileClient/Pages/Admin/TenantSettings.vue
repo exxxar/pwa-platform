@@ -154,7 +154,10 @@ export default {
                 need_automatic_delivery_request: true, need_hide_delivery_period: false,
                 min_base_delivery_price: 0, price_per_km: 80, free_shipping_starts_from: 0,
                 shop_coords: '0,0', map_tiler: null, payment_info: null,
-                need_pay_after_call: false, can_use_cash: true, can_use_card: true,
+                need_pay_after_call: false,
+                can_use_cash: true,
+                can_use_qr: true,
+                can_use_card: true,
                 venue_tags: '', nearest_cities: '',
                 sbp_banks: {
                     tinkoff: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'none' },
