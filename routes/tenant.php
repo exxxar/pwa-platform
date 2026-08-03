@@ -67,6 +67,19 @@ use Jenssegers\Agent\Agent;
 
 function routes() {
 
+    Route::get('/app-version', function () {
+        // Вариант 1: Читать из .env (APP_VERSION=1.2.3)
+        // Вариант 2: Читать из файла public/version.json, который генерируется CI/CD
+        // Вариант 3: Хардкод, который вы меняете при релизе
+
+        $version = config('app.version', '1.0.0');
+
+        return response()->json([
+            'version' => $version,
+            'force_update' => false, // Можно использовать для критических багов
+        ]);
+    })->middleware('throttle:60,1'); // Защита от флуда
+
     Route::get('/', function (Request $request) {
 
         $agent = new Agent();

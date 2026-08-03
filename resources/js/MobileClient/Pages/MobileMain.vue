@@ -1,6 +1,7 @@
 <template>
     <Layout>
         <template #default>
+            <UpdateToast/>
             <!-- Убедись, что компонент notifications зарегистрирован глобально -->
             <notifications
                 position="top right"
@@ -21,6 +22,7 @@
 <script>
 import Layout from "@/MobileClient/Layouts/Layout.vue";
 import RouteLoader from "@/MobileClient/Components/Common/RouteLoader.vue";
+import UpdateToast from "@/MobileClient/Components/UpdateToast.vue";
 import { useFavorites } from '@/MobileClient/Composables/useFavorites.js';
 import { useBasket } from '@/MobileClient/Composables/useBasket.js';
 import { useChat } from '@/MobileClient/Composables/useChat.js';
@@ -108,6 +110,21 @@ export default {
         // 1. Сначала синхронно заполняем сторы начальными данными (если они есть)
         this.initializeStores();
 
+        // В app.js или App.vue (в onMounted)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'SW_UPDATED') {
+                    console.log('[App] 🚀 Service Worker updated in background to version:', event.data.version);
+
+                    // Если пользователь сейчас не заполняет форму, можно перезагрузить молча.
+                    // Но безопаснее просто показать тост (если он еще не показан)
+                    // Для простоты: если мы не на странице оформления заказа, перезагружаем
+                    if (!window.location.href.includes('/checkout')) {
+                        window.location.reload();
+                    }
+                }
+            });
+        }
         // 2. 🆕 ИСПРАВЛЕНО: Загружаем данные ТОЛЬКО если они еще не были гидратированы из initial_data
         // Это предотвращает ДВОЙНОЙ запрос и сброс корзины в пустой массив
         try {

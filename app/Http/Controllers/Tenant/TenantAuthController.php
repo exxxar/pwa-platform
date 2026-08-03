@@ -31,8 +31,10 @@ class TenantAuthController extends Controller
 
         $content = file_get_contents($path);
 
+        $currentVersion = config('app.version', '1.0.0');
+
         // Заменяем метку на реальную версию из .env
-        $content = str_replace('___MY_PROJECT_VERSION___', env('APP_VERSION', '1.0.0'), $content);
+        $content = str_replace('___MY_PROJECT_VERSION___', $currentVersion, $content);
 
         return response($content, 200, [
             'Content-Type' => 'application/javascript',

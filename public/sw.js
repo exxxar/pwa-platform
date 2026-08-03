@@ -112,10 +112,10 @@ async function preloadManifestImages() {
 }
 
 // ==========================================
-// ACTIVATE — чистим старые кэши
+// ACTIVATE — чистим старые кэши и УВЕДОМЛЯЕМ КЛИЕНТ
 // ==========================================
 self.addEventListener('activate', (event) => {
-    console.log('[SW] Activate');
+    console.log('[SW] Activate new version:', CACHE_VERSION);
     const currentCaches = [STATIC_CACHE, DYNAMIC_CACHE, IMAGE_CACHE];
 
     event.waitUntil(
@@ -130,9 +130,21 @@ self.addEventListener('activate', (event) => {
                         })
                 );
             })
-            .then(() => self.clients.claim()) // Берём контроль над всеми вкладками сразу
+            .then(() => self.clients.claim())
+            .then(() => {
+                // 🆕 Сообщаем всем открытым вкладкам, что SW обновился
+                return self.clients.matchAll({ type: 'window' }).then(clients => {
+                    clients.forEach(client => {
+                        client.postMessage({
+                            type: 'SW_UPDATED',
+                            version: CACHE_VERSION
+                        });
+                    });
+                });
+            })
     );
 });
+
 
 // ==========================================
 // FETCH — основная логика кэширования
@@ -360,6 +372,7 @@ self.addEventListener('notificationclick', (event) => {
 // ==========================================
 self.addEventListener('message', (event) => {
     if (event.data === 'SKIP_WAITING') {
+        console.log('[SW] Received SKIP_WAITING. Activating immediately.');
         self.skipWaiting();
     }
     if (event.data === 'CLEAR_CACHE') {
