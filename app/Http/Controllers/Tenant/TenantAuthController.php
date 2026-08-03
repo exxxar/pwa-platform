@@ -23,7 +23,7 @@ class TenantAuthController extends Controller
     public function serviceWorker()
     {
 
-        $path = public_path('sw.js');
+        $path = public_path('modified_sw.js');
 
         if (!file_exists($path)) {
             abort(404);
