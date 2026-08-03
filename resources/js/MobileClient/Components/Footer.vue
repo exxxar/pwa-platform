@@ -73,30 +73,16 @@
                 <ShareLink />
             </div>
 
-
-
-
             <!-- Разделитель -->
             <div class="footer-divider"></div>
 
             <!-- Секция 4: Обратная связь -->
             <div v-if="$route.name !== 'FeedBack'" class="footer-section feedback-section">
-                <button
-                    @click="goTo('FeedBack')"
-                    class="btn-feedback"
-                >
+                <button @click="goTo('FeedBack')" class="btn-feedback">
                     <i class="fa-solid fa-comment-dots"></i>
                     Обратная связь
                 </button>
             </div>
-
-<!--            &lt;!&ndash; Секция 5: О разработчике &ndash;&gt;
-            <div class="footer-section developer-section">
-                <router-link to="/about" class="btn-developer">
-                    <i class="fa-solid fa-circle-info"></i>
-                    <span>О платформе</span>
-                </router-link>
-            </div>-->
 
             <div class="footer-section share-section">
                 <h6 class="section-title">
@@ -106,9 +92,12 @@
                 <Subscribe />
             </div>
 
-            <!-- Копирайт -->
+            <!-- Копирайт и Версия -->
             <div class="footer-copyright">
                 <p>© {{ currentYear }} {{ tenant?.name }}. Все права защищены.</p>
+
+                <!-- 🆕 ДОБАВЛЕНО: Версия приложения -->
+                <p class="app-version">v {{ appVersion }}</p>
             </div>
 
             <!-- Кнопка наверх -->
@@ -147,6 +136,11 @@ export default {
         currentYear() {
             return new Date().getFullYear();
         },
+
+        // 🆕 ДОБАВЛЕНО: Получение версии из переменных окружения Vite
+        appVersion() {
+            return import.meta.env.VITE_APP_VERSION || '1.0.0';
+        }
     },
 
     methods: {
@@ -352,33 +346,6 @@ export default {
     font-size: 1.2rem;
 }
 
-/* Кнопка "О разработчике" */
-.btn-developer {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 16px 24px;
-    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
-    border-radius: 12px;
-    color: #ffffff;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(var(--bs-primary-rgb), 0.3);
-}
-
-.btn-developer:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(var(--bs-primary-rgb), 0.4);
-    color: #ffffff;
-}
-
-.btn-developer i {
-    font-size: 1.3rem;
-}
-
 /* Копирайт */
 .footer-copyright {
     text-align: center;
@@ -391,6 +358,16 @@ export default {
     margin: 0;
     color: #808080;
     font-size: 0.85rem;
+}
+
+/* 🆕 ДОБАВЛЕНО: Стиль для версии приложения */
+.app-version {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: #505050; /* Еще более приглушенный цвет, чем у копирайта */
+    font-family: monospace; /* Моноширинный шрифт для технического вида */
+    letter-spacing: 0.5px;
+    opacity: 0.8;
 }
 
 /* Кнопка наверх */
@@ -422,5 +399,9 @@ export default {
 /* Адаптив для тёмной темы */
 :root[data-bs-theme="dark"] .app-footer {
     background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%);
+}
+
+:root[data-bs-theme="dark"] .app-version {
+    color: #404040;
 }
 </style>
