@@ -124,19 +124,16 @@ self.addEventListener('activate', (event) => {
                 return Promise.all(
                     cacheNames
                         .filter((name) => !currentCaches.includes(name))
-                        .map((name) => {
-                            console.log('[SW] Deleting old cache:', name);
-                            return caches.delete(name);
-                        })
+                        .map((name) => caches.delete(name))
                 );
             })
-            .then(() => self.clients.claim())
+            .then(() => self.clients.claim()) // Захватываем контроль над всеми вкладками
             .then(() => {
-                // 🆕 Сообщаем всем открытым вкладкам, что SW обновился
-                return self.clients.matchAll({ type: 'window' }).then(clients => {
+                // 🆕 ВАЖНО: Сообщаем Vue-приложению, что мы ПОЛНОСТЬЮ активировались и готовы
+                return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
                     clients.forEach(client => {
                         client.postMessage({
-                            type: 'SW_UPDATED',
+                            type: 'SW_ACTIVATED',
                             version: CACHE_VERSION
                         });
                     });
@@ -144,7 +141,6 @@ self.addEventListener('activate', (event) => {
             })
     );
 });
-
 
 // ==========================================
 // FETCH — основная логика кэширования
@@ -368,12 +364,12 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ==========================================
-// Сообщения от клиента (Vue-приложения)
+// Сообщения от клиента
 // ==========================================
 self.addEventListener('message', (event) => {
     if (event.data === 'SKIP_WAITING') {
-        console.log('[SW] Received SKIP_WAITING. Activating immediately.');
-        self.skipWaiting();
+        console.log('[SW] Received SKIP_WAITING. Forcing activation.');
+        self.skipWaiting(); // Это запустит событие 'activate' выше
     }
     if (event.data === 'CLEAR_CACHE') {
         caches.keys().then((names) => {
