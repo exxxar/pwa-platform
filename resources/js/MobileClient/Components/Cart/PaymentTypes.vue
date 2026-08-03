@@ -56,7 +56,7 @@
 
                 <!-- 🆕 Переводом и Наличными: исправлен путь к can_use_cash -->
                 <button
-                    v-if="settings.can_use_cash"
+                    v-if="settings.can_use_qr"
                     type="button"
                     class="method-card"
                     :class="{ 'active': deliveryForm.payment_type === 2 }"
