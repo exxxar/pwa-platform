@@ -232,7 +232,7 @@
                         <p class="setting-description">Новые заказы будут дублироваться в указанный канал или группу</p>
                     </div>
                 </div>
-                <div class="switch-control">
+                <label for="telegram-enabled" class="switch-control">
                     <input
                         id="telegram-enabled"
                         type="checkbox"
@@ -241,7 +241,7 @@
                         :disabled="isLoading"
                     >
                     <span class="switch-slider"></span>
-                </div>
+                </label>
             </div>
 
             <!-- Поля появляются только если включено -->
@@ -509,14 +509,43 @@ export default {
 
     mounted() {
         if (this.initialData) {
+            // 1. Сохраняем дефолтную структуру config, чтобы не потерять поля
+            const defaultConfig = { ...this.form.config }
+
+            // 2. Сливаем данные
             this.form = { ...this.form, ...this.initialData }
 
+            // 3. Нормализация тегов
             if (!Array.isArray(this.form.tags)) {
                 if (typeof this.form.tags === 'string' && this.form.tags.trim() !== '') {
                     this.form.tags = this.form.tags.split(',').map(t => t.trim()).filter(Boolean)
                 } else {
                     this.form.tags = []
                 }
+            }
+
+            // 🆕 4. Нормализация config (защита от строки JSON, null или отсутствия полей)
+            let parsedConfig = defaultConfig;
+            if (this.initialData.config) {
+                if (typeof this.initialData.config === 'string') {
+                    try {
+                        parsedConfig = { ...defaultConfig, ...JSON.parse(this.initialData.config) }
+                    } catch (e) {
+                        parsedConfig = defaultConfig;
+                    }
+                } else if (typeof this.initialData.config === 'object') {
+                    parsedConfig = { ...defaultConfig, ...this.initialData.config }
+                }
+            }
+
+            // 5. Гарантируем реактивность и наличие всех полей с правильными типами
+            this.form.config = {
+                excludes: parsedConfig.excludes || [],
+                bg_color: parsedConfig.bg_color || 'transparent',
+                telegram_enabled: Boolean(parsedConfig.telegram_enabled), // 👈 Строго приводим к boolean
+                telegram_token: parsedConfig.telegram_token || '',
+                telegram_channel_id: parsedConfig.telegram_channel_id || '',
+                telegram_thread_id: parsedConfig.telegram_thread_id || '',
             }
         }
     },
@@ -1183,12 +1212,15 @@ $admin-danger: #ef4444;
     width: 48px;
     height: 28px;
     flex-shrink: 0;
+    cursor: pointer; // 👈 Добавляем курсор
 }
 
 .switch-input {
+    position: absolute;
+    inset: 0; // 👈 Растягиваем на весь блок вместо width: 0
     opacity: 0;
-    width: 0;
-    height: 0;
+    cursor: pointer;
+    z-index: 2; // 👈 Помещаем поверх slider, чтобы ловить клики
 
     &:checked + .switch-slider {
         background: $admin-success;
@@ -1202,6 +1234,10 @@ $admin-danger: #ef4444;
         opacity: 0.5;
         cursor: not-allowed;
     }
+
+    &:disabled {
+        cursor: not-allowed;
+    }
 }
 
 .switch-slider {
@@ -1211,6 +1247,7 @@ $admin-danger: #ef4444;
     background: $admin-border;
     transition: 0.3s;
     border-radius: 28px;
+    z-index: 1; // 👈 Помещаем под input
 
     &::before {
         position: absolute;
