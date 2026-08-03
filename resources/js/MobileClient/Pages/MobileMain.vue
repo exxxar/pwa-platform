@@ -33,7 +33,8 @@ export default {
 
     components: {
         Layout,
-        RouteLoader
+        RouteLoader,
+        UpdateToast
     },
 
     props: {
