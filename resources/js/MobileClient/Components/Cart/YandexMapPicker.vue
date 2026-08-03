@@ -87,8 +87,8 @@ export default {
 
             const coords = shopCoords.split(',');
             return {
-                lng: parseFloat(coords[0]) || 37.6173, // MapLibre использует [lng, lat]
-                lat: parseFloat(coords[1]) || 55.7558
+                lng: parseFloat(coords[1]) || 37.6173, // MapLibre использует [lng, lat]
+                lat: parseFloat(coords[0]) || 55.7558
             };
         },
 
