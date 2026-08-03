@@ -98,7 +98,7 @@
             </div>
         </div>
 
-        <!-- 🆕 Адрес и расположение -->
+        <!-- Адрес и расположение -->
         <div class="form-section">
             <div class="section-title">
                 <i class="fa-solid fa-map-location-dot"></i>
@@ -145,7 +145,7 @@
             </div>
         </div>
 
-        <!-- 🆕 ГЛОБАЛЬНЫЕ ТЕГИ ЗАВЕДЕНИЯ (Быстрый выбор) -->
+        <!-- ГЛОБАЛЬНЫЕ ТЕГИ ЗАВЕДЕНИЯ (Быстрый выбор) -->
         <div v-if="globalVenueTags.length > 0" class="form-section global-tags-section">
             <div class="section-title">
                 <i class="fa-solid fa-store"></i>
@@ -170,7 +170,7 @@
             </div>
         </div>
 
-        <!-- 🆕 ТЕГИ -->
+        <!-- ТЕГИ -->
         <div class="form-section">
             <div class="section-title">
                 <i class="fa-solid fa-tags"></i>
@@ -213,6 +213,87 @@
                     Нажмите Enter или запятую, чтобы добавить. Максимум 10 тегов. Только буквы, цифры и дефис.
                 </span>
             </div>
+        </div>
+
+        <!-- 🆕 УВЕДОМЛЕНИЯ (TELEGRAM) -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="fa-brands fa-telegram"></i>
+                Уведомления в Telegram
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
+                        <i class="fa-brands fa-telegram"></i>
+                    </div>
+                    <div class="setting-text">
+                        <h4 class="setting-title">Отправлять уведомления о заказах</h4>
+                        <p class="setting-description">Новые заказы будут дублироваться в указанный канал или группу</p>
+                    </div>
+                </div>
+                <div class="switch-control">
+                    <input
+                        id="telegram-enabled"
+                        type="checkbox"
+                        v-model="form.config.telegram_enabled"
+                        class="switch-input"
+                        :disabled="isLoading"
+                    >
+                    <span class="switch-slider"></span>
+                </div>
+            </div>
+
+            <!-- Поля появляются только если включено -->
+            <template v-if="form.config.telegram_enabled">
+                <div class="form-group">
+                    <label class="form-label" for="telegram-token">
+                        <i class="fa-solid fa-key"></i>
+                        Токен бота (Bot Token)
+                    </label>
+                    <input
+                        id="telegram-token"
+                        type="text"
+                        v-model="form.config.telegram_token"
+                        class="form-input"
+                        placeholder="Например: 123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        :disabled="isLoading"
+                    >
+                    <span class="form-hint">Получите у @BotFather при создании бота</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="telegram-channel-id">
+                        <i class="fa-solid fa-hashtag"></i>
+                        ID канала или группы (Chat ID)
+                    </label>
+                    <input
+                        id="telegram-channel-id"
+                        type="text"
+                        v-model="form.config.telegram_channel_id"
+                        class="form-input"
+                        placeholder="Например: -1001234567890"
+                        :disabled="isLoading"
+                    >
+                    <span class="form-hint">Для групп и каналов ID всегда начинается с <b>-100</b>.</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="telegram-thread-id">
+                        <i class="fa-solid fa-layer-group"></i>
+                        ID темы (Thread ID) <span style="color: var(--admin-text-muted); font-weight: 400; font-size: 0.8rem;">(необязательно)</span>
+                    </label>
+                    <input
+                        id="telegram-thread-id"
+                        type="text"
+                        v-model="form.config.telegram_thread_id"
+                        class="form-input"
+                        placeholder="Например: 42"
+                        :disabled="isLoading"
+                    >
+                    <span class="form-hint">Заполните только если в вашей группе включены "Темы" (Topics).</span>
+                </div>
+            </template>
         </div>
 
         <!-- Изображение -->
@@ -360,16 +441,16 @@ export default {
             file: null,
             preview: null,
             isDragging: false,
-            tagInput: '', // 🆕 Для ввода нового тега
+            tagInput: '',
             errors: {
                 title: '',
-                tags: '', // 🆕 Ошибки тегов
+                tags: '',
             },
             form: {
                 id: null,
                 title: '',
                 description: '',
-                tags: [], // 🆕 Массив тегов
+                tags: [],
                 image: '',
                 order_position: 0,
                 is_active: true,
@@ -377,21 +458,24 @@ export default {
                 demo_mode: true,
                 address: '',
                 shop_coords: '',
+                // 🆕 Все настройки партнера теперь внутри config
                 config: {
                     excludes: [],
                     bg_color: 'transparent',
+                    telegram_enabled: false,
+                    telegram_token: '',
+                    telegram_channel_id: '',
+                    telegram_thread_id: '',
                 },
             }
         }
     },
 
     computed: {
-        // 🆕 Получаем глобальные теги из настроек магазина
         globalVenueTags() {
             const tags = this.settings?.venue_tags;
             if (!tags) return [];
 
-            // Поддержка и массива, и строки (на случай разных форматов сохранения)
             if (Array.isArray(tags)) {
                 return tags;
             }
@@ -427,7 +511,6 @@ export default {
         if (this.initialData) {
             this.form = { ...this.form, ...this.initialData }
 
-            // 🆕 Гарантируем, что tags всегда является массивом (защита от null или строки из БД)
             if (!Array.isArray(this.form.tags)) {
                 if (typeof this.form.tags === 'string' && this.form.tags.trim() !== '') {
                     this.form.tags = this.form.tags.split(',').map(t => t.trim()).filter(Boolean)
@@ -475,9 +558,6 @@ export default {
             });
         },
 
-        // ==========================================
-        // 🆕 МЕТОДЫ ДЛЯ ТЕГОВ (Ваши существующие)
-        // ==========================================
         focusTagInput() {
             this.$refs.tagInputRef?.focus()
         },
@@ -523,9 +603,6 @@ export default {
             }
         },
 
-        // ==========================================
-        // МЕТОДЫ ФАЙЛОВ
-        // ==========================================
         triggerFileInput() {
             this.$refs.fileInput?.click()
         },
@@ -568,9 +645,6 @@ export default {
             }
         },
 
-        // ==========================================
-        // ВАЛИДАЦИЯ И ОТПРАВКА
-        // ==========================================
         validateForm() {
             this.errors.title = ''
 
@@ -595,7 +669,6 @@ export default {
             try {
                 const data = new FormData()
 
-                // 🆕 Улучшенная сериализация: массивы как key[], объекты как JSON
                 Object.keys(this.form).forEach(key => {
                     const item = this.form[key]
                     if (item !== null && item !== undefined) {
@@ -847,7 +920,7 @@ $admin-danger: #ef4444;
 }
 
 // ==========================================
-// 🆕 СТИЛИ ДЛЯ ТЕГОВ
+// СТИЛИ ДЛЯ ТЕГОВ
 // ==========================================
 .tags-input-container {
     border: 1px solid $admin-border;
@@ -1239,7 +1312,7 @@ $admin-danger: #ef4444;
 }
 
 // ==========================================
-// 🆕 ГЛОБАЛЬНЫЕ ТЕГИ ЗАВЕДЕНИЯ
+// ГЛОБАЛЬНЫЕ ТЕГИ ЗАВЕДЕНИЯ
 // ==========================================
 .global-tags-section {
     background: rgba($admin-primary, 0.03);
@@ -1279,7 +1352,6 @@ $admin-danger: #ef4444;
         transform: translateY(-1px);
     }
 
-    // Состояние: тег уже добавлен
     &.is-added {
         background: rgba($admin-success, 0.1);
         border-color: $admin-success;

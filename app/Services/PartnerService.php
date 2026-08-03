@@ -306,18 +306,18 @@ class PartnerService
             throw new HttpException(401, 'Пользователь не авторизован');
         }
 
-        // 🆕 1. Гибкая валидация (учитываем, что FormData шлет строки)
+        // 🆕 1. Валидация (config приходит как JSON-строка из FormData)
         $rules = [
             'id' => 'required|integer|exists:partners,id',
             'tenant_partner_id' => 'required|integer|exists:tenants,id',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'order_position' => 'nullable|integer|min:0',
-            'is_active' => 'nullable', // Придет как строка "true" или "false"
+            'is_active' => 'nullable',
             'extra_charge' => 'nullable|numeric|min:0',
-            'config' => 'nullable', // Придет как JSON-строка
-            'legal_info' => 'nullable', // Придет как JSON-строка
-            'tags' => 'nullable', // Придет как массив (tags[]) или JSON-строка
+            'config' => 'nullable|string', // 🆕 Ожидаем строку (JSON)
+            'legal_info' => 'nullable|string',
+            'tags' => 'nullable',
             'address' => 'nullable|string|max:255',
             'shop_coords' => 'nullable|string|max:50',
         ];
@@ -330,15 +330,14 @@ class PartnerService
 
         $validated = $validator->validated();
 
-        // 🆕 2. Безопасный поиск моделей
         $partnerTenant = Tenant::findOrFail($validated['tenant_partner_id']);
 
         $partner = Partner::query()
             ->where('id', $validated['id'])
-            ->where('tenant_id', $tenant->id) // 🔒 Защита от обновления чужих записей
+            ->where('tenant_id', $tenant->id)
             ->firstOrFail();
 
-        // 🆕 3. Современная работа с файлами + удаление старого
+        // 🆕 2. Работа с файлами
         $imageName = $partner->image;
 
         if ($file) {
@@ -354,15 +353,31 @@ class PartnerService
             $imageName = '/storage/' . $newFileName;
         }
 
-        // 🆕 4. Нормализация типов данных из FormData
+        // 🆕 3. Нормализация типов данных
         $isActive = filter_var($validated['is_active'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        $config = $validated['config'] ?? null;
-        if (is_string($config)) {
-            $config = json_decode($config, true) ?? [];
-        } elseif (!is_array($config)) {
-            $config = [];
+        // --- 🆕 4. БЕЗОПАСНОЕ ОБЪЕДИНЕНИЕ CONFIG ---
+        // Получаем текущий config из базы (Laravel сам его декодирует, если есть cast 'array',
+        // но на всякий случай обрабатываем оба варианта)
+        $existingConfig = $partner->config ?? [];
+        if (is_string($existingConfig)) {
+            $existingConfig = json_decode($existingConfig, true) ?? [];
+        } elseif (!is_array($existingConfig)) {
+            $existingConfig = [];
         }
+
+        // Декодируем пришедший config из FormData
+        $incomingConfig = $validated['config'] ?? null;
+        if (is_string($incomingConfig)) {
+            $incomingConfig = json_decode($incomingConfig, true) ?? [];
+        } elseif (!is_array($incomingConfig)) {
+            $incomingConfig = [];
+        }
+
+        // Объединяем: новые данные (включая telegram_*) перезаписывают старые ключи,
+        // но остальные ключи (например, bg_color) сохраняются.
+        $mergedConfig = array_merge($existingConfig, $incomingConfig);
+        // --------------------------------------------
 
         $legalInfo = $validated['legal_info'] ?? null;
         if (is_string($legalInfo)) {
@@ -373,14 +388,12 @@ class PartnerService
 
         $tags = $validated['tags'] ?? [];
         if (is_string($tags)) {
-            // Если пришло как JSON-строка
             $tags = json_decode($tags, true) ?? [];
         } elseif (!is_array($tags)) {
-            // Если пришло как что-то некорректное
             $tags = [];
         }
 
-        // 🆕 5. Обновление модели Partner (Laravel сам сделает json_encode для кастов 'array')
+        // 🆕 5. Обновление модели (Laravel сам сделает json_encode для каста 'array' в модели Partner)
         $partner->update([
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
@@ -388,7 +401,7 @@ class PartnerService
             'order_position' => $validated['order_position'] ?? 0,
             'is_active' => $isActive,
             'extra_charge' => $validated['extra_charge'] ?? 0,
-            'config' => $config,
+            'config' => $mergedConfig, // 🆕 Сохраняем объединенный массив
             'legal_info' => $legalInfo,
             'tags' => $tags,
         ]);
