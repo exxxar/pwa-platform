@@ -1,19 +1,13 @@
 import { storeToRefs } from 'pinia';
 import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
 
-/**
- * Composable для работы с корзиной.
- * Оптимизирован: убрана лишняя реактивность и шаблонный код.
- */
 export function useBasket() {
     const store = useBasketStore();
 
     // ==========================================
-    // 1. ЕДИНАЯ ДЕСТРУКТУРИЗАЦИЯ (State + Getters)
+    // 1. ЕДИНАЯ ДЕСТРУКТУРИЗАЦИЯ
     // ==========================================
-    // Геттеры Pinia уже реактивны, берем их напрямую через storeToRefs
     const {
-        // Состояние
         basket_items,
         basket_items_paginate_object,
         isLoading,
@@ -24,7 +18,6 @@ export function useBasket() {
         errors,
         lastSyncAt,
 
-        // Геттеры (без лишних computed!)
         cartTotalCount,
         cartTotalPrice,
         isEmpty,
@@ -35,39 +28,45 @@ export function useBasket() {
     } = storeToRefs(store);
 
     // ==========================================
-    // 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+    // 2. ВСПОМОГАТЕЛЬНЫЕ
     // ==========================================
     const isProductLoading = (productId) => store.isProductLoading(productId);
 
-    // Фабрика для создания методов с защитой от двойного клика
-    const withLoadingGuard = (actionFn) => (productId) => {
-        if (isProductLoading(productId)) return Promise.resolve();
-        return actionFn(productId);
+    const withLoadingGuard = (actionFn) => (payload) => {
+        const id = typeof payload === 'object' ? payload?.id : payload;
+        if (id && isProductLoading(id)) return Promise.resolve();
+        return actionFn(payload);
     };
 
     // ==========================================
-    // 3. МЕТОДЫ (Без избыточного try/catch)
+    // 3. МЕТОДЫ
     // ==========================================
-    // Мы просто возвращаем Promise из стора.
-    // Обработкой ошибок (показом тостов) должен заниматься компонент или глобальный перехватчик.
 
-    // Товары (с защитой от спама кликами)
-    const getItemById  = (payload) => store.getItemById (payload);
-    const addProduct = withLoadingGuard(store.addProductToCart);
-    const removeProduct = withLoadingGuard(store.removeProductFromCart);
-    const removeProductCompletely = withLoadingGuard(store.removeProduct);
-    const incrementQuantity = withLoadingGuard(store.incQuantity);
-    const decrementQuantity = withLoadingGuard(store.decQuantity);
+    // --- Товары ---
+    const getItemById = (payload) => store.getItemById(payload);
+    const addProduct = withLoadingGuard(store.addProductToCart.bind(store));
+    const removeProduct = withLoadingGuard(store.removeProductFromCart.bind(store));
+    const removeProductCompletely = withLoadingGuard(store.removeProduct.bind(store));
+    const incrementQuantity = withLoadingGuard(store.incQuantity.bind(store));
+    const decrementQuantity = withLoadingGuard(store.decQuantity.bind(store));
 
-    // Подборки (коллекции)
+    // --- 🆕 ВАРИАНТЫ КОЛЛЕКЦИЙ (новая логика) ---
+    const addCollectionVariant = (variant) => store.addCollectionVariantToCart(variant);
+    const incCollectionVariant = (variantId) => store.incCollectionVariantQuantity(variantId);
+    const decCollectionVariant = (variantId) => store.decCollectionVariantQuantity(variantId);
+    const removeCollectionVariant = (variantId) => store.removeCollectionVariant(variantId);
+    const removeAllVariantsOfCollection = (collectionId) => store.removeAllVariantsOfCollection(collectionId);
+    const replaceCollectionVariant = (variantId, newVariant) => store.replaceCollectionVariant(variantId, newVariant);
+    const calculateVariantPrice = (variantId) => store.calculateVariantPrice(variantId);
+
+    // --- Старые методы коллекций (обратная совместимость) ---
     const addCollection = (collection) => store.addCollectionToCart(collection);
-    const requestDeliveryPriceNew = (payload) => store.requestDeliveryPriceNew(payload);
-
     const incrementCollection = (payload) => store.incCollectionQuantity(payload);
     const decrementCollection = (payload) => store.decCollectionQuantity(payload);
     const removeCollection = (payload) => store.removeCollectionFromCart(payload);
 
-    // Прочие действия
+    // --- Общие ---
+    const requestDeliveryPriceNew = (payload) => store.requestDeliveryPriceNew(payload);
     const addComment = (payload) => store.addCommentToProduct(payload);
     const clearCart = () => store.clearCart();
     const loadProductsInBasket = (payload = {}) => store.loadProductsInBasket(payload);
@@ -78,7 +77,7 @@ export function useBasket() {
     // 4. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
     // ==========================================
     return {
-        // Состояние
+        // State
         basket_items,
         basket_items_paginate_object,
         isLoading,
@@ -89,15 +88,18 @@ export function useBasket() {
         errors,
         lastSyncAt,
 
-        // Геттеры
+        // Getters
         cartTotalCount,
         cartTotalPrice,
         isEmpty,
         inCart,
         inCollectionCart,
-
         getCollectionById,
         isProductLoading,
+
+        // 🆕 Новые параметризованные геттеры
+        getCollectionVariants: (collectionId) => store.getCollectionVariants(collectionId),
+        getBasketItemByVariantId: (variantId) => store.getBasketItemByVariantId(variantId),
 
         // Методы: Товары
         addProduct,
@@ -107,22 +109,31 @@ export function useBasket() {
         incrementQuantity,
         decrementQuantity,
 
-        // Методы: Подборки
+        // 🆕 Методы: ВАРИАНТЫ коллекций
+        addCollectionVariant,
+        incCollectionVariant,
+        decCollectionVariant,
+        removeCollectionVariant,
+        removeAllVariantsOfCollection,
+        replaceCollectionVariant,
+        calculateVariantPrice,
+
+        // Методы: Подборки (старые, для обратной совместимости)
         addCollection,
         incrementCollection,
         decrementCollection,
         removeCollection,
-        requestDeliveryPriceNew,
 
-        // Методы: Общие
+        // Общие
+        requestDeliveryPriceNew,
         addComment,
         loadProductsInBasket,
         startCheckout,
         createCheckoutLink,
         clearCart,
 
-        // Прямые ссылки на методы стора, не требующие обертки
-        useWheelOfFortunePrize: store.useWheelOfFortunePrize,
-        $reset: store.$reset,
+        // Прямые ссылки
+        useWheelOfFortunePrize: store.useWheelOfFortunePrize.bind(store),
+        $reset: store.$reset.bind(store),
     };
 }

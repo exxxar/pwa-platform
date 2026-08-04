@@ -46,13 +46,16 @@ trait BasketHelper
         $money = $context["money"] ?? 'Не указано';
         $info = $context["info"] ?? 'Не указано';
 
+        $cash = self::PAYMENT_TYPES[$context["payment_type"] ?? 0] ?? 'Не указан';
+
         $baseUrl = request()->getSchemeAndHttpHost() ?? 'не указано';
 
         $message = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";
         $message .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
         $message .= "👤 <b>Клиент:</b> {$order->receiver_name}\n";
         $message .= "📞 <b>Телефон:</b> <code>{$order->receiver_phone}</code>\n";
-        $message .= "📦 <b>Тип:</b> {$orderType}\n";
+        $message .= "📦 <b>Способ получения:</b> {$orderType}\n";
+        $message .= "💳 <b>Тип оплаты:</b> {$cash}\n";
         $message .= "💵 <b>Сдачи с:</b> {$money}\n";
         $message .= "🙍🏻‍♂️ <b>Число людей:</b> {$persons}\n";
         $message .= "🌐 <b>Источник:</b> {$baseUrl}\n";

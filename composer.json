@@ -2,7 +2,10 @@
     "name": "laravel/laravel",
     "type": "project",
     "description": "The Laravel Framework.",
-    "keywords": ["framework", "laravel"],
+    "keywords": [
+        "framework",
+        "laravel"
+    ],
     "license": "MIT",
     "repositories": [
         {
@@ -25,8 +28,8 @@
         "laravel/tinker": "^2.8",
         "maatwebsite/excel": "^3.1",
         "minishlink/web-push": "^9.0",
-        "tightenco/ziggy": "^2.0"
-
+        "tightenco/ziggy": "^2.0",
+        "ext-curl": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",
@@ -88,5 +91,4 @@
     },
     "minimum-stability": "stable",
     "prefer-stable": true
-
 }

@@ -115,12 +115,12 @@
             </div>
         </div>
 
-        <!-- 4. 🆕 Зоны доставки (Из версии 2) -->
+        <!-- 4. 🆕 Зоны доставки -->
         <div class="form-section" v-if="form.allow_delivery">
             <h3 class="section-title"><i class="fa-solid fa-map-location-dot"></i> Зоны доставки</h3>
             <div class="alert-info" style="margin-bottom: 16px;">
                 <i class="fa-solid fa-circle-info"></i>
-                Настройте градацию зон доставки.
+                Настройте градацию зон доставки. Укажите радиус, чтобы система могла автоматически проверять адрес клиента.
             </div>
             <div class="dynamic-list">
                 <div v-for="(zone, index) in form.delivery_zones" :key="zone.id" class="list-item-card">
@@ -136,17 +136,64 @@
                             <input type="text" v-model="zone.name" placeholder="Например: Центр" @input="emitDirty">
                         </div>
                         <div class="form-field">
+                            <label>Радиус зоны (км)</label>
+                            <input type="number" v-model="zone.radius" min="0" step="0.1" placeholder="5" @input="emitDirty">
+                            <span class="field-hint">Макс. расстояние от заведения</span>
+                        </div>
+                        <div class="form-field">
                             <label>Время доставки</label>
                             <input type="text" v-model="zone.time" placeholder="30-40 мин" @input="emitDirty">
                         </div>
                         <div class="form-field">
                             <label>Стоимость</label>
-                            <input type="text" v-model="zone.price" placeholder="Бесплатно или 150 ₽"
-                                   @input="emitDirty">
+                            <input type="text" v-model="zone.price" placeholder="Бесплатно или 150 ₽" @input="emitDirty">
                         </div>
                         <div class="form-field">
                             <label>Мин. сумма заказа (₽)</label>
-                            <input type="number" v-model="zone.minOrder" min="0" @input="emitDirty">
+                            <input type="number" v-model="zone.minOrder" min="0" placeholder="1000" @input="emitDirty">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn-add-item" @click="addZone">
+                <i class="fa-solid fa-plus"></i> Добавить зону
+            </button>
+        </div>        <!-- 4. 🆕 Зоны доставки -->
+        <div class="form-section" v-if="form.allow_delivery">
+            <h3 class="section-title"><i class="fa-solid fa-map-location-dot"></i> Зоны доставки</h3>
+            <div class="alert-info" style="margin-bottom: 16px;">
+                <i class="fa-solid fa-circle-info"></i>
+                Настройте градацию зон доставки. Укажите радиус, чтобы система могла автоматически проверять адрес клиента.
+            </div>
+            <div class="dynamic-list">
+                <div v-for="(zone, index) in form.delivery_zones" :key="zone.id" class="list-item-card">
+                    <div class="list-item-header">
+                        <span class="list-item-badge">Зона {{ index + 1 }}</span>
+                        <button type="button" class="btn-icon-danger" @click="removeZone(zone.id)">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label>Название зоны</label>
+                            <input type="text" v-model="zone.name" placeholder="Например: Центр" @input="emitDirty">
+                        </div>
+                        <div class="form-field">
+                            <label>Радиус зоны (км)</label>
+                            <input type="number" v-model="zone.radius" min="0" step="0.1" placeholder="5" @input="emitDirty">
+                            <span class="field-hint">Макс. расстояние от заведения</span>
+                        </div>
+                        <div class="form-field">
+                            <label>Время доставки</label>
+                            <input type="text" v-model="zone.time" placeholder="30-40 мин" @input="emitDirty">
+                        </div>
+                        <div class="form-field">
+                            <label>Стоимость</label>
+                            <input type="text" v-model="zone.price" placeholder="Бесплатно или 150 ₽" @input="emitDirty">
+                        </div>
+                        <div class="form-field">
+                            <label>Мин. сумма заказа (₽)</label>
+                            <input type="number" v-model="zone.minOrder" min="0" placeholder="1000" @input="emitDirty">
                         </div>
                     </div>
                 </div>
@@ -492,10 +539,16 @@ export default {
         },
 
         // --- Методы для Зон доставки и Сервисов (из версии 2) ---
+        // --- Методы для Зон доставки и Сервисов ---
         addZone() {
             if (!this.form.delivery_zones) this.form.delivery_zones = [];
             this.form.delivery_zones.push({
-                id: Date.now(), name: '', time: '', price: '', minOrder: 0
+                id: Date.now(),
+                name: '',
+                radius: 5, // 🆕 Добавляем радиус по умолчанию (5 км)
+                time: '',
+                price: '',
+                minOrder: 0
             });
             this.emitDirty();
         },

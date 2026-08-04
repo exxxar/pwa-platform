@@ -104,8 +104,7 @@ class TenantDialogController extends Controller
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
 
-        // 1. Находим диалог.
-        // ВАЖНО: Мы убрали ->where('tenant_user_id', $user->id), чтобы администраторы тоже могли находить этот диалог и писать в него.
+        // 1. Находим диалог
         $dialog = TenantDialog::where('id', $dialogId)
             ->where('tenant_id', $tenant->id)
             ->first();
@@ -123,63 +122,178 @@ class TenantDialogController extends Controller
 
         $textContent = $request->input('text') ?: $request->input('message', '');
 
-        // 3. 🆕 ОПРЕДЕЛЯЕМ ОТПРАВИТЕЛЯ
-        // Если ID текущего пользователя совпадает с ID клиента в диалоге, значит пишет клиент. Иначе - админ/менеджер.
+        // 2. Определяем отправителя
         $isClientSender = $user->id === $dialog->tenant_user_id;
-
         $senderType = $isClientSender ? 'user' : 'admin';
         $senderId = $user->id;
         $senderName = $user->name ?? ($isClientSender ? 'Клиент' : 'Администратор');
 
-        // 4. Подготовка мета-данных (в формате, который ожидает ваша модель TenantMessage)
+        // 3. Подготовка мета-данных
         $metaData = [
-            'sender_name' => $senderName, // 🆕 Имя для отображения на фронте
+            'sender_name' => $senderName,
             'type' => 'text',
         ];
 
-        // 5. 🆕 ОБРАБОТКА ВЛОЖЕНИЙ (исправлено под формат модели)
+        // 4. Обработка вложений
+        $attachmentInfo = null;
         if ($request->hasFile('attachments')) {
-            $file = $request->file('attachments')[0]; // Берем первый файл (можно расширить на цикл, если нужно несколько)
-
+            $file = $request->file('attachments')[0];
             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-            // Сохраняем относительно диска 'public' (storage/app/public/...)
             $path = $file->storeAs('messages/attachments', $filename, 'public');
 
-            // Формируем массив ровно так, как ожидает аксессор getAttachmentAttribute в модели
             $metaData['attachment'] = [
                 'path' => $path,
                 'name' => $file->getClientOriginalName(),
                 'size' => $file->getSize(),
             ];
 
-            // Определяем тип сообщения для фронтенда
             $metaData['type'] = $this->getFileType($file->getClientOriginalExtension());
+
+            $attachmentInfo = [
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'type' => $metaData['type'],
+            ];
         }
 
-        // 6. Создание сообщения
+        // 5. Создание сообщения
         $message = TenantMessage::create([
             'tenant_id' => $tenant->id,
-            'tenant_user_id' => $dialog->tenant_user_id, // Всегда привязываем к клиенту диалога для корректных связей (relations)
+            'tenant_user_id' => $dialog->tenant_user_id,
             'dialog_id' => $dialog->id,
-            'sender_type' => $senderType,   // 🆕 'user' или 'admin'
-            'sender_id' => $senderId,       // 🆕 ID того, кто реально написал
+            'sender_type' => $senderType,
+            'sender_id' => $senderId,
             'message' => $textContent,
             'meta' => $metaData,
             'is_read' => false,
         ]);
 
-        // 7. Обновляем диалог
+        // 6. Обновляем диалог
         $dialog->update([
             'last_message_at' => now(),
-            // Опционально: если пишет админ, можно пометить диалог как "непрочитанный" для клиента
-            // 'is_client_read' => !$isClientSender ? false : true,
         ]);
+
+        // 7. 🆕 Отправляем уведомление в Telegram (асинхронно, не блокируя ответ)
+        try {
+            $this->sendChatMessageToTelegram($tenant, $dialog, $message, $senderName, $textContent, $attachmentInfo, $isClientSender);
+        } catch (\Throwable $e) {
+            // Логируем ошибку, но не прерываем отправку сообщения
+            Log::warning('[Telegram Chat Notification] Ошибка отправки: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
-            'data' => $message // Благодаря $appends в модели, сюда автоматически добавятся sender_name и данные вложения
+            'data' => $message
         ], 201);
     }
+
+    /**
+     * 🆕 ОТПРАВКА УВЕДОМЛЕНИЯ О НОВОМ СООБЩЕНИИ В ЧАТЕ
+     */
+    private function sendChatMessageToTelegram(
+        $tenant,
+        $dialog,
+        $message,
+        $senderName,
+        $textContent,
+        $attachmentInfo,
+        $isClientSender
+    ): void {
+        // 1. Получаем настройки Telegram
+        $tgSettings = $tenant->settings['telegram'] ?? [];
+        $token = $tgSettings['token'] ?? null;
+
+        // Для чатов используем отдельный chat_id (группа поддержки или личный чат админа)
+        $chatId = $tgSettings['support_chat_id'] ?? $tgSettings['channel_id'] ?? null;
+
+        if (!$token || !$chatId) {
+            return;
+        }
+
+        // 2. Получаем информацию о клиенте
+        $client = $dialog->tenantUser;
+        $clientName = $client->name ?? 'Неизвестный клиент';
+        $clientPhone = $client->phone ?? 'Не указан';
+
+        // 3. Формируем сообщение
+        $icon = $isClientSender ? '👤' : '🛡️';
+        $role = $isClientSender ? 'Клиент' : 'Администратор';
+
+        $msg = "{$icon} <b>Новое сообщение в чате</b>\n";
+        $msg .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+        $msg .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
+
+        $msg .= "👤 <b>Отправитель:</b> {$senderName}\n";
+        $msg .= "🎭 <b>Роль:</b> {$role}\n";
+        $msg .= "💬 <b>Диалог #:</b> {$dialog->id}\n\n";
+
+        $msg .= "📱 <b>Клиент:</b> {$clientName}\n";
+        $msg .= "📞 <b>Телефон:</b> <code>{$clientPhone}</code>\n\n";
+
+        // 4. Добавляем текст сообщения
+        if (!empty($textContent)) {
+            $msg .= "💬 <b>Сообщение:</b>\n";
+            $msg .= "<i>" . e($textContent) . "</i>\n\n";
+        }
+
+        // 5. Добавляем информацию о вложении
+        if ($attachmentInfo) {
+            $msg .= "📎 <b>Вложение:</b>\n";
+            $msg .= "  • Файл: {$attachmentInfo['name']}\n";
+            $msg .= "  • Тип: {$attachmentInfo['type']}\n";
+            $msg .= "  • Размер: " . round($attachmentInfo['size'] / 1024, 1) . " KB\n\n";
+        }
+
+        // 6. Добавляем ссылку на диалог (если есть веб-интерфейс)
+        $baseUrl = request()->getSchemeAndHttpHost();
+        if ($baseUrl) {
+            $msg .= "🔗 <a href=\"{$baseUrl}/admin/dialogs/{$dialog->id}\">Открыть диалог</a>\n";
+        }
+
+        // 7. Формируем payload
+        $payload = [
+            'chat_id' => $chatId,
+            'text' => $msg,
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        // Если указан thread_id для топика
+        if (!empty($tgSettings['thread_id'])) {
+            $payload['message_thread_id'] = (int) $tgSettings['thread_id'];
+        }
+
+        // 8. Отправляем через cURL
+        $this->sendTelegramCurlRequest($token, $payload);
+    }
+
+    /**
+     * Вспомогательный метод для отправки запроса в Telegram API через cURL
+     */
+    private function sendTelegramCurlRequest(string $token, array $payload): bool
+    {
+        $ch = curl_init();
+        $url = "https://api.telegram.org/bot{$token}/sendMessage";
+
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($payload));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Уменьшаем таймаут для чатов
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            Log::warning('[Telegram Notification] Ошибка отправки. HTTP: ' . $httpCode . ' | Error: ' . $curlError . ' | Response: ' . $response);
+            return false;
+        }
+
+        return true;
+    }
+
 
     /**
      * 🆕 Вспомогательный метод для определения типа файла (соответствует иконкам на фронте)

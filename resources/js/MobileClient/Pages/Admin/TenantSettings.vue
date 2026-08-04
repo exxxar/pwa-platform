@@ -173,9 +173,9 @@ export default {
                 manager: { name: '', phone: '', email: '', social_link: '' },
                 default_theme_scheme: 'default',
                 delivery_zones: [
-                    { id: 1, name: 'Центр', time: '30-40 мин', price: 'Бесплатно', minOrder: 1000 },
-                    { id: 2, name: 'Спальные районы', time: '40-60 мин', price: '150 ₽', minOrder: 1500 },
-                    { id: 3, name: 'Пригород', time: '60-90 мин', price: '300 ₽', minOrder: 2000 }
+                    { id: 1, name: 'Центр', radius: 3, time: '30-40 мин', price: 'Бесплатно', minOrder: 1000 },
+                    { id: 2, name: 'Спальные районы', radius: 7, time: '40-60 мин', price: '150 ₽', minOrder: 1500 },
+                    { id: 3, name: 'Пригород', radius: 15, time: '60-90 мин', price: '300 ₽', minOrder: 2000 }
                 ],
                 delivery_services: [
                     { id: 1, title: 'Термосумки', description: 'Сохраняем температуру блюд' },

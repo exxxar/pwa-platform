@@ -21,7 +21,6 @@
             <!-- Основной контент -->
             <template v-else>
 
-                <!-- 🆕 ИСПРАВЛЕНИЕ: Используем переменные напрямую, без productsStore. -->
                 <MenuHeader
                     :settings="settings"
                     :categories="filteredProducts"
@@ -34,10 +33,6 @@
 
                 <div class="menu-content d-flex flex-column">
 
-
-
-
-
                     <!-- Предупреждение о блокировке -->
                     <div v-if="settings?.is_disabled" class="p-2 mt-2">
                         <div class="alert alert-danger mb-0">
@@ -48,46 +43,66 @@
                     <!-- Бронирование -->
                     <BookingDropdown />
 
-                    <!-- Контент в зависимости от таба -->
+                    <!-- Категории (горизонтальный скролл) -->
+<!--
                     <CategoryList
-                        v-show="activeTab === 'categories'"
                         :categories="filteredProducts"
                         :collections-count="collections.length"
                         @select-category="onCategorySelect"
                     />
+-->
 
-                    <template v-if="activeTab === 'products'">
-                        <!-- 🆕 ПРАВИЛЬНЫЙ ДЕБАГ (покажет реальные числа, а не undefined) -->
-                        <div v-if="false" style="background: #ffeb3b; color: #000; padding: 10px; font-weight: bold;">
-                            DEBUG: Отфильтровано категорий: {{ filteredProducts.length }}
+                    <!-- 🆕 СЕКЦИЯ КОЛЛЕКЦИЙ (над товарами) -->
+                    <div v-if="activeCollections.length > 0" class="collections-section px-3 mt-3">
+                        <div class="section-header">
+                            <h5 class="section-title">
+                                <i class="fa-solid fa-layer-group"></i>
+                                <span>Коллекции</span>
+                            </h5>
+                            <span class="section-badge">{{ activeCollections.length }}</span>
                         </div>
 
-                        <ProductGrid
-                            :categories="filteredProducts"
-                            :collections="collections"
-                            :stories="storiesStore.stories"
-                            :is-product-list="settings?.is_product_list"
-                            @load-more="onLoadMore"
-                            @swipe-left="onSwipeLeft"
-                            @swipe-right="onSwipeRight"
-                        />
-                    </template>
+                        <div class="collections-grid">
+                            <CollectionCard
+                                v-for="collection in activeCollections"
+                                :key="collection.id"
+                                :item="collection"
+                                @open-collection="onCollectionOpen"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Товары по категориям -->
+                    <ProductGrid
+                        :categories="filteredProducts"
+                        :stories="storiesStore.stories"
+                        :is-product-list="settings?.is_product_list"
+                        @load-more="onLoadMore"
+                        @swipe-left="onSwipeLeft"
+                        @swipe-right="onSwipeRight"
+                    />
                 </div>
 
                 <slot name="navigation"></slot>
             </template>
         </template>
+
+        <!-- Модалка коллекции (глобальная) -->
+        <CollectionModal ref="collectionModal" />
     </div>
 </template>
 
 <script>
 import { useProducts } from '@/MobileClient/composables/useProducts.js';
+import { useCollections } from '@/MobileClient/composables/useCollections.js';
 import { useStoriesStore } from '@/MobileClient/stores/Shop/stories.js';
 import MenuHeader from '@/MobileClient/Components/Shop/Menu/MenuHeader.vue';
 import PartnersList from '@/MobileClient/Components/Partners/PartnerList.vue';
 import CategoryList from '@/MobileClient/Components/Shop/Menu/CategoryList.vue';
 import ProductGrid from '@/MobileClient/Components/Shop/Menu/ProductGrid.vue';
 import BookingDropdown from '@/MobileClient/Components/Shop/Booking/BookingDropdown.vue';
+import CollectionCard from '@/MobileClient/Components/Shop/Collections/CollectionCard.vue';
+import CollectionModal from '@/MobileClient/Components/Shop/Collections/CollectionModal.vue';
 
 export default {
     name: 'Menu',
@@ -98,13 +113,13 @@ export default {
         ProductGrid,
         BookingDropdown,
         MenuHeader,
+        CollectionCard,
+        CollectionModal,
     },
 
     setup() {
-        // 🆕 ДЕСТРУКТУРИЗИРУЕМ НУЖНЫЕ РЕАКТИВНЫЕ ПЕРЕМЕННЫЕ И МЕТОДЫ НА ВЕРХНИЙ УРОВЕНЬ
         const {
             filteredProducts,
-            collections,
             selectedPartner,
             loadProductsByCategory,
             setPartner,
@@ -113,16 +128,27 @@ export default {
             loadMoreProducts
         } = useProducts();
 
+        const {
+            collections,
+            activeCollections,
+            loadCollections,
+            loadCollection,
+        } = useCollections();
+
         const storiesStore = useStoriesStore();
 
         return {
-            // 🆕 Возвращаем их напрямую. Vue автоматически "развернет" (unwraps) их в шаблоне и в this.methods!
             filteredProducts,
-            collections,
             selectedPartner,
             storiesStore,
 
-            // Методы тоже возвращаем для удобства
+            // Коллекции
+            collections,
+            activeCollections,
+            loadCollections,
+            loadCollection,
+
+            // Методы товаров
             loadProductsByCategory,
             setPartner,
             clearMenuData,
@@ -134,7 +160,6 @@ export default {
     data() {
         return {
             shopMode: 'partners',
-            activeTab: 'categories',
             isLoading: false,
         };
     },
@@ -160,15 +185,13 @@ export default {
         async loadInitialData() {
             this.isLoading = true;
             try {
-                // 🆕 this.selectedPartner теперь корректно развернут Vue, .value не нужен
                 const partnerId = this.selectedPartner?.tenant_partner_id || null;
 
                 await Promise.all([
                     this.loadProductsByCategory(partnerId),
+                    this.loadCollections({ partner_id: partnerId }),
                     this.storiesStore.loadPartnersStories(partnerId),
                 ]);
-
-                this.activeTab = 'products';
             } catch (error) {
                 console.error('❌ Ошибка загрузки данных:', error);
             } finally {
@@ -190,7 +213,6 @@ export default {
         },
 
         onCategorySelect(category) {
-            this.activeTab = 'products';
             this.$nextTick(() => {
                 if (category) {
                     this.scrollToCategory(category.id);
@@ -198,6 +220,20 @@ export default {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
             });
+        },
+
+        async onCollectionOpen(collection) {
+            try {
+                const fullCollection = await this.loadCollection(collection.id);
+                this.$refs.collectionModal?.open(fullCollection || collection);
+            } catch (error) {
+                console.error('Ошибка открытия коллекции:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось загрузить коллекцию',
+                    type: 'error',
+                });
+            }
         },
 
         onSearch(query) {
@@ -238,11 +274,88 @@ export default {
 </script>
 
 <style scoped>
-/* Ваши стили остаются без изменений */
-.menu-container { min-height: 100vh; }
-.loading-container { min-height: 75vh; background: transparent; }
-.loading-content { max-width: 400px; padding: 2rem; }
-.loading-title { color: #2c3e50; font-weight: 600; margin-bottom: 0.5rem; }
-.loading-subtitle { font-size: 0.9rem; }
-.spinner-border { width: 3rem; height: 3rem; }
+.menu-container {
+    min-height: 100vh;
+}
+
+.loading-container {
+    min-height: 75vh;
+    background: transparent;
+}
+
+.loading-content {
+    max-width: 400px;
+    padding: 2rem;
+}
+
+.loading-title {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.loading-subtitle {
+    font-size: 0.9rem;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Секция коллекций */
+.collections-section {
+    margin-bottom: 24px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--bs-body-color, #1f2937);
+}
+
+.section-title i {
+    color: #8b5cf6;
+    font-size: 1.2rem;
+}
+
+.section-badge {
+    background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.collections-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+@media (max-width: 768px) {
+    .collections-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 12px;
+    }
+}
+
+@media (max-width: 576px) {
+    .collections-grid {
+        grid-template-columns: 1fr;
+    }
+}
 </style>

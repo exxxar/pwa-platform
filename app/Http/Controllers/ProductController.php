@@ -127,17 +127,15 @@ class ProductController extends Controller
                 "price" => 0,
                 "address" => null,
                 "config" => []
-            ], 400); // 400 Bad Request логичнее, чем 404
+            ], 400);
         }
 
         // 2. Оптимизированный запрос ID тенантов из корзины
-        // ВАЖНО: Убедитесь, что здесь используется правильное имя колонки.
-        // Если вы исправили FK, как в прошлом вопросе, это должно быть 'tenant_id', а не 'tenant_partner_id'
         $basketTenantIds = Basket::query()
             ->where("tenant_user_id", $tenantUser->id)
             ->where("tenant_id", $tenant->id)
             ->whereNull("ordered_at")
-            ->pluck('tenant_partner_id') // Сразу получаем массив ID, не загружая модели в память
+            ->pluck('tenant_partner_id')
             ->unique()
             ->toArray();
 
@@ -147,7 +145,7 @@ class ProductController extends Controller
             $partners = Tenant::query()
                 ->whereIn('id', $basketTenantIds)
                 ->get()
-                ->keyBy('id'); // Ключируем по ID для быстрого доступа и исключения дублей
+                ->keyBy('id');
         }
 
         // Добавляем главного тенанта, если его еще нет в списке
@@ -159,34 +157,75 @@ class ProductController extends Controller
         $clientLng = (float)$validated['lng'];
         $address = $validated['address'];
 
-        $pricePerKm = (float)($config["price_per_km"] ?? 80);
-        $minBaseDeliveryPrice = (float)($config["min_base_delivery_price"] ?? 100);
+        // 🆕 4. Логика расчета по зонам доставки
+        // Проверяем оба возможных пути сохранения (внутри shop или в корне)
+        $deliveryZones = $config['shop']['delivery_zones'] ?? $config['delivery_zones'] ?? [];
 
-        $isPartnersActive = (bool)($config["partners"]["is_active"] ?? false);
-        $isPartnersDisplaySelf = (bool)($config["partners"]["display_self"] ?? false);
+        // Сортируем зоны по радиусу по возрастанию, чтобы найти наименьшую подходящую зону
+        usort($deliveryZones, function($a, $b) {
+            return ((float)($a['radius'] ?? 0)) <=> ((float)($b['radius'] ?? 0));
+        });
+
+        // Хелпер для парсинга строки цены в float (обрабатывает "150", "150 ₽", "Бесплатно")
+        $parseZonePrice = function($price) {
+            if (is_numeric($price)) return (float)$price;
+
+            $priceStr = mb_strtolower((string)$price);
+            if (str_contains($priceStr, 'бесплатно') || str_contains($priceStr, 'free')) {
+                return 0.0;
+            }
+
+            // Извлекаем первое встреченное число (целое или дробное)
+            preg_match('/\d+([\.,]\d+)?/', $priceStr, $matches);
+            return isset($matches[0]) ? (float)str_replace(',', '.', $matches[0]) : 0.0;
+        };
 
         $sumDistance = 0.0;
         $sumPrice = 0.0;
         $partnerBoxConfig = [];
 
-        // 4. Расчет для каждого партнера
+        // 5. Расчет для каждого партнера
         foreach ($partners as $partner) {
-            // Пропускаем главного тенанта, если настроено не отображать его как партнера
+            $isPartnersActive = (bool)($config["partners"]["is_active"] ?? false);
+            $isPartnersDisplaySelf = (bool)($config["partners"]["display_self"] ?? false);
+
             if ($isPartnersActive && !$isPartnersDisplaySelf && $partner->id === $tenant->id) {
                 continue;
             }
 
-            $shopCoords = $partner->settings["shop_coords"] ?? null;
+            // Поддержка как плоской структуры, так и вложенной в shop
+            $shopCoords = $partner->settings["shop_coords"] ?? $partner->settings["shop"]["shop_coords"] ?? null;
 
-            // Считаем расстояние, передавая координаты конкретного магазина
             $distanceInMeters = GEOService::call()->getDistance($clientLat, $clientLng, $shopCoords);
-
             $distCoef = env("DISTANCE_COEF") ?? 1;
+            $distanceInKm = round(($distanceInMeters / 1000) * $distCoef, 2);
 
-            $distanceInKm = round($distanceInMeters / 1000, 2) * $distCoef;
+            $deliveryPrice = 0.0;
+            $isOutsideZones = false;
 
-            // Если расстояние 0 (нет координат), цена равна базовой, иначе базовая + км * цена_за_км
-            $deliveryPrice = round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
+            if (!empty($deliveryZones)) {
+                // 🆕 Ищем первую зону, радиус которой >= расстоянию
+                $zoneFound = false;
+                foreach ($deliveryZones as $zone) {
+                    $radius = (float)($zone['radius'] ?? 0);
+                    if ($distanceInKm <= $radius) {
+                        $deliveryPrice = $parseZonePrice($zone['price'] ?? 0);
+                        $zoneFound = true;
+                        break; // Нашли наименьшую подходящую зону, прерываем цикл
+                    }
+                }
+
+                // Если адрес за пределами всех настроенных зон
+                if (!$zoneFound) {
+                    $isOutsideZones = true;
+                    $deliveryPrice = 0.0; // Или можно взять цену последней (максимальной) зоны
+                }
+            } else {
+                // 🔄 Fallback: если зоны не настроены, используем старую линейную формулу
+                $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"] ?? $config["min_base_delivery_price"] ?? 100);
+                $pricePerKm = (float)($config["shop"]["price_per_km"] ?? $config["price_per_km"] ?? 80);
+                $deliveryPrice = round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
+            }
 
             $partnerUuid = $partner->uuid ?? 'partner_' . $partner->id;
 
@@ -198,12 +237,12 @@ class ProductController extends Controller
                 "address" => $address,
                 "shop_coords" => $shopCoords,
                 "client_coords" => $clientLat . ", " . $clientLng,
+                "is_outside_zones" => $isOutsideZones, // 🆕 Флаг для фронтенда
             ];
 
             $sumDistance += $distanceInKm;
             $sumPrice += $deliveryPrice;
         }
-
 
         return response()->json([
             "distance" => round($sumDistance, 2),

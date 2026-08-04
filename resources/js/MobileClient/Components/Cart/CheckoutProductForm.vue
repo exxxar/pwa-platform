@@ -154,12 +154,7 @@
         <!-- ========================================== -->
         <!-- МОДАЛКА: ДЕТАЛИ РАСЧЕТА ДОСТАВКИ -->
         <!-- ========================================== -->
-        <div
-            class="modal fade"
-            id="deliveryPriceModal"
-            tabindex="-1"
-            aria-hidden="true"
-        >
+        <div class="modal fade" id="deliveryPriceModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-bottom-sheet">
                 <div class="modal-content">
                     <div class="modal-header border-0 pb-0">
@@ -171,21 +166,55 @@
                     </div>
 
                     <div class="modal-body pt-3">
-                        <!-- Если данных нет -->
+
+                        <!-- 🆕 1. ЗОНЫ ДОСТАВКИ (Условия) -->
+                        <div v-if="deliveryZones.length > 0" class="delivery-zones-section mb-3">
+                            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                                <i class="fa-solid fa-map-location-dot me-1"></i> Условия доставки по зонам
+                            </h6>
+                            <div class="zones-list">
+                                <div v-for="(zone, index) in deliveryZones" :key="zone.id" class="zone-item-card">
+                                    <div class="zone-header">
+                                        <div class="zone-icon">
+                                            <i class="fa-solid fa-location-dot"></i>
+                                        </div>
+                                        <div class="zone-title">{{ zone.name || `Зона ${index + 1}` }}</div>
+                                        <div v-if="zone.radius" class="zone-radius-badge">{{ zone.radius }} км</div>
+                                    </div>
+                                    <div class="zone-body">
+                                        <div class="zone-row">
+                                            <span class="zone-label"><i class="fa-solid fa-clock text-muted me-1"></i> Время</span>
+                                            <span class="zone-value">{{ zone.time || '—' }}</span>
+                                        </div>
+                                        <div class="zone-row">
+                                            <span class="zone-label"><i class="fa-solid fa-ruble-sign text-muted me-1"></i> Стоимость</span>
+                                            <span class="zone-value price-highlight">{{ zone.price || 'По тарифу' }}</span>
+                                        </div>
+                                        <div v-if="zone.minOrder" class="zone-row">
+                                            <span class="zone-label"><i class="fa-solid fa-basket-shopping text-muted me-1"></i> Мин. заказ</span>
+                                            <span class="zone-value">{{ formatPrice(zone.minOrder) }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Разделитель (если есть и зоны, и детали расчета) -->
+                        <div v-if="deliveryZones.length > 0 && deliveryForm?.delivery_details && Object.keys(deliveryForm.delivery_details).length > 0" class="modal-divider"></div>
+
+                        <!-- 🆕 2. ДЕТАЛИ РАСЧЕТА (Магазины/Партнеры) -->
                         <div v-if="!deliveryForm?.delivery_details || Object.keys(deliveryForm.delivery_details).length === 0" class="text-center py-4 text-muted">
                             <i class="fa-solid fa-circle-info fa-2x mb-3 opacity-50"></i>
                             <p class="mb-0">Детали расчета пока недоступны</p>
                             <small>Стоимость будет рассчитана при оформлении</small>
                         </div>
 
-                        <!-- Список магазинов/партнеров -->
                         <div v-else class="delivery-details-list">
-                            <!-- Используем Object.values для итерации по объекту config -->
-                            <div
-                                v-for="(detail, uuid) in deliveryForm.delivery_details"
-                                :key="uuid"
-                                class="detail-item-card"
-                            >
+                            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                                <i class="fa-solid fa-store me-1"></i> Расчет по вашему адресу
+                            </h6>
+
+                            <div v-for="(detail, uuid) in deliveryForm.delivery_details" :key="uuid" class="detail-item-card">
                                 <div class="detail-header">
                                     <div class="detail-icon">
                                         <i class="fa-solid fa-store"></i>
@@ -279,7 +308,10 @@ export default {
         tenant() {
             return window.Tenant || null;
         },
-
+        // 🆕 Получаем настроенные зоны доставки
+        deliveryZones() {
+            return this.settings.shop?.delivery_zones || this.settings.delivery_zones || [];
+        },
         settings() {
             return this.tenant?.settings || {};
         },
@@ -1096,5 +1128,99 @@ export default {
     align-items: center;
     justify-content: center;
     gap: 6px;
+}
+
+/* ==========================================
+   🆕 ЗОНЫ ДОСТАВКИ (в модалке деталей)
+   ========================================== */
+.zones-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.zone-item-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 12px 16px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.zone-item-card:hover {
+    border-color: rgba(var(--bs-primary-rgb), 0.3);
+}
+
+.zone-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--bs-border-color);
+}
+
+.zone-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.zone-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--bs-body-color);
+    flex: 1;
+}
+
+.zone-radius-badge {
+    background: var(--bs-primary);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+
+.zone-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.zone-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+}
+
+.zone-label {
+    color: var(--bs-secondary-color);
+    display: flex;
+    align-items: center;
+}
+
+.zone-value {
+    font-weight: 600;
+    color: var(--bs-body-color);
+}
+
+.zone-value.price-highlight {
+    color: var(--bs-primary);
+}
+
+.modal-divider {
+    height: 1px;
+    background: var(--bs-border-color);
+    width: 100%;
+    margin: 16px 0;
 }
 </style>

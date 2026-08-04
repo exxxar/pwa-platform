@@ -62,6 +62,19 @@ class Product extends Model
         );
     }
 
+    public function collectionCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            CollectionCategory::class,
+            'collection_category_product',
+            'product_id',
+            'collection_category_id'
+        )
+            ->using(CollectionCategoryProduct::class)
+            ->withPivot('sort_order')
+            ->withTimestamps();
+    }
+
     protected function tenantName(): Attribute
     {
         return Attribute::make(

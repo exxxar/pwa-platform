@@ -21,18 +21,26 @@ class WebhookReceiverController extends Controller
      */
     public function handle(Request $request)
     {
-        // 1. Валидация
+        // 1. Умная валидация в зависимости от события
         $validated = $request->validate([
             'event' => 'required|string|in:product.updated,workspace.sync',
             'timestamp' => 'required|string',
-            'workspace' => 'required|array',
-            'workspace.id' => 'required|integer',
-            'workspace.uuid' => 'required|string|uuid',
-            'workspace.name' => 'required|string',
+
+            // Правила для workspace.sync
+            'workspace' => 'required_if:event,workspace.sync|array',
+            'workspace.id' => 'required_if:event,workspace.sync|integer',
+            'workspace.uuid' => 'required_if:event,workspace.sync|string|uuid',
+            'workspace.name' => 'required_if:event,workspace.sync|string',
+            'workspace.products' => 'sometimes|array',
+            'workspace.collections' => 'sometimes|array',
+
+            // Правила для product.updated
+            'product' => 'required_if:event,product.updated|array',
+            'product.id' => 'required_if:event,product.updated',
+            'product.name' => 'sometimes|string',
         ]);
 
         $event = $validated['event'];
-
         $tenant = app('tenant');
 
         if (!$tenant) {
@@ -51,7 +59,7 @@ class WebhookReceiverController extends Controller
             'host' => $request->getHost(),
         ]);
 
-        // 3. Обрабатываем событие
+        // 2. Обрабатываем событие (без изменений)
         try {
             $result = match ($event) {
                 'product.updated' => $this->syncService->syncSingleProduct($tenant, $request->all()),
@@ -68,6 +76,7 @@ class WebhookReceiverController extends Controller
                 'event' => $event,
                 'tenant_id' => $tenant->id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(), // Добавил трейс, чтобы было проще дебажить
             ]);
 
             return response()->json([

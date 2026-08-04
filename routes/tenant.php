@@ -15,6 +15,7 @@ use App\Http\Controllers\TableController;
 use App\Http\Controllers\Tenant\AchievementAdminController;
 use App\Http\Controllers\Tenant\AchievementController;
 use App\Http\Controllers\Tenant\ClientsController;
+use App\Http\Controllers\Tenant\CollectionController;
 use App\Http\Controllers\Tenant\FavoriteController;
 use App\Http\Controllers\Tenant\PromoCodeController;
 use App\Http\Controllers\Tenant\RolesController;
@@ -466,6 +467,35 @@ function routes() {
                     Route::delete("/delete-review/{id}", [OrderController::class, "deleteReview"]);
                     Route::post("/notify-user", [OrderController::class, "notifyUser"]);
                 });
+
+
+
+            Route::prefix('collections')->group(function () {
+                // Публичные (для фронта)
+                Route::get('/', [CollectionController::class, 'active']);          // GET /shop/collections
+                Route::get('/{id}', [CollectionController::class, 'show']);        // GET /shop/collections/{id}
+
+                // Админские
+                Route::post('/list', [CollectionController::class, 'index']);      // POST /shop/collections/list (с пагинацией)
+                Route::post('/', [CollectionController::class, 'store']);          // POST /shop/collections (create/update)
+                Route::delete('/{id}', [CollectionController::class, 'destroy']);  // DELETE /shop/collections/{id}
+
+                Route::post('/{id}/toggle-active', [CollectionController::class, 'toggleActive']);
+                Route::post('/{id}/toggle-stop-list', [CollectionController::class, 'toggleStopList']);
+                Route::post('/{id}/duplicate', [CollectionController::class, 'duplicate']);
+                Route::post('/remove-all', [CollectionController::class, 'removeAll']);
+
+                // Категории внутри коллекции
+                Route::post('/{collectionId}/categories', [CollectionController::class, 'addCategory']);
+                Route::post('/categories/{categoryId}', [CollectionController::class, 'updateCategory']);
+                Route::delete('/categories/{categoryId}', [CollectionController::class, 'removeCategory']);
+
+                // Товары в категориях
+                Route::post('/categories/{categoryId}/products', [CollectionController::class, 'addProducts']);
+                Route::delete('/categories/{categoryId}/products/{productId}', [CollectionController::class, 'removeProduct']);
+                Route::post('/categories/{categoryId}/products/reorder', [CollectionController::class, 'reorderProducts']);
+            });
+
 
             Route::prefix("products")
                 ->group(function () {

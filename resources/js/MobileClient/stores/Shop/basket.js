@@ -8,24 +8,15 @@ export const useBasketStore = defineStore('basket', {
     // STATE
     // ==========================================
     state: () => ({
-        // Данные
         basket_items: [],
         basket_items_paginate_object: null,
-
         itemsCount: 0,
-        // Состояние загрузки
         isLoading: false,
         isHydrated: false,
         isSending: false,
-
-        // Действия над товарами: { [productId]: 'inc' | 'dec' | 'remove' }
         productActions: {},
-
-        // Ошибки
         lastError: null,
         errors: [],
-
-        // Время последней синхронизации
         lastSyncAt: null,
     }),
 
@@ -33,46 +24,45 @@ export const useBasketStore = defineStore('basket', {
     // GETTERS
     // ==========================================
     getters: {
-        /**
-         * Все товары в корзине
-         */
         getProductsInBasket: (state) => state.basket_items || [],
-
-        /**
-         * Пагинация
-         */
         getBasketPaginateObject: (state) => state.basket_items_paginate_object || null,
 
         /**
-         * Количество товара в подборке
+         * Количество конкретного варианта коллекции в корзине
          */
-        inCollectionCart: (state) => (id, variantId) => {
+        inCollectionCart: (state) => (collectionId, variantId = null) => {
             return state.basket_items.find(bItem =>
-                bItem.collection?.id === id &&
-                (bItem.params?.variant_id === variantId || variantId == null)
+                bItem.collection?.id === collectionId &&
+                (variantId == null || bItem.params?.variant_id === variantId)
             )?.count || 0;
         },
 
-        /**
-         * Количество товара в корзине
-         */
         inCart: (state) => (id) => {
             return (state.basket_items.find(item => item.product?.id === id))?.count || 0;
         },
 
-        /**
-         * Все товары (алиас)
-         */
         cartProducts: (state) => state.basket_items || [],
 
-        /**
-         * Только подборки
-         */
         cartCollections: (state) => (state.basket_items || []).filter(item => item.collection),
 
         /**
-         * Общее количество товаров
+         * 🆕 Все варианты конкретной коллекции в корзине
          */
+        getCollectionVariants: (state) => (collectionId) => {
+            return (state.basket_items || []).filter(
+                item => item.collection?.id === collectionId
+            );
+        },
+
+        /**
+         * 🆕 Получить конкретный вариант корзины по variant_id
+         */
+        getBasketItemByVariantId: (state) => (variantId) => {
+            return (state.basket_items || []).find(
+                item => item.params?.variant_id === variantId
+            ) || null;
+        },
+
         cartTotalCount: (state) => {
             if (!state.basket_items?.length) return 0;
             return state.basket_items.reduce((sum, item) => {
@@ -80,17 +70,17 @@ export const useBasketStore = defineStore('basket', {
             }, 0);
         },
 
-
-
         /**
-         * Общая сумма корзины (с учётом весовых товаров и подборок)
+         * Улучшенный расчёт общей суммы корзины.
+         * Работает и с товарами, и с вариантами коллекций.
          */
         cartTotalPrice: (state) => {
-            console.log("cartTotalPrice", state.basket_items)
             if (!state.basket_items?.length) return 0;
 
             return state.basket_items.reduce((sum, item) => {
-                // Обычный товар
+                // ==========================================
+                // ОБЫЧНЫЙ ТОВАР
+                // ==========================================
                 if (item.product) {
                     const currentPrice = item.params?.discount_price
                         ? item.params.discount_price
@@ -104,45 +94,79 @@ export const useBasketStore = defineStore('basket', {
                     return sum + price * count;
                 }
 
-                // Подборка (коллекция)
+                // ==========================================
+                // ВАРИАНТ КОЛЛЕКЦИИ
+                // ==========================================
                 if (item.collection) {
-                    const selected = item.params?.ids || [];
-                    const collectionPrice = item.collection.products.reduce((acc, sub) => {
-                        return acc + (selected.includes(sub.id) ? (sub.price || 0) : 0);
-                    }, 0);
-
-                    const discountedPrice = collectionPrice * (1 - (item.collection.discount || 0) / 100);
-                    return sum + discountedPrice * item.count;
+                    const variantPrice = this._calculateVariantPrice(item);
+                    return sum + variantPrice * (item.count || 1);
                 }
 
                 return sum;
             }, 0);
         },
 
-        /**
-         * Пуста ли корзина
-         */
         isEmpty: (state) => !state.basket_items?.length,
 
-        /**
-         * Проверка, загружается ли товар
-         */
         isProductLoading: (state) => (productId) => {
             return !!state.productActions[String(productId)];
         },
 
-        /**
-         * Получить товар из корзины по ID
-         */
         getItemById: (state) => (productId) => {
             return state.basket_items.find(item => item.product?.id === productId) || null;
         },
 
-        /**
-         * Получить подборку из корзины по ID
-         */
         getCollectionById: (state) => (collectionId) => {
             return state.basket_items.find(item => item.collection?.id === collectionId) || null;
+        },
+
+        /**
+         * 🆕 Подсчёт цены одного варианта коллекции
+         * Вынесен во внутренний метод, чтобы переиспользовать в разных местах
+         */
+        _calculateVariantPrice: () => (basketItem) => {
+            if (!basketItem?.collection) return 0;
+
+            const collection = basketItem.collection;
+            const params = basketItem.params || {};
+
+            // 1. Фиксированная цена коллекции
+            if (collection.pricing_type === 'fixed' && collection.fixed_price) {
+                const price = parseFloat(collection.fixed_price) || 0;
+                const discount = collection.discount || 0;
+                return discount > 0 ? price * (1 - discount / 100) : price;
+            }
+
+            // 2. Цена как сумма выбранных товаров
+            const selectedIds = params.ids || [];
+            let variantPrice = 0;
+
+            // Пытаемся найти товары в collection_categories
+            if (collection.collection_categories?.length) {
+                collection.collection_categories.forEach(cat => {
+                    (cat.products || []).forEach(p => {
+                        if (selectedIds.includes(p.id)) {
+                            variantPrice += parseFloat(p.price || 0);
+                        }
+                    });
+                });
+            }
+            // Fallback: плоский массив products (старая структура)
+            else if (collection.products?.length) {
+                collection.products.forEach(p => {
+                    if (selectedIds.includes(p.id)) {
+                        variantPrice += parseFloat(p.price || 0);
+                    }
+                });
+            }
+
+            // Применяем скидку коллекции
+            const discount = collection.discount || 0;
+            if (discount > 0) {
+                variantPrice = variantPrice * (1 - discount / 100);
+            }
+
+            return variantPrice;
         },
     },
 
@@ -150,13 +174,8 @@ export const useBasketStore = defineStore('basket', {
     // ACTIONS
     // ==========================================
     actions: {
-
-        /**
-         * 🆕 Расчет стоимости доставки по координатам
-         */
         async requestDeliveryPriceNew(payload) {
             try {
-                // ⚠️ ВНИМАНИЕ: Замените URL на ваш реальный endpoint на бэкенде!
                 const response = await axios.post('/basket/get-delivery-price-new', payload);
                 return response.data;
             } catch (error) {
@@ -164,23 +183,17 @@ export const useBasketStore = defineStore('basket', {
                 throw error;
             }
         },
-        // ==========================================
-        // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-        // ==========================================
+
         setInitialData(data) {
             if (!data) return;
-
             this.items = data.items || [];
             this.itemsCount = data.items_count || 0;
             this.totalPrice = data.total_price || 0;
             this.isHydrated = true;
         },
-        /**
-         * Обновление корзины из ответа сервера
-         */
+
         _updateBasketFromResponse(dataObject) {
             if (!dataObject) return;
-
             this.basket_items = dataObject.data || [];
             const { data, ...pagination } = dataObject;
             this.basket_items_paginate_object = pagination;
@@ -190,10 +203,6 @@ export const useBasketStore = defineStore('basket', {
         // ==========================================
         // ЗАГРУЗКА
         // ==========================================
-
-        /**
-         * Загрузка товаров корзины
-         */
         async loadProductsInBasket(payload = { dataObject: {}, page: 0, size: 20 }) {
             this.isLoading = true;
             this.lastError = null;
@@ -219,33 +228,22 @@ export const useBasketStore = defineStore('basket', {
         },
 
         // ==========================================
-        // ТОВАРЫ: ДОБАВЛЕНИЕ/УДАЛЕНИЕ
+        // ТОВАРЫ
         // ==========================================
-
-        /**
-         * Добавление товара в корзину (через /inc-product)
-         */
         async addProductToCart(productId) {
             this.productActions[String(productId)] = 'inc';
 
-            // Оптимистичное обновление
             const cartItem = this.basket_items.find(item => item.product?.id === productId);
-            if (cartItem) {
-                cartItem.count++;
-            }
+            if (cartItem) cartItem.count++;
 
             try {
                 const response = await axios.post(`${BASE}/inc-product`, {
                     product_id: productId,
                 });
-
                 this._updateBasketFromResponse(response.data);
                 return response.data;
             } catch (err) {
-                // Откат
-                if (cartItem) {
-                    cartItem.count--;
-                }
+                if (cartItem) cartItem.count--;
                 console.error('[Basket Store] Ошибка добавления товара:', err);
                 throw err;
             } finally {
@@ -253,13 +251,9 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        /**
-         * Удаление товара из корзины (через /dec-product)
-         */
         async removeProductFromCart(productId) {
             this.productActions[String(productId)] = 'dec';
 
-            // Оптимистичное обновление
             const cartItem = this.basket_items.find(item => item.product?.id === productId);
             if (cartItem && cartItem.count > 1) {
                 cartItem.count--;
@@ -272,7 +266,6 @@ export const useBasketStore = defineStore('basket', {
                 const response = await axios.post(`${BASE}/dec-product`, {
                     product_id: productId,
                 });
-
                 this._updateBasketFromResponse(response.data);
                 return response.data;
             } catch (err) {
@@ -283,25 +276,17 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        /**
-         * Увеличение количества товара (через /increment/{id})
-         */
         async incQuantity(productId) {
             this.productActions[String(productId)] = 'inc';
-
             const cartItem = this.basket_items.find(item => item.product?.id === productId);
-            if (cartItem) {
-                cartItem.count++;
-            }
+            if (cartItem) cartItem.count++;
 
             try {
                 const response = await axios.post(`${BASE}/increment/${productId}`);
                 this._updateBasketFromResponse(response.data);
                 return response.data;
             } catch (err) {
-                if (cartItem) {
-                    cartItem.count--;
-                }
+                if (cartItem) cartItem.count--;
                 console.error('[Basket Store] Ошибка увеличения количества:', err);
                 throw err;
             } finally {
@@ -309,12 +294,8 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        /**
-         * Уменьшение количества товара (через /decrement/{id})
-         */
         async decQuantity(productId) {
             this.productActions[String(productId)] = 'dec';
-
             const cartItem = this.basket_items.find(item => item.product?.id === productId);
             if (cartItem && cartItem.count > 1) {
                 cartItem.count--;
@@ -335,27 +316,19 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        /**
-         * Полное удаление товара из корзины (через /remove/{id})
-         */
         async removeProduct(productId) {
             this.productActions[String(productId)] = 'remove';
-
-            // Сохраняем для отката
             const previousItems = [...this.basket_items];
             const removedIndex = this.basket_items.findIndex(item => item.product?.id === productId);
             const removedItem = removedIndex !== -1 ? this.basket_items[removedIndex] : null;
 
-            if (removedIndex !== -1) {
-                this.basket_items.splice(removedIndex, 1);
-            }
+            if (removedIndex !== -1) this.basket_items.splice(removedIndex, 1);
 
             try {
                 const response = await axios.delete(`${BASE}/remove/${productId}`);
                 this._updateBasketFromResponse(response.data);
                 return response.data;
             } catch (err) {
-                // Откат
                 if (removedItem && removedIndex !== -1) {
                     this.basket_items.splice(removedIndex, 0, removedItem);
                 }
@@ -367,12 +340,223 @@ export const useBasketStore = defineStore('basket', {
         },
 
         // ==========================================
-        // ПОДБОРКИ (КОЛЛЕКЦИИ)
+        // 🆕 КОЛЛЕКЦИИ: ВАРИАНТЫ
         // ==========================================
 
         /**
-         * Добавление подборки в корзину
+         * 🆕 Добавление НОВОГО варианта сборки коллекции в корзину.
+         *
+         * В отличие от addCollectionToCart, этот метод ВСЕГДА создаёт отдельную
+         * строку в корзине с уникальным variant_id, даже если эта коллекция
+         * уже есть в корзине в другом варианте.
+         *
+         * @param {Object} variant
+         *   {
+         *     collection: { id, name, ... },
+         *     selected_products: [{ product, category_name, category_id }],
+         *     total_price: 500,
+         *   }
          */
+        async addCollectionVariantToCart(variant) {
+            if (!variant?.collection?.id) {
+                throw new Error('variant.collection.id обязателен');
+            }
+
+            const collectionId = variant.collection.id;
+            const actionKey = `coll-var-${collectionId}-${Date.now()}`;
+            this.productActions[actionKey] = 'add-variant';
+
+            // Генерируем уникальный ID варианта на клиенте
+            const variantId = `cv_${collectionId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+            // Собираем IDs выбранных товаров
+            const ids = (variant.selected_products || []).map(sp => sp.product?.id || sp.id).filter(Boolean);
+
+            // Оптимистичное добавление
+            const optimisticItem = {
+                id: `temp_${variantId}`,
+                collection: variant.collection,
+                count: 1,
+                params: {
+                    variant_id: variantId,
+                    ids: ids,
+                    selected_products: variant.selected_products,
+                    total_price: variant.total_price || 0,
+                },
+            };
+            this.basket_items.push(optimisticItem);
+
+            try {
+                const response = await axios.post(`${BASE}/inc-collection-variant`, {
+                    collection_id: collectionId,
+                    variant_id: variantId,
+                    product_collection: variant,
+                });
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                // Откат: удаляем оптимистично добавленный элемент
+                const tempIndex = this.basket_items.findIndex(i => i.id === optimisticItem.id);
+                if (tempIndex !== -1) this.basket_items.splice(tempIndex, 1);
+                console.error('[Basket Store] Ошибка добавления варианта коллекции:', err);
+                throw err;
+            } finally {
+                delete this.productActions[actionKey];
+            }
+        },
+
+        /**
+         * 🆕 Увеличить количество конкретного варианта коллекции
+         */
+        async incCollectionVariantQuantity(variantId) {
+            if (!variantId) throw new Error('variantId обязателен');
+
+            this.productActions[String(variantId)] = 'inc-variant';
+
+            const item = this.basket_items.find(i => i.params?.variant_id === variantId);
+            if (item) item.count++;
+
+            try {
+                const response = await axios.post(`${BASE}/inc-collection-variant`, {
+                    variant_id: variantId,
+                });
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                if (item) item.count--;
+                console.error('[Basket Store] Ошибка увеличения варианта:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(variantId)];
+            }
+        },
+
+        /**
+         * 🆕 Уменьшить количество конкретного варианта коллекции
+         */
+        async decCollectionVariantQuantity(variantId) {
+            if (!variantId) throw new Error('variantId обязателен');
+
+            this.productActions[String(variantId)] = 'dec-variant';
+
+            const item = this.basket_items.find(i => i.params?.variant_id === variantId);
+            if (item && item.count > 1) {
+                item.count--;
+            } else if (item && item.count === 1) {
+                const index = this.basket_items.indexOf(item);
+                this.basket_items.splice(index, 1);
+            }
+
+            try {
+                const response = await axios.post(`${BASE}/dec-collection-variant`, {
+                    variant_id: variantId,
+                });
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка уменьшения варианта:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(variantId)];
+            }
+        },
+
+        /**
+         * 🆕 Полностью удалить конкретный вариант коллекции из корзины
+         */
+        async removeCollectionVariant(variantId) {
+            if (!variantId) throw new Error('variantId обязателен');
+
+            this.productActions[String(variantId)] = 'remove-variant';
+
+            const previousItems = [...this.basket_items];
+            const removedIndex = this.basket_items.findIndex(i => i.params?.variant_id === variantId);
+            const removedItem = removedIndex !== -1 ? this.basket_items[removedIndex] : null;
+
+            if (removedIndex !== -1) this.basket_items.splice(removedIndex, 1);
+
+            try {
+                const response = await axios.post(`${BASE}/remove-collection-variant`, {
+                    variant_id: variantId,
+                });
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                if (removedItem && removedIndex !== -1) {
+                    this.basket_items.splice(removedIndex, 0, removedItem);
+                }
+                console.error('[Basket Store] Ошибка удаления варианта:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(variantId)];
+            }
+        },
+
+        /**
+         * 🆕 Удалить ВСЕ варианты одной коллекции из корзины
+         */
+        async removeAllVariantsOfCollection(collectionId) {
+            if (!collectionId) throw new Error('collectionId обязателен');
+
+            const actionKey = `coll-all-${collectionId}`;
+            this.productActions[actionKey] = 'remove-all-variants';
+
+            const previousItems = [...this.basket_items];
+            this.basket_items = this.basket_items.filter(
+                item => item.collection?.id !== collectionId
+            );
+
+            try {
+                const response = await axios.post(`${BASE}/remove-collection-variants`, {
+                    collection_id: collectionId,
+                });
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                this.basket_items = previousItems;
+                console.error('[Basket Store] Ошибка удаления всех вариантов:', err);
+                throw err;
+            } finally {
+                delete this.productActions[actionKey];
+            }
+        },
+
+        /**
+         * 🆕 Заменить сборку существующего варианта (пересобрать)
+         */
+        async replaceCollectionVariant(variantId, newVariant) {
+            if (!variantId || !newVariant) throw new Error('variantId и newVariant обязательны');
+
+            this.productActions[String(variantId)] = 'replace-variant';
+
+            try {
+                const response = await axios.post(`${BASE}/replace-collection-variant`, {
+                    variant_id: variantId,
+                    product_collection: newVariant,
+                });
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка замены варианта:', err);
+                throw err;
+            } finally {
+                delete this.productActions[String(variantId)];
+            }
+        },
+
+        /**
+         * 🆕 Рассчитать цену конкретного варианта коллекции
+         * (удобно для использования в компонентах)
+         */
+        calculateVariantPrice(variantId) {
+            const item = this.basket_items.find(i => i.params?.variant_id === variantId);
+            if (!item) return 0;
+            return this._calculateVariantPrice(item);
+        },
+
+        // ==========================================
+        // СТАРЫЕ МЕТОДЫ КОЛЛЕКЦИЙ (для обратной совместимости)
+        // ==========================================
         async addCollectionToCart(collection) {
             const collectionId = collection?.id;
             if (collectionId) {
@@ -383,27 +567,19 @@ export const useBasketStore = defineStore('basket', {
                 const response = await axios.post(`${BASE}/inc-collection`, {
                     product_collection: collection,
                 });
-
                 this._updateBasketFromResponse(response.data);
                 return response.data;
             } catch (err) {
                 console.error('[Basket Store] Ошибка добавления подборки:', err);
                 throw err;
             } finally {
-                if (collectionId) {
-                    delete this.productActions[String(collectionId)];
-                }
+                if (collectionId) delete this.productActions[String(collectionId)];
             }
         },
 
-        /**
-         * Увеличение количества подборки
-         */
         async incCollectionQuantity(payload) {
             const collectionId = payload?.id || payload?.collection_id;
-            if (collectionId) {
-                this.productActions[String(collectionId)] = 'inc-collection';
-            }
+            if (collectionId) this.productActions[String(collectionId)] = 'inc-collection';
 
             try {
                 const response = await axios.post(`${BASE}/inc-collection`, payload);
@@ -413,20 +589,13 @@ export const useBasketStore = defineStore('basket', {
                 console.error('[Basket Store] Ошибка увеличения подборки:', err);
                 throw err;
             } finally {
-                if (collectionId) {
-                    delete this.productActions[String(collectionId)];
-                }
+                if (collectionId) delete this.productActions[String(collectionId)];
             }
         },
 
-        /**
-         * Уменьшение количества подборки
-         */
         async decCollectionQuantity(payload) {
             const collectionId = payload?.id || payload?.collection_id;
-            if (collectionId) {
-                this.productActions[String(collectionId)] = 'dec-collection';
-            }
+            if (collectionId) this.productActions[String(collectionId)] = 'dec-collection';
 
             try {
                 const response = await axios.post(`${BASE}/dec-collection`, payload);
@@ -436,20 +605,13 @@ export const useBasketStore = defineStore('basket', {
                 console.error('[Basket Store] Ошибка уменьшения подборки:', err);
                 throw err;
             } finally {
-                if (collectionId) {
-                    delete this.productActions[String(collectionId)];
-                }
+                if (collectionId) delete this.productActions[String(collectionId)];
             }
         },
 
-        /**
-         * Удаление подборки из корзины
-         */
         async removeCollectionFromCart(payload) {
             const collectionId = payload?.id || payload?.collection_id;
-            if (collectionId) {
-                this.productActions[String(collectionId)] = 'remove-collection';
-            }
+            if (collectionId) this.productActions[String(collectionId)] = 'remove-collection';
 
             try {
                 const response = await axios.post(`${BASE}/dec-collection`, payload);
@@ -459,26 +621,19 @@ export const useBasketStore = defineStore('basket', {
                 console.error('[Basket Store] Ошибка удаления подборки:', err);
                 throw err;
             } finally {
-                if (collectionId) {
-                    delete this.productActions[String(collectionId)];
-                }
+                if (collectionId) delete this.productActions[String(collectionId)];
             }
         },
 
         // ==========================================
-        // КОММЕНТАРИИ
+        // КОММЕНТАРИИ / ОФОРМЛЕНИЕ / ОЧИСТКА
         // ==========================================
-
-        /**
-         * Добавление комментария к товару
-         */
         async addCommentToProduct(payload) {
             try {
                 const response = await axios.post(`${BASE}/comment-product`, {
                     product_id: payload.id,
                     comment: payload.comment || null,
                 });
-
                 this._updateBasketFromResponse(response.data);
                 return response.data;
             } catch (err) {
@@ -487,13 +642,6 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        // ==========================================
-        // ОФОРМЛЕНИЕ ЗАКАЗА
-        // ==========================================
-
-        /**
-         * Создание ссылки на оплату
-         */
         async createCheckoutLink(payload = { deliveryForm: null }) {
             try {
                 const response = await axios.post(`${BASE}/checkout-link`, payload.deliveryForm);
@@ -504,19 +652,12 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        /**
-         * Оформление заказа
-         */
         async startCheckout(payload = { deliveryForm: null }) {
             this.isSending = true;
-
             try {
                 const response = await axios.post(`${BASE}/checkout`, payload.deliveryForm);
-
-                // Очищаем корзину после успешного оформления
                 this.basket_items = [];
                 this.basket_items_paginate_object = null;
-
                 return response.data;
             } catch (err) {
                 console.error('[Basket Store] Ошибка оформления заказа:', err);
@@ -526,9 +667,6 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        /**
-         * Использование приза из колеса фортуны
-         */
         async useWheelOfFortunePrize(payload = { form: null }) {
             try {
                 const response = await axios.post(`${BASE}/use-wheel-of-fortune-prize`, payload.form);
@@ -539,15 +677,7 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        // ==========================================
-        // ОЧИСТКА
-        // ==========================================
-
-        /**
-         * Полная очистка корзины
-         */
         async clearCart() {
-            // Оптимистичная очистка
             const previousItems = [...this.basket_items];
             const previousPaginate = this.basket_items_paginate_object;
 
@@ -557,17 +687,12 @@ export const useBasketStore = defineStore('basket', {
             try {
                 await axios.delete(`${BASE}/clear`);
             } catch (err) {
-                // Откат
                 this.basket_items = previousItems;
                 this.basket_items_paginate_object = previousPaginate;
                 console.error('[Basket Store] Ошибка очистки корзины:', err);
                 throw err;
             }
         },
-
-        // ==========================================
-        // СБРОС
-        // ==========================================
 
         $reset() {
             this.basket_items = [];

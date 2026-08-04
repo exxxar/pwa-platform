@@ -47,43 +47,40 @@ class WebhookSyncService
     /**
      * Полная синхронизация workspace
      */
-    public function syncFullWorkspace(Tenant $tenant, array $payload, bool $deactivateMissing = false): array
+    public function syncFullWorkspace(Tenant $tenant, array $payload): array
     {
         $products = $payload['workspace']['products'] ?? [];
+        $collections = $payload['workspace']['collections'] ?? [];
 
         DB::beginTransaction();
         try {
-            $stats = ['total' => count($products), 'created' => 0, 'updated' => 0, 'deactivated' => 0];
-            $syncedExternalIds = [];
+            // --- ШАГ 1. "Гасим" всё перед синхронизацией ---
+            // Это помечает как "удаленные" (неактивные) все сущности,
+            // которые не придут в текущем вебхуке.
+            Product::where('tenant_id', $tenant->id)->update(['is_active' => false]);
+            Collection::where('tenant_id', $tenant->id)->update(['is_active' => false]);
 
+            $stats = [
+                'products' => ['total' => count($products), 'created' => 0, 'updated' => 0],
+                'collections' => ['total' => count($collections), 'created' => 0, 'updated' => 0],
+            ];
+
+            // --- ШАГ 2. Синхронизируем Товары ---
+            // ВАЖНО: Сначала товары, так как коллекции будут ссылаться на них по external_id
             foreach ($products as $productData) {
-                $externalId = (string) ($productData['id'] ?? '');
-                if ($externalId) {
-                    $syncedExternalIds[] = $externalId;
-                }
-
                 $product = $this->syncProduct($tenant, $productData);
-
-                if ($product->wasRecentlyCreated) {
-                    $stats['created']++;
-                } else {
-                    $stats['updated']++;
-                }
+                $stats['products'][$product->wasRecentlyCreated ? 'created' : 'updated']++;
             }
 
-            if ($deactivateMissing && !empty($syncedExternalIds)) {
-                $stats['deactivated'] = Product::where('tenant_id', $tenant->id)
-                    ->where('is_active', true)
-                    ->whereNotIn('external_id', $syncedExternalIds)
-                    ->update(['is_active' => false]);
+            // --- ШАГ 3. Синхронизируем Коллекции ---
+            foreach ($collections as $collectionData) {
+                $result = $this->syncCollection($tenant, $collectionData);
+                $stats['collections'][$result['action']]++;
             }
 
             DB::commit();
 
-            Log::info('Webhook: full sync completed', [
-                'tenant_id' => $tenant->id,
-                'stats' => $stats,
-            ]);
+            Log::info('Webhook: full sync completed', ['tenant_id' => $tenant->id, 'stats' => $stats]);
 
             return array_merge(['event' => 'workspace.sync'], $stats);
         } catch (\Throwable $e) {
@@ -93,11 +90,101 @@ class WebhookSyncService
     }
 
     /**
+     * Синхронизация одной коллекции
+     */
+    protected function syncCollection(Tenant $tenant, array $data): array
+    {
+        $externalId = (string) ($data['id'] ?? '');
+        if (!$externalId) {
+            throw new \RuntimeException('Collection external_id is missing');
+        }
+
+        // Ищем существующую или создаем новую
+        $collection = Collection::firstOrNew([
+            'external_id' => $externalId,
+            'tenant_id' => $tenant->id,
+        ]);
+
+        $action = $collection->exists ? 'updated' : 'created';
+
+        // Маппинг данных
+        // Поддерживаем разные варианты названий полей из вебхука
+        $collection->fill([
+            'name' => $data['name'] ?? 'Без названия',
+            'description' => $data['description'] ?? null,
+            'short_description' => $data['short_description'] ?? null,
+            'image' => $data['image'] ?? $data['image_url'] ?? null,
+            'discount' => $data['discount'] ?? 0,
+            'order_position' => $data['sort_order'] ?? $data['order_position'] ?? 0,
+            'type' => $data['type'] ?? 'manual',
+            'pricing_type' => $data['pricing_type'] ?? 'sum',
+            'fixed_price' => $data['fixed_price'] ?? null,
+            'in_stop_list' => (bool) ($data['in_stop_list'] ?? false),
+            'config' => $data['config'] ?? null,
+            // ВОССТАНАВЛИВАЕМ АКТИВНОСТЬ
+            'is_active' => (bool) ($data['is_active'] ?? true),
+        ]);
+
+        $collection->save();
+
+        // Синхронизация товаров внутри коллекции
+        $productsInput = $data['products'] ?? [];
+        $this->syncCollectionProducts($collection, $productsInput);
+
+        return ['action' => $action];
+    }
+
+    /**
+     * Привязка товаров к коллекции
+     * Так как структура БД требует collection_categories, мы создаем/используем
+     * одну техническую категорию ("main") для хранения товаров этой коллекции.
+     */
+    protected function syncCollectionProducts(Collection $collection, array $productsInput): void
+    {
+        // 1. Нормализуем вход: достаем external_id товаров
+        $externalIds = collect($productsInput)->map(function ($item) {
+            return is_array($item) ? ($item['id'] ?? null) : $item;
+        })->filter()->values()->all();
+
+        // Если товаров нет - очищаем все связи в этой коллекции
+        if (empty($externalIds)) {
+            $collection->collectionCategories()->each(function ($cat) {
+                $cat->products()->detach();
+            });
+            return;
+        }
+
+        // 2. Находим реальные ID товаров в нашей БД
+        $localProductIds = Product::where('tenant_id', $collection->tenant_id)
+            ->whereIn('external_id', $externalIds)
+            ->pluck('id')
+            ->all();
+
+        // 3. Получаем или создаем "дефолтную" группу для этой коллекции
+        // Это нужно, чтобы соблюсти структуру collection_categories
+        $mainCategory = $collection->collectionCategories()->firstOrCreate(
+            ['category_name' => 'sync_default_group'], // Технический идентификатор группы
+            [
+                'category_id' => 0, // Пустая связь с глобальной категорией
+                'selection_rule' => 'all',
+                'sort_order' => 0,
+            ]
+        );
+
+        // 4. Синхронизируем pivot таблицу (collection_category_product)
+        $syncData = [];
+        foreach ($localProductIds as $index => $pid) {
+            $syncData[$pid] = ['sort_order' => $index];
+        }
+
+        $mainCategory->products()->sync($syncData);
+    }
+    /**
      * Синхронизация одного товара
      */
     protected function syncProduct(Tenant $tenant, array $data): Product
     {
-        $externalId = (string) ($data['id'] ?? '');
+        $externalId = (string)($data['id'] ?? '');
         $sku = $data['sku'] ?? null;
 
         // 🔍 Поиск существующего товара
@@ -143,12 +230,12 @@ class WebhookSyncService
         return [
             'external_id' => $externalId,
             'name' => $data['name'] ?? '',
-            'price' => (float) ($data['price'] ?? 0),
-            'old_price' => isset($data['old_price']) ? (float) $data['old_price'] : null,
+            'price' => (float)($data['price'] ?? 0),
+            'old_price' => isset($data['old_price']) ? (float)$data['old_price'] : null,
             'sku' => $data['sku'] ?? null,
             'description' => $data['description'] ?? '',
-            'is_active' => (bool) ($data['is_active'] ?? true),
-            'in_stop_list' => (bool) ($data['in_stop_list'] ?? false),
+            'is_active' => (bool)($data['is_active'] ?? true),
+            'in_stop_list' => (bool)($data['in_stop_list'] ?? false),
             'images' => $this->mapImages($data['images'] ?? []),
         ];
     }
@@ -178,7 +265,7 @@ class WebhookSyncService
         $categoryIds = [];
 
         foreach ($categories as $catData) {
-            $externalId = (string) ($catData['id'] ?? '');
+            $externalId = (string)($catData['id'] ?? '');
             $name = $catData['name'] ?? '';
 
             if (!$externalId && !$name) {

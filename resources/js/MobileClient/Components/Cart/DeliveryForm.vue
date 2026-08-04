@@ -247,21 +247,20 @@ export default {
             deep: true,
         },
 
-        // 2. Получаем изменения от родителя
+        // 2. Получаем изменения от родителя и восстанавливаем данные при необходимости
         modelValue: {
             handler(newValue) {
                 if (this.deliveryForm !== newValue) {
                     this.deliveryForm = newValue;
+                    // 🌟 Восстанавливаем ФИО и телефон из LocalStorage, если они пришли пустыми
+                    this.restoreFromLocalStorage();
                 }
             },
             deep: true,
-            immediate: true, // Инициализирует deliveryForm сразу при создании
+            immediate: true,
         },
 
-        // 🌟 3. ВАЖНО: Синхронизация объекта адреса с плоскими полями формы
-        // Когда AddressList возвращает объект { id, address, lat, lng },
-        // мы копируем эти данные в корень deliveryForm (location_id, address, lat),
-        // чтобы API при оформлении заказа получал их в ожидаемом формате.
+        // 3. Синхронизация объекта адреса с плоскими полями формы
         'deliveryForm.selectedAddress': {
             handler(newAddr) {
                 if (!this.deliveryForm) return;
@@ -275,7 +274,7 @@ export default {
             deep: true,
         },
 
-        // 🌟 4. Сброс адреса при выборе "Самовывоза"
+        // 4. Сброс адреса при выборе "Самовывоза"
         'deliveryForm.need_pickup': {
             handler(isPickup) {
                 if (isPickup && this.deliveryForm) {
@@ -295,8 +294,9 @@ export default {
     },
 
     mounted() {
-        // Инициализация уже произошла в watch (immediate: true)
-        this.loadFromLocalStorage();
+        // Инициализация уже произошла в watch (immediate: true),
+        // но на всякий случай вызываем восстановление еще раз
+        this.restoreFromLocalStorage();
     },
 
     methods: {
@@ -319,21 +319,19 @@ export default {
 
         saveToLocalStorage(form) {
             if (!form) return;
-            const fields = ['name', 'phone', 'address', 'city', 'street', 'building', 'flat_number', 'entrance_number'];
 
-            fields.forEach(field => {
-                if (form[field] !== undefined) {
-                    localStorage.setItem(`mypwa_delivery_${field}`, form[field] || '');
-                }
-            });
+            // 🌟 Явно и надежно сохраняем ФИО и Телефон
+            localStorage.setItem('mypwa_delivery_name', form.name || '');
+            localStorage.setItem('mypwa_delivery_phone', form.phone || '');
 
-            // Сохраняем именно ID выбранного адреса
+            // Сохраняем ID выбранного адреса
             if (form.selectedAddress?.id) {
-                localStorage.setItem('mypwa_delivery_location_id', form.selectedAddress.id);
+                localStorage.setItem('mypwa_delivery_location_id', String(form.selectedAddress.id));
             } else {
                 localStorage.removeItem('mypwa_delivery_location_id');
             }
 
+            // Сохраняем ограничения по здоровью
             if (form.disabilities?.length > 0) {
                 localStorage.setItem('mypwa_delivery_disabilities', JSON.stringify(form.disabilities));
             } else {
@@ -341,34 +339,35 @@ export default {
             }
         },
 
-        loadFromLocalStorage() {
+        restoreFromLocalStorage() {
             if (!this.deliveryForm) return;
 
-            const fields = ['name', 'phone', 'address', 'city', 'street', 'building', 'flat_number', 'entrance_number'];
+            // 🌟 Восстанавливаем ФИО, если поле сейчас пустое
+            const savedName = localStorage.getItem('mypwa_delivery_name');
+            if (savedName && (!this.deliveryForm.name || this.deliveryForm.name.trim() === '')) {
+                this.deliveryForm.name = savedName;
+            }
 
-            fields.forEach(field => {
-                const saved = localStorage.getItem(`mypwa_delivery_${field}`);
-                if (saved !== null && saved !== '' && !this.deliveryForm[field]) {
-                    this.deliveryForm[field] = saved;
-                }
-            });
+            // 🌟 Восстанавливаем Телефон, если поле сейчас пустое
+            const savedPhone = localStorage.getItem('mypwa_delivery_phone');
+            if (savedPhone && (!this.deliveryForm.phone || this.deliveryForm.phone.trim() === '')) {
+                this.deliveryForm.phone = savedPhone;
+            }
 
-            // 🌟 Восстановление выбранного адреса из списка
+            // Восстанавливаем выбранный адрес из списка, если он не выбран
             const savedLocationId = localStorage.getItem('mypwa_delivery_location_id');
             if (savedLocationId && !this.deliveryForm.selectedAddress) {
                 const tenantUser = window.TenantUser || {};
                 const addresses = tenantUser.addresses || [];
-
-                // Ищем адрес в списке пользователя по сохраненному ID
-                const foundAddress = addresses.find(a => a.id == savedLocationId);
+                const foundAddress = addresses.find(a => String(a.id) === String(savedLocationId));
                 if (foundAddress) {
-                    // Подставляем объект. Сработает вотчер (пункт 3) и заполнит location_id, address и т.д.
                     this.deliveryForm.selectedAddress = foundAddress;
                 }
             }
 
+            // Восстанавливаем ограничения по здоровью
             const disabilities = localStorage.getItem('mypwa_delivery_disabilities');
-            if (disabilities) {
+            if (disabilities && (!this.deliveryForm.disabilities || this.deliveryForm.disabilities.length === 0)) {
                 try {
                     const parsed = JSON.parse(disabilities);
                     if (Array.isArray(parsed) && parsed.length > 0) {
