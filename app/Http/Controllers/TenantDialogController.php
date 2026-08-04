@@ -107,7 +107,7 @@ class TenantDialogController extends Controller
         // 1. Находим диалог (с подгрузкой клиента)
         $dialog = TenantDialog::where('id', $dialogId)
             ->where('tenant_id', $tenant->id)
-            ->with('tenantUser')
+            ->with('user')
             ->first();
 
         if (!$dialog) {
@@ -231,7 +231,7 @@ class TenantDialogController extends Controller
         }
 
         // 2. 🆕 Получаем информацию о клиенте через метод модели
-        $client = $dialog->tenantUser;
+        $client = $dialog->user;
         $clientInfo = $client ? $client->getTelegramInfo() : [
             'name' => 'Неизвестный клиент',
             'phone' => 'Не указан',
