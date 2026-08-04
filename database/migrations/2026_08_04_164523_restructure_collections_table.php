@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->string('pricing_type')->default('sum')->after('type');
             $table->decimal('fixed_price', 10, 2)->nullable()->after('pricing_type');
             $table->boolean('in_stop_list')->default(false)->after('is_active');
-            $table->text('short_description')->nullable()->after('sort_order');
+            $table->text('short_description')->nullable()->after('description');
         });
 
     }
