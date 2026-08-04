@@ -104,9 +104,10 @@ class TenantDialogController extends Controller
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
 
-        // 1. Находим диалог
+        // 1. Находим диалог (с подгрузкой клиента)
         $dialog = TenantDialog::where('id', $dialogId)
             ->where('tenant_id', $tenant->id)
+            ->with('tenantUser')
             ->first();
 
         if (!$dialog) {
@@ -117,7 +118,7 @@ class TenantDialogController extends Controller
             'text' => 'nullable|string|max:2000',
             'message' => 'nullable|string|max:2000',
             'attachments' => 'nullable|array',
-            'attachments.*' => 'nullable|file|mimes:jpeg,png,jpg,gif,webm,mp3,mp4,pdf,doc,docx|max:10240',
+            'attachments.*' => 'nullable|file|mimes:jpeg,png,jpg,gif,webp,webm,mp3,mp4,pdf,doc,docx,xls,xlsx,zip,rar|max:10240',
         ]);
 
         $textContent = $request->input('text') ?: $request->input('message', '');
@@ -141,18 +142,34 @@ class TenantDialogController extends Controller
             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $path = $file->storeAs('messages/attachments', $filename, 'public');
 
+            // 🆕 Формируем ПУБЛИЧНУЮ ссылку на файл в storage
+            $publicUrl = \Illuminate\Support\Facades\Storage::url($path);
+            $absoluteUrl = asset('storage/' . str_replace('messages/attachments/', '', $path));
+
+            // Нормализуем URL: Storage::url() уже добавляет /storage/
+            // Если в .env APP_URL правильный, используем его
+            $finalUrl = url(str_replace('public/', '', \Illuminate\Support\Facades\Storage::url($path)));
+
+            $fileType = $this->getFileType($file->getClientOriginalExtension());
+
             $metaData['attachment'] = [
-                'path' => $path,
+                'path' => $path,                         // Относительный путь в storage
+                'url' => $finalUrl,                      // 🆕 Полная публичная ссылка
                 'name' => $file->getClientOriginalName(),
+                'original_name' => $file->getClientOriginalName(),
+                'extension' => $file->getClientOriginalExtension(),
+                'mime_type' => $file->getMimeType(),
                 'size' => $file->getSize(),
             ];
 
-            $metaData['type'] = $this->getFileType($file->getClientOriginalExtension());
+            $metaData['type'] = $fileType;
 
             $attachmentInfo = [
                 'name' => $file->getClientOriginalName(),
+                'url' => $finalUrl,                      // 🆕 Для Telegram
                 'size' => $file->getSize(),
-                'type' => $metaData['type'],
+                'type' => $fileType,
+                'extension' => $file->getClientOriginalExtension(),
             ];
         }
 
@@ -173,11 +190,18 @@ class TenantDialogController extends Controller
             'last_message_at' => now(),
         ]);
 
-        // 7. 🆕 Отправляем уведомление в Telegram (асинхронно, не блокируя ответ)
+        // 7. Отправляем уведомление в Telegram
         try {
-            $this->sendChatMessageToTelegram($tenant, $dialog, $message, $senderName, $textContent, $attachmentInfo, $isClientSender);
+            $this->sendChatMessageToTelegram(
+                $tenant,
+                $dialog,
+                $message,
+                $senderName,
+                $textContent,
+                $attachmentInfo,
+                $isClientSender
+            );
         } catch (\Throwable $e) {
-            // Логируем ошибку, но не прерываем отправку сообщения
             Log::warning('[Telegram Chat Notification] Ошибка отправки: ' . $e->getMessage());
         }
 
@@ -187,9 +211,7 @@ class TenantDialogController extends Controller
         ], 201);
     }
 
-    /**
-     * 🆕 ОТПРАВКА УВЕДОМЛЕНИЯ О НОВОМ СООБЩЕНИИ В ЧАТЕ
-     */
+
     private function sendChatMessageToTelegram(
         $tenant,
         $dialog,
@@ -199,21 +221,27 @@ class TenantDialogController extends Controller
         $attachmentInfo,
         $isClientSender
     ): void {
-        // 1. Получаем настройки Telegram
+        // 1. Настройки Telegram
         $tgSettings = $tenant->settings['telegram'] ?? [];
         $token = $tgSettings['token'] ?? null;
-
-        // Для чатов используем отдельный chat_id (группа поддержки или личный чат админа)
         $chatId = $tgSettings['support_chat_id'] ?? $tgSettings['channel_id'] ?? null;
 
         if (!$token || !$chatId) {
             return;
         }
 
-        // 2. Получаем информацию о клиенте
+        // 2. 🆕 Получаем информацию о клиенте через метод модели
         $client = $dialog->tenantUser;
-        $clientName = $client->name ?? 'Неизвестный клиент';
-        $clientPhone = $client->phone ?? 'Не указан';
+        $clientInfo = $client ? $client->getTelegramInfo() : [
+            'name' => 'Неизвестный клиент',
+            'phone' => 'Не указан',
+            'id' => $dialog->tenant_user_id,
+        ];
+
+        $clientName = e($clientInfo['name']);
+        $clientPhone = e($clientInfo['phone']);
+        $isVip = !empty($clientInfo['is_vip']);
+        $isBlocked = !empty($clientInfo['is_blocked']);
 
         // 3. Формируем сообщение
         $icon = $isClientSender ? '👤' : '🛡️';
@@ -223,34 +251,64 @@ class TenantDialogController extends Controller
         $msg .= "━━━━━━━━━━━━━━━━━━━━━━\n";
         $msg .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
 
-        $msg .= "👤 <b>Отправитель:</b> {$senderName}\n";
+        $msg .= "👤 <b>Отправитель:</b> " . e($senderName) . "\n";
         $msg .= "🎭 <b>Роль:</b> {$role}\n";
         $msg .= "💬 <b>Диалог #:</b> {$dialog->id}\n\n";
 
-        $msg .= "📱 <b>Клиент:</b> {$clientName}\n";
-        $msg .= "📞 <b>Телефон:</b> <code>{$clientPhone}</code>\n\n";
+        // 4. 🆕 Блок с информацией о клиенте (из модели)
+        $msg .= "📱 <b>Клиент:</b> {$clientName}";
+        if ($isVip) $msg .= " ⭐️ <b>VIP</b>";
+        if ($isBlocked) $msg .= " 🚫 <b>Заблокирован</b>";
+        $msg .= "\n";
+        $msg .= "📞 <b>Телефон:</b> <code>{$clientPhone}</code>\n";
 
-        // 4. Добавляем текст сообщения
+        if (!empty($clientInfo['city'])) {
+            $msg .= "🏙 <b>Город:</b> " . e($clientInfo['city']) . "\n";
+        }
+
+        if (!empty($clientInfo['cashback_balance']) && $clientInfo['cashback_balance'] > 0) {
+            $msg .= "💰 <b>Кэшбек:</b> " . number_format($clientInfo['cashback_balance'], 0, '.', ' ') . " ₽\n";
+        }
+
+        $msg .= "\n";
+
+        // 5. Текст сообщения
         if (!empty($textContent)) {
             $msg .= "💬 <b>Сообщение:</b>\n";
             $msg .= "<i>" . e($textContent) . "</i>\n\n";
         }
 
-        // 5. Добавляем информацию о вложении
+        // 6. 🆕 Вложение — с кликабельной ссылкой на файл
         if ($attachmentInfo) {
+            $typeEmoji = $this->getAttachmentEmoji($attachmentInfo['type']);
+            $sizeKb = round($attachmentInfo['size'] / 1024, 1);
+
             $msg .= "📎 <b>Вложение:</b>\n";
-            $msg .= "  • Файл: {$attachmentInfo['name']}\n";
+
+            // Если есть URL — делаем кликабельную ссылку
+            if (!empty($attachmentInfo['url'])) {
+                $msg .= "  {$typeEmoji} <a href=\"{$attachmentInfo['url']}\">" . e($attachmentInfo['name']) . "</a>\n";
+            } else {
+                $msg .= "  {$typeEmoji} " . e($attachmentInfo['name']) . "\n";
+            }
+
             $msg .= "  • Тип: {$attachmentInfo['type']}\n";
-            $msg .= "  • Размер: " . round($attachmentInfo['size'] / 1024, 1) . " KB\n\n";
+            $msg .= "  • Размер: {$sizeKb} KB\n\n";
         }
 
-        // 6. Добавляем ссылку на диалог (если есть веб-интерфейс)
+        // 7. 🆕 Ссылки: на диалог и профиль клиента
         $baseUrl = request()->getSchemeAndHttpHost();
         if ($baseUrl) {
-            $msg .= "🔗 <a href=\"{$baseUrl}/admin/dialogs/{$dialog->id}\">Открыть диалог</a>\n";
+            // Новый формат ссылки на чат: /pwa#/chat/:dialogId
+            $chatUrl = "{$baseUrl}/pwa#/chat/{$dialog->id}";
+            $msg .= "🔗 <a href=\"{$chatUrl}\">Открыть чат</a>\n";
+
+            if (!empty($clientInfo['profile_url'])) {
+                $msg .= "👤 <a href=\"{$clientInfo['profile_url']}\">Профиль клиента</a>\n";
+            }
         }
 
-        // 7. Формируем payload
+        // 8. Payload
         $payload = [
             'chat_id' => $chatId,
             'text' => $msg,
@@ -258,13 +316,29 @@ class TenantDialogController extends Controller
             'disable_web_page_preview' => true,
         ];
 
-        // Если указан thread_id для топика
         if (!empty($tgSettings['thread_id'])) {
             $payload['message_thread_id'] = (int) $tgSettings['thread_id'];
         }
 
-        // 8. Отправляем через cURL
+        // 9. Отправка
         $this->sendTelegramCurlRequest($token, $payload);
+    }
+
+    /**
+     * Эмодзи для типа вложения
+     */
+    private function getAttachmentEmoji(string $type): string
+    {
+        return match ($type) {
+            'image' => '🖼',
+            'video' => '🎬',
+            'audio' => '🎵',
+            'pdf' => '📄',
+            'doc' => '📝',
+            'xls' => '📊',
+            'zip' => '🗜',
+            default => '📎',
+        };
     }
 
     /**

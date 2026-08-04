@@ -95,6 +95,60 @@ class TenantUser extends Authenticatable
         );
     }
 
+    /**
+     * 🆕 Собрать информацию о пользователе для Telegram-уведомлений.
+     *
+     * Возвращает единый массив со всеми данными, которые нужны
+     * для уведомлений о чатах, заказах и прочих событиях.
+     *
+     * @param array $extra — дополнительные поля (например, ['order_id' => 42])
+     * @return array
+     */
+    public function getTelegramInfo(array $extra = []): array
+    {
+        $tenant = app('tenant');
+        $baseUrl = request()->getSchemeAndHttpHost();
+
+        $defaultAddress = $this->default_address;
+
+        return array_merge([
+          //  'id' => $this->id,
+          //  'uuid' => $this->uuid,
+            'name' => $this->name ?? 'Не указано',
+            'phone' => $this->phone ?? 'Не указан',
+       //     'email' => $this->email ?? 'Не указан',
+       //     'avatar' => $this->avatar ? asset('storage/' . $this->avatar) : null,
+
+            // Гео
+            'city' => $this->city ?? null,
+            'country' => $this->country ?? null,
+            'address' => $this->address ?? null,
+            'default_address' => $defaultAddress ? [
+                'address' => $defaultAddress->address ?? null,
+                'street' => $defaultAddress->street ?? null,
+                'house' => $defaultAddress->house ?? null,
+                'flat' => $defaultAddress->flat ?? null,
+                'entrance' => $defaultAddress->entrance ?? null,
+                'floor' => $defaultAddress->floor ?? null,
+                'comment' => $defaultAddress->comment ?? null,
+            ] : null,
+
+           /* // Статусы
+            'is_vip' => (bool) $this->is_vip,
+            'has_active_vip' => $this->has_active_vip,
+            'is_blocked' => $this->isBlocked(),
+
+            // Рефералка
+            'referral_code' => $this->referral_code,
+            'referrals_count' => (int) $this->referrals_count,
+            'cashback_balance' => (float) $this->cashback_balance,*/
+
+            // Ссылки
+            'profile_url' => $baseUrl ? "{$baseUrl}/pwa#/profile/{$this->id}" : null,
+          //  'tenant_slug' => $tenant->slug ?? null,
+        ], $extra);
+    }
+
     protected function wheelWins(): Attribute
     {
         return Attribute::make(
