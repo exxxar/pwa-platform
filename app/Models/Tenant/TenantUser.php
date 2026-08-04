@@ -112,12 +112,12 @@ class TenantUser extends Authenticatable
         $defaultAddress = $this->default_address;
 
         return array_merge([
-          //  'id' => $this->id,
-          //  'uuid' => $this->uuid,
+            'id' => $this->id,
+            'uuid' => $this->uuid,
             'name' => $this->name ?? 'Не указано',
             'phone' => $this->phone ?? 'Не указан',
-       //     'email' => $this->email ?? 'Не указан',
-       //     'avatar' => $this->avatar ? asset('storage/' . $this->avatar) : null,
+            'email' => $this->email ?? 'Не указан',
+            'avatar' => $this->avatar ? asset('storage/' . $this->avatar) : null,
 
             // Гео
             'city' => $this->city ?? null,
@@ -133,7 +133,7 @@ class TenantUser extends Authenticatable
                 'comment' => $defaultAddress->comment ?? null,
             ] : null,
 
-           /* // Статусы
+            // Статусы
             'is_vip' => (bool) $this->is_vip,
             'has_active_vip' => $this->has_active_vip,
             'is_blocked' => $this->isBlocked(),
@@ -141,11 +141,11 @@ class TenantUser extends Authenticatable
             // Рефералка
             'referral_code' => $this->referral_code,
             'referrals_count' => (int) $this->referrals_count,
-            'cashback_balance' => (float) $this->cashback_balance,*/
+            'cashback_balance' => (float) $this->cashback_balance,
 
             // Ссылки
-            'profile_url' => $baseUrl ? "{$baseUrl}/pwa#/profile/{$this->id}" : null,
-          //  'tenant_slug' => $tenant->slug ?? null,
+            'profile_url' => $baseUrl ? "{$baseUrl}/pwa#/admin/users/{$this->id}" : null,
+            'tenant_slug' => $tenant->slug ?? null,
         ], $extra);
     }
 
