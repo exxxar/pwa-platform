@@ -94,28 +94,28 @@
                             </div>
                         </template>
 
-                        <!-- ✅ 2. СООБЩЕНИЕ С ФАЙЛОМ (Восстановлено) -->
-                        <template v-else-if="message.has_attachment">
+                        <!-- ✅ 2. СООБЩЕНИЕ С ФАЙЛОМ (Защищённая версия) -->
+                        <template v-else-if="message.has_attachment || message.attachment || message.meta?.attachment">
                             <div class="message-content">
                                 <div class="message-text" v-if="message.text || message.message"
                                      v-html="message.text || message.message"></div>
 
+                                <!-- 🆕 Безопасная карточка вложения -->
                                 <a
-                                    :href="message.attachment.url"
+                                    v-if="getAttachmentUrl(message)"
+                                    :href="getAttachmentUrl(message)"
                                     target="_blank"
                                     class="attachment-card"
-                                    :class="[`attachment-${message.attachment.type}`]"
+                                    :class="[`attachment-${getAttachmentType(message)}`]"
                                 >
                                     <div class="attachment-icon">
-                                        <i :class="getAttachmentIcon(message.attachment.type)"></i>
+                                        <i :class="getAttachmentIcon(getAttachmentType(message))"></i>
                                     </div>
                                     <div class="attachment-info">
-                                        <div class="attachment-name">{{ message.attachment.name }}</div>
+                                        <div class="attachment-name">{{ getAttachmentName(message) }}</div>
                                         <div class="attachment-meta">
-                                            <span class="attachment-size">{{ message.attachment_size_formatted }}</span>
-                                            <span class="attachment-type">{{
-                                                    message.attachment.type.toUpperCase()
-                                                }}</span>
+                                            <span class="attachment-size">{{ getAttachmentSizeFormatted(message) }}</span>
+                                            <span class="attachment-type">{{ getAttachmentType(message).toUpperCase() }}</span>
                                         </div>
                                     </div>
                                     <button class="attachment-download-btn" type="button">
@@ -123,21 +123,34 @@
                                     </button>
                                 </a>
 
+                                <!-- 🆕 Fallback: если вложение есть, но URL нет (старая структура) -->
+                                <div v-else class="attachment-card attachment-unknown">
+                                    <div class="attachment-icon">
+                                        <i class="fa-solid fa-file"></i>
+                                    </div>
+                                    <div class="attachment-info">
+                                        <div class="attachment-name">Файл недоступен</div>
+                                        <div class="attachment-meta">
+                                            <span class="attachment-size">—</span>
+                                            <span class="attachment-type">FILE</span>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="message-meta">
-                                    <!-- 🆕 Имя отправителя (теперь внизу, кликабельное) -->
-                                    <span
-                                        v-if="!isMine(message) && getSenderName(message)"
-                                        class="sender-name-inline"
-                                        @click="openInterlocutorInfo"
-                                        title="Показать информацию о собеседнике"
-                                    >
-                                        {{ getSenderName(message) }}
-                                    </span>
+            <span
+                v-if="!isMine(message) && getSenderName(message)"
+                class="sender-name-inline"
+                @click="openInterlocutorInfo"
+                title="Показать информацию о собеседнике"
+            >
+                {{ getSenderName(message) }}
+            </span>
 
                                     <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
                                     <span v-if="isMine(message)" class="message-status">
-                                        <i :class="getStatusIcon(message)"></i>
-                                    </span>
+                <i :class="getStatusIcon(message)"></i>
+            </span>
                                 </div>
                             </div>
                         </template>
@@ -704,6 +717,102 @@ export default {
             return new Date(current.created_at).toDateString() !== new Date(prev.created_at).toDateString();
         },
 
+        /**
+         * 🆕 Безопасное получение URL вложения
+         * Поддерживает разные форматы данных:
+         * - message.attachment.url (новый формат)
+         * - message.meta.attachment.url (старый формат)
+         * - message.attachment.path (fallback на storage)
+         */
+        getAttachmentUrl(message) {
+            // Новый формат: message.attachment.url
+            if (message.attachment?.url) {
+                return message.attachment.url;
+            }
+
+            // Старый формат: message.meta.attachment.url
+            if (message.meta?.attachment?.url) {
+                return message.meta.attachment.url;
+            }
+
+            // Fallback: строим URL из path
+            const path = message.attachment?.path || message.meta?.attachment?.path;
+            if (path) {
+                return `/storage/${path}`;
+            }
+
+            return null;
+        },
+
+        /**
+         * 🆕 Безопасное получение типа вложения
+         */
+        getAttachmentType(message) {
+            return (
+                message.attachment?.type ||
+                message.meta?.attachment?.type ||
+                this.getFileTypeFromExtension(
+                    message.attachment?.extension ||
+                    message.meta?.attachment?.extension ||
+                    message.attachment?.name ||
+                    message.meta?.attachment?.name ||
+                    ''
+                )
+            ).toLowerCase() || 'file';
+        },
+
+        /**
+         * 🆕 Безопасное получение имени файла
+         */
+        getAttachmentName(message) {
+            return (
+                message.attachment?.name ||
+                message.attachment?.original_name ||
+                message.meta?.attachment?.name ||
+                message.meta?.attachment?.original_name ||
+                'Без имени'
+            );
+        },
+
+        /**
+         * 🆕 Безопасное получение форматированного размера
+         */
+        getAttachmentSizeFormatted(message) {
+            // Если уже есть готовая строка
+            if (message.attachment_size_formatted) {
+                return message.attachment_size_formatted;
+            }
+
+            const size = (
+                message.attachment?.size ||
+                message.meta?.attachment?.size ||
+                0
+            );
+
+            if (!size) return '—';
+            return this.formatFileSize(size);
+        },
+
+        /**
+         * 🆕 Определение типа файла по расширению
+         */
+        getFileTypeFromExtension(filename) {
+            if (!filename) return 'file';
+
+            const ext = filename.split('.').pop()?.toLowerCase() || '';
+
+            const map = {
+                'jpeg': 'image', 'jpg': 'image', 'png': 'image', 'gif': 'image', 'webp': 'image',
+                'mp4': 'video', 'webm': 'video', 'mov': 'video',
+                'mp3': 'audio', 'wav': 'audio', 'ogg': 'audio',
+                'pdf': 'pdf',
+                'doc': 'doc', 'docx': 'doc',
+                'xls': 'xls', 'xlsx': 'xls',
+                'zip': 'zip', 'rar': 'zip',
+            };
+
+            return map[ext] || 'file';
+        },
         async handleSendMessage(text, attachments) {
             // 1. Создаем временное сообщение для мгновенного отображения
             const tempId = 'temp_' + Date.now();
