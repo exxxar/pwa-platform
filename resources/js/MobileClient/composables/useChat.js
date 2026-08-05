@@ -1,23 +1,16 @@
 import { storeToRefs } from 'pinia';
 import { useChatStore } from '@/MobileClient/stores/Shop/chat.js';
 
-/**
- * Composable для работы с чатом.
- * Оптимизирован: убрана лишняя реактивность и шаблонный код.
- */
 export function useChat() {
     const store = useChatStore();
 
-    // ==========================================
-    // 1. ЕДИНАЯ ДЕСТРУКТУРИЗАЦИЯ (State + Getters)
-    // ==========================================
-    // Геттеры Pinia УЖЕ являются вычисляемыми (computed) свойствами.
-    // Оборачивать их в computed() — это анти-паттерн, создающий лишний слой реактивности.
     const {
-        // Состояние
+        // State
         dialogs,
         messages,
         currentDialog,
+        totalUnread,        // 🆕 теперь это state, а не getter
+        byDialogUnread,     // 🆕 { "1": 3, "5": 1 }
         isLoading,
         isHydrated,
         isSending,
@@ -28,33 +21,18 @@ export function useChat() {
         lastSyncAt,
         hasMoreMessages,
 
-        // Геттеры (берем напрямую, они уже реактивны!)
+        // Getters
         sortedDialogs,
         activeDialogs,
         archivedDialogs,
         activeDialogsCount,
         archivedDialogsCount,
-        totalUnread,
         currentInterlocutor,
         sortedMessages,
         getDialogById,
     } = storeToRefs(store);
 
-    // ==========================================
-    // 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-    // ==========================================
     const isDialogLoading = (dialogId) => store.isDialogLoading(dialogId);
-
-    // ==========================================
-    // 3. МЕТОДЫ (Без избыточного try/catch)
-    // ==========================================
-    // Мы просто возвращаем Promise из стора.
-    // Обработкой ошибок должен заниматься компонент (например, через watch или try/catch в методе компонента).
-
-    const fetchUnreadCount = () => store.fetchUnreadCount();
-    const fetchDialogUnreadCount = (dialogId) => store.fetchDialogUnreadCount(dialogId);
-    const loadDialogs = () => store.loadDialogs();
-    const openDialog = (id) => store.openDialog(id);
 
     const closeDialog = (router = null, routeName = 'Chat') => {
         store.closeDialog();
@@ -63,46 +41,28 @@ export function useChat() {
         }
     };
 
-    const markDialogAsRead = (dialogId) => store.markDialogAsRead(dialogId);
-
-    // Архивирование
-    const archiveDialog = (dialogId) => store.archiveDialog(dialogId);
-    const restoreDialog = (dialogId) => store.restoreDialog(dialogId);
-    const archiveMultiple = (dialogIds) => store.archiveMultiple(dialogIds);
-    const emptyArchive = () => store.emptyArchive();
-
-    // Удаление
-    const deleteDialogPermanently = (dialogId) => store.deleteDialogPermanently(dialogId);
-
-    // Вложения
-    const getDialogAttachments = (dialogId) => store.getDialogAttachments(dialogId);
-
-    // Сообщения
-    const sendMessage = (dialogId, payload) => {
-        if (!dialogId) {
-            throw new Error('Не указан ID диалога');
-        }
-        return store.sendMessage(dialogId, payload);
-    };
-
     const loadOlderMessages = async () => {
         if (!store.currentDialog) return [];
         try {
-            return await store.loadOlderMessages(store.currentDialog.id);
+            return await store.loadOlderMessages();
         } catch (error) {
             console.error('Ошибка загрузки старых сообщений:', error);
-            return []; // Здесь try/catch оправдан, так как мы возвращаем fallback-значение
+            return [];
         }
     };
 
-    // ==========================================
-    // 4. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
-    // ==========================================
+    const sendMessage = (dialogId, payload) => {
+        if (!dialogId) throw new Error('Не указан ID диалога');
+        return store.sendMessage(dialogId, payload);
+    };
+
     return {
-        // Состояние
+        // State
         dialogs,
         messages,
         currentDialog,
+        totalUnread,
+        byDialogUnread,
         isLoading,
         isHydrated,
         isSending,
@@ -113,45 +73,44 @@ export function useChat() {
         lastSyncAt,
         hasMoreMessages,
 
-        // Геттеры
+        // Getters
         sortedDialogs,
         activeDialogs,
         archivedDialogs,
         activeDialogsCount,
         archivedDialogsCount,
-        totalUnread,
         currentInterlocutor,
         sortedMessages,
         isDialogLoading,
         getDialogById,
 
-        // Методы: Базовые
-        loadDialogs,
-        openDialog,
+        // Методы
+        loadDialogs: () => store.loadDialogs(),
+        openDialog: (id) => store.openDialog(id),
         closeDialog,
-        markDialogAsRead,
-        fetchUnreadCount,
-        fetchDialogUnreadCount,
-        setTotalUnreadCount: store.setTotalUnreadCount,
+        markDialogAsRead: (id) => store.markDialogAsRead(id),
+        loadUnreadCount: () => store.loadUnreadCount(),          // 🆕
+        clearUnreadForDialog: (id) => store.clearUnreadForDialog(id),
+        decrementUnread: (id) => store.decrementUnread(id),
+        getUnreadForDialog: (id) => store.getUnreadForDialog(id),
 
-        // Методы: Архивирование и Удаление
-        archiveDialog,
-        restoreDialog,
-        archiveMultiple,
-        emptyArchive,
-        deleteDialogPermanently,
+        // Архив / Удаление
+        archiveDialog: (id) => store.archiveDialog(id),
+        restoreDialog: (id) => store.restoreDialog(id),
+        archiveMultiple: (ids) => store.archiveMultiple(ids),
+        emptyArchive: () => store.emptyArchive(),
+        deleteDialogPermanently: (id) => store.deleteDialogPermanently(id),
 
-        // Методы: Вложения и Сообщения
-        getDialogAttachments,
+        // Вложения и сообщения
+        getDialogAttachments: (id) => store.getDialogAttachments(id),
         sendMessage,
         loadOlderMessages,
-        retryMessage: store.retryMessage,
-        deleteMessage: store.deleteMessage,
+        retryMessage: (msg) => store.retryMessage(msg),
+        deleteMessage: (id) => store.deleteMessage(id),
 
         // Realtime
-        handleIncomingMessage: store.handleIncomingMessage,
+        handleIncomingMessage: (msg) => store.handleIncomingMessage(msg),
 
-        // Сброс
-        $reset: store.$reset,
+        $reset: () => store.$reset(),
     };
 }

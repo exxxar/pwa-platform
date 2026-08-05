@@ -21,10 +21,10 @@
                             <i :class="item.icon"></i>
                             <transition name="badge-pop">
                                 <span
-                                    v-if="item.badge && item.badge() > 0"
+                                    v-if="getBadgeCount(item) > 0"
                                     class="counter-badge"
                                 >
-                                    {{ item.badge() > 99 ? '99+' : item.badge() }}
+                                    {{ getBadgeCount(item) > 99 ? '99+' : getBadgeCount(item) }}
                                 </span>
                             </transition>
                         </div>
@@ -38,8 +38,9 @@
 </template>
 
 <script>
-import {useBasket} from '@/MobileClient/Composables/useBasket.js';
-import {useChat} from '@/MobileClient/Composables/useChat.js';
+import { useBasket } from '@/MobileClient/Composables/useBasket.js';
+import { useChat } from '@/MobileClient/Composables/useChat.js';
+import { onMounted, onUnmounted } from 'vue';
 
 export default {
     name: "BottomMenu",
@@ -48,15 +49,23 @@ export default {
         const basket = useBasket();
         const chat = useChat();
 
+        let pollInterval = null;
+
+        onMounted(() => {
+            chat.loadUnreadCount();
+            pollInterval = setInterval(() => chat.loadUnreadCount(), 30000);
+        });
+
+        onUnmounted(() => {
+            if (pollInterval) clearInterval(pollInterval);
+        });
 
         return {
-            chat,
-            totalUnread: chat.totalUnread,
             cartTotalCount: basket.cartTotalCount,
             isEmpty: basket.isEmpty,
+            totalUnread: chat.totalUnread, // ✅ реактивный ref из state
         };
     },
-
 
     data() {
         return {
@@ -64,31 +73,34 @@ export default {
                 {
                     route: 'Menu',
                     label: 'Главная',
-                    icon: 'fa-solid fa-house'
+                    icon: 'fa-solid fa-house',
+                    badgeKey: null,
                 },
                 {
                     route: 'Catalog',
                     label: 'Товары',
-                    icon: 'fa-solid fa-box'
+                    icon: 'fa-solid fa-box',
+                    badgeKey: null,
                 },
                 {
                     route: 'Cart',
                     label: 'Корзина',
                     icon: 'fa-solid fa-cart-shopping',
-                    badge: () => this.cartTotalCount,
+                    badgeKey: 'cart',
                     hasItems: () => !this.isEmpty,
                 },
                 {
                     route: 'ChatList',
                     label: 'Чат',
                     icon: 'fa-regular fa-comments',
-                    badge: () => this.totalUnread,
+                    badgeKey: 'chat',
                     hasItems: () => true,
                 },
                 {
                     route: 'Profile',
                     label: 'Профиль',
-                    icon: 'fa-solid fa-user'
+                    icon: 'fa-solid fa-user',
+                    badgeKey: null,
                 },
             ],
         };
@@ -97,7 +109,24 @@ export default {
     methods: {
         goTo(name) {
             if (!name || this.$route.name === name) return;
-            this.$router.push({name});
+            this.$router.push({ name });
+        },
+
+        /**
+         * 🆕 Универсальный метод получения значения бейджа
+         */
+        getBadgeCount(item) {
+            if (!item.badgeKey) return 0;
+
+            switch (item.badgeKey) {
+                case 'cart':
+                    return this.cartTotalCount || 0;
+                case 'chat':
+                    // 🎯 totalUnread — это ref из setup, Vue разворачивает его автоматически
+                    return this.totalUnread || 0;
+                default:
+                    return 0;
+            }
         },
     },
 };

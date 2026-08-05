@@ -176,6 +176,7 @@
                                         @click="openInterlocutorInfo"
                                         title="Показать информацию о собеседнике"
                                     >
+                                        <i class="fa-regular fa-user"></i>
                                         {{ getSenderName(message) }}
                                     </span>
 
@@ -2548,13 +2549,6 @@ $warning: #f59e0b;
         gap: 4px;
         margin-right: auto; // Прижимает время и статус вправо, а имя влево
 
-        &::before {
-            content: '\f023'; // fa-user-shield
-            font-family: "Font Awesome 6 Free";
-            font-weight: 900;
-            font-size: 0.65rem;
-            opacity: 0.8;
-        }
 
         &:hover {
             background: rgba($primary, 0.15);

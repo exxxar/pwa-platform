@@ -4,104 +4,48 @@ import axios from 'axios';
 const BASE = '/dialogs';
 
 export const useChatStore = defineStore('chat', {
-    // ==========================================
-    // STATE
-    // ==========================================
     state: () => ({
-        // Данные
         dialogs: [],
         messages: [],
         currentDialog: null,
 
-
-        // Состояние загрузки
+        // 🆕 Счётчики непрочитанных (source of truth)
         totalUnread: 0,
-        totalCount: 0,
+        byDialogUnread: {},  // 🆕 { "1": 3, "5": 1 }
+
         isLoading: false,
         isHydrated: false,
         isSending: false,
         isMessagesLoading: false,
         isAttachmentsLoading: false,
-
-        // Действия над диалогами
         dialogActions: {},
-
-        // Ошибки
         lastError: null,
-
-        // Пагинация сообщений
         messagesPage: 1,
         hasMoreMessages: true,
-
-        // Время последней синхронизации
         lastSyncAt: null,
     }),
 
-    // ==========================================
-    // GETTERS
-    // ==========================================
     getters: {
-        /**
-         * Все диалоги (отсортированы)
-         */
         sortedDialogs: (state) => {
             return [...(state.dialogs || [])].sort((a, b) => {
-                // Закреплённые сверху
                 if (a.is_pinned && !b.is_pinned) return -1;
                 if (!a.is_pinned && b.is_pinned) return 1;
 
-                // Непрочитанные сверху (кроме архивных)
                 const aUnread = a.is_archived ? 0 : (a.unread_count || 0);
                 const bUnread = b.is_archived ? 0 : (b.unread_count || 0);
                 if (aUnread !== bUnread) return bUnread - aUnread;
 
-                // Затем по дате
                 const dateA = new Date(a.last_message_at || a.updated_at || 0);
                 const dateB = new Date(b.last_message_at || b.updated_at || 0);
                 return dateB - dateA;
             });
         },
 
-        /**
-         * 🆕 Активные (не архивные) диалоги
-         */
-        activeDialogs: (state) => {
-            return (state.dialogs || []).filter(d => !d.is_archived);
-        },
+        activeDialogs: (state) => (state.dialogs || []).filter(d => !d.is_archived),
+        archivedDialogs: (state) => (state.dialogs || []).filter(d => d.is_archived),
+        activeDialogsCount: (state) => (state.dialogs || []).filter(d => !d.is_archived).length,
+        archivedDialogsCount: (state) => (state.dialogs || []).filter(d => d.is_archived).length,
 
-        /**
-         * 🆕 Архивные диалоги
-         */
-        archivedDialogs: (state) => {
-            return (state.dialogs || []).filter(d => d.is_archived);
-        },
-
-        /**
-         * Общее количество непрочитанных (только активные)
-         */
-        totalUnread: (state) => {
-            return (state.dialogs || [])
-                .filter(d => !d.is_archived)
-                .reduce((sum, d) => sum + (d.unread_count || 0), 0);
-        },
-
-        /**
-         * Количество активных диалогов
-         */
-        activeDialogsCount: (state) => {
-            return (state.dialogs || []).filter(d => !d.is_archived).length;
-        },
-
-        /**
-         * Количество архивных диалогов
-         */
-        archivedDialogsCount: (state) => {
-            return (state.dialogs || []).filter(d => d.is_archived).length;
-        },
-
-        /**
-         * Текущий собеседник
-         */
         currentInterlocutor: (state) => {
             if (!state.currentDialog) return null;
             return state.currentDialog.interlocutor
@@ -110,90 +54,89 @@ export const useChatStore = defineStore('chat', {
                 || null;
         },
 
-        /**
-         * Сообщения текущего диалога
-         */
         sortedMessages: (state) => {
-            return [...(state.messages || [])].sort((a, b) => {
-                return new Date(a.created_at) - new Date(b.created_at);
-            });
+            return [...(state.messages || [])].sort((a, b) =>
+                new Date(a.created_at) - new Date(b.created_at)
+            );
         },
 
-        /**
-         * Найти диалог по ID
-         */
-        getDialogById: (state) => (id) => {
-            return state.dialogs.find(d => String(d.id) === String(id)) || null;
-        },
+        getDialogById: (state) => (id) =>
+            state.dialogs.find(d => String(d.id) === String(id)) || null,
 
-        /**
-         * Проверка, загружается ли диалог
-         */
-        isDialogLoading: (state) => (id) => {
-            return !!state.dialogActions[String(id)];
-        },
+        isDialogLoading: (state) => (id) => !!state.dialogActions[String(id)],
+
+        // 🆕 Геттер для конкретного диалога
+        getUnreadForDialog: (state) => (dialogId) =>
+            state.byDialogUnread[String(dialogId)] || 0,
     },
 
-    // ==========================================
-    // ACTIONS
-    // ==========================================
     actions: {
-        setTotalUnreadCount(val){
-          this.totalUnread = val
-        },
-        // ==========================================
-        // ЗАГРУЗКА ДИАЛОГОВ
-        // ==========================================
         setInitialData(data) {
             if (!data) return;
-
             this.dialogs = data.items || [];
             this.totalUnread = data.total_unread || 0;
-            this.totalCount = data.total_count || 0;
             this.isHydrated = true;
         },
 
         /**
-         * 🆕 Получение количества непрочитанных сообщений
+         * 🆕 Единый метод: загрузка счётчика непрочитанных
          */
-        async fetchUnreadCount() {
+        async loadUnreadCount() {
             try {
                 const response = await axios.get(`${BASE}/unread-count`);
                 const data = response.data;
 
-                let sumUnreadCount = 0
-                // Обновляем unread_count у каждого диалога
-                if (data.by_dialog) {
-                    this.dialogs.forEach(dialog => {
-                        dialog.unread_count = data.by_dialog[String(dialog.id)] || 0;
-                        sumUnreadCount += dialog.unread_count;
-                    });
-                }
+                this.totalUnread = data.total || 0;
+                this.byDialogUnread = data.by_dialog || {};
 
-                this.totalUnread = sumUnreadCount;
-                this.totalCount = data.total || 0;
-                return data.total || 0;
+                // Синхронизируем unread_count у каждого диалога в списке
+                this.dialogs.forEach(dialog => {
+                    dialog.unread_count = this.byDialogUnread[String(dialog.id)] || 0;
+                });
+
+                return data;
             } catch (error) {
-                console.error('[Chat Store] Ошибка получения непрочитанных:', error);
-                throw error;
+                console.error('[Chat Store] Ошибка загрузки unreadCount:', error);
+                return { total: 0, by_dialog: {} };
             }
         },
 
         /**
-         * 🆕 Получение непрочитанных конкретного диалога
+         * 🆕 Обнулить счётчик для конкретного диалога (локально)
          */
-        async fetchDialogUnreadCount(dialogId) {
-            try {
-                const response = await axios.get(`${BASE}/${dialogId}/unread-count`);
-                return response.data.unread_count || 0;
-            } catch (error) {
-                console.error('[Chat Store] Ошибка получения непрочитанных диалога:', error);
-                throw error;
+        clearUnreadForDialog(dialogId) {
+            const key = String(dialogId);
+            const count = this.byDialogUnread[key] || 0;
+
+            if (count > 0) {
+                this.totalUnread = Math.max(0, this.totalUnread - count);
+                this.byDialogUnread[key] = 0;
+
+                // Обновляем и в самом диалоге
+                const dialog = this.getDialogById(dialogId);
+                if (dialog) dialog.unread_count = 0;
+            }
+
+            // Отправляем на сервер
+            axios.post(`${BASE}/${dialogId}/read`).catch(err => {
+                console.warn('[Chat Store] Не удалось отметить как прочитанное:', err);
+            });
+        },
+
+        /**
+         * 🆕 Уменьшить счётчик на 1 (при чтении одного сообщения)
+         */
+        decrementUnread(dialogId) {
+            const key = String(dialogId);
+            if (this.byDialogUnread[key] > 0) {
+                this.byDialogUnread[key]--;
+                this.totalUnread = Math.max(0, this.totalUnread - 1);
+
+                const dialog = this.getDialogById(dialogId);
+                if (dialog) dialog.unread_count = Math.max(0, (dialog.unread_count || 1) - 1);
             }
         },
-        /**
-         * Загрузка списка диалогов (включая архивные)
-         */
+
         async loadDialogs() {
             this.isLoading = true;
             this.lastError = null;
@@ -201,14 +144,13 @@ export const useChatStore = defineStore('chat', {
             try {
                 const response = await axios.get(BASE);
                 const data = response.data?.data || response.data || [];
-
                 this.dialogs = Array.isArray(data) ? data : [];
-
-                this.totalUnread = data.total_unread || 0;
-                this.totalCount = data.total_count || 0;
 
                 this.isHydrated = true;
                 this.lastSyncAt = new Date();
+
+                // Сразу подтягиваем свежие счётчики
+                await this.loadUnreadCount();
 
                 return this.dialogs;
             } catch (error) {
@@ -220,11 +162,6 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-
-
-        /**
-         * Закрыть текущий диалог
-         */
         closeDialog() {
             this.currentDialog = null;
             this.messages = [];
@@ -232,38 +169,23 @@ export const useChatStore = defineStore('chat', {
             this.hasMoreMessages = true;
         },
 
-        /**
-         * Отметить диалог как прочитанный
-         */
+        // 🆕 markDialogAsRead теперь — алиас к clearUnreadForDialog
         markDialogAsRead(dialogId) {
-            const dialog = this.getDialogById(dialogId);
-            if (!dialog) return;
-
-            const unreadBefore = dialog.unread_count || 0;
-            dialog.unread_count = 0;
-
-            axios.post(`${BASE}/${dialogId}/read`).catch(err => {
-                console.warn('[Chat Store] Не удалось отметить как прочитанное:', err);
-            });
+            this.clearUnreadForDialog(dialogId);
         },
 
         // ==========================================
-        // 🆕 АРХИВИРОВАНИЕ
+        // АРХИВИРОВАНИЕ
         // ==========================================
 
-        /**
-         * Архивировать диалог (оптимистично)
-         */
         async archiveDialog(dialogId) {
             this.dialogActions[String(dialogId)] = 'archive';
-
             const dialog = this.getDialogById(dialogId);
             const previousState = dialog ? {
                 is_archived: dialog.is_archived,
                 archived_at: dialog.archived_at,
             } : null;
 
-            // Оптимистичное обновление
             if (dialog) {
                 dialog.is_archived = true;
                 dialog.archived_at = new Date().toISOString();
@@ -273,7 +195,6 @@ export const useChatStore = defineStore('chat', {
                 const response = await axios.post(`${BASE}/${dialogId}/archive`);
                 return response.data;
             } catch (error) {
-                // Откат
                 if (dialog && previousState) {
                     dialog.is_archived = previousState.is_archived;
                     dialog.archived_at = previousState.archived_at;
@@ -285,12 +206,8 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /**
-         * Восстановить диалог из архива (оптимистично)
-         */
         async restoreDialog(dialogId) {
             this.dialogActions[String(dialogId)] = 'restore';
-
             const dialog = this.getDialogById(dialogId);
             const previousState = dialog ? {
                 is_archived: dialog.is_archived,
@@ -317,11 +234,7 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /**
-         * Массовое архивирование
-         */
         async archiveMultiple(dialogIds) {
-            // Сохраняем предыдущее состояние для отката
             const previousStates = {};
             dialogIds.forEach(id => {
                 const dialog = this.getDialogById(id);
@@ -336,12 +249,9 @@ export const useChatStore = defineStore('chat', {
             });
 
             try {
-                const response = await axios.post(`${BASE}/archive-multiple`, {
-                    ids: dialogIds,
-                });
+                const response = await axios.post(`${BASE}/archive-multiple`, { ids: dialogIds });
                 return response.data;
             } catch (error) {
-                // Откат
                 dialogIds.forEach(id => {
                     const dialog = this.getDialogById(id);
                     if (dialog && previousStates[id]) {
@@ -354,20 +264,14 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /**
-         * Очистить весь архив
-         */
         async emptyArchive() {
             const archivedBefore = this.archivedDialogs.map(d => ({ ...d }));
-
-            // Оптимистично удаляем из списка
             this.dialogs = this.dialogs.filter(d => !d.is_archived);
 
             try {
                 const response = await axios.delete(`${BASE}/archive`);
                 return response.data;
             } catch (error) {
-                // Откат
                 this.dialogs = [...this.dialogs, ...archivedBefore];
                 console.error('[Chat Store] Ошибка очистки архива:', error);
                 throw error;
@@ -375,24 +279,17 @@ export const useChatStore = defineStore('chat', {
         },
 
         // ==========================================
-        // 🆕 УДАЛЕНИЕ
+        // УДАЛЕНИЕ
         // ==========================================
 
-        /**
-         * Удалить диалог навсегда (оптимистично)
-         */
         async deleteDialogPermanently(dialogId) {
             this.dialogActions[String(dialogId)] = 'delete';
 
-            // Сохраняем для отката
             const dialogIndex = this.dialogs.findIndex(d => String(d.id) === String(dialogId));
             const removedDialog = dialogIndex !== -1 ? this.dialogs[dialogIndex] : null;
 
-            if (dialogIndex !== -1) {
-                this.dialogs.splice(dialogIndex, 1);
-            }
+            if (dialogIndex !== -1) this.dialogs.splice(dialogIndex, 1);
 
-            // Если удаляем текущий открытый диалог — закрываем его
             if (this.currentDialog && String(this.currentDialog.id) === String(dialogId)) {
                 this.closeDialog();
             }
@@ -401,7 +298,6 @@ export const useChatStore = defineStore('chat', {
                 const response = await axios.delete(`${BASE}/${dialogId}`);
                 return response.data;
             } catch (error) {
-                // Откат
                 if (removedDialog && dialogIndex !== -1) {
                     this.dialogs.splice(dialogIndex, 0, removedDialog);
                 }
@@ -413,15 +309,11 @@ export const useChatStore = defineStore('chat', {
         },
 
         // ==========================================
-        // 🆕 ВЛОЖЕНИЯ
+        // ВЛОЖЕНИЯ
         // ==========================================
 
-        /**
-         * Получить вложения диалога
-         */
         async getDialogAttachments(dialogId) {
             this.isAttachmentsLoading = true;
-
             try {
                 const response = await axios.get(`${BASE}/${dialogId}/attachments`);
                 return response.data?.data || response.data || [];
@@ -437,26 +329,16 @@ export const useChatStore = defineStore('chat', {
         // СООБЩЕНИЯ
         // ==========================================
 
-        /**
-         * Загрузка сообщений
-         */
-        /**
-         * Открыть диалог
-         */
         async openDialog(dialogId) {
-            // 1. Пытаемся найти в локальном кэше
             let dialog = this.getDialogById(dialogId);
 
-            // 2. 🚀 ЗАПАСНОЙ ВАРИАНТ: Если диалога нет в кэше (например, прямой переход по ссылке),
-            // создаем временный объект, чтобы хотя бы загрузить сообщения.
             if (!dialog) {
-                console.warn(`[Chat Store] Диалог #${dialogId} не найден в кэше. Создаем временный объект.`);
+                console.warn(`[Chat Store] Диалог #${dialogId} не найден. Создаём временный.`);
                 dialog = {
                     id: dialogId,
                     interlocutor: { name: 'Загрузка...' },
                     unread_count: 0
                 };
-                // Добавляем в начало списка, чтобы он не терялся
                 this.dialogs.unshift(dialog);
             }
 
@@ -466,11 +348,11 @@ export const useChatStore = defineStore('chat', {
             this.hasMoreMessages = true;
 
             try {
-                // 3. Загружаем сообщения (это сработает, даже если диалог был "временным")
                 await this.loadMessages(dialogId);
 
-                if (dialog.unread_count > 0) {
-                    this.markDialogAsRead(dialogId);
+                // 🆕 Обнуляем счётчик для этого диалога
+                if ((this.byDialogUnread[String(dialogId)] || 0) > 0) {
+                    this.clearUnreadForDialog(dialogId);
                 }
 
                 return dialog;
@@ -480,9 +362,6 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /**
-         * Загрузка сообщений
-         */
         async loadMessages(dialogId, page = 1) {
             this.isMessagesLoading = true;
 
@@ -491,18 +370,11 @@ export const useChatStore = defineStore('chat', {
                     params: { page, per_page: 20 }
                 });
 
-                // 🛠️ ОТЛАДКА: Смотрим в консоль, что именно присылает бэкенд
-                console.log(`[Chat Store] Сырые данные сообщений (стр. ${page}):`, response.data);
-
-                // 🚀 ГИБКОЕ ИЗВЛЕЧЕНИЕ МАССИВА (под разные форматы ответа Laravel)
                 let rawData = response.data?.data || response.data || [];
 
-                // Если это Laravel Paginator, данные лежат в rawData.data
                 if (rawData.data && Array.isArray(rawData.data)) {
                     rawData = rawData.data;
-                }
-                // Если бэкенд возвращает { messages: [...] }
-                else if (rawData.messages && Array.isArray(rawData.messages)) {
+                } else if (rawData.messages && Array.isArray(rawData.messages)) {
                     rawData = rawData.messages;
                 }
 
@@ -511,7 +383,6 @@ export const useChatStore = defineStore('chat', {
                 if (page === 1) {
                     this.messages = messages;
                 } else {
-                    // При подгрузке старых сообщений добавляем их В НАЧАЛО массива
                     this.messages = [...messages, ...this.messages];
                 }
 
@@ -528,29 +399,17 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /**
-         * Загрузить старые сообщения
-         */
-        async loadOlderMessages(dialogId) {
-            if (!this.hasMoreMessages || this.isMessagesLoading) return [];
-
+        async loadOlderMessages() {
+            if (!this.currentDialog || !this.hasMoreMessages || this.isMessagesLoading) return [];
             try {
-                return await this.loadMessages(dialogId, this.messagesPage + 1);
+                return await this.loadMessages(this.currentDialog.id, this.messagesPage + 1);
             } catch (error) {
                 console.error('[Chat Store] Ошибка загрузки старых сообщений:', error);
                 throw error;
             }
         },
 
-        /**
-         * Отправка сообщения
-         */
-        // В файле useChat.js или chat.js
-
-        // В файле @/MobileClient/Composables/useChat.js (или chat.js)
-
-        async  sendMessage(dialogId, payload) {
-            // 🛡️ Безопасная деструктуризация с дефолтными значениями
+        async sendMessage(dialogId, payload) {
             const { text = '', attachments = [] } = payload || {};
 
             const formData = new FormData();
@@ -558,20 +417,17 @@ export const useChatStore = defineStore('chat', {
 
             if (text) {
                 formData.append('text', text);
-                formData.append('message', text); // На случай, если бэкенд ждет 'message'
+                formData.append('message', text);
             }
 
-            // 🛡️ ГАРАНТИРОВАННАЯ ПРОВЕРКА: вызываем forEach ТОЛЬКО если это массив и он не пуст
             if (Array.isArray(attachments) && attachments.length > 0) {
                 attachments.forEach((file, index) => {
-                    // Laravel корректно примет такой формат как массив файлов
                     formData.append(`attachments[${index}]`, file);
                 });
             }
 
             try {
-                // Axios автоматически установит 'multipart/form-data' при передаче FormData
-                const response = await axios.post(`/dialogs/${dialogId}/messages`, formData);
+                const response = await axios.post(`${BASE}/${dialogId}/messages`, formData);
                 return response.data;
             } catch (error) {
                 console.error('[Chat Store] Ошибка отправки сообщения:', error);
@@ -579,31 +435,24 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /**
-         * Повторная отправка
-         */
+        // 🆕 Исправленный retryMessage
         async retryMessage(message) {
             if (!message || message.status !== 'error') return;
+            if (!this.currentDialog) return;
 
             const index = this.messages.findIndex(m => m.id === message.id);
-            if (index === -1) return;
-
-            this.messages.splice(index, 1);
+            if (index !== -1) this.messages.splice(index, 1);
 
             try {
-                await this.sendMessage(
-                    this.currentDialog?.id,
-                    message.text || message.message,
-                    message.attachments || []
-                );
+                await this.sendMessage(this.currentDialog.id, {
+                    text: message.text || message.message || '',
+                    attachments: message.attachments || [],
+                });
             } catch (error) {
                 console.error('[Chat Store] Ошибка повторной отправки:', error);
             }
         },
 
-        /**
-         * Удалить сообщение
-         */
         async deleteMessage(messageId) {
             try {
                 await axios.delete(`${BASE}/messages/${messageId}`);
@@ -619,9 +468,6 @@ export const useChatStore = defineStore('chat', {
         // WEBSOCKET / REALTIME
         // ==========================================
 
-        /**
-         * Обработка входящего сообщения
-         */
         handleIncomingMessage(message) {
             if (this.currentDialog &&
                 String(message.dialog_id) === String(this.currentDialog.id)) {
@@ -633,23 +479,27 @@ export const useChatStore = defineStore('chat', {
                 dialog.last_message = message.text || message.message;
                 dialog.last_message_at = message.created_at;
 
+                // Если это не текущий открытый диалог — увеличиваем счётчик
                 if (!this.currentDialog ||
                     String(this.currentDialog.id) !== String(message.dialog_id)) {
-                    dialog.unread_count = (dialog.unread_count || 0) + 1;
+
+                    const key = String(message.dialog_id);
+                    const newCount = (this.byDialogUnread[key] || 0) + 1;
+                    this.byDialogUnread[key] = newCount;
+                    this.totalUnread++;
+                    dialog.unread_count = newCount;
                 }
             } else {
                 this.loadDialogs();
             }
         },
 
-        // ==========================================
-        // СБРОС
-        // ==========================================
-
         $reset() {
             this.dialogs = [];
             this.messages = [];
             this.currentDialog = null;
+            this.totalUnread = 0;
+            this.byDialogUnread = {};
             this.isLoading = false;
             this.isHydrated = false;
             this.isSending = false;

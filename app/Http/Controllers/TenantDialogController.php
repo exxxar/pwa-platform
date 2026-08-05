@@ -618,25 +618,33 @@ class TenantDialogController extends Controller
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
 
-        // Общее количество непрочитанных (исключая свои сообщения)
-        $totalUnread = TenantMessage::query()
+        // 🎯 Правильное условие: непрочитанные, где отправитель — НЕ текущий пользователь
+        $baseQuery = TenantMessage::query()
             ->join('tenant_dialogs', 'tenant_messages.dialog_id', '=', 'tenant_dialogs.id')
             ->where('tenant_dialogs.tenant_id', $tenant->id)
             ->where('tenant_dialogs.tenant_user_id', $user->id)
-            ->where('tenant_dialogs.is_archived', false)
+            ->where(function ($q) {
+                $q->whereNull('tenant_dialogs.is_archived')
+                    ->orWhere('tenant_dialogs.is_archived', false);
+            })
             ->where('tenant_messages.is_read', false)
-            ->where('tenant_messages.tenant_user_id', '!=', $user->id) // не свои
-            ->count();
+            // 🆕 Фильтруем по реальному отправителю, а не по tenant_user_id
+            ->where(function ($q) use ($user) {
+                $q->where(function ($sub) use ($user) {
+                    // Либо отправитель — админ/система
+                    $sub->whereIn('tenant_messages.sender_type', ['admin', 'system']);
+                })
+                    ->orWhere(function ($sub) use ($user) {
+                        // Либо отправитель — другой пользователь (для групповых чатов)
+                        $sub->where('tenant_messages.sender_type', 'user')
+                            ->where('tenant_messages.sender_id', '!=', $user->id);
+                    });
+            });
 
-        // Количество непрочитанных по каждому диалогу
-        $byDialog = TenantMessage::query()
+        $totalUnread = (clone $baseQuery)->count();
+
+        $byDialog = (clone $baseQuery)
             ->select('tenant_messages.dialog_id', DB::raw('COUNT(*) as unread_count'))
-            ->join('tenant_dialogs', 'tenant_messages.dialog_id', '=', 'tenant_dialogs.id')
-            ->where('tenant_dialogs.tenant_id', $tenant->id)
-            ->where('tenant_dialogs.tenant_user_id', $user->id)
-            ->where('tenant_dialogs.is_archived', false)
-            ->where('tenant_messages.is_read', false)
-            ->where('tenant_messages.tenant_user_id', '!=', $user->id)
             ->groupBy('tenant_messages.dialog_id')
             ->pluck('unread_count', 'dialog_id')
             ->map(fn($count) => (int)$count);
