@@ -31,6 +31,43 @@ class TenantDialogController extends Controller
     }
 
 
+    /**
+     * Получить актуальные статусы прочтения для своих сообщений
+     * (для polling, когда нет WebSocket)
+     */
+    public function getReadStatuses($dialogId)
+    {
+        $tenant = app('tenant');
+        $user = Auth::guard('tenant')->user();
+
+        $dialog = TenantDialog::where('id', $dialogId)
+            ->where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)
+            ->first();
+
+        if (!$dialog) {
+            return response()->json(['message' => 'Диалог не найден'], 404);
+        }
+
+        // Возвращаем только ID своих сообщений и время их прочтения
+        $statuses = TenantMessage::where('dialog_id', $dialogId)
+            ->where('sender_type', 'user')
+            ->where('sender_id', $user->id)
+            ->whereNotNull('read_at')
+            ->select('id', 'read_at')
+            ->get()
+            ->mapWithKeys(fn($msg) => [
+                $msg->id => $msg->read_at->toISOString()
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'statuses' => $statuses, // { "123": "2026-01-15T10:30:00Z", ... }
+        ]);
+    }
+
+
+
     public function show($dialogId)
     {
         $tenant = app('tenant');

@@ -1,9 +1,7 @@
 <template>
     <div class="stories-page">
 
-        <!-- ========================================== -->
         <!-- ЗАГОЛОВОК -->
-        <!-- ========================================== -->
         <div class="page-header">
             <div class="header-icon">
                 <i class="fa-solid fa-circle-play"></i>
@@ -11,9 +9,7 @@
             <h2 class="header-title">Истории</h2>
         </div>
 
-        <!-- ========================================== -->
         <!-- КНОПКА СОЗДАНИЯ -->
-        <!-- ========================================== -->
         <div class="create-section">
             <button class="btn-create" @click="openCreateModal">
                 <i class="fa-solid fa-plus"></i>
@@ -21,17 +17,13 @@
             </button>
         </div>
 
-        <!-- ========================================== -->
         <!-- ИНДИКАТОР ЗАГРУЗКИ -->
-        <!-- ========================================== -->
-        <div v-if="loadingStories" class="loading-overlay">
+        <div v-if="isLoading" class="loading-overlay">
             <div class="loading-spinner"></div>
             <p>Загрузка историй...</p>
         </div>
 
-        <!-- ========================================== -->
         <!-- СПИСОК ИСТОРИЙ -->
-        <!-- ========================================== -->
         <div v-else class="stories-container">
 
             <div v-if="stories.length === 0" class="empty-state">
@@ -54,14 +46,14 @@
                     <!-- Превью -->
                     <div
                         class="story-preview"
-                        :class="{ 'is-viewed': isStoryViewed(story.id) }"
+                        :class="{ 'is-viewed': isViewed(story.id) }"
                         @click="openStory(index)"
                     >
                         <img :src="story.thumbnail" :alt="story.title">
                         <div class="preview-overlay">
                             <i class="fa-solid fa-play"></i>
                         </div>
-                        <div v-if="!isStoryViewed(story.id)" class="unviewed-indicator"></div>
+                        <div v-if="!isViewed(story.id)" class="unviewed-indicator"></div>
                     </div>
 
                     <!-- Информация -->
@@ -85,20 +77,16 @@
             </div>
         </div>
 
-        <!-- ========================================== -->
         <!-- ПАГИНАЦИЯ -->
-        <!-- ========================================== -->
         <div v-if="stories_paginate_object && stories_paginate_object.last_page > 1" class="pagination-wrapper">
             <Pagination
                 :simple="true"
-                @pagination_page="nextStories"
+                @pagination_page="loadStoriesList"
                 :pagination="stories_paginate_object"
             />
         </div>
 
-        <!-- ========================================== -->
         <!-- МОДАЛКА: СОЗДАНИЕ/РЕДАКТИРОВАНИЕ -->
-        <!-- ========================================== -->
         <div v-if="showFormModal" class="modal-overlay mobile-fullscreen" @click.self="cancelForm">
             <div class="modal-container form-modal">
                 <div class="modal-header">
@@ -109,7 +97,7 @@
                 </div>
 
                 <div class="modal-body">
-                    <form @submit.prevent="saveStory" class="story-form">
+                    <form @submit.prevent="handleSaveStory" class="story-form">
 
                         <!-- Заголовок -->
                         <div class="form-section">
@@ -129,7 +117,7 @@
                                     class="form-input"
                                     placeholder="Введите заголовок"
                                     required
-                                    :disabled="isSaving"
+                                    :disabled="isStoring"
                                 >
                             </div>
 
@@ -144,7 +132,7 @@
                                     placeholder="Введите описание"
                                     rows="3"
                                     required
-                                    :disabled="isSaving"
+                                    :disabled="isStoring"
                                 ></textarea>
                             </div>
                         </div>
@@ -167,7 +155,7 @@
                                             type="button"
                                             class="remove-btn"
                                             @click="removeFile('thumbnail')"
-                                            :disabled="isSaving"
+                                            :disabled="isStoring"
                                         >
                                             <i class="fa-solid fa-xmark"></i>
                                         </button>
@@ -186,7 +174,7 @@
                                     class="file-input"
                                     accept="image/*"
                                     @change="handleFileUpload($event, 'thumbnail')"
-                                    :disabled="isSaving"
+                                    :disabled="isStoring"
                                     required
                                 >
                             </div>
@@ -210,7 +198,7 @@
                                             type="button"
                                             class="remove-btn"
                                             @click="removeFile('image')"
-                                            :disabled="isSaving"
+                                            :disabled="isStoring"
                                         >
                                             <i class="fa-solid fa-xmark"></i>
                                         </button>
@@ -229,7 +217,7 @@
                                     class="file-input"
                                     accept="image/*"
                                     @change="handleFileUpload($event, 'image')"
-                                    :disabled="isSaving"
+                                    :disabled="isStoring"
                                     required
                                 >
                             </div>
@@ -243,16 +231,14 @@
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label" for="story-link">
-                                    URL ссылки
-                                </label>
+                                <label class="form-label" for="story-link">URL ссылки</label>
                                 <input
                                     id="story-link"
                                     type="url"
                                     v-model="formStory.link"
                                     class="form-input"
                                     placeholder="https://..."
-                                    :disabled="isSaving"
+                                    :disabled="isStoring"
                                 >
                             </div>
 
@@ -262,7 +248,7 @@
                                     id="story-link-type"
                                     v-model="formStory.link_type"
                                     class="form-select"
-                                    :disabled="isSaving"
+                                    :disabled="isStoring"
                                 >
                                     <option v-for="item in link_types" :key="item.key" :value="item.key">
                                         {{ item.title }}
@@ -294,7 +280,7 @@
                                         type="checkbox"
                                         v-model="formStory.need_auto_send_stories"
                                         class="switch-input"
-                                        :disabled="isSaving"
+                                        :disabled="isStoring"
                                     >
                                     <span class="switch-slider"></span>
                                 </div>
@@ -307,16 +293,16 @@
                                 type="button"
                                 class="btn-secondary-modern"
                                 @click="cancelForm"
-                                :disabled="isSaving"
+                                :disabled="isStoring"
                             >
                                 Отмена
                             </button>
                             <button
                                 type="submit"
                                 class="btn-primary-modern"
-                                :disabled="isSaving"
+                                :disabled="isStoring"
                             >
-                                <span v-if="isSaving" class="spinner-small"></span>
+                                <span v-if="isStoring" class="spinner-small"></span>
                                 <template v-else>
                                     <i class="fa-solid fa-floppy-disk"></i>
                                     Сохранить
@@ -328,9 +314,7 @@
             </div>
         </div>
 
-        <!-- ========================================== -->
         <!-- МОДАЛКА: ПРОСМОТР ИСТОРИИ (FULLSCREEN) -->
-        <!-- ========================================== -->
         <div
             v-if="currentStory !== null"
             class="modal-overlay story-viewer"
@@ -383,9 +367,7 @@
             </div>
         </div>
 
-        <!-- ========================================== -->
         <!-- МОДАЛКА: ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ -->
-        <!-- ========================================== -->
         <div v-if="showRemoveModal" class="modal-overlay bottom-sheet" @click.self="closeRemoveModal">
             <div class="modal-container confirm-modal">
                 <div class="confirm-icon danger">
@@ -398,7 +380,7 @@
                 </p>
                 <div class="confirm-actions">
                     <button class="btn-secondary-modern" @click="closeRemoveModal">Отмена</button>
-                    <button class="btn-primary-modern danger" @click="deleteStory" :disabled="isDeleting">
+                    <button class="btn-primary-modern danger" @click="handleDeleteStory" :disabled="isDeleting">
                         <span v-if="isDeleting" class="spinner-small"></span>
                         <span v-else>Удалить</span>
                     </button>
@@ -410,8 +392,8 @@
 </template>
 
 <script>
-import { mapActions } from 'pinia'
-import Pagination from '@/MobileClient/Components/Pagination.vue'
+import Pagination from '@/MobileClient/Components/Pagination.vue';
+import { useStories } from '@/MobileClient/Composables/useStories.js';
 
 export default {
     name: 'StoriesAdmin',
@@ -420,21 +402,40 @@ export default {
         Pagination,
     },
 
+    setup() {
+        // 🎯 Подключаем composable — всё состояние и методы берём отсюда
+        const storiesComposable = useStories();
+
+        return {
+            // Реактивные данные из стора
+            stories: storiesComposable.stories,
+            stories_paginate_object: storiesComposable.stories_paginate_object,
+            isLoading: storiesComposable.isLoading,
+            isStoring: storiesComposable.isStoring,
+            lastError: storiesComposable.lastError,
+
+            // Методы из стора
+            loadStories: storiesComposable.loadStories,
+            saveStory: storiesComposable.saveStory,
+            deleteStory: storiesComposable.deleteStory,
+            isViewed: storiesComposable.isViewed,
+            markAsViewed: storiesComposable.markAsViewed,
+        };
+    },
+
     data() {
         return {
+            // UI-состояние (локальное, не в сторе)
             currentStory: null,
             progress: 0,
             timer: null,
-            loadingStories: false,
-            isSaving: false,
             isDeleting: false,
-            stories: [],
-            stories_paginate_object: null,
             isEditing: false,
             showFormModal: false,
             showRemoveModal: false,
             selectedStory: null,
 
+            // Форма создания/редактирования
             formStory: this.getEmptyForm(),
 
             link_types: [
@@ -442,26 +443,18 @@ export default {
                 { key: 'bot', title: 'Открывает раздел бота' },
                 { key: 'url', title: 'Переход на внешнюю страницу' },
             ],
-
-            viewedStories: JSON.parse(localStorage.getItem('viewedStories') || '[]'),
-        }
+        };
     },
 
     mounted() {
-        this.loadStoriesList()
+        this.loadStoriesList();
     },
 
     beforeUnmount() {
-        clearInterval(this.timer)
+        clearInterval(this.timer);
     },
 
     methods: {
-        ...mapActions('stories', [
-            'loadStories',
-            'saveStoryAction',
-            'deleteStoryAction',
-        ]),
-
         getEmptyForm() {
             return {
                 title: '',
@@ -473,98 +466,80 @@ export default {
                 description: '',
                 link: '',
                 link_type: 'product',
-            }
+            };
         },
 
         // ==========================================
         // ЗАГРУЗКА ИСТОРИЙ
         // ==========================================
         async loadStoriesList(page = 1) {
-            this.loadingStories = true
             try {
-                await this.loadStories({ page, size: 20 })
-                this.stories = this.$store?.getters?.getStories || []
-                this.stories_paginate_object = this.$store?.getters?.getStoriesPaginateObject || null
+                // 🎯 Используем метод из composable — он сам обновляет stories и paginate
+                await this.loadStories({ page, size: 20 });
             } catch (err) {
-                console.error('Ошибка загрузки историй:', err)
+                console.error('Ошибка загрузки историй:', err);
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Не удалось загрузить истории',
                     type: 'error',
-                })
-            } finally {
-                this.loadingStories = false
+                });
             }
-        },
-
-        nextStories(index) {
-            this.loadStoriesList(index)
         },
 
         // ==========================================
         // ПРОСМОТР ИСТОРИЙ
         // ==========================================
         openStory(index) {
-            this.currentStory = index
-            this.progress = 0
-            this.startTimer()
-            this.markAsViewed(this.stories[index].id)
+            this.currentStory = index;
+            this.progress = 0;
+            this.startTimer();
+            // 🎯 Используем метод из composable
+            this.markAsViewed(this.stories[index].id);
         },
 
         closeStory() {
-            this.currentStory = null
-            this.progress = 0
-            clearInterval(this.timer)
+            this.currentStory = null;
+            this.progress = 0;
+            clearInterval(this.timer);
         },
 
         nextStory() {
             if (this.currentStory < this.stories.length - 1) {
-                this.currentStory++
-                this.progress = 0
-                this.markAsViewed(this.stories[this.currentStory].id)
-                this.startTimer()
+                this.currentStory++;
+                this.progress = 0;
+                this.markAsViewed(this.stories[this.currentStory].id);
+                this.startTimer();
             } else {
-                this.closeStory()
+                this.closeStory();
             }
         },
 
         startTimer() {
-            clearInterval(this.timer)
+            clearInterval(this.timer);
             this.timer = setInterval(() => {
-                this.progress += 2
+                this.progress += 2;
                 if (this.progress >= 100) {
-                    this.nextStory()
+                    this.nextStory();
                 }
-            }, 100)
-        },
-
-        isStoryViewed(storyId) {
-            return this.viewedStories.includes(storyId)
-        },
-
-        markAsViewed(storyId) {
-            if (!this.viewedStories.includes(storyId)) {
-                this.viewedStories.push(storyId)
-                localStorage.setItem('viewedStories', JSON.stringify(this.viewedStories))
-            }
+            }, 100);
         },
 
         goToProductLink(url) {
             try {
-                const urlObj = new URL(url)
-                const startParam = urlObj.searchParams.get('start')
-                const decoded = atob(startParam)
-                const slugMatch = decoded.match(/^001slug(\d+)product(\d+)$/)
+                const urlObj = new URL(url);
+                const startParam = urlObj.searchParams.get('start');
+                const decoded = atob(startParam);
+                const slugMatch = decoded.match(/^001slug(\d+)product(\d+)$/);
 
                 if (!slugMatch) {
-                    this.$router.push({ name: 'CatalogV2' })
-                    return
+                    this.$router.push({ name: 'CatalogV2' });
+                    return;
                 }
 
-                const productId = slugMatch[2]
-                this.$router.push({ name: 'ProductV2', params: { productId } })
+                const productId = slugMatch[2];
+                this.$router.push({ name: 'ProductV2', params: { productId } });
             } catch (e) {
-                this.$router.push({ name: 'CatalogV2' })
+                this.$router.push({ name: 'CatalogV2' });
             }
         },
 
@@ -572,113 +547,104 @@ export default {
         // ФОРМА
         // ==========================================
         openCreateModal() {
-            this.formStory = this.getEmptyForm()
-            this.isEditing = false
-            this.showFormModal = true
+            this.formStory = this.getEmptyForm();
+            this.isEditing = false;
+            this.showFormModal = true;
         },
 
         cancelForm() {
-            // Очищаем превью для освобождения памяти
             if (this.formStory.thumbnailPreview) {
-                URL.revokeObjectURL(this.formStory.thumbnailPreview)
+                URL.revokeObjectURL(this.formStory.thumbnailPreview);
             }
             if (this.formStory.imagePreview) {
-                URL.revokeObjectURL(this.formStory.imagePreview)
+                URL.revokeObjectURL(this.formStory.imagePreview);
             }
-            this.formStory = this.getEmptyForm()
-            this.showFormModal = false
+            this.formStory = this.getEmptyForm();
+            this.showFormModal = false;
         },
 
         handleFileUpload(event, param) {
-            const file = event.target.files?.[0]
-            if (!file) return
+            const file = event.target.files?.[0];
+            if (!file) return;
 
-            const maxSize = 5 * 1024 * 1024 // 5 МБ
+            const maxSize = 5 * 1024 * 1024;
             if (file.size > maxSize) {
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Размер файла не должен превышать 5 МБ',
                     type: 'error',
-                })
-                event.target.value = null
-                return
+                });
+                event.target.value = null;
+                return;
             }
 
-            // Очищаем старый превью
-            const oldPreviewKey = param + 'Preview'
+            const oldPreviewKey = param + 'Preview';
             if (this.formStory[oldPreviewKey]) {
-                URL.revokeObjectURL(this.formStory[oldPreviewKey])
+                URL.revokeObjectURL(this.formStory[oldPreviewKey]);
             }
 
-            this.formStory[param] = file
-            this.formStory[oldPreviewKey] = URL.createObjectURL(file)
+            this.formStory[param] = file;
+            this.formStory[oldPreviewKey] = URL.createObjectURL(file);
         },
 
         removeFile(param) {
-            const previewKey = param + 'Preview'
+            const previewKey = param + 'Preview';
 
             if (this.formStory[previewKey]) {
-                URL.revokeObjectURL(this.formStory[previewKey])
+                URL.revokeObjectURL(this.formStory[previewKey]);
             }
 
-            this.formStory[param] = null
-            this.formStory[previewKey] = null
+            this.formStory[param] = null;
+            this.formStory[previewKey] = null;
 
-            // Сбрасываем input
-            const inputRef = param === 'thumbnail' ? 'thumbnailInput' : 'imageInput'
+            const inputRef = param === 'thumbnail' ? 'thumbnailInput' : 'imageInput';
             if (this.$refs[inputRef]) {
-                this.$refs[inputRef].value = ''
+                this.$refs[inputRef].value = '';
             }
         },
 
-        async saveStory() {
-            this.isSaving = true
-
+        async handleSaveStory() {
             try {
-                const data = new FormData()
+                const data = new FormData();
 
-                // Добавляем все поля формы
                 Object.keys(this.formStory).forEach(key => {
-                    // Пропускаем preview-поля
-                    if (key.endsWith('Preview')) return
+                    if (key.endsWith('Preview')) return;
 
-                    const item = this.formStory[key]
+                    const item = this.formStory[key];
                     if (item !== null && item !== undefined) {
                         if (typeof item === 'object' && !(item instanceof File)) {
-                            data.append(key, JSON.stringify(item))
+                            data.append(key, JSON.stringify(item));
                         } else {
-                            data.append(key, item)
+                            data.append(key, item);
                         }
                     }
-                })
+                });
 
-                // Добавляем файлы
                 if (this.formStory.thumbnail) {
-                    data.append('thumbnail[]', this.formStory.thumbnail)
+                    data.append('thumbnail[]', this.formStory.thumbnail);
                 }
                 if (this.formStory.image) {
-                    data.append('image[]', this.formStory.image)
+                    data.append('image[]', this.formStory.image);
                 }
 
-                await this.saveStoryAction({ storyForm: data })
+                // 🎯 Используем метод из composable
+                await this.saveStory(data);
 
                 this.$notify?.({
                     title: 'Успех',
                     text: 'История успешно сохранена',
                     type: 'success',
-                })
+                });
 
-                this.cancelForm()
-                this.loadStoriesList()
+                this.cancelForm();
+                this.loadStoriesList();
             } catch (err) {
-                console.error('Ошибка сохранения истории:', err)
+                console.error('Ошибка сохранения истории:', err);
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Не удалось сохранить историю',
                     type: 'error',
-                })
-            } finally {
-                this.isSaving = false
+                });
             }
         },
 
@@ -686,45 +652,47 @@ export default {
         // УДАЛЕНИЕ
         // ==========================================
         openRemoveModal(story) {
-            this.selectedStory = story
-            this.showRemoveModal = true
+            this.selectedStory = story;
+            this.showRemoveModal = true;
         },
 
         closeRemoveModal() {
-            this.showRemoveModal = false
-            this.selectedStory = null
+            this.showRemoveModal = false;
+            this.selectedStory = null;
         },
 
-        async deleteStory() {
-            if (!this.selectedStory) return
+        async handleDeleteStory() {
+            if (!this.selectedStory) return;
 
-            this.isDeleting = true
+            this.isDeleting = true;
 
             try {
-                await this.deleteStoryAction({ id: this.selectedStory.id })
+                // 🎯 Используем метод из composable
+                await this.deleteStory(this.selectedStory.id);
 
                 this.$notify?.({
                     title: 'Успех',
                     text: 'История удалена',
                     type: 'success',
-                })
+                });
 
-                this.closeRemoveModal()
-                this.loadStoriesList()
+                this.closeRemoveModal();
+                this.loadStoriesList();
             } catch (err) {
-                console.error('Ошибка удаления истории:', err)
+                console.error('Ошибка удаления истории:', err);
                 this.$notify?.({
                     title: 'Ошибка',
                     text: 'Не удалось удалить историю',
                     type: 'error',
-                })
+                });
             } finally {
-                this.isDeleting = false
+                this.isDeleting = false;
             }
         },
     },
-}
+};
 </script>
+
 
 <style lang="scss" scoped>
 @use "sass:color";

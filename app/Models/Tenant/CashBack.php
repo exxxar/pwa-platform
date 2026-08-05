@@ -2,10 +2,10 @@
 
 namespace App\Models\Tenant;
 
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CashBack extends Model
@@ -16,28 +16,11 @@ class CashBack extends Model
         'tenant_id',
         'tenant_user_id',
         'amount',
-        'sub_title',
-        'description',
-        'fired_at',
     ];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array
-     */
     protected $casts = [
-        'id' => 'integer',
-        'user_id' => 'integer',
-        'bot_id' => 'integer',
-        'bot_user_id' => 'integer',
-        'amount' => 'double',
-        'fired_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
+        'amount' => 'decimal:2',
     ];
-
 
     public function tenant(): BelongsTo
     {
@@ -46,8 +29,12 @@ class CashBack extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(TenantUser::class);
+        return $this->belongsTo(TenantUser::class, 'tenant_user_id');
     }
 
-
+    public function histories(): HasMany
+    {
+        return $this->hasMany(CashBackHistory::class, 'tenant_user_id', 'tenant_user_id')
+            ->where('tenant_id', $this->tenant_id);
+    }
 }

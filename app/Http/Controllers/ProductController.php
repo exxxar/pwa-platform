@@ -406,7 +406,7 @@ class ProductController extends Controller
             ->createOrUpdateCategory($request->all());
     }
 
-    public function getCategories(Request $request): \App\Services\CategoryCollection
+    public function getCategories(Request $request): CategoryCollection
     {
         return ProductService::call()
             ->categories(

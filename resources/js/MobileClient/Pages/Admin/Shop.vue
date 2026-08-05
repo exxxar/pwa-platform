@@ -71,44 +71,7 @@
             <!-- Вкладка: Обновление данных -->
             <div v-if="tab === 4" class="admin-grid fade-in">
 
-                <!-- Блок 1: Синхронизация с ВК -->
-                <div class="admin-card">
-                    <div class="card-header-simple">
-                        <i class="fa-brands fa-vk section-icon vk"></i>
-                        <h3>Синхронизация с ВКонтакте</h3>
-                    </div>
-                    <form @submit.prevent="updateShopLink" class="admin-form">
-                        <div class="form-group">
-                            <label class="form-label">Ссылка на страницу ВК с товарами</label>
-                            <input
-                                type="url"
-                                class="form-control-modern"
-                                placeholder="https://vk.com/..."
-                                v-model="botForm.vk_shop_link"
-                                required
-                            >
-                        </div>
-                        <button type="submit" :disabled="load" class="btn-primary-modern w-100">
-                            <i class="fa-regular fa-floppy-disk"></i> Сохранить ссылку
-                        </button>
-                    </form>
 
-                    <div v-if="link" class="mt-3 pt-3 border-top">
-                        <p class="text-muted small mb-2">
-                            <i class="fa-solid fa-circle-info"></i>
-                            При обновлении текущие товары будут заменены на новые из ВК.
-                        </p>
-                        <button @click="openUpdateModal" class="btn-warning-modern w-100">
-                            <i class="fa-solid fa-arrows-rotate"></i> Загрузить товары из ВК
-                        </button>
-                    </div>
-                    <div v-else class="mt-3">
-                        <div class="skeleton-btn">
-                            <i class="fa-brands fa-vk"></i> Подготовка ссылки...
-                            <span class="spinner"></span>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Блок 2: Интеграция FrontPad / IIKO -->
                 <div class="admin-card" v-if="tenant.frontPad?.is_active || tenant.iiko?.is_active">
@@ -143,11 +106,11 @@
                         <h3>Экспорт и Импорт данных</h3>
                     </div>
                     <div class="button-stack">
-                        <button @click="exportProducts" :disabled="load" class="btn-success-modern w-100">
+                        <button @click="handleExportProducts" :disabled="load" class="btn-success-modern w-100">
                             <i class="fa-solid fa-file-export"></i> Экспорт товаров в XLS
                         </button>
 
-                        <button @click="exportOrders" :disabled="load" class="btn-outline-modern w-100">
+                        <button @click="handleExportOrders" :disabled="load" class="btn-outline-modern w-100">
                             <i class="fa-solid fa-file-export"></i> Экспорт заказов в XLS
                         </button>
 
@@ -160,101 +123,17 @@
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- МОДАЛКА: Обновление из ВК -->
-        <!-- ========================================== -->
-        <div v-if="showUpdateModal" class="modal-overlay" @click.self="hideUpdateModal">
-            <div class="modal-container confirm-modal">
-                <div class="confirm-icon warning">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
-                </div>
-                <h4>Обновить товары из ВК?</h4>
-                <p>Текущие товары в базе будут <strong>полностью удалены</strong> и заменены на новые.</p>
-                <div class="confirm-actions">
-                    <button class="btn-secondary-modern" @click="hideUpdateModal">Отмена</button>
-                    <button class="btn-warning-modern" @click="doUpdateProducts" :disabled="load">
-                        <span v-if="load" class="spinner-small"></span>
-                        <span v-else>Да, обновить</span>
-                    </button>
-                </div>
-            </div>
-        </div>
 
-        <!-- ========================================== -->
-        <!-- МОДАЛКА: Обновление из FrontPad -->
-        <!-- ========================================== -->
-        <div v-if="showFrontPadModal" class="modal-overlay" @click.self="hideUpdateFrontPadModal">
-            <div class="modal-container frontpad-modal">
-                <div class="modal-header">
-                    <h3>Обновление из FrontPad</h3>
-                    <button class="modal-close" @click="hideUpdateFrontPadModal">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-
-                <div class="modal-body">
-                    <div class="admin-tabs mb-3">
-                        <button
-                            :class="{ 'active': frontpad_tab === 1 }"
-                            @click="frontpad_tab = 1"
-                        >API Синхронизация
-                        </button>
-                        <button
-                            :class="{ 'active': frontpad_tab === 0 }"
-                            @click="frontpad_tab = 0"
-                        >Загрузка Excel
-                        </button>
-                    </div>
-
-                    <template v-if="frontpad_tab === 1">
-                        <div class="alert-warning-simple mb-3">
-                            <i class="fa-solid fa-clock"></i>
-                            <span>Обновление по API доступно не чаще 1 раза в час.</span>
-                        </div>
-                        <div class="confirm-actions">
-                            <button class="btn-secondary-modern" @click="hideUpdateFrontPadModal">Отмена</button>
-                            <button class="btn-primary-modern" @click="doUpdateFrontPadProducts" :disabled="load">
-                                <span v-if="load" class="spinner-small"></span>
-                                <span v-else>Да, обновить</span>
-                            </button>
-                        </div>
-                    </template>
-
-                    <template v-if="frontpad_tab === 0">
-                        <form @submit.prevent="submitFrontPadFile" class="upload-area">
-                            <input
-                                type="file"
-                                ref="fileInput"
-                                id="excelFileInput"
-                                accept=".xlsx,.xls"
-                                @change="handleFileUpload"
-                                class="file-input"
-                            >
-                            <label for="excelFileInput" class="file-label">
-                                <i class="fa-solid fa-cloud-arrow-up"></i>
-                                <span>{{ selectedFile ? selectedFile.name : 'Нажмите для выбора файла Excel' }}</span>
-                            </label>
-                            <button type="submit" class="btn-primary-modern w-100 mt-3"
-                                    :disabled="!selectedFile || load">
-                                <span v-if="load" class="spinner-small me-2"></span>
-                                Отправить файл
-                            </button>
-                        </form>
-                    </template>
-                </div>
-            </div>
-        </div>
 
     </div>
 </template>
 
 <script>
-import {mapActions} from 'pinia'
-import {useProductsStore} from '@/MobileClient/stores/Shop/products'
-import ProductForm from '@/MobileClient/Components/Admin/Shop/ProductForm.vue'
-import ProductList from '@/MobileClient/Components/Admin/Shop/ProductList.vue'
-import ProductCategoryList from '@/MobileClient/Components/Admin/Shop/ProductCategoryList.vue'
-import CollectionList from '@/MobileClient/Components/Admin/Shop/CollectionList.vue'
+import { useProducts } from '@/MobileClient/Composables/useProducts.js';
+import ProductForm from '@/MobileClient/Components/Admin/Shop/ProductForm.vue';
+import ProductList from '@/MobileClient/Components/Admin/Shop/ProductList.vue';
+import ProductCategoryList from '@/MobileClient/Components/Admin/Shop/ProductCategoryList.vue';
+import CollectionList from '@/MobileClient/Components/Admin/Shop/CollectionList.vue';
 
 export default {
     name: 'AdminShop',
@@ -264,6 +143,27 @@ export default {
         ProductList,
         ProductCategoryList,
         CollectionList,
+    },
+
+    setup() {
+        // 🎯 Подключаем composable — все методы и состояние берём оттуда
+        const productsComposable = useProducts();
+
+        return {
+            // Состояние из стора
+            products: productsComposable.products,
+            categories: productsComposable.categories,
+            collections: productsComposable.collections,
+            isLoading: productsComposable.isLoading,
+
+            // Методы синхронизации
+
+
+            updateProductsFromFrontPadExcel: productsComposable.updateProductsFromFrontPadExcel,
+            updateShopLinkAction: productsComposable.updateShopLink,
+            exportAllProducts: productsComposable.exportAllProducts,
+            exportAllOrders: productsComposable.exportAllOrders,
+        };
     },
 
     data() {
@@ -279,225 +179,173 @@ export default {
                 vk_shop_link: null,
             },
             navItems: [
-                {id: 0, label: 'Товары', icon: 'fa-solid fa-box'},
-                {id: 2, label: 'Категории', icon: 'fa-solid fa-layer-group'},
-                {id: 3, label: 'Подборки (Комбо)', icon: 'fa-solid fa-box-open'},
-                {id: 4, label: 'Синхронизация', icon: 'fa-solid fa-arrows-rotate'},
+                { id: 0, label: 'Товары', icon: 'fa-solid fa-box' },
+                { id: 2, label: 'Категории', icon: 'fa-solid fa-layer-group' },
+                { id: 3, label: 'Подборки (Комбо)', icon: 'fa-solid fa-box-open' },
+                { id: 4, label: 'Синхронизация', icon: 'fa-solid fa-arrows-rotate' },
             ],
 
-            // Vue-модалки
+            // UI-состояние для модалок
             showUpdateModal: false,
             showFrontPadModal: false,
-        }
+        };
     },
 
     computed: {
         tenant() {
-            return window.Tenant || null
+            return window.Tenant || null;
         },
-
         self() {
-            return window.TenantUser || null
+            return window.TenantUser || null;
         },
     },
 
     mounted() {
-        this.botForm.vk_shop_link = this.tenant?.vk_shop_link || null
-        this.updateProducts()
+        this.botForm.vk_shop_link = this.tenant?.vk_shop_link || null;
+
     },
 
     methods: {
-        // Подключаем действия стора
-        ...mapActions(useProductsStore, [
-            'updateProductsFromVk',
-            'updateProductsFromFrontPad',
-            'updateProductsFromFrontPadExcel',
-            'updateShopLink',
-            'exportAllProducts',
-            'exportAllOrders',
-        ]),
-
         switchTab(id) {
-            this.tab = id
+            this.tab = id;
             if (id !== 1) {
-                this.selectedProduct = null
+                this.selectedProduct = null;
             }
         },
 
         handleFileUpload(event) {
-            const file = event.target.files[0]
+            const file = event.target.files[0];
             if (file) {
-                this.selectedFile = file
+                this.selectedFile = file;
             }
         },
 
         async submitFrontPadFile() {
-            if (!this.selectedFile) return
-            this.load = true
+            if (!this.selectedFile) return;
+            this.load = true;
 
-            const formData = new FormData()
-            formData.append('excel_file', this.selectedFile)
+            const formData = new FormData();
+            formData.append('excel_file', this.selectedFile);
 
             try {
-                await this.updateProductsFromFrontPadExcel({form: formData})
-                this.$notify?.({title: 'Импорт данных', text: 'Файл успешно обработан!', type: 'success'})
-                this.selectedFile = null
+                // 🎯 Используем метод из composable
+                await this.updateProductsFromFrontPadExcel({ form: formData });
+                this.$notify?.({ title: 'Импорт данных', text: 'Файл успешно обработан!', type: 'success' });
+                this.selectedFile = null;
 
-                // Сброс значения input
                 if (this.$refs.fileInput) {
-                    this.$refs.fileInput.value = ''
+                    this.$refs.fileInput.value = '';
                 }
 
-                this.hideUpdateFrontPadModal()
+                this.hideUpdateFrontPadModal();
             } catch (err) {
-                console.error(err)
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить файл', type: 'error'})
+                console.error(err);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось загрузить файл', type: 'error' });
             } finally {
-                this.load = false
+                this.load = false;
             }
         },
 
-        async doUpdateProducts() {
-            this.load = true
-            try {
-                // Сначала получаем ссылку на бэкап
-                const resp = await this.exportAllProducts()
-                const backupLink = resp?.url || null
 
-                // Потом обновляем товары из ВК
-                const updateResp = await this.updateProductsFromVk()
-                this.link = updateResp?.data?.url || null
 
-                // Открываем ссылку на бэкап, если она есть
-                if (backupLink) {
-                    window.open(backupLink, '_blank')
-                }
-
-                this.$notify?.({title: 'Успех', text: 'Товары обновлены из ВК', type: 'success'})
-                this.hideUpdateModal()
-            } catch (err) {
-                console.error('Ошибка при обновлении из ВК:', err)
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось обновить товары', type: 'error'})
-            } finally {
-                this.load = false
-            }
-        },
-
-        async doUpdateFrontPadProducts() {
-            this.load = true
-            try {
-                await this.updateProductsFromFrontPad()
-                this.$notify?.({title: 'Синхронизация', text: 'Данные из FrontPad обновлены', type: 'success'})
-                this.hideUpdateFrontPadModal()
-            } catch (err) {
-                console.error(err)
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось обновить данные', type: 'error'})
-            } finally {
-                this.load = false
-            }
-        },
 
         hideUpdateFrontPadModal() {
-            this.showFrontPadModal = false
-            this.selectedFile = null
-            this.frontpad_tab = 0
+            this.showFrontPadModal = false;
+            this.selectedFile = null;
+            this.frontpad_tab = 0;
             if (this.$refs.fileInput) {
-                this.$refs.fileInput.value = ''
+                this.$refs.fileInput.value = '';
             }
         },
 
         openFrontPadUpdateModal() {
-            this.showFrontPadModal = true
+            this.showFrontPadModal = true;
         },
 
         openUpdateModal() {
-            this.showUpdateModal = true
+            this.showUpdateModal = true;
         },
 
         hideUpdateModal() {
-            this.showUpdateModal = false
+            this.showUpdateModal = false;
         },
 
         goTo(name) {
-            this.$router.push({name})
+            this.$router.push({ name });
         },
 
-        async updateShopLink() {
+        // 🎯 Переименовал, чтобы не было конфликта с action из стора
+        async handleUpdateShopLink() {
             if (!this.botForm.vk_shop_link?.trim()) {
-                this.$notify?.({title: 'Ошибка', text: 'Введите ссылку на ВК', type: 'error'})
-                return
+                this.$notify?.({ title: 'Ошибка', text: 'Введите ссылку на ВК', type: 'error' });
+                return;
             }
 
-            this.load = true
+            this.load = true;
             try {
-                await this.updateShopLink({botForm: this.botForm})
-                this.$notify?.({title: 'Настройки', text: 'Ссылка на источник ВК сохранена', type: 'success'})
-                await this.updateProducts()
+                // 🎯 Используем метод из composable
+                await this.updateShopLinkAction({ botForm: this.botForm });
+                this.$notify?.({ title: 'Настройки', text: 'Ссылка на источник ВК сохранена', type: 'success' });
+                await this.fetchInitialLink();
             } catch (err) {
-                console.error(err)
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить ссылку', type: 'error'})
+                console.error(err);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить ссылку', type: 'error' });
             } finally {
-                this.load = false
+                this.load = false;
             }
         },
 
         refresh() {
-            this.load = true
-            this.selectedProduct = null
+            this.load = true;
+            this.selectedProduct = null;
             this.$nextTick(() => {
-                this.load = false
-            })
+                this.load = false;
+            });
         },
 
         selectProduct(product) {
-            this.selectedProduct = product
-            this.tab = 1
+            this.selectedProduct = product;
+            this.tab = 1;
         },
 
-        async exportOrders() {
-            this.load = true
+        // 🎯 Переименовал локальные методы-обёртки для избежания конфликтов
+        async handleExportOrders() {
+            this.load = true;
             try {
-                await this.exportAllOrders()
-                this.$notify?.({title: 'Экспорт', text: 'Заказы экспортированы в файл', type: 'success'})
+                await this.exportAllOrders();
+                this.$notify?.({ title: 'Экспорт', text: 'Заказы экспортированы в файл', type: 'success' });
             } catch (err) {
-                console.error(err)
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось экспортировать заказы', type: 'error'})
+                console.error(err);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось экспортировать заказы', type: 'error' });
             } finally {
-                this.load = false
+                this.load = false;
             }
         },
 
-        async exportProducts() {
-            this.load = true
+        async handleExportProducts() {
+            this.load = true;
             try {
-                await this.exportAllProducts()
-                this.$notify?.({title: 'Экспорт', text: 'Товары экспортированы в файл', type: 'success'})
+                await this.exportAllProducts();
+                this.$notify?.({ title: 'Экспорт', text: 'Товары экспортированы в файл', type: 'success' });
             } catch (err) {
-                console.error(err)
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось экспортировать товары', type: 'error'})
+                console.error(err);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось экспортировать товары', type: 'error' });
             } finally {
-                this.load = false
+                this.load = false;
             }
         },
 
         importProducts() {
-            this.$notify?.({title: 'Информация', text: 'Функция импорта находится в разработке', type: 'info'})
+            this.$notify?.({ title: 'Информация', text: 'Функция импорта находится в разработке', type: 'info' });
         },
 
-        async updateProducts() {
-            this.load = true
-            try {
-                const resp = await this.updateProductsFromVk()
-                this.link = resp?.data?.url || null
-            } catch (err) {
-                console.error(err)
-            } finally {
-                this.load = false
-            }
-        },
+
+
     },
-}
+};
 </script>
+
+
 
 <style lang="scss" scoped>
 @use "sass:color";
@@ -723,7 +571,7 @@ $admin-success: #10b981;
 .btn-primary-modern {
     background: $admin-primary;
     color: white;
-
+    width:100%;
     &:hover {
         background:  color.adjust($admin-primary, $lightness: -5%);
     }

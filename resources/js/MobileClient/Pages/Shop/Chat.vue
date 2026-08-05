@@ -169,22 +169,29 @@
                                 <div class="message-text" v-if="message.text || message.message"
                                      v-html="message.text || message.message"></div>
                                 <div class="message-meta">
-                                    <!-- 🆕 Имя отправителя (теперь внизу, кликабельное) -->
-                                    <span
-                                        v-if="!isMine(message) && getSenderName(message)"
-                                        class="sender-name-inline"
-                                        @click="openInterlocutorInfo"
-                                        title="Показать информацию о собеседнике"
-                                    >
-                                        <i class="fa-regular fa-user"></i>
-                                        {{ getSenderName(message) }}
-                                    </span>
+            <span
+                v-if="!isMine(message) && getSenderName(message)"
+                class="sender-name-inline"
+                @click="openInterlocutorInfo"
+            >
+                <i class="fa-regular fa-user"></i>
+                {{ getSenderName(message) }}
+            </span>
 
                                     <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
                                     <span v-if="isMine(message)" class="message-status">
-                                        <i :class="getStatusIcon(message)"></i>
-                                    </span>
+                <i :class="getStatusIcon(message)"></i>
+            </span>
                                 </div>
+                            </div>
+
+                            <!-- 🆕 ПОДПИСЬ "ПРОСМОТРЕНО В HH:MM" -->
+                            <div
+                                v-if="isMine(message) && message.read_at && isLastMineInGroup(index)"
+                                class="read-receipt"
+                            >
+                                <i class="fa-solid fa-eye"></i>
+                                <span>Просмотрено в {{ formatMessageTime(message.read_at) }}</span>
                             </div>
                         </template>
 
@@ -497,7 +504,40 @@ export default {
             }
         }
     },
+    mounted() {
 
+        // 🆕 Запуск polling статусов прочтения
+        if (this.currentDialog?.id) {
+            this.startReadStatusPolling?.(this.currentDialog.id);
+        }
+
+        // 🆕 Обработка push из Service Worker (VAPID)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data?.type === 'NEW_CHAT_MESSAGE') {
+                    const payload = event.data.payload;
+                    if (this.currentDialog &&
+                        String(payload.dialog_id) === String(this.currentDialog.id)) {
+                        this.handleIncomingMessage?.(payload.message);
+                        this.refreshReadStatuses?.(this.currentDialog.id);
+                    } else {
+                        this.loadDialogs?.();
+                    }
+                }
+                if (event.data?.type === 'OPEN_CHAT' && event.data.dialogId) {
+                    this.$router.push({
+                        name: 'ChatRoom',
+                        params: { id: event.data.dialogId }
+                    }).catch(() => {});
+                }
+            });
+        }
+    },
+
+    beforeUnmount() {
+        // 🆕 Остановка polling при уходе
+        this.stopReadStatusPolling?.();
+    },
     methods: {
         // 🆕 Добавьте этот метод, если его нет в useChat или локально
         // 🆕 Исправленный метод повторной отправки
@@ -697,6 +737,10 @@ export default {
         getStatusIcon(message) {
             if (message.status === 'sending') return 'fa-solid fa-clock';
             if (message.status === 'error') return 'fa-solid fa-circle-exclamation error-icon';
+
+            // 🆕 Если есть время прочтения — синие двойные галочки
+            if (message.read_at) return 'fa-solid fa-check-double status-read';
+
             if (message.status === 'read') return 'fa-solid fa-check-double status-read';
             if (message.status === 'delivered') return 'fa-solid fa-check-double status-delivered';
             return 'fa-solid fa-check status-sent';
@@ -704,6 +748,14 @@ export default {
 
         isMine(message) {
             return isMyMessage(message, this.user?.id);
+        },
+
+        isLastMineInGroup(index) {
+            const current = this.sortedMessages[index];
+            const next = this.sortedMessages[index + 1];
+            if (!this.isMine(current)) return false;
+            if (!next) return true;
+            return !this.isMine(next);
         },
         shouldShowTail(index) {
             const current = this.sortedMessages[index];
@@ -880,8 +932,16 @@ export default {
         handleScroll() {
             const container = this.$refs.messagesContainer;
             if (!container) return;
+
             const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
             this.autoScroll = isAtBottom;
+
+            // 🆕 Доскроллили до низа — отмечаем как прочитанное
+            if (isAtBottom && this.currentDialog) {
+                this.markDialogAsRead(this.currentDialog.id);
+            }
+
+            // Подгрузка старых сообщений
             if (container.scrollTop < 100 && this.hasMoreMessages && !this.isMessagesLoading) {
                 const previousHeight = container.scrollHeight;
                 this.loadOlderMessages().then(() => {
@@ -2697,5 +2757,53 @@ $warning: #f59e0b;
             }
         }
     }
+}
+
+// ==========================================
+// 🆕 READ RECEIPT
+// ==========================================
+.read-receipt {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+    margin-left: auto;
+    padding: 2px 10px;
+    background: rgba($primary, 0.08);
+    color: $primary;
+    border-radius: 10px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    animation: readReceiptIn 0.3s ease;
+    max-width: fit-content;
+
+    i {
+        font-size: 0.7rem;
+        opacity: 0.8;
+    }
+}
+
+@keyframes readReceiptIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.message-status {
+    .status-read {
+        color: #60a5fa !important;
+        animation: readPulse 0.3s ease;
+    }
+}
+
+@keyframes readPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.25); }
+    100% { transform: scale(1); }
 }
 </style>

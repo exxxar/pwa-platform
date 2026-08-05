@@ -17,11 +17,6 @@ class PaymentCallbackController extends Controller
 {
     /**
      * 🆕 Универсальный обработчик callback'ов для всех банков
-     *
-     * @param Request $request
-     * @param string $bank Ключ банка (tinkoff, sber, psb, vtb, yandex)
-     * @param string $tenantSlug Slug или ID тенанта
-     * @return \Illuminate\Http\JsonResponse|string
      */
     public function handleProductsCallback(Request $request, string $bank, string $tenantSlug)
     {
@@ -63,13 +58,19 @@ class PaymentCallbackController extends Controller
     public function tinkoffProductsCallback(Request $request, string $tenantSlug)
     {
         try {
-            // 🎯 Webhook ДОЛЖЕН вернуть то, что ожидает банк (обычно JSON с подтверждением)
             $result = PaymentService::call()->sbpNotificationProductsPayment($request->all());
 
-            // 🆕 Опционально: Если PaymentService вернул информацию об успешном заказе,
-            // мы можем здесь инициировать событие (например, WebSocket/Pusher),
-            // чтобы фронтенд мгновенно узнал об оплате и сам сделал редирект.
-            // event(new OrderPaidSuccessfully($orderId));
+            // 🆕 Проверяем, была ли оплата успешной
+            $data = $request->all();
+            if (isset($data['Status']) && $data['Status'] === 'CONFIRMED') {
+                $orderId = $data['OrderId'] ?? null;
+                if ($orderId) {
+                    $order = Order::query()->where('id', $orderId)->first();
+                    if ($order) {
+                        $this->sendPaymentSuccessNotification($order, 'Тинькофф', $data);
+                    }
+                }
+            }
 
             return $result;
 
@@ -79,13 +80,9 @@ class PaymentCallbackController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            // Важно: даже при ошибке иногда нужно вернуть специфичный ответ банку,
-            // чтобы он не спамил вебхуками. Зависит от документации Тинькофф.
             return response()->json(['message' => 'Error processing payment'], 500);
         }
     }
-
-    // Аналогично обновите sberProductsCallback, psbProductsCallback и т.д.
 
     /**
      * Callback для оплаты товаров от Сбера
@@ -120,6 +117,9 @@ class PaymentCallbackController extends Controller
                         webhookData: $data
                     );
                 }
+
+                // 🆕 Отправляем уведомление в Telegram
+                $this->sendPaymentSuccessNotification($order, 'Сбербанк', $data);
 
                 Log::info("[SberCallback] Order #{$orderId} paid successfully");
                 return response()->json(['message' => 'OK'], 200);
@@ -177,6 +177,9 @@ class PaymentCallbackController extends Controller
                     );
                 }
 
+                // 🆕 Отправляем уведомление в Telegram
+                $this->sendPaymentSuccessNotification($order, 'Промсвязьбанк', $data);
+
                 Log::info("[PsbCallback] Order #{$orderId} paid successfully");
                 return response()->json(['status' => 'OK'], 200);
             }
@@ -233,6 +236,9 @@ class PaymentCallbackController extends Controller
                     );
                 }
 
+                // 🆕 Отправляем уведомление в Telegram
+                $this->sendPaymentSuccessNotification($order, 'ВТБ', $data);
+
                 Log::info("[VtbCallback] Order #{$orderId} paid successfully");
                 return response()->json(['status' => 'OK'], 200);
             }
@@ -261,7 +267,7 @@ class PaymentCallbackController extends Controller
     public function yookassaProductsCallback(Request $request, string $tenantSlug)
     {
         try {
-            // Проверка IP-адреса (защита от поддельных вебхуков)
+            // Проверка IP-адреса
             $allowedIps = [
                 '185.71.76.0/27',
                 '185.71.88.0/27',
@@ -308,6 +314,9 @@ class PaymentCallbackController extends Controller
                     );
                 }
 
+                // 🆕 Отправляем уведомление в Telegram
+                $this->sendPaymentSuccessNotification($order, 'ЮKassa', $data);
+
                 Log::info("[YookassaCallback] Order #{$orderId} paid successfully", [
                     'payment_id' => $paymentId,
                     'amount' => $amount
@@ -332,6 +341,119 @@ class PaymentCallbackController extends Controller
             Log::error("[YookassaCallback] Error", ['error' => $e->getMessage()]);
             return response()->json(['message' => 'Error'], 500);
         }
+    }
+
+    /**
+     * 🆕 ОТПРАВКА УВЕДОМЛЕНИЯ ОБ УСПЕШНОЙ ОПЛАТЕ В TELEGRAM
+     */
+    private function sendPaymentSuccessNotification(Order $order, string $bankName, array $webhookData): void
+    {
+        try {
+            $tenant = app('tenant');
+
+            // 1. Получаем настройки Telegram
+            $tgSettings = $tenant->settings['telegram'] ?? [];
+            $token = $tgSettings['token'] ?? null;
+            $channelId = $tgSettings['channel_id'] ?? null;
+
+            if (!$token || !$channelId) {
+                return;
+            }
+
+            // 2. Загружаем связанные данные
+            $order->load(['user', 'products']);
+
+            // 3. Формируем сообщение
+            $message = "✅ <b>ЗАКАЗ ОПЛАЧЕН #{$order->id}</b>\n";
+            $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+            $message .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
+
+            // Информация о клиенте
+            if ($order->receiver_name) {
+                $message .= "👤 <b>Клиент:</b> {$order->receiver_name}\n";
+            }
+            if ($order->receiver_phone) {
+                $message .= "📞 <b>Телефон:</b> <code>{$order->receiver_phone}</code>\n";
+            }
+
+            // Информация об оплате
+            $message .= "🏦 <b>Банк:</b> {$bankName}\n";
+
+            $totalAmount = $order->summary_price + $order->delivery_price;
+            $message .= "💰 <b>Сумма:</b> " . number_format($totalAmount, 0, '.', ' ') . " ₽\n";
+
+            if ($order->delivery_price > 0) {
+                $message .= "🚚 <b>Доставка:</b> " . number_format($order->delivery_price, 0, '.', ' ') . " ₽\n";
+            }
+
+            // Состав заказа
+            if ($order->products && $order->products->count() > 0) {
+                $message .= "\n🛒 <b>Состав заказа:</b>\n";
+
+                foreach ($order->products as $product) {
+                    $price = number_format($product->pivot->price ?? $product->price, 0, '.', ' ');
+                    $count = $product->pivot->count ?? 1;
+                    $message .= "  • {$product->name} x{$count} = {$price} ₽\n";
+                }
+            }
+
+            // Дополнительная информация из webhook
+            if (!empty($webhookData['PaymentId'])) {
+                $message .= "\n🔗 <b>ID платежа:</b> <code>{$webhookData['PaymentId']}</code>\n";
+            }
+
+            $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
+            $message .= "📊 <b>Статус:</b> ✅ Оплачен\n";
+
+            // 4. Формируем payload
+            $payload = [
+                'chat_id' => $channelId,
+                'text' => $message,
+                'parse_mode' => 'HTML',
+                'disable_web_page_preview' => true,
+            ];
+
+            // Если указан thread_id для топика
+            if (!empty($tgSettings['thread_id'])) {
+                $payload['message_thread_id'] = (int) $tgSettings['thread_id'];
+            }
+
+            // 5. Отправляем
+            $this->sendTelegramCurlRequest($token, $payload);
+
+        } catch (\Throwable $e) {
+            Log::warning('[PaymentSuccessNotification] Ошибка отправки', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Вспомогательный метод для отправки запроса в Telegram API через cURL
+     */
+    private function sendTelegramCurlRequest(string $token, array $payload): bool
+    {
+        $ch = curl_init();
+        $url = "https://api.telegram.org/bot{$token}/sendMessage";
+
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($payload));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            Log::warning('[Telegram Notification] Ошибка отправки. HTTP: ' . $httpCode . ' | Error: ' . $curlError . ' | Response: ' . $response);
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -455,7 +577,6 @@ class PaymentCallbackController extends Controller
      */
     public function paymentSuccess(Request $request, string $tenantSlug, int $orderId)
     {
-        // 1. Находим заказ и сразу подгружаем диалог
         $order = Order::query()
             ->where('id', $orderId)
             ->whereHas('tenant', function ($q) use ($tenantSlug) {
@@ -466,17 +587,14 @@ class PaymentCallbackController extends Controller
 
         if (!$order) {
             Log::warning("[PaymentSuccess] Order not found: {$orderId}");
-            return redirect()->route('catalog'); // Или ваша страница "Что-то пошло не так"
+            return redirect()->route('catalog');
         }
 
-        // 2. Получаем ID диалога (благодаря OrderObserver он там уже есть)
         $dialogId = $order->dialog_id;
 
-        // 3. Формируем URL фронтенда
-        $frontendUrl = config('app.frontend_url', 'http://localhost:8080'); // Убедитесь, что это задано в .env
+        $frontendUrl = config('app.frontend_url', 'http://localhost:8080');
         $chatUrl = "{$frontendUrl}/chat/{$dialogId}";
 
-        // 4. Если запрос пришел от фронтенда (например, через fetch/axios для проверки статуса)
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
@@ -485,8 +603,6 @@ class PaymentCallbackController extends Controller
             ]);
         }
 
-        // 5. Если это прямой редирект от банка (обычный GET запрос браузера)
-        // Возвращаем HTML-страницу с мгновенным JavaScript-редиректом и meta refresh
         $html = <<<HTML
         <!DOCTYPE html>
         <html lang="ru">

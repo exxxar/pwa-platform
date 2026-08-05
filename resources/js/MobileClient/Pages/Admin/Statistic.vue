@@ -559,10 +559,23 @@ export default {
     },
 
     computed: {
+        // 🆕 Алиас для совместимости со старым кодом
+        loading() {
+            return this.isLoading;
+        },
+
+        error() {
+            return this.lastError;
+        },
+
+        exporting() {
+            return this.isExporting;
+        },
+
         sortedProducts() {
-            const sorted = [...this.products].sort((a, b) => {
-                const aVal = a[this.sort.key] || 0;
-                const bVal = b[this.sort.key] || 0;
+            const sorted = [...(this.products || [])].sort((a, b) => {
+                const aVal = a[this.sort.key] ?? 0;
+                const bVal = b[this.sort.key] ?? 0;
 
                 if (typeof aVal === 'string') {
                     return this.sort.direction === 'asc'
@@ -577,19 +590,31 @@ export default {
     },
 
     watch: {
-        need_date_range() {
-            this.prepareStatistic();
+        // 🆕 Защита от лишних запросов
+        need_date_range(newVal, oldVal) {
+            if (newVal !== oldVal) {
+                this.prepareStatistic();
+            }
         },
-        date() {
-            this.prepareStatistic();
+        date: {
+            deep: true,
+            handler(newVal, oldVal) {
+                // Срабатывает только если реально изменились даты
+                if (JSON.stringify(newVal) !== JSON.stringify(oldVal)) {
+                    this.prepareStatistic();
+                }
+            },
         },
     },
 
     mounted() {
-        const startDate = new Date();
+        // Период по умолчанию: последние 30 дней
         const endDate = new Date();
-        endDate.setDate(startDate.getDate() + 7);
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - 30);
+
         this.date = [startDate, endDate];
+        this.need_date_range = true; // 🆕 Включаем период по умолчанию
 
         this.prepareStatistic();
     },
@@ -604,13 +629,18 @@ export default {
                 };
 
                 if (this.need_date_range && this.date && this.date.length === 2) {
-                    params.date_from = this.date[0];
-                    params.date_to = this.date[1];
+                    params.date_from = this.date[0]?.toISOString?.() || this.date[0];
+                    params.date_to = this.date[1]?.toISOString?.() || this.date[1];
                 }
 
                 await this.loadStatistic(params);
             } catch (error) {
                 console.error('[Statistic] Ошибка:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось загрузить статистику',
+                    type: 'error',
+                });
             }
         },
 

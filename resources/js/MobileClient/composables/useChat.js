@@ -9,8 +9,8 @@ export function useChat() {
         dialogs,
         messages,
         currentDialog,
-        totalUnread,        // 🆕 теперь это state, а не getter
-        byDialogUnread,     // 🆕 { "1": 3, "5": 1 }
+        totalUnread,
+        byDialogUnread,
         isLoading,
         isHydrated,
         isSending,
@@ -33,6 +33,9 @@ export function useChat() {
     } = storeToRefs(store);
 
     const isDialogLoading = (dialogId) => store.isDialogLoading(dialogId);
+
+    // 🆕 Реактивный доступ к статусу polling
+    const isPollingActive = (dialogId) => store.isPollingActive(dialogId);
 
     const closeDialog = (router = null, routeName = 'Chat') => {
         store.closeDialog();
@@ -84,15 +87,21 @@ export function useChat() {
         isDialogLoading,
         getDialogById,
 
-        // Методы
+        // Методы: базовые
         loadDialogs: () => store.loadDialogs(),
         openDialog: (id) => store.openDialog(id),
         closeDialog,
         markDialogAsRead: (id) => store.markDialogAsRead(id),
-        loadUnreadCount: () => store.loadUnreadCount(),          // 🆕
+        loadUnreadCount: () => store.loadUnreadCount(),
         clearUnreadForDialog: (id) => store.clearUnreadForDialog(id),
         decrementUnread: (id) => store.decrementUnread(id),
         getUnreadForDialog: (id) => store.getUnreadForDialog(id),
+
+        // 🆕 Polling статусов прочтения
+        refreshReadStatuses: (id) => store.refreshReadStatuses(id),
+        startReadStatusPolling: (id, intervalMs) => store.startReadStatusPolling(id, intervalMs),
+        stopReadStatusPolling: () => store.stopReadStatusPolling(),
+        isPollingActive,
 
         // Архив / Удаление
         archiveDialog: (id) => store.archiveDialog(id),
@@ -114,3 +123,6 @@ export function useChat() {
         $reset: () => store.$reset(),
     };
 }
+
+
+

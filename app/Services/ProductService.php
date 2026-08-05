@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Resources\CategoryCollection;
 use App\Http\Resources\CategoryResource;
 use App\Models\Tenant\Category;
 use App\Models\Tenant\Product;

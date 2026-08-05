@@ -9,9 +9,9 @@ export const useChatStore = defineStore('chat', {
         messages: [],
         currentDialog: null,
 
-        // 🆕 Счётчики непрочитанных (source of truth)
+        // Счётчики непрочитанных (source of truth)
         totalUnread: 0,
-        byDialogUnread: {},  // 🆕 { "1": 3, "5": 1 }
+        byDialogUnread: {},
 
         isLoading: false,
         isHydrated: false,
@@ -23,6 +23,10 @@ export const useChatStore = defineStore('chat', {
         messagesPage: 1,
         hasMoreMessages: true,
         lastSyncAt: null,
+
+        // 🆕 Polling статусов прочтения
+        pollingInterval: null,
+        pollingDialogId: null,
     }),
 
     getters: {
@@ -65,9 +69,13 @@ export const useChatStore = defineStore('chat', {
 
         isDialogLoading: (state) => (id) => !!state.dialogActions[String(id)],
 
-        // 🆕 Геттер для конкретного диалога
         getUnreadForDialog: (state) => (dialogId) =>
             state.byDialogUnread[String(dialogId)] || 0,
+
+        // 🆕 Проверка, идёт ли polling для конкретного диалога
+        isPollingActive: (state) => (dialogId) =>
+            state.pollingInterval !== null &&
+            String(state.pollingDialogId) === String(dialogId),
     },
 
     actions: {
@@ -78,9 +86,10 @@ export const useChatStore = defineStore('chat', {
             this.isHydrated = true;
         },
 
-        /**
-         * 🆕 Единый метод: загрузка счётчика непрочитанных
-         */
+        // ==========================================
+        // НЕПРОЧИТАННЫЕ
+        // ==========================================
+
         async loadUnreadCount() {
             try {
                 const response = await axios.get(`${BASE}/unread-count`);
@@ -89,7 +98,6 @@ export const useChatStore = defineStore('chat', {
                 this.totalUnread = data.total || 0;
                 this.byDialogUnread = data.by_dialog || {};
 
-                // Синхронизируем unread_count у каждого диалога в списке
                 this.dialogs.forEach(dialog => {
                     dialog.unread_count = this.byDialogUnread[String(dialog.id)] || 0;
                 });
@@ -101,9 +109,6 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        /**
-         * 🆕 Обнулить счётчик для конкретного диалога (локально)
-         */
         clearUnreadForDialog(dialogId) {
             const key = String(dialogId);
             const count = this.byDialogUnread[key] || 0;
@@ -112,20 +117,15 @@ export const useChatStore = defineStore('chat', {
                 this.totalUnread = Math.max(0, this.totalUnread - count);
                 this.byDialogUnread[key] = 0;
 
-                // Обновляем и в самом диалоге
                 const dialog = this.getDialogById(dialogId);
                 if (dialog) dialog.unread_count = 0;
             }
 
-            // Отправляем на сервер
             axios.post(`${BASE}/${dialogId}/read`).catch(err => {
                 console.warn('[Chat Store] Не удалось отметить как прочитанное:', err);
             });
         },
 
-        /**
-         * 🆕 Уменьшить счётчик на 1 (при чтении одного сообщения)
-         */
         decrementUnread(dialogId) {
             const key = String(dialogId);
             if (this.byDialogUnread[key] > 0) {
@@ -136,6 +136,88 @@ export const useChatStore = defineStore('chat', {
                 if (dialog) dialog.unread_count = Math.max(0, (dialog.unread_count || 1) - 1);
             }
         },
+
+        // ==========================================
+        // 🆕 POLLING СТАТУСОВ ПРОЧТЕНИЯ
+        // ==========================================
+
+        /**
+         * Запустить опрос статусов прочтения (каждые 10 сек)
+         */
+        startReadStatusPolling(dialogId, intervalMs = 10000) {
+            // Останавливаем предыдущий, если он был
+            this.stopReadStatusPolling();
+
+            if (!dialogId) return;
+
+            this.pollingDialogId = dialogId;
+
+            // Сразу делаем первый запрос
+            this.refreshReadStatuses(dialogId);
+
+            // Устанавливаем интервал
+            this.pollingInterval = setInterval(async () => {
+                try {
+                    await this.refreshReadStatuses(dialogId);
+                } catch (e) {
+                    console.warn('[Chat] Polling error:', e);
+                }
+            }, intervalMs);
+        },
+
+        /**
+         * Остановить опрос
+         */
+        stopReadStatusPolling() {
+            if (this.pollingInterval) {
+                clearInterval(this.pollingInterval);
+                this.pollingInterval = null;
+            }
+            this.pollingDialogId = null;
+        },
+
+        /**
+         * Запросить свежие статусы прочтения с сервера.
+         *
+         * Эндпоинт должен вернуть объект вида:
+         * { "123": "2024-01-15T10:30:00Z", "456": "2024-01-15T10:31:00Z" }
+         * где ключ — ID сообщения, значение — время прочтения.
+         */
+        async refreshReadStatuses(dialogId) {
+            if (!dialogId) return false;
+
+            try {
+                const response = await axios.get(`${BASE}/${dialogId}/read-statuses`);
+                const statuses = response.data?.statuses || {};
+
+                // Обновляем read_at у своих сообщений
+                let hasChanges = false;
+                this.messages.forEach(msg => {
+                    const msgKey = String(msg.id);
+                    const newReadAt = statuses[msgKey];
+
+                    // Если сервер вернул read_at, а у нас его нет — обновляем
+                    if (newReadAt && !msg.read_at) {
+                        msg.read_at = newReadAt;
+                        msg.status = 'read';
+                        hasChanges = true;
+                    }
+                });
+
+                return hasChanges;
+            } catch (error) {
+                // 404 — эндпоинт не реализован, тихо выходим
+                if (error.response?.status === 404) {
+                    return false;
+                }
+                console.error('[Chat] refreshReadStatuses error:', error);
+                return false;
+            }
+        },
+
+        // ==========================================
+        // ДИАЛОГИ
+        // ==========================================
 
         async loadDialogs() {
             this.isLoading = true;
@@ -149,7 +231,6 @@ export const useChatStore = defineStore('chat', {
                 this.isHydrated = true;
                 this.lastSyncAt = new Date();
 
-                // Сразу подтягиваем свежие счётчики
                 await this.loadUnreadCount();
 
                 return this.dialogs;
@@ -163,13 +244,15 @@ export const useChatStore = defineStore('chat', {
         },
 
         closeDialog() {
+            // 🆕 Останавливаем polling при закрытии
+            this.stopReadStatusPolling();
+
             this.currentDialog = null;
             this.messages = [];
             this.messagesPage = 1;
             this.hasMoreMessages = true;
         },
 
-        // 🆕 markDialogAsRead теперь — алиас к clearUnreadForDialog
         markDialogAsRead(dialogId) {
             this.clearUnreadForDialog(dialogId);
         },
@@ -350,10 +433,13 @@ export const useChatStore = defineStore('chat', {
             try {
                 await this.loadMessages(dialogId);
 
-                // 🆕 Обнуляем счётчик для этого диалога
+                // Обнуляем счётчик для этого диалога
                 if ((this.byDialogUnread[String(dialogId)] || 0) > 0) {
                     this.clearUnreadForDialog(dialogId);
                 }
+
+                // 🆕 Запускаем polling статусов прочтения
+                this.startReadStatusPolling(dialogId);
 
                 return dialog;
             } catch (error) {
@@ -428,6 +514,10 @@ export const useChatStore = defineStore('chat', {
 
             try {
                 const response = await axios.post(`${BASE}/${dialogId}/messages`, formData);
+
+                // 🆕 После отправки — сразу обновляем статусы прочтения
+                await this.refreshReadStatuses(dialogId);
+
                 return response.data;
             } catch (error) {
                 console.error('[Chat Store] Ошибка отправки сообщения:', error);
@@ -435,7 +525,6 @@ export const useChatStore = defineStore('chat', {
             }
         },
 
-        // 🆕 Исправленный retryMessage
         async retryMessage(message) {
             if (!message || message.status !== 'error') return;
             if (!this.currentDialog) return;
@@ -465,13 +554,16 @@ export const useChatStore = defineStore('chat', {
         },
 
         // ==========================================
-        // WEBSOCKET / REALTIME
+        // REALTIME / VAPID
         // ==========================================
 
         handleIncomingMessage(message) {
             if (this.currentDialog &&
                 String(message.dialog_id) === String(this.currentDialog.id)) {
                 this.messages.push(message);
+
+                // 🆕 При входящем — обновляем статусы своих сообщений
+                this.refreshReadStatuses(message.dialog_id);
             }
 
             const dialog = this.getDialogById(message.dialog_id);
@@ -479,7 +571,6 @@ export const useChatStore = defineStore('chat', {
                 dialog.last_message = message.text || message.message;
                 dialog.last_message_at = message.created_at;
 
-                // Если это не текущий открытый диалог — увеличиваем счётчик
                 if (!this.currentDialog ||
                     String(this.currentDialog.id) !== String(message.dialog_id)) {
 
@@ -495,6 +586,9 @@ export const useChatStore = defineStore('chat', {
         },
 
         $reset() {
+            // 🆕 Останавливаем polling при сбросе
+            this.stopReadStatusPolling();
+
             this.dialogs = [];
             this.messages = [];
             this.currentDialog = null;

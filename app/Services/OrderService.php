@@ -32,46 +32,59 @@ class OrderService
      * @throws ValidationException
      * @throws HttpException
      */
+    /**
+     * Начислить кэшбэк за заказ
+     */
     public function addCashBackToOrder(array $data): void
     {
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
         $validator = Validator::make($data, [
-            "order_id" => "required",
+            "order_id" => "required|exists:orders,id",
         ]);
 
-        if ($validator->fails())
+        if ($validator->fails()) {
             throw new ValidationException($validator);
+        }
 
-        $orderId = $data["order_id"] ?? null;
+        $orderId = $data["order_id"];
 
         $order = Order::query()
             ->where("id", $orderId)
             ->where("tenant_id", $tenant->id)
             ->first();
 
-        if (is_null($order))
+        if (!$order) {
             throw new HttpException(404, "Заказ не найден");
+        }
 
-        if (($order->is_cashback_crediting ?? false) === true)
-            throw new HttpException(400, "По данному заказу уже был начислен автоматический CashBack");
-
-        $order->is_cashback_crediting = true;
-        $order->save();
+        if ($order->is_cashback_crediting) {
+            throw new HttpException(400, "По данному заказу уже был начислен CashBack");
+        }
 
         $client = TenantUser::query()->where("id", $order->customer_id)->first();
 
-        if (is_null($client))
+        if (!$client) {
             throw new HttpException(404, "Клиент не найден");
+        }
 
-        // Начисление кэшбэка — вынесите в отдельный CashBackService при необходимости
-        // CashBackService::call()->add([
-        //     "user_id"    => $client->id,
-        //     "amount"     => $order->summary_price,
-        //     "need_review"=> true,
-        //     "info"       => "Автоматическое начисление CashBack после заказа",
-        // ]);
+        // Рассчитываем процент кэшбэка (например, 5% от суммы заказа)
+        $cashbackPercent = $tenant->cashback_percent ?? 5;
+        $cashbackAmount = $order->summary_price * ($cashbackPercent / 100);
+
+        if ($cashbackAmount > 0) {
+            CashBackService::call()->addCashBack(
+                amount: $cashbackAmount,
+                description: "Кэшбэк за заказ #{$order->id}",
+                user: $client,
+                orderId: $order->id,
+                withLevels: true
+            );
+        }
+
+        $order->is_cashback_crediting = true;
+        $order->save();
     }
 
     /**

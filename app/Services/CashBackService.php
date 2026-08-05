@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Tenant\CashBack;
+use App\Models\Tenant\CashBackHistory;
 use App\Models\Tenant\TenantUser;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class CashBackService
 {
@@ -20,22 +22,68 @@ class CashBackService
         return app(self::class)->$method(...$args);
     }
 
-    /*
-     |--------------------------------------------------------------------------
-     | 💰 НАЧИСЛЕНИЕ
-     |--------------------------------------------------------------------------
+    /**
+     * Получить баланс пользователя
+     */
+    public function getBalance(?TenantUser $user = null): float
+    {
+        $user = $user ?? Auth::guard('tenant')->user();
+
+        if (!$user) {
+            return 0;
+        }
+
+        $tenant = app('tenant');
+        $cashBack = CashBack::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)
+            ->first();
+
+        return $cashBack ? (float) $cashBack->amount : 0;
+    }
+
+    /**
+     * Получить историю операций
+     */
+    public function getHistory(?TenantUser $user = null, int $limit = 50)
+    {
+        $user = $user ?? Auth::guard('tenant')->user();
+
+        if (!$user) {
+            return collect();
+        }
+
+        $tenant = app('tenant');
+
+        return CashBackHistory::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)
+            ->with(['order' => function($query) {
+                $query->select('id', 'summary_price', 'created_at');
+            }])
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * Начислить кэшбэк
      */
     public function addCashBack(
         float $amount,
         string $description,
+        ?TenantUser $user = null,
+        ?int $orderId = null,
         ?float $percent = null,
         bool $withLevels = true
     ): void {
         $tenant = app('tenant');
-        $user = Auth::guard('tenant')->user();
+        $user = $user ?? Auth::guard('tenant')->user();
 
         if (!$user) {
             throw new \Exception('User not authenticated');
+        }
+
+        if ($amount <= 0) {
+            throw new \Exception('Amount must be greater than 0');
         }
 
         // базовый cashback
@@ -51,6 +99,7 @@ class CashBackService
             'type' => 'credit',
             'description' => $description,
             'level' => 1,
+            'order_id' => $orderId,
         ]);
 
         // рефералка
@@ -62,18 +111,24 @@ class CashBackService
         $this->checkWarnings($tenant, $amount, 'credit');
     }
 
-    /*
-     |--------------------------------------------------------------------------
-     | 💸 СПИСАНИЕ
-     |--------------------------------------------------------------------------
+    /**
+     * Списать кэшбэк
      */
-    public function removeCashBack(float $amount, string $description): void
-    {
+    public function removeCashBack(
+        float $amount,
+        string $description,
+        ?TenantUser $user = null,
+        ?int $orderId = null
+    ): void {
         $tenant = app('tenant');
-        $user = Auth::guard('tenant')->user();
+        $user = $user ?? Auth::guard('tenant')->user();
 
         if (!$user) {
             throw new \Exception('User not authenticated');
+        }
+
+        if ($amount <= 0) {
+            throw new \Exception('Amount must be greater than 0');
         }
 
         $cashBack = $this->prepareUserCashBack($tenant->id, $user->id);
@@ -94,17 +149,16 @@ class CashBackService
             'type' => 'debit',
             'description' => $description,
             'level' => 1,
+            'order_id' => $orderId,
         ]);
 
         $this->checkWarnings($tenant, $amount, 'debit');
     }
 
-    /*
-     |--------------------------------------------------------------------------
-     | 🧠 РЕФЕРАЛЬНЫЕ УРОВНИ
-     |--------------------------------------------------------------------------
+    /**
+     * Реферальные уровни
      */
-    private function applyLevels($user, float $amount, ?float $percent = null): void
+    private function applyLevels(TenantUser $user, float $amount, ?float $percent = null): void
     {
         $tenant = app('tenant');
 
@@ -123,7 +177,6 @@ class CashBackService
         $levelIndex = 1;
 
         foreach ($levels as $levelPercent) {
-
             if (!$currentUser || $levelPercent == 0) {
                 break;
             }
@@ -141,23 +194,20 @@ class CashBackService
         }
     }
 
-    /*
-     |--------------------------------------------------------------------------
-     | 🔁 ОДИН УРОВЕНЬ
-     |--------------------------------------------------------------------------
+    /**
+     * Один уровень реферальной системы
      */
     private function prepareLevel(
-        $user,
+        TenantUser $user,
         float $baseAmount,
         float $percent,
         int $level
     ): void {
-        if ($percent == 0 || !$user) {
+        if ($percent == 0) {
             return;
         }
 
         $tenant = app('tenant');
-
         $bonus = $baseAmount * ($percent / 100);
 
         $cashBack = $this->prepareUserCashBack($tenant->id, $user->id);
@@ -178,10 +228,8 @@ class CashBackService
         $this->checkWarnings($tenant, $bonus, 'credit', $level);
     }
 
-    /*
-     |--------------------------------------------------------------------------
-     | ⚠️ WARNING RULES
-     |--------------------------------------------------------------------------
+    /**
+     * Проверка предупреждений
      */
     private function checkWarnings(
         $tenant,
@@ -223,12 +271,10 @@ class CashBackService
         }
     }
 
-    /*
-     |--------------------------------------------------------------------------
-     | 🗄 БАЛАНС
-     |--------------------------------------------------------------------------
+    /**
+     * Получить или создать запись кэшбэка
      */
-    private function prepareUserCashBack($tenantId, $userId)
+    private function prepareUserCashBack(int $tenantId, int $userId): CashBack
     {
         return CashBack::firstOrCreate(
             [

@@ -4,10 +4,8 @@ import { useStatisticStore } from '@/MobileClient/stores/Shop/statistic.js';
 export function useStatistic() {
     const store = useStatisticStore();
 
-    // ✅ ИСПРАВЛЕНИЕ: Извлекаем и состояние, и геттеры через storeToRefs.
-    // Импорт 'computed' больше не нужен. Pinia автоматически обеспечит реактивность геттеров.
     const {
-        // --- Состояние (State) ---
+        // State
         statistic,
         users,
         orders,
@@ -21,14 +19,17 @@ export function useStatistic() {
         isHydrated,
         lastError,
 
-        // --- Геттеры (Getters) ---
+        // Getters
         hasData,
         preparedCashback,
         totalTraffic,
+        totalOrdersSum,
+        totalOrdersCount,
+        totalUsersRegistered,
     } = storeToRefs(store);
 
     return {
-        // Состояние (Refs)
+        // State
         statistic,
         users,
         orders,
@@ -42,18 +43,18 @@ export function useStatistic() {
         isHydrated,
         lastError,
 
-        // Геттеры (Refs)
+        // Getters
         hasData,
         preparedCashback,
         totalTraffic,
+        totalOrdersSum,
+        totalOrdersCount,
+        totalUsersRegistered,
 
-        // Методы (Actions)
-        // Прямое маппирование — это отлично и эффективно
-        loadStatistic: store.loadStatistic,
-        loadTraffic: store.loadTraffic,
-        exportStatistic: store.exportStatistic,
-
-        // Сброс стора
-        $reset: store.$reset,
+        // Actions
+        loadStatistic: store.loadStatistic.bind(store),
+        loadTraffic: store.loadTraffic.bind(store),
+        exportStatistic: store.exportStatistic.bind(store),
+        $reset: store.$reset.bind(store),
     };
 }

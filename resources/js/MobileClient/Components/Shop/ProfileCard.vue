@@ -52,7 +52,10 @@
                         <div class="field-icon name-icon"><i class="fa-solid fa-signature"></i></div>
                         <div class="field-content">
                             <div class="field-label">Имя</div>
-                            <div class="field-value" :class="{'text-muted': !self?.name}">{{ self?.name || 'Указать имя' }}</div>
+                            <div class="field-value" :class="{'text-muted': !self?.name}">{{
+                                    self?.name || 'Указать имя'
+                                }}
+                            </div>
                         </div>
                         <div class="field-action"><i class="fa-solid fa-pen"></i></div>
                     </button>
@@ -68,13 +71,18 @@
                     <button v-if="isOwnProfile" class="profile-field" @click="openPhoneModal">
                         <div class="field-icon phone-icon"><i class="fa-solid fa-phone"></i></div>
                         <div class="field-content">
-                            <div class="field-label">Телефон</div>
+                            <div class="field-label">
+                                Телефон
+                                <span v-if="self?.phone" class="unverified-tag">
+                                        <i class="fa-solid fa-lock"></i> без подтверждения
+                                    </span>
+                            </div>
                             <div class="field-value" :class="{'text-primary': !self?.phone}">
                                 {{ self?.phone || 'Добавить номер' }}
-                                <span v-if="self?.phone && !self?.phone_verified" class="unverified-hint">(не подтверждён)</span>
                             </div>
                         </div>
-                        <div class="field-action"><i :class="self?.phone ? 'fa-solid fa-pen' : 'fa-solid fa-plus'"></i></div>
+                        <div class="field-action"><i :class="self?.phone ? 'fa-solid fa-pen' : 'fa-solid fa-plus'"></i>
+                        </div>
                     </button>
                     <div v-else class="profile-field readonly">
                         <div class="field-icon phone-icon"><i class="fa-solid fa-phone"></i></div>
@@ -84,12 +92,15 @@
                         </div>
                     </div>
 
+
                     <!-- 🆕 Email -->
                     <button v-if="isOwnProfile" class="profile-field" @click="openEditModal('email')">
                         <div class="field-icon email-icon"><i class="fa-solid fa-envelope"></i></div>
                         <div class="field-content">
                             <div class="field-label">Email</div>
-                            <div class="field-value" :class="{'text-muted': !self?.email}">{{ self?.email || 'Указать email' }}</div>
+                            <div class="field-value" :class="{'text-muted': !self?.email}">
+                                {{ self?.email || 'Указать email' }}
+                            </div>
                         </div>
                         <div class="field-action"><i class="fa-solid fa-pen"></i></div>
                     </button>
@@ -106,7 +117,9 @@
                         <div class="field-icon birthday-icon"><i class="fa-solid fa-cake-candles"></i></div>
                         <div class="field-content">
                             <div class="field-label">День рождения</div>
-                            <div class="field-value" :class="{'text-muted': !self?.birthday}">{{ formatBirthday(self?.birthday) || 'Указать дату' }}</div>
+                            <div class="field-value" :class="{'text-muted': !self?.birthday}">
+                                {{ formatBirthday(self?.birthday) || 'Указать дату' }}
+                            </div>
                         </div>
                         <div class="field-action"><i class="fa-solid fa-pen"></i></div>
                     </button>
@@ -123,7 +136,9 @@
                         <div class="field-icon city-icon"><i class="fa-solid fa-city"></i></div>
                         <div class="field-content">
                             <div class="field-label">Город</div>
-                            <div class="field-value" :class="{'text-muted': !self?.city}">{{ self?.city || 'Указать город' }}</div>
+                            <div class="field-value" :class="{'text-muted': !self?.city}">
+                                {{ self?.city || 'Указать город' }}
+                            </div>
                         </div>
                         <div class="field-action"><i class="fa-solid fa-pen"></i></div>
                     </button>
@@ -225,10 +240,10 @@
 
             <ProfileQRCode/>
 
-            <EditProfileButton class="mb-2" @click="$emit('profile-edit')" />
+            <EditProfileButton class="mb-2" @click="$emit('profile-edit')"/>
 
 
-            <AppDivider text="Управление аккаунтом" />
+            <AppDivider text="Управление аккаунтом"/>
 
             <!-- 🆕 Сменить аккаунт -->
             <button class="btn-change-account mb-2" @click="changeAccount">
@@ -277,7 +292,8 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
-                        <button type="button" class="btn btn-primary" :disabled="!avatarFile || avatarUploading" @click="uploadAvatar">
+                        <button type="button" class="btn btn-primary" :disabled="!avatarFile || avatarUploading"
+                                @click="uploadAvatar">
                             <span v-if="avatarUploading" class="spinner-border spinner-border-sm me-2"></span>
                             Сохранить
                         </button>
@@ -300,14 +316,18 @@
                     </div>
                     <div class="modal-body">
                         <div class="form-floating">
-                            <input v-model="editForms.name" type="text" class="form-control" id="edit-name-input" placeholder="Ваше имя" maxlength="50">
+                            <input v-model="editForms.name" type="text" class="form-control" id="edit-name-input"
+                                   placeholder="Ваше имя" maxlength="50">
                             <label for="edit-name-input">Имя</label>
                         </div>
-                        <div class="form-hint"><i class="fa-solid fa-info-circle me-1"></i> Это имя будет отображаться в заказах и профиле</div>
+                        <div class="form-hint"><i class="fa-solid fa-info-circle me-1"></i> Это имя будет отображаться в
+                            заказах и профиле
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
-                        <button type="button" class="btn btn-primary" :disabled="!editForms.name.trim() || saving" @click="saveField('name')">
+                        <button type="button" class="btn btn-primary" :disabled="!editForms.name.trim() || saving"
+                                @click="saveField('name')">
                             <span v-if="saving" class="spinner-border spinner-border-sm me-2"></span> Сохранить
                         </button>
                     </div>
@@ -329,14 +349,18 @@
                     </div>
                     <div class="modal-body">
                         <div class="form-floating">
-                            <input v-model="editForms.email" type="email" class="form-control" id="edit-email-input" placeholder="example@mail.ru">
+                            <input v-model="editForms.email" type="email" class="form-control" id="edit-email-input"
+                                   placeholder="example@mail.ru">
                             <label for="edit-email-input">Email</label>
                         </div>
-                        <div class="form-hint"><i class="fa-solid fa-info-circle me-1"></i> На этот адрес будут приходить электронные чеки</div>
+                        <div class="form-hint"><i class="fa-solid fa-info-circle me-1"></i> На этот адрес будут
+                            приходить электронные чеки
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
-                        <button type="button" class="btn btn-primary" :disabled="!editForms.email.trim() || saving" @click="saveField('email')">
+                        <button type="button" class="btn btn-primary" :disabled="!editForms.email.trim() || saving"
+                                @click="saveField('email')">
                             <span v-if="saving" class="spinner-border spinner-border-sm me-2"></span> Сохранить
                         </button>
                     </div>
@@ -358,14 +382,18 @@
                     </div>
                     <div class="modal-body">
                         <div class="form-floating">
-                            <input v-model="editForms.birthday" type="date" class="form-control" id="edit-birthday-input" :max="maxBirthdayDate">
+                            <input v-model="editForms.birthday" type="date" class="form-control"
+                                   id="edit-birthday-input" :max="maxBirthdayDate">
                             <label for="edit-birthday-input">Дата рождения</label>
                         </div>
-                        <div class="form-hint"><i class="fa-solid fa-gift me-1"></i> В день рождения вам будут начислены бонусные баллы</div>
+                        <div class="form-hint"><i class="fa-solid fa-gift me-1"></i> В день рождения вам будут начислены
+                            бонусные баллы
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
-                        <button type="button" class="btn btn-primary" :disabled="!editForms.birthday || saving" @click="saveField('birthday')">
+                        <button type="button" class="btn btn-primary" :disabled="!editForms.birthday || saving"
+                                @click="saveField('birthday')">
                             <span v-if="saving" class="spinner-border spinner-border-sm me-2"></span> Сохранить
                         </button>
                     </div>
@@ -387,13 +415,15 @@
                     </div>
                     <div class="modal-body">
                         <div class="form-floating">
-                            <input v-model="editForms.city" type="text" class="form-control" id="edit-city-input" placeholder="Москва">
+                            <input v-model="editForms.city" type="text" class="form-control" id="edit-city-input"
+                                   placeholder="Москва">
                             <label for="edit-city-input">Город</label>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
-                        <button type="button" class="btn btn-primary" :disabled="!editForms.city.trim() || saving" @click="saveField('city')">
+                        <button type="button" class="btn btn-primary" :disabled="!editForms.city.trim() || saving"
+                                @click="saveField('city')">
                             <span v-if="saving" class="spinner-border spinner-border-sm me-2"></span> Сохранить
                         </button>
                     </div>
@@ -412,9 +442,10 @@
                                 {{ hasPassword ? 'Сменить пароль' : 'Установить пароль' }}
                             </h5>
                             <small class="text-muted">
-                                {{ hasPassword
-                                ? 'Введите текущий и новый пароль'
-                                : 'Создайте пароль для входа в аккаунт'
+                                {{
+                                    hasPassword
+                                        ? 'Введите текущий и новый пароль'
+                                        : 'Создайте пароль для входа в аккаунт'
                                 }}
                             </small>
                         </div>
@@ -457,10 +488,14 @@
                             <!-- Индикатор сложности пароля -->
                             <div class="password-strength mt-2">
                                 <div class="strength-bars">
-                                    <div class="strength-bar" :class="passwordStrength.level >= 1 ? `level-${passwordStrength.level}` : ''"></div>
-                                    <div class="strength-bar" :class="passwordStrength.level >= 2 ? `level-${passwordStrength.level}` : ''"></div>
-                                    <div class="strength-bar" :class="passwordStrength.level >= 3 ? `level-${passwordStrength.level}` : ''"></div>
-                                    <div class="strength-bar" :class="passwordStrength.level >= 4 ? `level-${passwordStrength.level}` : ''"></div>
+                                    <div class="strength-bar"
+                                         :class="passwordStrength.level >= 1 ? `level-${passwordStrength.level}` : ''"></div>
+                                    <div class="strength-bar"
+                                         :class="passwordStrength.level >= 2 ? `level-${passwordStrength.level}` : ''"></div>
+                                    <div class="strength-bar"
+                                         :class="passwordStrength.level >= 3 ? `level-${passwordStrength.level}` : ''"></div>
+                                    <div class="strength-bar"
+                                         :class="passwordStrength.level >= 4 ? `level-${passwordStrength.level}` : ''"></div>
                                 </div>
                                 <div class="strength-text" :class="`text-${passwordStrength.color}`">
                                     {{ passwordStrength.text }}
@@ -510,83 +545,68 @@
             </div>
         </div>
 
-        <!-- Модалка: Телефон (2 шага) -->
-        <div class="modal fade" id="phoneModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <!-- Модалка: Телефон (упрощённая версия без SMS) -->
+        <div class="modal fade" id="phoneModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content phone-modal">
-                    <!-- ШАГ 1: Ввод номера -->
-                    <template v-if="phoneStep === 1">
-                        <div class="modal-header">
-                            <div class="modal-icon phone-icon"><i class="fa-solid fa-phone"></i></div>
-                            <div class="flex-grow-1 ms-3">
-                                <h5 class="modal-title mb-0">Номер телефона</h5>
-                                <small class="text-muted">Для подтверждения заказов и уведомлений</small>
-                            </div>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-content edit-modal">
+                    <div class="modal-header">
+                        <div class="modal-icon phone-icon"><i class="fa-solid fa-phone"></i></div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="modal-title mb-0">Номер телефона</h5>
+                            <small class="text-muted">Для связи и уведомлений о заказах</small>
                         </div>
-                        <div class="modal-body">
-                            <div class="form-floating">
-                                <input v-model="phoneForm.phone" type="tel" class="form-control" id="phone-input" placeholder="+7 (999) 123-45-67" @input="formatPhoneInput" :disabled="phoneSending">
-                                <label for="phone-input">Номер телефона</label>
-                            </div>
-                            <div v-if="phoneError" class="error-message mt-2"><i class="fa-solid fa-circle-exclamation me-1"></i> {{ phoneError }}</div>
-                            <div class="form-hint"><i class="fa-solid fa-shield-halved me-1"></i> На этот номер будет отправлен SMS-код для подтверждения</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-floating mb-3">
+                            <input
+                                v-model="phoneForm.phone"
+                                type="tel"
+                                class="form-control"
+                                id="phone-input"
+                                placeholder="+7 (999) 123-45-67"
+                                @input="formatPhoneInput"
+                                :disabled="phoneSaving"
+                            >
+                            <label for="phone-input">Номер телефона</label>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
-                            <button type="button" class="btn btn-primary" :disabled="!isValidPhone || phoneSending" @click="sendSmsCode">
-                                <span v-if="phoneSending" class="spinner-border spinner-border-sm me-2"></span>
-                                <i v-else class="fa-solid fa-paper-plane me-2"></i> Получить код
-                            </button>
-                        </div>
-                    </template>
 
-                    <!-- ШАГ 2: Ввод кода -->
-                    <template v-else-if="phoneStep === 2">
-                        <div class="modal-header">
-                            <div class="modal-icon code-icon"><i class="fa-solid fa-key"></i></div>
-                            <div class="flex-grow-1 ms-3">
-                                <h5 class="modal-title mb-0">Подтверждение</h5>
-                                <small class="text-muted">Код отправлен на {{ phoneForm.phone }}</small>
-                            </div>
-                            <button type="button" class="btn-close" @click="closePhoneModal"></button>
+                        <div v-if="phoneError" class="error-message mt-2">
+                            <i class="fa-solid fa-circle-exclamation me-1"></i> {{ phoneError }}
                         </div>
-                        <div class="modal-body">
-                            <div class="code-input-wrapper">
-                                <input v-model="phoneForm.code" type="text" class="code-input" placeholder="000000" maxlength="6" @input="formatCode" :disabled="codeVerifying" autofocus>
+
+                        <!-- 🆕 Блок с замком: SMS временно недоступно -->
+                        <div class="sms-disabled-notice">
+                            <div class="sms-notice-icon">
+                                <i class="fa-solid fa-lock"></i>
                             </div>
-                            <div class="resend-section">
-                                <div v-if="resendTimer > 0" class="resend-timer">
-                                    <i class="fa-solid fa-clock me-1"></i> Повторная отправка через {{ formatTime(resendTimer) }}
+                            <div class="sms-notice-content">
+                                <div class="sms-notice-title">SMS-подтверждение временно недоступно</div>
+                                <div class="sms-notice-desc">
+                                    На текущий момент можно просто сохранить номер телефона.
+                                    Проверка через SMS-код будет доступна позже.
                                 </div>
-                                <button v-else class="btn-resend" @click="sendSmsCode" :disabled="phoneSending">
-                                    <span v-if="phoneSending" class="spinner-border spinner-border-sm me-2"></span>
-                                    <i v-else class="fa-solid fa-rotate-right me-1"></i> Отправить код повторно
-                                </button>
                             </div>
-                            <div v-if="codeError" class="error-message mt-3"><i class="fa-solid fa-circle-exclamation me-1"></i> {{ codeError }}</div>
-                            <div class="form-hint"><i class="fa-solid fa-info-circle me-1"></i> Введите 6-значный код из SMS. Код действителен 5 минут.</div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-light" @click="backToPhoneStep"><i class="fa-solid fa-arrow-left me-1"></i> Назад</button>
-                            <button type="button" class="btn btn-primary" :disabled="phoneForm.code.length !== 6 || codeVerifying" @click="verifyCode">
-                                <span v-if="codeVerifying" class="spinner-border spinner-border-sm me-2"></span>
-                                <i v-else class="fa-solid fa-check me-2"></i> Подтвердить
-                            </button>
-                        </div>
-                    </template>
 
-                    <!-- ШАГ 3: Успех -->
-                    <template v-else-if="phoneStep === 3">
-                        <div class="modal-body text-center py-5">
-                            <div class="success-icon mb-3"><i class="fa-solid fa-circle-check"></i></div>
-                            <h5 class="fw-bold mb-2">Номер подтверждён!</h5>
-                            <p class="text-muted mb-0">Телефон {{ phoneForm.phone }} успешно добавлен в ваш профиль</p>
+                        <div class="form-hint mt-3">
+                            <i class="fa-solid fa-shield-halved me-1"></i>
+                            Номер будет использоваться для связи с вами по заказам
                         </div>
-                        <div class="modal-footer justify-content-center">
-                            <button type="button" class="btn btn-primary px-5" @click="closePhoneModal">Отлично!</button>
-                        </div>
-                    </template>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
+                        <button
+                            type="button"
+                            class="btn btn-primary"
+                            :disabled="!isValidPhone || phoneSaving"
+                            @click="savePhone"
+                        >
+                            <span v-if="phoneSaving" class="spinner-border spinner-border-sm me-2"></span>
+                            <i v-else class="fa-solid fa-floppy-disk me-2"></i>
+                            {{ phoneSaving ? 'Сохраняем...' : 'Сохранить' }}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -618,32 +638,22 @@ export default {
             editForms: {
                 name: '',
                 birthday: '',
-                email: '',    // 🆕
-                city: '',     // 🆕
+                email: '',
+                city: '',
             },
             isLoggingOut: false,
-            // 🆕 Аватар
             avatarFile: null,
             avatarPreview: null,
             avatarUploading: false,
 
-            // Телефон
-            phoneStep: 1,
-            phoneSending: false,
-            codeVerifying: false,
-            resendTimer: 0,
-            resendInterval: null,
+            // 🆕 Упрощённые поля телефона
+            phoneSaving: false,
             phoneError: '',
-            codeError: '',
             phoneForm: {
                 phone: '',
-                code: '',
-                sessionId: null,
             },
 
             modals: {},
-
-            // 🆕 Данные для реферальной системы
             referralLink: '',
             referralStats: {
                 active_count: 0,
@@ -695,7 +705,7 @@ export default {
         },
 
         isPasswordFormValid() {
-            const { currentPassword, newPassword, confirmPassword } = this.passwordForm;
+            const {currentPassword, newPassword, confirmPassword} = this.passwordForm;
 
             // 🎯 КЛЮЧЕВАЯ ПРОВЕРКА:
             // Если пароль уже установлен — требуем текущий
@@ -730,7 +740,6 @@ export default {
                 modal.dispose();
             }
         });
-        this.clearResendTimer();
     },
 
     methods: {
@@ -774,7 +783,9 @@ export default {
                 document.body.removeChild(textArea);
                 this.showNotification('success', 'Ссылка скопирована!', 'fa-solid fa-check-circle');
             } finally {
-                setTimeout(() => { this.isCopying = false; }, 1000);
+                setTimeout(() => {
+                    this.isCopying = false;
+                }, 1000);
             }
         },
 
@@ -790,11 +801,11 @@ export default {
             }
         },
 
-        goToAchievements(){
-            this.$router.push({ name: 'Achievements' })
+        goToAchievements() {
+            this.$router.push({name: 'Achievements'})
         },
-        changeAccount(){
-            this.$router.push({ name: 'Auth' })
+        changeAccount() {
+            this.$router.push({name: 'Auth'})
         },
         initModals() {
             this.$nextTick(() => {
@@ -889,26 +900,13 @@ export default {
         },
 
         openPhoneModal() {
-            this.phoneStep = 1;
             this.phoneForm.phone = this.self?.phone || '';
-            this.phoneForm.code = '';
-            this.phoneForm.sessionId = null;
             this.phoneError = '';
-            this.codeError = '';
-            this.clearResendTimer();
             if (this.modals.phone) this.modals.phone.show();
         },
 
-        closePhoneModal() {
-            if (this.modals.phone) this.modals.phone.hide();
-            this.clearResendTimer();
-        },
 
-        backToPhoneStep() {
-            this.phoneStep = 1;
-            this.codeError = '';
-            this.clearResendTimer();
-        },
+
 
         formatPhoneInput() {
             let value = this.phoneForm.phone.replace(/\D/g, '');
@@ -926,10 +924,7 @@ export default {
             this.phoneError = '';
         },
 
-        formatCode() {
-            this.phoneForm.code = this.phoneForm.code.replace(/\D/g, '').slice(0, 6);
-            this.codeError = '';
-        },
+
 
         formatTime(seconds) {
             const mins = Math.floor(seconds / 60);
@@ -937,64 +932,6 @@ export default {
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         },
 
-        async sendSmsCode() {
-            if (!this.isValidPhone) {
-                this.phoneError = 'Введите корректный номер телефона';
-                return;
-            }
-            this.phoneSending = true;
-            this.phoneError = '';
-            try {
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                this.phoneForm.sessionId = 'test-session-' + Date.now();
-                this.phoneStep = 2;
-                this.startResendTimer();
-            } catch (error) {
-                this.phoneError = error.response?.data?.message || 'Ошибка отправки кода.';
-            } finally {
-                this.phoneSending = false;
-            }
-        },
-
-        async verifyCode() {
-            if (this.phoneForm.code.length !== 6) {
-                this.codeError = 'Введите 6-значный код';
-                return;
-            }
-            this.codeVerifying = true;
-            this.codeError = '';
-            try {
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                if (window.TenantUser) {
-                    window.TenantUser.phone = this.phoneForm.phone;
-                    window.TenantUser.phone_verified = true;
-                }
-                this.phoneStep = 3;
-                this.clearResendTimer();
-                this.showNotification('success', 'Номер телефона подтверждён', 'fa-solid fa-check-circle');
-            } catch (error) {
-                this.codeError = error.response?.data?.message || 'Неверный код.';
-            } finally {
-                this.codeVerifying = false;
-            }
-        },
-
-        startResendTimer() {
-            this.resendTimer = 60;
-            this.clearResendTimer();
-            this.resendInterval = setInterval(() => {
-                if (this.resendTimer > 0) this.resendTimer--;
-                else this.clearResendTimer();
-            }, 1000);
-        },
-
-        clearResendTimer() {
-            if (this.resendInterval) {
-                clearInterval(this.resendInterval);
-                this.resendInterval = null;
-            }
-            this.resendTimer = 0;
-        },
 
         async saveField(field) {
             this.saving = true;
@@ -1034,15 +971,21 @@ export default {
             try {
                 const date = new Date(dateStr);
                 if (isNaN(date.getTime())) return dateStr;
-                return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                return date.toLocaleDateString('ru-RU', {day: 'numeric', month: 'long', year: 'numeric'});
             } catch (e) {
                 return dateStr;
             }
         },
 
-        goToOrders() { this.$router.push({ name: 'Orders' }); },
-        goToFriends() { this.$router.push({ name: 'ReferralsPage' }); },
-        goToCashback() { this.$router.push({ name: 'Cashback' }); },
+        goToOrders() {
+            this.$router.push({name: 'Orders'});
+        },
+        goToFriends() {
+            this.$router.push({name: 'ReferralsPage'});
+        },
+        goToCashback() {
+            this.$router.push({name: 'Cashback'});
+        },
 
         async logout() {
             if (!confirm('Вы уверены, что хотите выйти?')) return;
@@ -1069,10 +1012,11 @@ export default {
         },
 
         showNotification(type, text, icon) {
-            this.notification = { type, text, icon };
-            setTimeout(() => { this.notification = null; }, 3000);
+            this.notification = {type, text, icon};
+            setTimeout(() => {
+                this.notification = null;
+            }, 3000);
         },
-
 
 
         // 🆕 Валидация сложности пароля
@@ -1080,7 +1024,7 @@ export default {
             const password = this.passwordForm.newPassword;
 
             if (!password) {
-                this.passwordStrength = { level: 0, text: '', color: 'muted' };
+                this.passwordStrength = {level: 0, text: '', color: 'muted'};
                 return;
             }
 
@@ -1100,10 +1044,10 @@ export default {
             const level = Math.min(4, Math.max(1, Math.ceil(score * 4 / 6)));
 
             const levels = {
-                1: { text: 'Слабый', color: 'danger' },
-                2: { text: 'Средний', color: 'warning' },
-                3: { text: 'Хороший', color: 'info' },
-                4: { text: 'Отличный', color: 'success' },
+                1: {text: 'Слабый', color: 'danger'},
+                2: {text: 'Средний', color: 'warning'},
+                3: {text: 'Хороший', color: 'info'},
+                4: {text: 'Отличный', color: 'success'},
             };
 
             this.passwordStrength = {
@@ -1166,10 +1110,51 @@ export default {
                 confirmPassword: '',
             };
             this.passwordError = '';
-            this.passwordStrength = { level: 0, text: '', color: 'muted' };
+            this.passwordStrength = {level: 0, text: '', color: 'muted'};
 
             if (this.modals.password) {
                 this.modals.password.show();
+            }
+        },
+
+        async savePhone() {
+            if (!this.isValidPhone) {
+                this.phoneError = 'Введите корректный номер телефона';
+                return;
+            }
+
+            this.phoneSaving = true;
+            this.phoneError = '';
+
+            try {
+                const response = await axios.put('/profile', {
+                    phone: this.phoneForm.phone,
+                });
+
+                // Обновляем глобальный объект
+                if (window.TenantUser && response.data.data) {
+                    Object.assign(window.TenantUser, response.data.data);
+                    // Помечаем как неподтверждённый (SMS не было)
+                    window.TenantUser.phone_verified = false;
+                }
+
+                if (this.modals.phone) {
+                    this.modals.phone.hide();
+                }
+
+                this.showNotification(
+                    'success',
+                    'Номер телефона сохранён',
+                    'fa-solid fa-check-circle'
+                );
+            } catch (error) {
+                console.error('Ошибка сохранения телефона:', error);
+                const errorMsg = error.response?.data?.errors?.phone?.[0]
+                    || error.response?.data?.message
+                    || 'Не удалось сохранить номер';
+                this.phoneError = errorMsg;
+            } finally {
+                this.phoneSaving = false;
             }
         },
     },
@@ -1182,158 +1167,526 @@ export default {
     background: var(--bs-body-bg);
 }
 
-.profile-header { padding: 20px 0; }
-.avatar-wrapper { position: relative; display: inline-block; }
+.profile-header {
+    padding: 20px 0;
+}
+
+.avatar-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
 .avatar-circle {
-    width: 120px; height: 120px; border-radius: 50%; overflow: hidden;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
     background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 8px 20px rgba(var(--bs-primary-rgb), 0.3); border: 4px solid var(--bs-body-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 20px rgba(var(--bs-primary-rgb), 0.3);
+    border: 4px solid var(--bs-body-bg);
 }
-.avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-placeholder { font-size: 3rem; color: white; }
+
+.avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-placeholder {
+    font-size: 3rem;
+    color: white;
+}
+
 .avatar-edit-btn {
-    position: absolute; bottom: 0; right: 0; width: 36px; height: 36px; border-radius: 50%;
-    background: var(--bs-primary); color: white; border: 3px solid var(--bs-body-bg);
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bs-primary);
+    color: white;
+    border: 3px solid var(--bs-body-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
-.avatar-edit-btn:hover { transform: scale(1.1); }
+
+.avatar-edit-btn:hover {
+    transform: scale(1.1);
+}
 
 .verified-badge {
-    display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 8px;
-    background: rgba(25, 135, 84, 0.1); color: #198754; border-radius: 12px; font-size: 0.75rem; font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: rgba(25, 135, 84, 0.1);
+    color: #198754;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
 }
-.unverified-hint { font-size: 0.75rem; color: #dc3545; font-weight: normal; }
+
+.unverified-hint {
+    font-size: 0.75rem;
+    color: #dc3545;
+    font-weight: normal;
+}
+
 .loyalty-badge {
-    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
-    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); color: #1a1a1a;
-    border-radius: 20px; font-size: 0.85rem; font-weight: 600; box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    color: #1a1a1a;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
 }
 
-.section-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 16px; overflow: hidden; }
+.section-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 16px;
+    overflow: hidden;
+}
+
 .section-header {
-    display: flex; align-items: center; gap: 10px; padding: 16px 20px;
-    background: rgba(var(--bs-primary-rgb), 0.05); border-bottom: 1px solid var(--bs-border-color);
-    color: var(--bs-primary); font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    background: rgba(var(--bs-primary-rgb), 0.05);
+    border-bottom: 1px solid var(--bs-border-color);
+    color: var(--bs-primary);
+    font-weight: 600;
 }
 
-.profile-fields { padding: 8px; }
+.profile-fields {
+    padding: 8px;
+}
+
 .profile-field {
-    display: flex; align-items: center; gap: 14px; padding: 14px 12px; width: 100%;
-    background: transparent; border: none; border-radius: 10px; text-align: left;
-    cursor: pointer; transition: all 0.2s ease; color: var(--bs-body-color);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 12px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--bs-body-color);
 }
-.profile-field:hover:not(.readonly) { background: rgba(var(--bs-primary-rgb), 0.05); }
-.profile-field.readonly { cursor: default; }
 
-.field-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; }
-.name-icon { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.phone-icon { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-.email-icon { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); } /* 🆕 */
-.birthday-icon { background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%); }
-.city-icon { background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); }
+.profile-field:hover:not(.readonly) {
+    background: rgba(var(--bs-primary-rgb), 0.05);
+}
 
-.field-content { flex: 1; min-width: 0; }
-.field-label { font-size: 0.75rem; color: var(--bs-secondary-color); margin-bottom: 2px; }
-.field-value { font-weight: 600; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.field-action { color: var(--bs-primary); opacity: 0.6; transition: opacity 0.2s ease; }
-.profile-field:hover .field-action { opacity: 1; }
+.profile-field.readonly {
+    cursor: default;
+}
 
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 16px; }
+.field-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+}
+
+.name-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.phone-icon {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.email-icon {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+/* 🆕 */
+.birthday-icon {
+    background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+}
+
+.city-icon {
+    background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%);
+}
+
+.field-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.field-label {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    margin-bottom: 2px;
+}
+
+.field-value {
+    font-weight: 600;
+    font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.field-action {
+    color: var(--bs-primary);
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+.profile-field:hover .field-action {
+    opacity: 1;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 16px;
+}
+
 .stat-item {
-    background: transparent; border: none; padding: 16px 8px; border-radius: 12px;
-    text-align: center; cursor: pointer; transition: all 0.2s ease; color: var(--bs-body-color);
+    background: transparent;
+    border: none;
+    padding: 16px 8px;
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--bs-body-color);
 }
-.stat-item:hover { background: rgba(var(--bs-primary-rgb), 0.05); }
+
+.stat-item:hover {
+    background: rgba(var(--bs-primary-rgb), 0.05);
+}
+
 .stat-icon {
-    width: 44px; height: 44px; border-radius: 50%; background: rgba(var(--bs-primary-rgb), 0.1);
-    color: var(--bs-primary); display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 8px; font-size: 1.1rem;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 8px;
+    font-size: 1.1rem;
 }
-.stat-value { font-size: 1.3rem; font-weight: 700; color: var(--bs-primary); margin-bottom: 2px; }
-.stat-label { font-size: 0.75rem; color: var(--bs-secondary-color); }
 
-.subs-list { padding: 8px; }
-.sub-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; transition: background 0.2s ease; }
-.sub-item:hover { background: rgba(var(--bs-primary-rgb), 0.03); }
-.sub-title { color: var(--bs-body-color); font-size: 0.9rem; }
-.sub-amount { color: var(--bs-primary); font-weight: 700; }
-
-.btn-logout {
-    width: 100%; padding: 14px; background: transparent; border: 2px solid #dc3545; border-radius: 12px;
-    color: #dc3545; font-weight: 600; cursor: pointer; transition: all 0.2s ease;
-    display: flex; align-items: center; justify-content: center;
+.stat-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--bs-primary);
+    margin-bottom: 2px;
 }
-.btn-logout:hover { background: #dc3545; color: white; }
 
-.edit-modal, .phone-modal { border-radius: 16px; border: none; overflow: hidden; }
-.edit-modal .modal-header, .phone-modal .modal-header {
-    display: flex; align-items: center; padding: 20px; border-bottom: 1px solid var(--bs-border-color);
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+}
+
+.subs-list {
+    padding: 8px;
+}
+
+.sub-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+}
+
+.sub-item:hover {
     background: rgba(var(--bs-primary-rgb), 0.03);
 }
-.modal-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; flex-shrink: 0; }
-.code-icon { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.edit-modal .modal-body, .phone-modal .modal-body { padding: 20px; }
-.form-hint { margin-top: 12px; padding: 10px 14px; background: rgba(var(--bs-primary-rgb), 0.05); border-radius: 8px; font-size: 0.85rem; color: var(--bs-secondary-color); }
-.edit-modal .modal-footer, .phone-modal .modal-footer { padding: 16px 20px; border-top: 1px solid var(--bs-border-color); gap: 8px; }
-.edit-modal .modal-footer .btn, .phone-modal .modal-footer .btn { border-radius: 10px; padding: 10px 20px; font-weight: 600; }
+
+.sub-title {
+    color: var(--bs-body-color);
+    font-size: 0.9rem;
+}
+
+.sub-amount {
+    color: var(--bs-primary);
+    font-weight: 700;
+}
+
+.btn-logout {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: 2px solid #dc3545;
+    border-radius: 12px;
+    color: #dc3545;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-logout:hover {
+    background: #dc3545;
+    color: white;
+}
+
+.edit-modal, .phone-modal {
+    border-radius: 16px;
+    border: none;
+    overflow: hidden;
+}
+
+.edit-modal .modal-header, .phone-modal .modal-header {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--bs-border-color);
+    background: rgba(var(--bs-primary-rgb), 0.03);
+}
+
+.modal-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.code-icon {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.edit-modal .modal-body, .phone-modal .modal-body {
+    padding: 20px;
+}
+
+.form-hint {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(var(--bs-primary-rgb), 0.05);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color);
+}
+
+.edit-modal .modal-footer, .phone-modal .modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--bs-border-color);
+    gap: 8px;
+}
+
+.edit-modal .modal-footer .btn, .phone-modal .modal-footer .btn {
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-weight: 600;
+}
 
 /* 🆕 Стили для аватара */
 .avatar-preview-wrapper {
-    width: 150px; height: 150px; border-radius: 50%; overflow: hidden; margin: 0 auto;
-    border: 3px dashed var(--bs-border-color); display: flex; align-items: center; justify-content: center;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin: 0 auto;
+    border: 3px dashed var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: var(--bs-body-bg);
 }
-.avatar-preview-img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-preview-placeholder { font-size: 3rem; color: var(--bs-secondary-color); }
 
-.code-input-wrapper { display: flex; justify-content: center; margin: 20px 0; }
+.avatar-preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-preview-placeholder {
+    font-size: 3rem;
+    color: var(--bs-secondary-color);
+}
+
+.code-input-wrapper {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
 .code-input {
-    width: 100%; max-width: 200px; padding: 16px; font-size: 2rem; font-weight: 700; text-align: center;
-    letter-spacing: 8px; border: 2px solid var(--bs-border-color); border-radius: 12px;
-    background: var(--bs-body-bg); color: var(--bs-body-color); transition: all 0.2s ease;
+    width: 100%;
+    max-width: 200px;
+    padding: 16px;
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 8px;
+    border: 2px solid var(--bs-border-color);
+    border-radius: 12px;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    transition: all 0.2s ease;
 }
-.code-input:focus { outline: none; border-color: var(--bs-primary); box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.1); }
 
-.resend-section { text-align: center; margin-top: 16px; }
+.code-input:focus {
+    outline: none;
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.resend-section {
+    text-align: center;
+    margin-top: 16px;
+}
+
 .resend-timer {
-    display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
-    background: rgba(var(--bs-primary-rgb), 0.05); border-radius: 20px; color: var(--bs-secondary-color); font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: rgba(var(--bs-primary-rgb), 0.05);
+    border-radius: 20px;
+    color: var(--bs-secondary-color);
+    font-size: 0.9rem;
 }
+
 .btn-resend {
-    background: transparent; border: none; color: var(--bs-primary); font-weight: 600; cursor: pointer;
-    padding: 8px 16px; border-radius: 8px; transition: all 0.2s ease;
+    background: transparent;
+    border: none;
+    color: var(--bs-primary);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
 }
-.btn-resend:hover:not(:disabled) { background: rgba(var(--bs-primary-rgb), 0.1); }
+
+.btn-resend:hover:not(:disabled) {
+    background: rgba(var(--bs-primary-rgb), 0.1);
+}
 
 .error-message {
-    padding: 10px 14px; background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3);
-    border-radius: 8px; color: #dc3545; font-size: 0.9rem;
+    padding: 10px 14px;
+    background: rgba(220, 53, 69, 0.1);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    border-radius: 8px;
+    color: #dc3545;
+    font-size: 0.9rem;
 }
 
 .success-icon {
-    width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    display: flex; align-items: center; justify-content: center; margin: 0 auto; animation: successPop 0.5s ease;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    animation: successPop 0.5s ease;
 }
-.success-icon i { font-size: 2.5rem; color: white; }
-@keyframes successPop { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+.success-icon i {
+    font-size: 2.5rem;
+    color: white;
+}
+
+@keyframes successPop {
+    0% {
+        transform: scale(0);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
 
 .notification-toast {
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 14px 20px;
-    border-radius: 12px; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); display: flex; align-items: center; gap: 10px;
-    z-index: 9999; animation: slideDown 0.3s ease; max-width: 90%;
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 14px 20px;
+    border-radius: 12px;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 9999;
+    animation: slideDown 0.3s ease;
+    max-width: 90%;
 }
-.notification-toast.success { border-color: #198754; color: #198754; }
-.notification-toast.error { border-color: #dc3545; color: #dc3545; }
-.notification-toast.info { border-color: var(--bs-primary); color: var(--bs-primary); }
-@keyframes slideDown { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+.notification-toast.success {
+    border-color: #198754;
+    color: #198754;
+}
+
+.notification-toast.error {
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.notification-toast.info {
+    border-color: var(--bs-primary);
+    color: var(--bs-primary);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
 
 @media (max-width: 576px) {
-    .stats-grid { gap: 4px; }
-    .stat-value { font-size: 1.1rem; }
-    .code-input { font-size: 1.5rem; letter-spacing: 6px; }
+    .stats-grid {
+        gap: 4px;
+    }
+
+    .stat-value {
+        font-size: 1.1rem;
+    }
+
+    .code-input {
+        font-size: 1.5rem;
+        letter-spacing: 6px;
+    }
 }
 
 /* 🆕 СТИЛИ ДЛЯ ДОСТИЖЕНИЙ */
@@ -1396,11 +1749,32 @@ export default {
     transform: translateX(4px);
 }
 
-.subs-list { padding: 8px; }
-.sub-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; transition: background 0.2s ease; }
-.sub-item:hover { background: rgba(var(--bs-primary-rgb), 0.03); }
-.sub-title { color: var(--bs-body-color); font-size: 0.9rem; }
-.sub-amount { color: var(--bs-primary); font-weight: 700; }
+.subs-list {
+    padding: 8px;
+}
+
+.sub-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+}
+
+.sub-item:hover {
+    background: rgba(var(--bs-primary-rgb), 0.03);
+}
+
+.sub-title {
+    color: var(--bs-body-color);
+    font-size: 0.9rem;
+}
+
+.sub-amount {
+    color: var(--bs-primary);
+    font-weight: 700;
+}
 
 /* 🆕 СТИЛИ ДЛЯ СМЕНЫ АККАУНТА */
 .btn-change-account {
@@ -1424,89 +1798,271 @@ export default {
 }
 
 .btn-logout {
-    width: 100%; padding: 14px; background: transparent; border: 2px solid #dc3545; border-radius: 12px;
-    color: #dc3545; font-weight: 600; cursor: pointer; transition: all 0.2s ease;
-    display: flex; align-items: center; justify-content: center;
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: 2px solid #dc3545;
+    border-radius: 12px;
+    color: #dc3545;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.btn-logout:hover { background: #dc3545; color: white; }
 
-.edit-modal, .phone-modal { border-radius: 16px; border: none; overflow: hidden; }
+.btn-logout:hover {
+    background: #dc3545;
+    color: white;
+}
+
+.edit-modal, .phone-modal {
+    border-radius: 16px;
+    border: none;
+    overflow: hidden;
+}
+
 .edit-modal .modal-header, .phone-modal .modal-header {
-    display: flex; align-items: center; padding: 20px; border-bottom: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--bs-border-color);
     background: rgba(var(--bs-primary-rgb), 0.03);
 }
-.modal-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; flex-shrink: 0; }
-.code-icon { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.edit-modal .modal-body, .phone-modal .modal-body { padding: 20px; }
-.form-hint { margin-top: 12px; padding: 10px 14px; background: rgba(var(--bs-primary-rgb), 0.05); border-radius: 8px; font-size: 0.85rem; color: var(--bs-secondary-color); }
-.edit-modal .modal-footer, .phone-modal .modal-footer { padding: 16px 20px; border-top: 1px solid var(--bs-border-color); gap: 8px; }
-.edit-modal .modal-footer .btn, .phone-modal .modal-footer .btn { border-radius: 10px; padding: 10px 20px; font-weight: 600; }
+
+.modal-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.code-icon {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.edit-modal .modal-body, .phone-modal .modal-body {
+    padding: 20px;
+}
+
+.form-hint {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(var(--bs-primary-rgb), 0.05);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color);
+}
+
+.edit-modal .modal-footer, .phone-modal .modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--bs-border-color);
+    gap: 8px;
+}
+
+.edit-modal .modal-footer .btn, .phone-modal .modal-footer .btn {
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-weight: 600;
+}
 
 .avatar-preview-wrapper {
-    width: 150px; height: 150px; border-radius: 50%; overflow: hidden; margin: 0 auto;
-    border: 3px dashed var(--bs-border-color); display: flex; align-items: center; justify-content: center;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin: 0 auto;
+    border: 3px dashed var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: var(--bs-body-bg);
 }
-.avatar-preview-img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-preview-placeholder { font-size: 3rem; color: var(--bs-secondary-color); }
 
-.code-input-wrapper { display: flex; justify-content: center; margin: 20px 0; }
+.avatar-preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-preview-placeholder {
+    font-size: 3rem;
+    color: var(--bs-secondary-color);
+}
+
+.code-input-wrapper {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
 .code-input {
-    width: 100%; max-width: 200px; padding: 16px; font-size: 2rem; font-weight: 700; text-align: center;
-    letter-spacing: 8px; border: 2px solid var(--bs-border-color); border-radius: 12px;
-    background: var(--bs-body-bg); color: var(--bs-body-color); transition: all 0.2s ease;
+    width: 100%;
+    max-width: 200px;
+    padding: 16px;
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 8px;
+    border: 2px solid var(--bs-border-color);
+    border-radius: 12px;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    transition: all 0.2s ease;
 }
-.code-input:focus { outline: none; border-color: var(--bs-primary); box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.1); }
 
-.resend-section { text-align: center; margin-top: 16px; }
+.code-input:focus {
+    outline: none;
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.resend-section {
+    text-align: center;
+    margin-top: 16px;
+}
+
 .resend-timer {
-    display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
-    background: rgba(var(--bs-primary-rgb), 0.05); border-radius: 20px; color: var(--bs-secondary-color); font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: rgba(var(--bs-primary-rgb), 0.05);
+    border-radius: 20px;
+    color: var(--bs-secondary-color);
+    font-size: 0.9rem;
 }
+
 .btn-resend {
-    background: transparent; border: none; color: var(--bs-primary); font-weight: 600; cursor: pointer;
-    padding: 8px 16px; border-radius: 8px; transition: all 0.2s ease;
+    background: transparent;
+    border: none;
+    color: var(--bs-primary);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
 }
-.btn-resend:hover:not(:disabled) { background: rgba(var(--bs-primary-rgb), 0.1); }
+
+.btn-resend:hover:not(:disabled) {
+    background: rgba(var(--bs-primary-rgb), 0.1);
+}
 
 .error-message {
-    padding: 10px 14px; background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3);
-    border-radius: 8px; color: #dc3545; font-size: 0.9rem;
+    padding: 10px 14px;
+    background: rgba(220, 53, 69, 0.1);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    border-radius: 8px;
+    color: #dc3545;
+    font-size: 0.9rem;
 }
 
 .success-icon {
-    width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    display: flex; align-items: center; justify-content: center; margin: 0 auto; animation: successPop 0.5s ease;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    animation: successPop 0.5s ease;
 }
-.success-icon i { font-size: 2.5rem; color: white; }
-@keyframes successPop { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+.success-icon i {
+    font-size: 2.5rem;
+    color: white;
+}
+
+@keyframes successPop {
+    0% {
+        transform: scale(0);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
 
 .notification-toast {
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 14px 20px;
-    border-radius: 12px; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); display: flex; align-items: center; gap: 10px;
-    z-index: 9999; animation: slideDown 0.3s ease; max-width: 90%;
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 14px 20px;
+    border-radius: 12px;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 9999;
+    animation: slideDown 0.3s ease;
+    max-width: 90%;
 }
-.notification-toast.success { border-color: #198754; color: #198754; }
-.notification-toast.error { border-color: #dc3545; color: #dc3545; }
-.notification-toast.info { border-color: var(--bs-primary); color: var(--bs-primary); }
-@keyframes slideDown { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+.notification-toast.success {
+    border-color: #198754;
+    color: #198754;
+}
+
+.notification-toast.error {
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.notification-toast.info {
+    border-color: var(--bs-primary);
+    color: var(--bs-primary);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
 
 @media (max-width: 576px) {
-    .stats-grid { gap: 4px; }
-    .stat-value { font-size: 1.1rem; }
-    .code-input { font-size: 1.5rem; letter-spacing: 6px; }
+    .stats-grid {
+        gap: 4px;
+    }
+
+    .stat-value {
+        font-size: 1.1rem;
+    }
+
+    .code-input {
+        font-size: 1.5rem;
+        letter-spacing: 6px;
+    }
 }
+
 /* 🆕 Стили для реферального блока */
 .referral-card {
     border: 1px solid rgba(var(--bs-primary-rgb), 0.2);
     background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 0.03) 0%, rgba(var(--bs-primary-rgb), 0.08) 100%);
 }
+
 .referral-card .input-group input {
     border-right: none;
     font-size: 0.9rem;
     color: var(--bs-body-color);
 }
+
 .referral-card .input-group .btn {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
@@ -1543,14 +2099,88 @@ export default {
     transition: all 0.3s ease;
 }
 
-.strength-bar.level-1 { background: #dc3545; }
-.strength-bar.level-2 { background: #ffc107; }
-.strength-bar.level-3 { background: #0dcaf0; }
-.strength-bar.level-4 { background: #198754; }
+.strength-bar.level-1 {
+    background: #dc3545;
+}
+
+.strength-bar.level-2 {
+    background: #ffc107;
+}
+
+.strength-bar.level-3 {
+    background: #0dcaf0;
+}
+
+.strength-bar.level-4 {
+    background: #198754;
+}
 
 .strength-text {
     font-size: 0.75rem;
     font-weight: 600;
+}
+
+
+/* 🆕 Блок с замком про SMS */
+.sms-disabled-notice {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(255, 193, 7, 0.08);
+    border: 1px solid rgba(255, 193, 7, 0.25);
+    border-radius: 12px;
+    margin-top: 16px;
+}
+
+.sms-notice-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+.sms-notice-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.sms-notice-title {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+    margin-bottom: 3px;
+}
+
+.sms-notice-desc {
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    line-height: 1.4;
+}
+
+/* 🆕 Бейдж "без подтверждения" */
+.unverified-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: rgba(255, 193, 7, 0.12);
+    color: #d97706;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.unverified-tag i {
+    font-size: 0.6rem;
 }
 </style>
 

@@ -1,174 +1,202 @@
 <template>
-    <div class="cashback-item">
-        <!-- Иконка операции -->
-        <div class="item-icon" :class="iconClass">
-            <i :class="iconName"></i>
+    <div class="cashback-list">
+        <div v-if="history.length === 0 && !loading" class="empty-state">
+            <i class="fa-solid fa-inbox"></i>
+            <p>История операций пуста</p>
         </div>
 
-        <!-- Описание и дата -->
-        <div class="item-details">
-            <div class="item-title">{{ item?.title || 'Начисление CashBack' }}</div>
-            <div class="item-date">{{ formatDate(item?.created_at) }}</div>
+        <div v-else class="history-items">
+            <div
+                v-for="item in history"
+                :key="item.id"
+                class="history-item"
+                :class="item.type"
+            >
+                <div class="history-icon">
+                    <i :class="item.type === 'credit' ? 'fa-solid fa-arrow-down' : 'fa-solid fa-arrow-up'"></i>
+                </div>
+                <div class="history-info">
+                    <div class="history-title">{{ item.description || 'Операция' }}</div>
+                    <div class="history-date">{{ formatDate(item.created_at) }}</div>
+                </div>
+                <div class="history-amount" :class="item.type">
+                    {{ item.type === 'credit' ? '+' : '-' }}{{ formatCurrency(item.amount) }}
+                </div>
+            </div>
         </div>
 
-        <!-- Сумма -->
-        <div class="item-amount" :class="amountClass">
-            {{ formatAmount(item?.amount || 0) }}
+        <button
+            v-if="hasMore && !loadingHistory"
+            class="load-more-btn"
+            @click="loadMoreHistory"
+        >
+            Загрузить ещё
+        </button>
+
+        <div v-if="loadingHistory" class="loading-more">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
         </div>
     </div>
 </template>
 
 <script>
+import { useCashback } from '@/MobileClient/composables/useCashback';
+
 export default {
-    name: "CashBackItem",
+    name: 'CashBackList',
 
-    props: {
-        item: {
-            type: Object,
-            required: true
-        }
-    },
+    setup() {
+        const {
+            history,
+            loadingHistory,
+            hasMore,
+            loadMoreHistory,
+        } = useCashback();
 
-    computed: {
-        // Определяем, это пополнение (+) или списание (-)
-        isPositive() {
-            // Адаптируй это условие под реальные данные с бэка
-            // (например, item.type === 'credit' или item.amount > 0)
-            return (this.item?.amount || 0) >= 0;
-        },
-
-        amountClass() {
-            return this.isPositive ? 'text-success' : 'text-danger';
-        },
-
-        iconName() {
-            // Адаптируй под свои типы операций
-            if (!this.isPositive) return 'fa-solid fa-bag-shopping'; // Покупка/списание
-            if (this.item?.title?.toLowerCase().includes('подарок') || this.item?.title?.toLowerCase().includes('бонус')) {
-                return 'fa-solid fa-gift';
-            }
-            return 'fa-solid fa-arrow-down'; // Стандартное начисление
-        },
-
-        iconClass() {
-            return this.isPositive ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger';
-        }
+        return {
+            history,
+            loadingHistory,
+            hasMore,
+            loadMoreHistory,
+        };
     },
 
     methods: {
-        formatAmount(amount) {
-            const num = Math.abs(amount || 0);
-            const formatted = new Intl.NumberFormat('ru-RU', {
-                style: 'currency',
-                currency: 'RUB',
-                minimumFractionDigits: 0
-            }).format(num);
-
-            return this.isPositive ? `+${formatted}` : `-${formatted}`;
-        },
-
         formatDate(dateString) {
-            if (!dateString) return 'Недавно';
-
             const date = new Date(dateString);
-            const today = new Date();
-            const yesterday = new Date(today);
-            yesterday.setDate(yesterday.getDate() - 1);
-
-            // Если сегодня
-            if (date.toDateString() === today.toDateString()) {
-                return `Сегодня, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-            }
-            // Если вчера
-            if (date.toDateString() === yesterday.toDateString()) {
-                return `Вчера, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-            }
-            // Иначе полная дата
             return date.toLocaleDateString('ru-RU', {
-                day: 'numeric',
+                day: '2-digit',
                 month: 'short',
-                year: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
             });
+        },
+
+        formatCurrency(value) {
+            return new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: 'RUB',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
         }
     }
 };
 </script>
 
 <style scoped>
-.cashback-item {
+.cashback-list {
+    padding: 8px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--bs-secondary-color);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 12px;
+    opacity: 0.3;
+}
+
+.history-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.history-item {
     display: flex;
     align-items: center;
-    padding: 16px 20px;
+    gap: 12px;
+    padding: 12px;
     background: var(--bs-body-bg);
-    border-bottom: 1px solid var(--bs-border-color-translucent);
-    transition: background-color 0.2s ease;
-}
-
-.cashback-item:last-child {
-    border-bottom: none;
-}
-
-.cashback-item:hover {
-    background: rgba(var(--bs-primary-rgb), 0.02);
-}
-
-/* Иконка */
-.item-icon {
-    width: 44px;
-    height: 44px;
     border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.history-item:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+.history-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     flex-shrink: 0;
-    margin-right: 14px;
 }
 
-.bg-success-subtle {
-    background-color: rgba(25, 135, 84, 0.1);
+.history-item.credit .history-icon {
+    background: rgba(25, 135, 84, 0.1);
+    color: #198754;
 }
 
-.bg-danger-subtle {
-    background-color: rgba(220, 53, 69, 0.1);
+.history-item.debit .history-icon {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
 }
 
-/* Детали */
-.item-details {
+.history-info {
     flex: 1;
-    min-width: 0; /* Важно для text-overflow */
+    min-width: 0;
 }
 
-.item-title {
+.history-title {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: var(--bs-body-color);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.item-date {
-    font-size: 0.8rem;
+.history-date {
+    font-size: 0.75rem;
     color: var(--bs-secondary-color);
 }
 
-/* Сумма */
-.item-amount {
+.history-amount {
     font-weight: 700;
     font-size: 1rem;
     white-space: nowrap;
     margin-left: 12px;
 }
 
-.text-success {
-    color: #198754 !important;
+.history-amount.credit {
+    color: #198754;
 }
 
-.text-danger {
-    color: #dc3545 !important;
+.history-amount.debit {
+    color: #dc3545;
+}
+
+.load-more-btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 12px;
+    background: var(--bs-primary);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.load-more-btn:hover {
+    background: var(--bs-primary-hover, var(--bs-primary));
+    transform: translateY(-1px);
+}
+
+.loading-more {
+    text-align: center;
+    padding: 16px;
 }
 </style>

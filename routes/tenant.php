@@ -14,6 +14,7 @@ use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\Tenant\AchievementAdminController;
 use App\Http\Controllers\Tenant\AchievementController;
+use App\Http\Controllers\Tenant\CashBackController;
 use App\Http\Controllers\Tenant\ClientsController;
 use App\Http\Controllers\Tenant\CollectionController;
 use App\Http\Controllers\Tenant\FavoriteController;
@@ -369,6 +370,7 @@ function routes() {
             Route::get('/unread-count', [TenantDialogController::class, 'unreadCount']);
             Route::get('/{dialogId}/unread-count', [TenantDialogController::class, 'dialogUnreadCount']);
 
+            Route::get('/{dialogId}/read-statuses', [TenantDialogController::class, 'getReadStatuses']);
             Route::get('/', [TenantDialogController::class, 'index']);
             Route::get('/{dialogId}', [TenantDialogController::class, 'show']);
             Route::get('/{dialogId}/messages', [TenantDialogController::class, 'messages']);
@@ -439,6 +441,12 @@ function routes() {
             Route::delete('/friends/{friendId}', [ReferralController::class, 'removeFriend']);
         });
 
+
+    Route::prefix('cashback')->group(function () {
+        Route::get('/', [CashBackController::class, 'index']);
+        Route::get('/history', [CashBackController::class, 'history']);
+        Route::get('/download', [CashBackController::class, 'downloadHistory']);
+    });
     Route::prefix("shop")
         ->group(function () {
             Route::prefix("orders")

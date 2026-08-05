@@ -1,85 +1,90 @@
 <template>
-    <div class="cashback-page pb-5 pt-3" v-if="self">
-
-        <!-- ===== HERO: ГЛАВНЫЙ БАЛАНС ===== -->
-        <div class="balance-hero">
-            <div class="balance-background-pattern"></div>
-            <div class="balance-content">
-                <div class="balance-label">
-                    <i class="fa-solid fa-wallet me-2"></i>
-                    Ваш баланс CashBack
-                </div>
-                <div class="balance-amount">
-                    {{ formatCurrency(self.cashback_balance || 0) }}
-                </div>
-                <div class="balance-hint">
-                    Баллы можно использовать для оплаты следующих заказов
-                </div>
-
-                <!-- Кнопка действия (опционально, если есть механика списания) -->
-                <button class="btn-redeem" @click="goToCatalog">
-                    <i class="fa-solid fa-bag-shopping me-2"></i>
-                    Потратить баллы
-                </button>
+    <div class="cashback-page pb-5 pt-3">
+        <!-- Состояние загрузки -->
+        <div v-if="loading" class="loading-state">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
             </div>
         </div>
 
-        <div class="container px-3">
-
-            <!-- ===== СПЕЦИАЛЬНЫЕ НАЧИСЛЕНИЯ ===== -->
-            <div v-if="hasSpecialSubs" class="section-block mt-4">
-                <div class="section-header">
-                    <div class="section-icon gift-icon">
-                        <i class="fa-solid fa-gift"></i>
+        <template v-else>
+            <!-- ===== HERO: ГЛАВНЫЙ БАЛАНС ===== -->
+            <div class="balance-hero">
+                <div class="balance-background-pattern"></div>
+                <div class="balance-content">
+                    <div class="balance-label">
+                        <i class="fa-solid fa-wallet me-2"></i>
+                        Ваш баланс CashBack
                     </div>
-                    <h6 class="section-title">Специальные начисления</h6>
-                </div>
+                    <div class="balance-amount">
+                        {{ formattedBalance }}
+                    </div>
+                    <div class="balance-hint">
+                        Баллы можно использовать для оплаты следующих заказов
+                    </div>
 
-                <div class="subs-grid">
-                    <div
-                        v-for="(sub, index) in self.cashback_subs"
-                        :key="index"
-                        class="sub-card"
-                    >
-                        <div class="sub-info">
-                            <div class="sub-title">{{ sub.sub_title || 'Бонус' }}</div>
-                            <div class="sub-desc">Дополнительный кэшбэк</div>
+                    <div class="balance-actions">
+                        <button class="btn-redeem" @click="goToCatalog">
+                            <i class="fa-solid fa-bag-shopping me-2"></i>
+                            Потратить баллы
+                        </button>
+                        <button class="btn-download" @click="downloadHistory">
+                            <i class="fa-solid fa-download me-2"></i>
+                            Скачать историю
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="container px-3">
+                <!-- ===== СПЕЦИАЛЬНЫЕ НАЧИСЛЕНИЯ ===== -->
+                <div v-if="hasSpecialSubs" class="section-block mt-4">
+                    <div class="section-header">
+                        <div class="section-icon gift-icon">
+                            <i class="fa-solid fa-gift"></i>
                         </div>
-                        <div class="sub-amount">
-                            +{{ formatCurrency(sub.total || 0) }}
+                        <h6 class="section-title">Специальные начисления</h6>
+                    </div>
+
+                    <div class="subs-grid">
+                        <div
+                            v-for="(sub, index) in specialSubs"
+                            :key="index"
+                            class="sub-card"
+                        >
+                            <div class="sub-info">
+                                <div class="sub-title">{{ sub.sub_title || 'Бонус' }}</div>
+                                <div class="sub-desc">Реферальная программа</div>
+                            </div>
+                            <div class="sub-amount">
+                                +{{ formatCurrency(sub.total) }}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- ===== ИСТОРИЯ ОПЕРАЦИЙ ===== -->
-            <div class="section-block mt-4">
-                <div class="section-header">
-                    <div class="section-icon history-icon">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
+                <!-- ===== ИСТОРИЯ ОПЕРАЦИЙ ===== -->
+                <div class="section-block mt-4">
+                    <div class="section-header">
+                        <div class="section-icon history-icon">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                        </div>
+                        <h6 class="section-title">История операций</h6>
                     </div>
-                    <h6 class="section-title">История операций</h6>
-                </div>
 
-                <!-- Обертка для твоего компонента списка -->
-                <div class="history-wrapper">
-                    <CashBackList />
+                    <div class="history-wrapper">
+                        <CashBackList />
+                    </div>
                 </div>
             </div>
-
-        </div>
-    </div>
-
-    <!-- Состояние загрузки или отсутствия данных -->
-    <div v-else class="loading-state">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Загрузка...</span>
-        </div>
+        </template>
     </div>
 </template>
 
 <script>
 import CashBackList from '@/MobileClient/Components/Shop/CashBack/CashBackList.vue';
+import { useCashback } from '@/MobileClient/composables/useCashback';
+import { onMounted } from 'vue';
 
 export default {
     name: "CashBackPage",
@@ -88,18 +93,30 @@ export default {
         CashBackList
     },
 
-    computed: {
-        self() {
-            return window.TenantUser || null;
-        },
+    setup() {
+        const {
+            loading,
+            specialSubs,
+            formattedBalance,
+            hasSpecialSubs,
+            fetchCashbackData,
+            downloadHistory,
+        } = useCashback();
 
-        hasSpecialSubs() {
-            return this.self?.cashback_subs && this.self.cashback_subs.length > 0;
-        }
+        onMounted(() => {
+            fetchCashbackData();
+        });
+
+        return {
+            loading,
+            specialSubs,
+            formattedBalance,
+            hasSpecialSubs,
+            downloadHistory,
+        };
     },
 
     methods: {
-        // Красивое форматирование валюты (например: "1 250 ₽")
         formatCurrency(value) {
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
@@ -122,9 +139,6 @@ export default {
     background: var(--bs-body-bg);
 }
 
-/* ==========================================
-   HERO: ГЛАВНЫЙ БАЛАНС
-   ========================================== */
 .balance-hero {
     position: relative;
     margin: 0 16px 24px;
@@ -179,31 +193,37 @@ export default {
     line-height: 1.4;
 }
 
-.btn-redeem {
+.balance-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-redeem,
+.btn-download {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 14px 32px;
+    padding: 14px 24px;
     background: rgba(255, 255, 255, 0.2);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 16px;
     color: white;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.9rem;
     cursor: pointer;
     transition: all 0.3s ease;
 }
 
-.btn-redeem:hover {
+.btn-redeem:hover,
+.btn-download:hover {
     background: rgba(255, 255, 255, 0.3);
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
-/* ==========================================
-   СЕКЦИИ
-   ========================================== */
 .section-block {
     animation: fadeInUp 0.5s ease-out;
 }
@@ -255,9 +275,6 @@ export default {
     color: var(--bs-body-color);
 }
 
-/* ==========================================
-   КАРТОЧКИ СПЕЦИАЛЬНЫХ НАЧИСЛЕНИЙ
-   ========================================== */
 .subs-grid {
     display: flex;
     flex-direction: column;
@@ -301,26 +318,18 @@ export default {
 .sub-amount {
     font-weight: 700;
     font-size: 1.1rem;
-    color: #198754; /* Зеленый для плюса */
+    color: #198754;
     white-space: nowrap;
     margin-left: 12px;
 }
 
-/* ==========================================
-   ИСТОРИЯ
-   ========================================== */
 .history-wrapper {
     background: var(--bs-body-bg);
     border-radius: 16px;
-    /* Если CashBackList внутри имеет свои стили, они сохранятся,
-       но мы добавляем легкую обводку для целостности */
     border: 1px solid var(--bs-border-color);
     overflow: hidden;
 }
 
-/* ==========================================
-   АДАПТИВ И ЗАГРУЗКА
-   ========================================== */
 .loading-state {
     min-height: 100vh;
     display: flex;
@@ -336,6 +345,15 @@ export default {
 
     .balance-hero {
         padding: 24px 20px;
+    }
+
+    .balance-actions {
+        flex-direction: column;
+    }
+
+    .btn-redeem,
+    .btn-download {
+        width: 100%;
     }
 }
 </style>

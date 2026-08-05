@@ -223,6 +223,15 @@
 
             <OrderPeriscope></OrderPeriscope>
 
+            <AppDivider
+                icon="fa-regular fa-address-card"
+                text="Делимся контактами"
+                class="flex-grow-1 m-0 my-3"
+            />
+            <TaplinkButton
+                class="mb-3"
+                label="Таплинк" icon="fa-regular fa-hand-pointer" />
+
             <!-- ===== АДМИНКА (только для админов) ===== -->
             <template v-if="isAdmin">
 
@@ -257,9 +266,6 @@
                     </div>
                 </div>
 
-                <TaplinkButton
-                    class="mb-3"
-                    label="Таплинк" icon="fa-regular fa-hand-pointer" />
 
                 <a
                     v-if="canOpenCrm"
