@@ -158,15 +158,14 @@ class ProductController extends Controller
         $address = $validated['address'];
 
         // 🆕 4. Логика расчета по зонам доставки
-        // Проверяем оба возможных пути сохранения (внутри shop или в корне)
         $deliveryZones = $config['shop']['delivery_zones'] ?? $config['delivery_zones'] ?? [];
 
-        // Сортируем зоны по радиусу по возрастанию, чтобы найти наименьшую подходящую зону
+        // Сортируем зоны по радиусу по возрастанию
         usort($deliveryZones, function($a, $b) {
             return ((float)($a['radius'] ?? 0)) <=> ((float)($b['radius'] ?? 0));
         });
 
-        // Хелпер для парсинга строки цены в float (обрабатывает "150", "150 ₽", "Бесплатно")
+        // Хелпер для парсинга строки цены в float
         $parseZonePrice = function($price) {
             if (is_numeric($price)) return (float)$price;
 
@@ -175,9 +174,18 @@ class ProductController extends Controller
                 return 0.0;
             }
 
-            // Извлекаем первое встреченное число (целое или дробное)
             preg_match('/\d+([\.,]\d+)?/', $priceStr, $matches);
             return isset($matches[0]) ? (float)str_replace(',', '.', $matches[0]) : 0.0;
+        };
+
+        // 🆕 Хелпер: fallback-расчёт по линейной формуле
+        $calculateFallbackPrice = function(float $distanceInKm) use ($config): float {
+            $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"]
+                ?? $config["min_base_delivery_price"] ?? 100);
+            $pricePerKm = (float)($config["shop"]["price_per_km"]
+                ?? $config["price_per_km"] ?? 80);
+
+            return round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
         };
 
         $sumDistance = 0.0;
@@ -193,8 +201,30 @@ class ProductController extends Controller
                 continue;
             }
 
-            // Поддержка как плоской структуры, так и вложенной в shop
-            $shopCoords = $partner->settings["shop_coords"] ?? $partner->settings["shop"]["shop_coords"] ?? null;
+            $shopCoords = $partner->settings["shop_coords"]
+                ?? $partner->settings["shop"]["shop_coords"]
+                ?? null;
+
+            // 🆕 Если координаты магазина не указаны, используем базовую цену без расчёта расстояния
+            if (empty($shopCoords)) {
+                $deliveryPrice = $calculateFallbackPrice(0);
+
+                $partnerUuid = $partner->uuid ?? 'partner_' . $partner->id;
+                $partnerBoxConfig[$partnerUuid] = [
+                    "id" => $partner->id,
+                    "price" => $deliveryPrice,
+                    "title" => $partner->name ?? $partner->slug ?? 'Неизвестный магазин',
+                    "distance" => 0,
+                    "address" => $address,
+                    "shop_coords" => null,
+                    "client_coords" => $clientLat . ", " . $clientLng,
+                    "is_outside_zones" => false,
+                    "no_coords" => true,
+                ];
+
+                $sumPrice += $deliveryPrice;
+                continue;
+            }
 
             $distanceInMeters = GEOService::call()->getDistance($clientLat, $clientLng, $shopCoords);
             $distCoef = env("DISTANCE_COEF") ?? 1;
@@ -204,27 +234,41 @@ class ProductController extends Controller
             $isOutsideZones = false;
 
             if (!empty($deliveryZones)) {
-                // 🆕 Ищем первую зону, радиус которой >= расстоянию
+                // Ищем первую зону, радиус которой >= расстоянию
                 $zoneFound = false;
                 foreach ($deliveryZones as $zone) {
                     $radius = (float)($zone['radius'] ?? 0);
                     if ($distanceInKm <= $radius) {
                         $deliveryPrice = $parseZonePrice($zone['price'] ?? 0);
                         $zoneFound = true;
-                        break; // Нашли наименьшую подходящую зону, прерываем цикл
+                        break;
                     }
                 }
 
-                // Если адрес за пределами всех настроенных зон
+                // 🆕 Если адрес за пределами всех зон — используем fallback-формулу
                 if (!$zoneFound) {
                     $isOutsideZones = true;
-                    $deliveryPrice = 0.0; // Или можно взять цену последней (максимальной) зоны
+
+                    // Вариант 1: Берём цену самой дальней зоны (последней после сортировки)
+                    $lastZonePrice = $parseZonePrice(end($deliveryZones)['price'] ?? 0);
+
+                    // Вариант 2: Fallback-формула
+                    $fallbackPrice = $calculateFallbackPrice($distanceInKm);
+
+                    // Берём максимум, чтобы не занижать цену
+                    $deliveryPrice = max($lastZonePrice, $fallbackPrice);
                 }
             } else {
-                // 🔄 Fallback: если зоны не настроены, используем старую линейную формулу
-                $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"] ?? $config["min_base_delivery_price"] ?? 100);
-                $pricePerKm = (float)($config["shop"]["price_per_km"] ?? $config["price_per_km"] ?? 80);
-                $deliveryPrice = round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
+                // 🔄 Fallback: если зоны не настроены, используем линейную формулу
+                $deliveryPrice = $calculateFallbackPrice($distanceInKm);
+            }
+
+            // 🆕 Гарантируем минимальную цену (не меньше базовой)
+            $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"]
+                ?? $config["min_base_delivery_price"] ?? 100);
+
+            if ($deliveryPrice < $minBaseDeliveryPrice && $distanceInKm > 0) {
+                $deliveryPrice = $minBaseDeliveryPrice;
             }
 
             $partnerUuid = $partner->uuid ?? 'partner_' . $partner->id;
@@ -237,7 +281,7 @@ class ProductController extends Controller
                 "address" => $address,
                 "shop_coords" => $shopCoords,
                 "client_coords" => $clientLat . ", " . $clientLng,
-                "is_outside_zones" => $isOutsideZones, // 🆕 Флаг для фронтенда
+                "is_outside_zones" => $isOutsideZones,
             ];
 
             $sumDistance += $distanceInKm;

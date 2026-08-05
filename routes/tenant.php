@@ -157,6 +157,7 @@ function routes() {
     Route::prefix('profile')->middleware(['auth:tenant'])->group(function () {
         Route::get('/', [ProfileController::class, 'index']);
         Route::put('/', [ProfileController::class, 'update']);          // Обновление текстовых данных
+        Route::put('/password', [ProfileController::class, 'updatePassword']);
         Route::post('/avatar', [ProfileController::class, 'updateAvatar']); // Загрузка фото
     });
 

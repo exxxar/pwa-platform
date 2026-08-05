@@ -134,6 +134,38 @@
                             <div class="field-value">{{ self?.city || 'не указан' }}</div>
                         </div>
                     </div>
+
+
+                    <!-- 🆕 Пароль -->
+                    <button v-if="isOwnProfile" class="profile-field" @click="openPasswordModal">
+                        <div class="field-icon password-icon"><i class="fa-solid fa-lock"></i></div>
+                        <div class="field-content">
+                            <div class="field-label">Пароль</div>
+                            <div class="field-value">
+                                <template v-if="hasPassword">
+                                    <span class="text-success">Установлен</span>
+                                    <span class="password-hint">• Сменить пароль</span>
+                                </template>
+                                <template v-else>
+                                    <span class="text-warning">Не установлен</span>
+                                    <span class="password-hint">• Установить пароль</span>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="field-action">
+                            <i :class="hasPassword ? 'fa-solid fa-pen' : 'fa-solid fa-plus'"></i>
+                        </div>
+                    </button>
+                    <div v-else class="profile-field readonly">
+                        <div class="field-icon password-icon"><i class="fa-solid fa-lock"></i></div>
+                        <div class="field-content">
+                            <div class="field-label">Пароль</div>
+                            <div class="field-value">
+                                <span v-if="hasPassword" class="text-success">Установлен</span>
+                                <span v-else class="text-muted">Не установлен</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -369,6 +401,108 @@
             </div>
         </div>
 
+        <!-- 🆕 Модалка: Пароль -->
+        <div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content edit-modal">
+                    <div class="modal-header">
+                        <div class="modal-icon password-icon"><i class="fa-solid fa-lock"></i></div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="modal-title mb-0">
+                                {{ hasPassword ? 'Сменить пароль' : 'Установить пароль' }}
+                            </h5>
+                            <small class="text-muted">
+                                {{ hasPassword
+                                ? 'Введите текущий и новый пароль'
+                                : 'Создайте пароль для входа в аккаунт'
+                                }}
+                            </small>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Текущий пароль (только если уже установлен) -->
+                        <div v-if="hasPassword" class="form-floating mb-3">
+                            <input
+                                v-model="passwordForm.currentPassword"
+                                type="password"
+                                class="form-control"
+                                id="current-password-input"
+                                placeholder="Текущий пароль"
+                                autocomplete="current-password"
+                            >
+                            <label for="current-password-input">Текущий пароль</label>
+                        </div>
+
+                        <!-- Новый пароль -->
+                        <div class="form-floating mb-3">
+                            <input
+                                v-model="passwordForm.newPassword"
+                                type="password"
+                                class="form-control"
+                                id="new-password-input"
+                                placeholder="Новый пароль"
+                                autocomplete="new-password"
+                                @input="validatePasswordStrength"
+                            >
+                            <label for="new-password-input">Новый пароль</label>
+
+                            <!-- Индикатор сложности пароля -->
+                            <div class="password-strength mt-2">
+                                <div class="strength-bars">
+                                    <div class="strength-bar" :class="passwordStrength.level >= 1 ? `level-${passwordStrength.level}` : ''"></div>
+                                    <div class="strength-bar" :class="passwordStrength.level >= 2 ? `level-${passwordStrength.level}` : ''"></div>
+                                    <div class="strength-bar" :class="passwordStrength.level >= 3 ? `level-${passwordStrength.level}` : ''"></div>
+                                    <div class="strength-bar" :class="passwordStrength.level >= 4 ? `level-${passwordStrength.level}` : ''"></div>
+                                </div>
+                                <div class="strength-text" :class="`text-${passwordStrength.color}`">
+                                    {{ passwordStrength.text }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Подтверждение пароля -->
+                        <div class="form-floating mb-3">
+                            <input
+                                v-model="passwordForm.confirmPassword"
+                                type="password"
+                                class="form-control"
+                                id="confirm-password-input"
+                                placeholder="Подтвердите пароль"
+                                autocomplete="new-password"
+                            >
+                            <label for="confirm-password-input">Подтвердите пароль</label>
+                        </div>
+
+                        <!-- Ошибки -->
+                        <div v-if="passwordError" class="error-message">
+                            <i class="fa-solid fa-circle-exclamation me-1"></i> {{ passwordError }}
+                        </div>
+
+                        <!-- Подсказки -->
+                        <div class="form-hint">
+                            <i class="fa-solid fa-shield-halved me-1"></i>
+                            Пароль должен содержать минимум 6 символов.
+                            Рекомендуется использовать буквы, цифры и специальные символы.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
+                        <button
+                            type="button"
+                            class="btn btn-primary"
+                            :disabled="!isPasswordFormValid || savingPassword"
+                            @click="savePassword"
+                        >
+                            <span v-if="savingPassword" class="spinner-border spinner-border-sm me-2"></span>
+                            <i v-else class="fa-solid fa-check me-2"></i>
+                            {{ hasPassword ? 'Сменить пароль' : 'Установить пароль' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Модалка: Телефон (2 шага) -->
         <div class="modal fade" id="phoneModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered">
@@ -509,6 +643,19 @@ export default {
                 total_rewards: 0
             },
             isCopying: false,
+
+            passwordForm: {
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: '',
+            },
+            passwordError: '',
+            savingPassword: false,
+            passwordStrength: {
+                level: 0,
+                text: '',
+                color: 'muted',
+            },
         };
     },
 
@@ -532,6 +679,27 @@ export default {
         maxBirthdayDate() {
             const today = new Date();
             return today.toISOString().split('T')[0];
+        },
+
+        hasPassword() {
+            // Проверяем, установлен ли пароль у пользователя
+            // Поле has_password должно приходить с бэкенда в TenantUser
+            return this.self?.has_password || false;
+        },
+
+        isPasswordFormValid() {
+            const { currentPassword, newPassword, confirmPassword } = this.passwordForm;
+
+            // Если пароль уже установлен, нужен текущий
+            if (this.hasPassword && !currentPassword) return false;
+
+            // Новый пароль должен быть минимум 6 символов
+            if (!newPassword || newPassword.length < 6) return false;
+
+            // Подтверждение должно совпадать
+            if (newPassword !== confirmPassword) return false;
+
+            return true;
         },
     },
 
@@ -622,6 +790,8 @@ export default {
                     this.modals.city = new bootstrap.Modal(document.getElementById('editCityModal'));
                     this.modals.phone = new bootstrap.Modal(document.getElementById('phoneModal'));
                     this.modals.avatar = new bootstrap.Modal(document.getElementById('editAvatarModal'));
+                    this.modals.password = new bootstrap.Modal(document.getElementById('passwordModal'));
+
                 }
             });
         },
@@ -886,6 +1056,105 @@ export default {
         showNotification(type, text, icon) {
             this.notification = { type, text, icon };
             setTimeout(() => { this.notification = null; }, 3000);
+        },
+
+        openPasswordModal() {
+            this.passwordForm = {
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: '',
+            };
+            this.passwordError = '';
+            this.passwordStrength = { level: 0, text: '', color: 'muted' };
+
+            if (this.modals.password) {
+                this.modals.password.show();
+            }
+        },
+
+        // 🆕 Валидация сложности пароля
+        validatePasswordStrength() {
+            const password = this.passwordForm.newPassword;
+
+            if (!password) {
+                this.passwordStrength = { level: 0, text: '', color: 'muted' };
+                return;
+            }
+
+            let score = 0;
+
+            // Длина
+            if (password.length >= 6) score++;
+            if (password.length >= 10) score++;
+
+            // Разные типы символов
+            if (/[a-z]/.test(password)) score++;
+            if (/[A-Z]/.test(password)) score++;
+            if (/[0-9]/.test(password)) score++;
+            if (/[^A-Za-z0-9]/.test(password)) score++;
+
+            // Нормализуем до 4 уровней
+            const level = Math.min(4, Math.max(1, Math.ceil(score * 4 / 6)));
+
+            const levels = {
+                1: { text: 'Слабый', color: 'danger' },
+                2: { text: 'Средний', color: 'warning' },
+                3: { text: 'Хороший', color: 'info' },
+                4: { text: 'Отличный', color: 'success' },
+            };
+
+            this.passwordStrength = {
+                level,
+                ...levels[level],
+            };
+        },
+
+        // 🆕 Сохранение пароля
+        async savePassword() {
+            if (!this.isPasswordFormValid) return;
+
+            this.savingPassword = true;
+            this.passwordError = '';
+
+            try {
+                const payload = {
+                    new_password: this.passwordForm.newPassword,
+                    new_password_confirmation: this.passwordForm.confirmPassword,
+                };
+
+                // Если пароль уже установлен, добавляем текущий
+                if (this.hasPassword) {
+                    payload.current_password = this.passwordForm.currentPassword;
+                }
+
+                const response = await axios.put('/profile/password', payload);
+
+                // Обновляем статус пароля
+                if (window.TenantUser) {
+                    window.TenantUser.has_password = true;
+                }
+
+                if (this.modals.password) {
+                    this.modals.password.hide();
+                }
+
+                this.showNotification(
+                    'success',
+                    this.hasPassword ? 'Пароль успешно изменён' : 'Пароль успешно установлен',
+                    'fa-solid fa-check-circle'
+                );
+            } catch (error) {
+                console.error('Ошибка сохранения пароля:', error);
+
+                const errorMsg = error.response?.data?.message
+                    || error.response?.data?.errors?.current_password?.[0]
+                    || error.response?.data?.errors?.new_password?.[0]
+                    || 'Ошибка при сохранении пароля';
+
+                this.passwordError = errorMsg;
+            } finally {
+                this.savingPassword = false;
+            }
         },
     },
 };
@@ -1225,6 +1494,47 @@ export default {
 .referral-card .input-group .btn {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
+}
+
+/* 🆕 Пароль */
+.password-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.password-hint {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    font-weight: normal;
+    margin-left: 4px;
+}
+
+/* Индикатор сложности пароля */
+.password-strength {
+    margin-top: 8px;
+}
+
+.strength-bars {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.strength-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--bs-border-color);
+    border-radius: 2px;
+    transition: all 0.3s ease;
+}
+
+.strength-bar.level-1 { background: #dc3545; }
+.strength-bar.level-2 { background: #ffc107; }
+.strength-bar.level-3 { background: #0dcaf0; }
+.strength-bar.level-4 { background: #198754; }
+
+.strength-text {
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 </style>
 

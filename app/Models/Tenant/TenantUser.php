@@ -72,6 +72,7 @@ class TenantUser extends Authenticatable
         'cashback_balance',
         'cashback_subs',
         'referral_link',
+        'has_password',
         'wheel_wins'
 
     ];
@@ -154,6 +155,11 @@ class TenantUser extends Authenticatable
         return Attribute::make(
             get: fn() => $this->meta['wheel_wins'] ?? []
         );
+    }
+
+    public function getHasPasswordAttribute(): bool
+    {
+        return !empty($this->password);
     }
 
     /**

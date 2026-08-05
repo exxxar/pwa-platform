@@ -8,6 +8,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -24,6 +25,56 @@ class ProfileController extends Controller
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
+        ]);
+    }
+
+    /**
+     * 🆕 Смена/установка пароля
+     */
+    public function updatePassword(Request $request)
+    {
+        $user = auth()->user();
+
+        // Если пароль уже установлен, требуем текущий
+        $rules = [
+            'new_password' => 'required|string|min:6|confirmed',
+        ];
+
+        if ($user->password) {
+            $rules['current_password'] = 'required|string';
+        }
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Проверяем текущий пароль, если он был установлен
+        if ($user->password && !Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Текущий пароль неверный',
+                'errors' => [
+                    'current_password' => ['Текущий пароль неверный'],
+                ],
+            ], 422);
+        }
+
+        // Обновляем пароль
+        $user->update([
+            'password' => Hash::make($request->new_password),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Пароль успешно обновлён',
+            'data' => [
+                'has_password' => true,
+            ],
         ]);
     }
 
