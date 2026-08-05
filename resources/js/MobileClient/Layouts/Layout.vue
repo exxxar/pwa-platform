@@ -451,7 +451,7 @@ export default {
 
 
         toggleSidebar() {
-            this.chat.fetchUnreadCount();
+            this.chat.loadUnreadCount();
             const el = document.getElementById('sidebar-menu');
             const bsOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(el);
             bsOffcanvas ? bsOffcanvas.show() : bsOffcanvas.hide();

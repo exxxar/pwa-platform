@@ -139,14 +139,14 @@ export default {
             }
 
             // Загружаем счетчик чатов (он легкий)
-            promises.push(this.chat.fetchUnreadCount());
+            promises.push(this.chat.loadUnreadCount());
 
             await Promise.allSettled(promises);
 
             // Обновляем счетчик чатов каждую минуту
             this.unreadInterval = setInterval(async () => {
                 try {
-                    await this.chat.fetchUnreadCount();
+                    await this.chat.loadUnreadCount();
                 } catch (error) {
                     console.warn('Ошибка обновления счетчика чатов:', error);
                 }

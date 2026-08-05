@@ -379,7 +379,7 @@ export default {
         },
     },
     mounted() {
-        this.chat.fetchUnreadCount()
+        this.chat.loadUnreadCount()
     },
     methods: {
         goTo(routeName) {
