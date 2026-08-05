@@ -421,7 +421,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <!-- Текущий пароль (только если уже установлен) -->
+                        <!-- Текущий пароль (ПОКАЗЫВАЕМ ТОЛЬКО ЕСЛИ ПАРОЛЬ УЖЕ ЕСТЬ) -->
                         <div v-if="hasPassword" class="form-floating mb-3">
                             <input
                                 v-model="passwordForm.currentPassword"
@@ -432,6 +432,13 @@
                                 autocomplete="current-password"
                             >
                             <label for="current-password-input">Текущий пароль</label>
+                        </div>
+
+                        <!-- Информационный блок для новых пользователей -->
+                        <div v-else class="alert alert-info mb-3 small">
+                            <i class="fa-solid fa-info-circle me-2"></i>
+                            <strong>Создание пароля.</strong> Ранее вы входили по SMS-коду.
+                            Установите пароль, чтобы иметь альтернативный способ входа в аккаунт.
                         </div>
 
                         <!-- Новый пароль -->
@@ -690,10 +697,18 @@ export default {
         isPasswordFormValid() {
             const { currentPassword, newPassword, confirmPassword } = this.passwordForm;
 
-            // Если пароль уже установлен, нужен текущий
-            if (this.hasPassword && !currentPassword) return false;
+            // 🎯 КЛЮЧЕВАЯ ПРОВЕРКА:
+            // Если пароль уже установлен — требуем текущий
+            if (this.hasPassword && !currentPassword.trim()) {
+                return false;
+            }
 
-            // Новый пароль должен быть минимум 6 символов
+            // Если пароля не было — текущий не нужен, но можно проверить, что поле пустое
+            if (!this.hasPassword && currentPassword.trim()) {
+                // Пользователь зачем-то ввёл "текущий" — игнорируем, не блокируем
+            }
+
+            // Новый пароль минимум 6 символов
             if (!newPassword || newPassword.length < 6) return false;
 
             // Подтверждение должно совпадать
@@ -1058,19 +1073,7 @@ export default {
             setTimeout(() => { this.notification = null; }, 3000);
         },
 
-        openPasswordModal() {
-            this.passwordForm = {
-                currentPassword: '',
-                newPassword: '',
-                confirmPassword: '',
-            };
-            this.passwordError = '';
-            this.passwordStrength = { level: 0, text: '', color: 'muted' };
 
-            if (this.modals.password) {
-                this.modals.password.show();
-            }
-        },
 
         // 🆕 Валидация сложности пароля
         validatePasswordStrength() {
@@ -1109,7 +1112,6 @@ export default {
             };
         },
 
-        // 🆕 Сохранение пароля
         async savePassword() {
             if (!this.isPasswordFormValid) return;
 
@@ -1122,14 +1124,14 @@ export default {
                     new_password_confirmation: this.passwordForm.confirmPassword,
                 };
 
-                // Если пароль уже установлен, добавляем текущий
+                // 🎯 Отправляем current_password ТОЛЬКО если он реально был
                 if (this.hasPassword) {
                     payload.current_password = this.passwordForm.currentPassword;
                 }
 
                 const response = await axios.put('/profile/password', payload);
 
-                // Обновляем статус пароля
+                // Обновляем статус в глобальном объекте
                 if (window.TenantUser) {
                     window.TenantUser.has_password = true;
                 }
@@ -1140,7 +1142,7 @@ export default {
 
                 this.showNotification(
                     'success',
-                    this.hasPassword ? 'Пароль успешно изменён' : 'Пароль успешно установлен',
+                    response.data.message || 'Пароль сохранён',
                     'fa-solid fa-check-circle'
                 );
             } catch (error) {
@@ -1154,6 +1156,20 @@ export default {
                 this.passwordError = errorMsg;
             } finally {
                 this.savingPassword = false;
+            }
+        },
+
+        openPasswordModal() {
+            this.passwordForm = {
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: '',
+            };
+            this.passwordError = '';
+            this.passwordStrength = { level: 0, text: '', color: 'muted' };
+
+            if (this.modals.password) {
+                this.modals.password.show();
             }
         },
     },

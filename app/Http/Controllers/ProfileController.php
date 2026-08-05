@@ -28,50 +28,70 @@ class ProfileController extends Controller
         ]);
     }
 
+
     /**
      * 🆕 Смена/установка пароля
+     *
+     * Логика:
+     * - Если у пользователя пароля НЕТ (NULL) — устанавливаем новый БЕЗ проверки текущего
+     * - Если пароль УЖЕ установлен — требуем текущий для безопасности
      */
     public function updatePassword(Request $request)
     {
         $user = auth()->user();
 
-        // Если пароль уже установлен, требуем текущий
+        // 🎯 Используем аксессор модели, а не прямую проверку $user->password
+        $hasPassword = $user->has_password;
+
+        // Правила валидации зависят от того, был ли пароль ранее
         $rules = [
             'new_password' => 'required|string|min:6|confirmed',
         ];
 
-        if ($user->password) {
+        if ($hasPassword) {
+            // Пароль уже есть — требуется текущий
             $rules['current_password'] = 'required|string';
         }
 
-        $validator = Validator::make($request->all(), $rules);
+        $validator = Validator::make($request->all(), $rules, [
+            'current_password.required' => 'Введите текущий пароль',
+            'new_password.required' => 'Введите новый пароль',
+            'new_password.min' => 'Пароль должен содержать минимум 6 символов',
+            'new_password.confirmed' => 'Пароли не совпадают',
+        ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
+                'message' => 'Ошибка валидации',
                 'errors' => $validator->errors(),
             ], 422);
         }
 
-        // Проверяем текущий пароль, если он был установлен
-        if ($user->password && !Hash::check($request->current_password, $user->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Текущий пароль неверный',
-                'errors' => [
-                    'current_password' => ['Текущий пароль неверный'],
-                ],
-            ], 422);
+        // 🛡️ Если пароль уже был — проверяем текущий
+        if ($hasPassword) {
+            // Дополнительная защита: если в БД вдруг не NULL, но Hash::check падает
+            if (empty($user->password) || !Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Текущий пароль неверный',
+                    'errors' => [
+                        'current_password' => ['Неверный текущий пароль'],
+                    ],
+                ], 422);
+            }
         }
 
-        // Обновляем пароль
+        // 🔄 Обновляем пароль
         $user->update([
-            'password' => Hash::make($request->new_password),
+            'password' => $request->new_password, // Мутатор сам сделает bcrypt()
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Пароль успешно обновлён',
+            'message' => $hasPassword
+                ? 'Пароль успешно изменён'
+                : 'Пароль успешно установлен',
             'data' => [
                 'has_password' => true,
             ],

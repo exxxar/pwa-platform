@@ -159,7 +159,12 @@ class TenantUser extends Authenticatable
 
     public function getHasPasswordAttribute(): bool
     {
-        return !empty($this->password);
+        if (empty($this->password)) {
+            return false;
+        }
+
+        // Дополнительная проверка на случай мусора в БД
+        return is_string($this->password) && str_starts_with($this->password, '$2y$');
     }
 
     /**
