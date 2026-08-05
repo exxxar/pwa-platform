@@ -655,7 +655,11 @@ class TenantDialogController extends Controller
         $tenant = app('tenant');
         $user = Auth::guard('tenant')->user();
 
-        // 🎯 Правильное условие: непрочитанные, где отправитель — НЕ текущий пользователь
+        if (!$user) {
+            return response()->json(['total' => 0, 'by_dialog' => []]);
+        }
+
+        // Базовый запрос: непрочитанные сообщения в активных диалогах пользователя
         $baseQuery = TenantMessage::query()
             ->join('tenant_dialogs', 'tenant_messages.dialog_id', '=', 'tenant_dialogs.id')
             ->where('tenant_dialogs.tenant_id', $tenant->id)
@@ -665,26 +669,24 @@ class TenantDialogController extends Controller
                     ->orWhere('tenant_dialogs.is_archived', false);
             })
             ->where('tenant_messages.is_read', false)
-            // 🆕 Фильтруем по реальному отправителю, а не по tenant_user_id
+            // Фильтруем по реальному отправителю
             ->where(function ($q) use ($user) {
-                $q->where(function ($sub) use ($user) {
-                    // Либо отправитель — админ/система
-                    $sub->whereIn('tenant_messages.sender_type', ['admin', 'system']);
-                })
+                $q->whereIn('tenant_messages.sender_type', ['admin', 'system'])
                     ->orWhere(function ($sub) use ($user) {
-                        // Либо отправитель — другой пользователь (для групповых чатов)
                         $sub->where('tenant_messages.sender_type', 'user')
                             ->where('tenant_messages.sender_id', '!=', $user->id);
                     });
             });
 
+        // Общий счётчик
         $totalUnread = (clone $baseQuery)->count();
 
+        // Счётчик по каждому диалогу
         $byDialog = (clone $baseQuery)
             ->select('tenant_messages.dialog_id', DB::raw('COUNT(*) as unread_count'))
             ->groupBy('tenant_messages.dialog_id')
             ->pluck('unread_count', 'dialog_id')
-            ->map(fn($count) => (int)$count);
+            ->map(fn($count) => (int) $count);
 
         return response()->json([
             'total' => $totalUnread,

@@ -46,11 +46,23 @@ class TenantDialog extends Model
     /**
      * Непрочитанные сообщения диалога
      */
+    /**
+     * Непрочитанные сообщения диалога
+     * 🆕 Фильтруем по реальному отправителю, а не по tenant_user_id
+     */
     public function unreadMessages()
     {
         return $this->messages()
             ->where('is_read', false)
-            ->where('tenant_user_id', '!=', $this->tenant_user_id);
+            ->where(function ($q) {
+                // Сообщения от админа/системы
+                $q->whereIn('sender_type', ['admin', 'system'])
+                    // ИЛИ сообщения от другого пользователя (не владельца диалога)
+                    ->orWhere(function ($sub) {
+                        $sub->where('sender_type', 'user')
+                            ->whereColumn('sender_id', '!=', 'tenant_user_id');
+                    });
+            });
     }
 
     /**
