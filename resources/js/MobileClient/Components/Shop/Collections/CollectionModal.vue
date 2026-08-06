@@ -94,7 +94,7 @@
                                         :key="item.product.id"
                                         class="variant-item"
                                     >
-                                        <img v-lazy="item.product.images[0] || '/no-image.png'" class="variant-item-img">
+                                        <img v-lazy="item.product.images[0]" class="variant-item-img">
                                         <div class="variant-item-info">
                                             <span class="variant-item-name">{{ item.product.name }}</span>
                                             <span class="variant-item-category">{{ item.category_name }}</span>
