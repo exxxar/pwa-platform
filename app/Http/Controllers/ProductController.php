@@ -130,6 +130,14 @@ class ProductController extends Controller
             ], 400);
         }
 
+        // 🆕 Выносим price_per_km наверх — он участвует в ВСЕХ расчётах
+        $pricePerKm = (float)($config["shop"]["price_per_km"]
+            ?? $config["min_base_delivery_price"]
+            ?? 80);
+
+        $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"]
+            ?? $config["min_base_delivery_price"] ?? 100);
+
         // 2. Оптимизированный запрос ID тенантов из корзины
         $basketTenantIds = Basket::query()
             ->where("tenant_user_id", $tenantUser->id)
@@ -148,7 +156,6 @@ class ProductController extends Controller
                 ->keyBy('id');
         }
 
-        // Добавляем главного тенанта, если его еще нет в списке
         if (!isset($partners[$tenant->id])) {
             $partners[$tenant->id] = $tenant;
         }
@@ -157,16 +164,15 @@ class ProductController extends Controller
         $clientLng = (float)$validated['lng'];
         $address = $validated['address'];
 
-        // 🆕 4. Логика расчета по зонам доставки
+        // 4. Зоны доставки
         $deliveryZones = $config['shop']['delivery_zones'] ?? $config['delivery_zones'] ?? [];
 
-        // Сортируем зоны по радиусу по возрастанию
-        usort($deliveryZones, function($a, $b) {
+        usort($deliveryZones, function ($a, $b) {
             return ((float)($a['radius'] ?? 0)) <=> ((float)($b['radius'] ?? 0));
         });
 
-        // Хелпер для парсинга строки цены в float
-        $parseZonePrice = function($price) {
+        // Хелпер для парсинга цены зоны
+        $parseZonePrice = function ($price) {
             if (is_numeric($price)) return (float)$price;
 
             $priceStr = mb_strtolower((string)$price);
@@ -176,16 +182,6 @@ class ProductController extends Controller
 
             preg_match('/\d+([\.,]\d+)?/', $priceStr, $matches);
             return isset($matches[0]) ? (float)str_replace(',', '.', $matches[0]) : 0.0;
-        };
-
-        // 🆕 Хелпер: fallback-расчёт по линейной формуле
-        $calculateFallbackPrice = function(float $distanceInKm) use ($config): float {
-            $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"]
-                ?? $config["min_base_delivery_price"] ?? 100);
-            $pricePerKm = (float)($config["shop"]["price_per_km"]
-                ?? $config["price_per_km"] ?? 80);
-
-            return round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
         };
 
         $sumDistance = 0.0;
@@ -205,9 +201,9 @@ class ProductController extends Controller
                 ?? $partner->settings["shop"]["shop_coords"]
                 ?? null;
 
-            // 🆕 Если координаты магазина не указаны, используем базовую цену без расчёта расстояния
+            // Если координаты магазина не указаны — базовая цена без расстояния
             if (empty($shopCoords)) {
-                $deliveryPrice = $calculateFallbackPrice(0);
+                $deliveryPrice = $minBaseDeliveryPrice;
 
                 $partnerUuid = $partner->uuid ?? 'partner_' . $partner->id;
                 $partnerBoxConfig[$partnerUuid] = [
@@ -226,47 +222,52 @@ class ProductController extends Controller
                 continue;
             }
 
+            // Расчёт расстояния
             $distanceInMeters = GEOService::call()->getDistance($clientLat, $clientLng, $shopCoords);
             $distCoef = env("DISTANCE_COEF") ?? 1;
             $distanceInKm = round(($distanceInMeters / 1000) * $distCoef, 2);
+
+            // 🆕 Базовая стоимость за километры (участвует ВСЕГДА)
+            $distanceCost = round($distanceInKm * $pricePerKm, 2);
 
             $deliveryPrice = 0.0;
             $isOutsideZones = false;
 
             if (!empty($deliveryZones)) {
-                // Ищем первую зону, радиус которой >= расстоянию
+                // Ищем первую подходящую зону
                 $zoneFound = false;
                 foreach ($deliveryZones as $zone) {
                     $radius = (float)($zone['radius'] ?? 0);
                     if ($distanceInKm <= $radius) {
-                        $deliveryPrice = $parseZonePrice($zone['price'] ?? 0);
+                        // 🎯 ФОРМУЛА: цена_зоны + (price_per_km × км)
+                        $zoneBasePrice = $parseZonePrice($zone['price'] ?? 0);
+                        $deliveryPrice = round($zoneBasePrice + $distanceCost, 2);
                         $zoneFound = true;
                         break;
                     }
                 }
 
-                // 🆕 Если адрес за пределами всех зон — используем fallback-формулу
+                // За пределами всех зон
                 if (!$zoneFound) {
                     $isOutsideZones = true;
 
-                    // Вариант 1: Берём цену самой дальней зоны (последней после сортировки)
+                    // Берём цену самой дальней зоны как базу
                     $lastZonePrice = $parseZonePrice(end($deliveryZones)['price'] ?? 0);
 
-                    // Вариант 2: Fallback-формула
-                    $fallbackPrice = $calculateFallbackPrice($distanceInKm);
+                    // 🎯 ФОРМУЛА: цена_последней_зоны + (price_per_km × км)
+                    $outsidePrice = round($lastZonePrice + $distanceCost, 2);
 
-                    // Берём максимум, чтобы не занижать цену
-                    $deliveryPrice = max($lastZonePrice, $fallbackPrice);
+                    // Fallback на случай если зоны есть, но цена последней = 0
+                    $fallbackPrice = round($minBaseDeliveryPrice + $distanceCost, 2);
+
+                    $deliveryPrice = max($outsidePrice, $fallbackPrice);
                 }
             } else {
-                // 🔄 Fallback: если зоны не настроены, используем линейную формулу
-                $deliveryPrice = $calculateFallbackPrice($distanceInKm);
+                // Зоны не настроены — чистая линейная формула
+                $deliveryPrice = round($minBaseDeliveryPrice + $distanceCost, 2);
             }
 
-            // 🆕 Гарантируем минимальную цену (не меньше базовой)
-            $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"]
-                ?? $config["min_base_delivery_price"] ?? 100);
-
+            // Гарантируем минимальную цену
             if ($deliveryPrice < $minBaseDeliveryPrice && $distanceInKm > 0) {
                 $deliveryPrice = $minBaseDeliveryPrice;
             }
@@ -282,6 +283,14 @@ class ProductController extends Controller
                 "shop_coords" => $shopCoords,
                 "client_coords" => $clientLat . ", " . $clientLng,
                 "is_outside_zones" => $isOutsideZones,
+                // 🆕 Прозрачность расчёта для фронта
+                "breakdown" => [
+                    "base_zone_price" => $deliveryPrice - $distanceCost,
+                    "distance_km" => $distanceInKm,
+                    "price_per_km" => $pricePerKm,
+                    "distance_cost" => $distanceCost,
+                    "total" => $deliveryPrice,
+                ],
             ];
 
             $sumDistance += $distanceInKm;
