@@ -13,17 +13,20 @@ class ChatService
     public function getDialogsSummary(int $userId): array
     {
         $dialogs = TenantDialog::where('tenant_user_id', $userId)
-            ->where('is_archived', false)
+            ->where('is_closed', false)
             ->select([
                 'id',
+                'tenant_user_id', // Важно оставить для корректной работы связей
                 'title',
                 'type',
-                'unread_count',
                 'last_message_at',
             ])
-            ->withCount(['messages as messages_count'])
+            ->withCount([
+                'messages as messages_count',
+                'unreadMessages as unread_count'
+            ])
             ->orderByDesc('last_message_at')
-            ->limit(10) // Только первые 10 для скорости
+            ->limit(10)
             ->get();
 
         return [
