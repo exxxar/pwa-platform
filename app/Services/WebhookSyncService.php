@@ -143,39 +143,120 @@ class WebhookSyncService
     /**
      * Привязка товаров к коллекции через CollectionCategory
      */
-    protected function syncCollectionProducts(Collection $collection, array $productsInput): void
+    /**
+     * Привязка товаров к коллекции с учетом структуры collection_categories
+     */
+    protected function syncCollectionProducts(Collection $collection, array $data): void
     {
-        // 1. Нормализуем вход: достаем external_id товаров
-        $externalIds = collect($productsInput)->map(function ($item) {
-            return is_array($item) ? ($item['id'] ?? null) : $item;
-        })->filter()->values()->all();
+        $collectionCategories = $data['collection_categories'] ?? [];
+        $directProducts = $data['direct_products'] ?? [];
 
-        // 2. Находим реальные ID товаров в нашей БД
-        $localProductIds = Product::where('tenant_id', $collection->tenant_id)
-            ->whereIn('external_id', $externalIds)
-            ->pluck('id')
-            ->all();
-
-        // 3. Получаем или создаем "дефолтную" группу для этой коллекции
-        // Используем вашу модель CollectionCategory
-        $mainCategory = $collection->collectionCategories()->firstOrCreate(
-            ['category_name' => 'sync_default_group'], // Технический идентификатор группы
-            [
-                'category_id' => null, // Пустая связь с глобальной категорией
-                'selection_rule' => 'all',
-                'sort_order' => 0,
-            ]
-        );
-
-        // 4. Синхронизируем pivot-таблицу collection_category_product
-        $syncData = [];
-        foreach ($localProductIds as $index => $pid) {
-            $syncData[$pid] = ['sort_order' => $index];
+        // Если в вебхуке вообще нет данных о товарах/категориях, очищаем коллекцию
+        if (empty($collectionCategories) && empty($directProducts)) {
+            foreach ($collection->collectionCategories as $cat) {
+                $cat->products()->detach();
+                $cat->delete();
+            }
+            return;
         }
 
-        // Метод sync() автоматически удалит старые связи и добавит новые с указанным sort_order
-        $mainCategory->products()->sync($syncData);
+        $processedCategoryExternalIds = [];
+
+        // 1. Синхронизируем категории коллекции и их товары
+        foreach ($collectionCategories as $catData) {
+            // Используем ID категории из внешней системы. Если его нет, генерируем хеш от имени
+            $catExternalId = isset($catData['id']) ? (string)$catData['id'] : 'temp_' . md5($catData['category_name'] ?? 'unknown');
+            $processedCategoryExternalIds[] = $catExternalId;
+
+            // Находим или создаем запись CollectionCategory
+            // ВАЖНО: Убедитесь, что в таблице collection_categories есть колонка external_id (см. примечание ниже)
+            $collectionCategory = $collection->collectionCategories()->firstOrCreate(
+                ['external_id' => $catExternalId],
+                [
+                    'category_id' => $catData['category_id'] ?? null,
+                    'category_name' => $catData['category_name'] ?? 'Без названия',
+                    'selection_rule' => $catData['selection_rule'] ?? 'one',
+                    'sort_order' => $catData['sort_order'] ?? 0,
+                ]
+            );
+
+            // Обновляем данные, если категория уже существовала
+            $collectionCategory->update([
+                'category_id' => $catData['category_id'] ?? $collectionCategory->category_id,
+                'category_name' => $catData['category_name'] ?? $collectionCategory->category_name,
+                'selection_rule' => $catData['selection_rule'] ?? $collectionCategory->selection_rule,
+                'sort_order' => $catData['sort_order'] ?? $collectionCategory->sort_order,
+            ]);
+
+            // Извлекаем external_id продуктов внутри этой категории
+            $productIdsInCat = [];
+            if (isset($catData['products']) && is_array($catData['products'])) {
+                foreach ($catData['products'] as $prod) {
+                    $prodId = is_array($prod) ? ($prod['id'] ?? null) : $prod;
+                    if ($prodId) {
+                        $productIdsInCat[] = (string)$prodId;
+                    }
+                }
+            }
+
+            // Находим локальные ID этих продуктов в нашей БД
+            $localIds = Product::where('tenant_id', $collection->tenant_id)
+                ->whereIn('external_id', $productIdsInCat)
+                ->pluck('id')
+                ->all();
+
+            // Синхронизируем продукты внутри этой конкретной категории
+            $syncData = [];
+            foreach ($localIds as $index => $pid) {
+                $syncData[$pid] = ['sort_order' => $index];
+            }
+            $collectionCategory->products()->sync($syncData);
+        }
+
+        // 2. Синхронизируем прямые товары (direct_products), если они есть
+        if (!empty($directProducts)) {
+            $directCatExternalId = 'direct_products_group';
+            $processedCategoryExternalIds[] = $directCatExternalId;
+
+            $directCategory = $collection->collectionCategories()->firstOrCreate(
+                ['external_id' => $directCatExternalId],
+                [
+                    'category_name' => 'Прямые товары',
+                    'selection_rule' => 'all',
+                    'sort_order' => 999,
+                ]
+            );
+
+            $directProductIds = [];
+            foreach ($directProducts as $prod) {
+                $prodId = is_array($prod) ? ($prod['id'] ?? null) : $prod;
+                if ($prodId) {
+                    $directProductIds[] = (string)$prodId;
+                }
+            }
+
+            $localDirectIds = Product::where('tenant_id', $collection->tenant_id)
+                ->whereIn('external_id', $directProductIds)
+                ->pluck('id')
+                ->all();
+
+            $syncData = [];
+            foreach ($localDirectIds as $index => $pid) {
+                $syncData[$pid] = ['sort_order' => $index];
+            }
+            $directCategory->products()->sync($syncData);
+        }
+
+        // 3. Очищаем категории коллекции, которые были удалены во внешней системе
+        // (Они есть в БД, но их external_id не было в текущем вебхуке)
+        $collection->collectionCategories()
+            ->whereNotIn('external_id', $processedCategoryExternalIds)
+            ->each(function ($cat) {
+                $cat->products()->detach();
+                $cat->delete();
+            });
     }
+
     /**
      * Синхронизация одного товара
      */

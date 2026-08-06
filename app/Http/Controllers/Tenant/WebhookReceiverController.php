@@ -14,78 +14,78 @@ class WebhookReceiverController extends Controller
         private WebhookSyncService $syncService
     ) {}
 
-    /**
-     * Приём вебхука от платформы workspace
-     * URL: POST shop-name.mypwa.ru/webhook
-     * Tenant определяется автоматически по поддомену (shop-name)
-     */
-    public function handle(Request $request)
-    {
-        // 1. Умная валидация в зависимости от события
-        $validated = $request->validate([
-            'event' => 'required|string|in:product.updated,workspace.sync',
-            'timestamp' => 'required|string',
+        /**
+         * Приём вебхука от платформы workspace
+         * URL: POST shop-name.mypwa.ru/webhook
+         * Tenant определяется автоматически по поддомену (shop-name)
+         */
+        public function handle(Request $request)
+        {
+            // 1. Умная валидация в зависимости от события
+            $validated = $request->validate([
+                'event' => 'required|string|in:product.updated,workspace.sync',
+                'timestamp' => 'required|string',
 
-            // Правила для workspace.sync
-            'workspace' => 'required_if:event,workspace.sync|array',
-            'workspace.id' => 'required_if:event,workspace.sync|integer',
-            'workspace.uuid' => 'required_if:event,workspace.sync|string|uuid',
-            'workspace.name' => 'required_if:event,workspace.sync|string',
-            'workspace.products' => 'sometimes|array',
-            'workspace.collections' => 'sometimes|array',
+                // Правила для workspace.sync
+                'workspace' => 'required_if:event,workspace.sync|array',
+                'workspace.id' => 'required_if:event,workspace.sync|integer',
+                'workspace.uuid' => 'required_if:event,workspace.sync|string|uuid',
+                'workspace.name' => 'required_if:event,workspace.sync|string',
+                'workspace.products' => 'sometimes|array',
+                'workspace.collections' => 'sometimes|array',
 
-            // Правила для product.updated
-            'product' => 'required_if:event,product.updated|array',
-            'product.id' => 'required_if:event,product.updated',
-            'product.name' => 'sometimes|string',
-        ]);
-
-        $event = $validated['event'];
-        $tenant = app('tenant');
-
-        if (!$tenant) {
-            Log::error('Webhook: tenant not resolved', [
-                'host' => $request->getHost(),
+                // Правила для product.updated
+                'product' => 'required_if:event,product.updated|array',
+                'product.id' => 'required_if:event,product.updated',
+                'product.name' => 'sometimes|string',
             ]);
-            return response()->json([
-                'success' => false,
-                'error' => 'Tenant not found',
-            ], 404);
-        }
 
-        Log::info('Webhook received', [
-            'event' => $event,
-            'tenant_id' => $tenant->id,
-            'host' => $request->getHost(),
-        ]);
+            $event = $validated['event'];
+            $tenant = app('tenant');
 
-        Log::info("webhook recive data". print_r($request->all(), true));
-        // 2. Обрабатываем событие (без изменений)
-        try {
-            $result = match ($event) {
-                'product.updated' => $this->syncService->syncSingleProduct($tenant, $request->all()),
-                'workspace.sync' => $this->syncService->syncFullWorkspace($tenant, $request->all()),
-            };
+            if (!$tenant) {
+                Log::error('Webhook: tenant not resolved', [
+                    'host' => $request->getHost(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Tenant not found',
+                ], 404);
+            }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Sync completed',
-                'data' => $result,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Webhook processing failed', [
+            Log::info('Webhook received', [
                 'event' => $event,
                 'tenant_id' => $tenant->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(), // Добавил трейс, чтобы было проще дебажить
+                'host' => $request->getHost(),
             ]);
 
-            return response()->json([
-                'success' => false,
-                'error' => 'Sync failed: ' . $e->getMessage(),
-            ], 500);
+            Log::info("webhook recive data". print_r($request->all(), true));
+            // 2. Обрабатываем событие (без изменений)
+            try {
+                $result = match ($event) {
+                    'product.updated' => $this->syncService->syncSingleProduct($tenant, $request->all()),
+                    'workspace.sync' => $this->syncService->syncFullWorkspace($tenant, $request->all()),
+                };
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Sync completed',
+                    'data' => $result,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Webhook processing failed', [
+                    'event' => $event,
+                    'tenant_id' => $tenant->id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(), // Добавил трейс, чтобы было проще дебажить
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Sync failed: ' . $e->getMessage(),
+                ], 500);
+            }
         }
-    }
 
     /**
      * ⚠️ ЗАМЕНИ ЭТУ ЛОГИКУ НА СВОЮ

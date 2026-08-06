@@ -17,6 +17,7 @@ class CollectionCategory extends Model
     protected $fillable = [
         'collection_id',
         'category_id',
+        'external_id',
         'category_name',
         'selection_rule',
         'sort_order',
@@ -24,6 +25,7 @@ class CollectionCategory extends Model
 
     protected $casts = [
         'id' => 'integer',
+        'external_id' => 'integer',
         'collection_id' => 'integer',
         'category_id' => 'integer',
         'sort_order' => 'integer',

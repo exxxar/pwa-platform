@@ -1,0 +1,24 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::table('collection_categories', function (Blueprint $table) {
+            $table->string('external_id')->nullable()->after('id');
+            $table->index('external_id');
+        });
+    }
+
+    public function down()
+    {
+        Schema::table('collection_categories', function (Blueprint $table) {
+            $table->dropIndex(['external_id']);
+            $table->dropColumn('external_id');
+        });
+    }
+};
