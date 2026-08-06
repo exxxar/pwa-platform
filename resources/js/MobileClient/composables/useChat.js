@@ -59,6 +59,10 @@ export function useChat() {
         return store.sendMessage(dialogId, payload);
     };
 
+    const setInitialData = (data) => {
+        return store.setInitialData(data);
+    };
+
     return {
         // State
         dialogs,
@@ -113,8 +117,9 @@ export function useChat() {
         // Вложения и сообщения
         getDialogAttachments: (id) => store.getDialogAttachments(id),
         sendMessage,
+        setInitialData,
         loadOlderMessages,
-        setInitialData: (data)=>store.setInitialData(data),
+
         retryMessage: (msg) => store.retryMessage(msg),
         deleteMessage: (id) => store.deleteMessage(id),
 

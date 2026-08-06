@@ -59,6 +59,7 @@ class WebhookReceiverController extends Controller
             'host' => $request->getHost(),
         ]);
 
+        Log::info("webhook recive data". print_r($request->all(), true));
         // 2. Обрабатываем событие (без изменений)
         try {
             $result = match ($event) {

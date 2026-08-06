@@ -40,8 +40,9 @@ class CollectionController extends Controller
     /**
      * Активные коллекции для фронта
      */
-    public function active(Request $request): JsonResponse
+    public function active(Request $request)
     {
+
         try {
             $result = $this->service->activeList($request->input('partner_id'));
             return response()->json($result);
@@ -56,10 +57,11 @@ class CollectionController extends Controller
     /**
      * Одна коллекция со всеми деталями
      */
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
+
         try {
-            $result = $this->service->show($id);
+            $result = $this->service->show($id, $request->partner_id);
             return response()->json(['data' => $result]);
         } catch (\Throwable $e) {
             return response()->json([

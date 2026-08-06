@@ -142,6 +142,9 @@ export default {
             type: Object,
             required: true,
         },
+        partnerId:{
+            type: Number
+        }
     },
 
     emits: ['open-collection'],

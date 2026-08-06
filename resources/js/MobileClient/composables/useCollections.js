@@ -77,7 +77,7 @@ export function useCollections() {
         // ==========================================
         loadCollections: (payload = {}) => store.loadCollections(payload),
         loadCollectionsList: (payload = {}) => store.loadCollectionsList(payload),
-        loadCollection: (id) => store.loadCollection(id),
+        loadCollection: (payload) => store.loadCollection(payload),
         loadMoreCollections: (payload = {}) => store.loadMoreCollections(payload),
 
         // ==========================================

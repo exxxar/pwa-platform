@@ -53,7 +53,7 @@
 -->
 
                     <!-- 🆕 СЕКЦИЯ КОЛЛЕКЦИЙ (над товарами) -->
-                    <div v-if="activeCollections.length > 0" class="collections-section px-3 mt-3">
+                    <div v-if="activeCollections.length > 0" class="collections-section px-1 mt-3">
                         <div class="section-header">
                             <h5 class="section-title">
                                 <i class="fa-solid fa-layer-group"></i>
@@ -171,6 +171,7 @@ export default {
         hasPartners() {
             return this.settings?.partners?.is_active || false;
         },
+
     },
 
     mounted() {
@@ -224,7 +225,16 @@ export default {
 
         async onCollectionOpen(collection) {
             try {
-                const fullCollection = await this.loadCollection(collection.id);
+
+                const partnerId = this.selectedPartner?.tenant_partner_id || null;
+
+                const fullCollection = await this.loadCollection({
+                    id: collection.id,
+                    partner_id: partnerId
+                });
+
+                console.log("fullCollection", fullCollection)
+
                 this.$refs.collectionModal?.open(fullCollection || collection);
             } catch (error) {
                 console.error('Ошибка открытия коллекции:', error);
@@ -355,7 +365,8 @@ export default {
 
 @media (max-width: 576px) {
     .collections-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
     }
 }
 </style>

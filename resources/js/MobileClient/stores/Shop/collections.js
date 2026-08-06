@@ -215,14 +215,15 @@ export const useCollectionsStore = defineStore('collections', {
          * Загрузка одной коллекции с деталями
          * GET /shop/collections/{id}
          */
-        async loadCollection(id) {
-            if (!id) throw new Error('Не указан ID коллекции');
+        async loadCollection(payload) {
+            if (!payload) throw new Error('Нет данных');
+            if (!payload.id) throw new Error('Не указан ID коллекции');
 
             this.isSingleLoading = true;
-            this.collectionActions[String(id)] = 'load';
+            this.collectionActions[String(payload.id)] = 'load';
 
             try {
-                const response = await axios.get(`${BASE}/${id}`);
+                const response = await axios.get(`${BASE}/${payload.id}?partner_id=${payload.partner_id || null}`);
                 const collection = response.data?.data || response.data;
 
                 if (collection?.id) {
@@ -237,7 +238,7 @@ export const useCollectionsStore = defineStore('collections', {
                 throw err;
             } finally {
                 this.isSingleLoading = false;
-                delete this.collectionActions[String(id)];
+                delete this.collectionActions[String(payload.id)];
             }
         },
 

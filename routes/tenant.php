@@ -110,7 +110,7 @@ function routes() {
     Route::any('/webhook', [WebhookReceiverController::class, 'handle'])
         ->name('webhook.workspace');
 
-    Route::get('/shop/{any?}', [TenantAuthController::class, 'handlerShopLanding'])
+    Route::get('/l-shop/{any?}', [TenantAuthController::class, 'handlerShopLanding'])
         ->where('any', '.*')
         ->name("shop.landing");
 
@@ -503,7 +503,7 @@ function routes() {
                 Route::post('/categories/{categoryId}/products', [CollectionController::class, 'addProducts']);
                 Route::delete('/categories/{categoryId}/products/{productId}', [CollectionController::class, 'removeProduct']);
                 Route::post('/categories/{categoryId}/products/reorder', [CollectionController::class, 'reorderProducts']);
-            });
+           });
 
 
             Route::prefix("products")

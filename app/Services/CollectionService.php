@@ -32,14 +32,8 @@ class CollectionService
     // СПИСКИ
     // ==========================================
 
-    /**
-     * Список коллекций с пагинацией
-     */
-    public function list(
-        ?string $search = null,
-        ?array $filters = null,
-        ?int $size = null
-    ): CollectionCollection {
+    public function list(?string $search = null, ?array $filters = null, ?int $size = null): CollectionCollection
+    {
         $tenant = app('tenant');
         $size = $size ?? config('app.results_per_page', 20);
 
@@ -49,22 +43,19 @@ class CollectionService
             }])
             ->where('tenant_id', $tenant->id);
 
-        // Фильтр по активности
-        if (!empty($filters['is_active'])) {
-            $query->where('is_active', $filters['is_active'] === 'true' || $filters['is_active'] === true);
+        // 🆕 Безопасная проверка булевых значений
+        if (isset($filters['is_active'])) {
+            $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN));
         }
 
-        // Фильтр по стоп-листу
-        if (!empty($filters['in_stop_list'])) {
-            $query->where('in_stop_list', $filters['in_stop_list'] === 'true' || $filters['in_stop_list'] === true);
+        if (isset($filters['in_stop_list'])) {
+            $query->where('in_stop_list', filter_var($filters['in_stop_list'], FILTER_VALIDATE_BOOLEAN));
         }
 
-        // Фильтр по типу
         if (!empty($filters['type'])) {
             $query->where('type', $filters['type']);
         }
 
-        // Поиск
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
@@ -81,9 +72,6 @@ class CollectionService
         return new CollectionCollection($collections);
     }
 
-    /**
-     * Все коллекции для фронта (активные, без стоп-листа)
-     */
     public function activeList(?int $partnerId = null): CollectionCollection
     {
         $tenant = app('tenant');
@@ -108,10 +96,7 @@ class CollectionService
         return new CollectionCollection($collections);
     }
 
-    /**
-     * Одна коллекция со всеми деталями
-     */
-    public function show(int $id): CollectionResource
+    public function show(int $id,?int $partnerId = null): CollectionResource
     {
         $tenant = app('tenant');
 
@@ -127,7 +112,7 @@ class CollectionService
                         ->orderBy('id');
                 },
             ])
-            ->where('tenant_id', $tenant->id)
+            ->where('tenant_id', $partnerId ?? $tenant->id)
             ->where('id', $id)
             ->first();
 
@@ -142,9 +127,6 @@ class CollectionService
     // CRUD
     // ==========================================
 
-    /**
-     * Создание или обновление коллекции
-     */
     public function createOrUpdate(array $data, $uploadedImage = null): CollectionResource
     {
         $tenant = app('tenant');
@@ -159,17 +141,23 @@ class CollectionService
             throw new ValidationException($validator);
         }
 
-        // Загрузка изображения
         $imageUrl = $data['image'] ?? null;
         if ($uploadedImage) {
-            $path = $uploadedImage->store(
-                "public/tenants/{$tenant->id}/collections",
-                'public'
-            );
+            $path = $uploadedImage->store("public/tenants/{$tenant->id}/collections", 'public');
             $imageUrl = Storage::url($path);
         }
 
         $collectionId = $data['id'] ?? null;
+
+        // 🆕 Более надежный парсинг config
+        $parsedConfig = null;
+        if (!empty($data['config'])) {
+            if (is_array($data['config'])) {
+                $parsedConfig = $data['config'];
+            } elseif (is_string($data['config'])) {
+                $parsedConfig = json_decode($data['config'], true) ?: null;
+            }
+        }
 
         $fields = [
             'name' => $data['name'],
@@ -180,12 +168,10 @@ class CollectionService
             'fixed_price' => $data['fixed_price'] ?? null,
             'discount' => $data['discount'] ?? 0,
             'image' => $imageUrl,
-            'is_active' => ($data['is_active'] ?? true) === true || ($data['is_active'] ?? 'true') === 'true',
-            'in_stop_list' => ($data['in_stop_list'] ?? false) === true || ($data['in_stop_list'] ?? 'false') === 'true',
+            'is_active' => filter_var($data['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            'in_stop_list' => filter_var($data['in_stop_list'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'order_position' => $data['order_position'] ?? 0,
-            'config' => !empty($data['config'])
-                ? (is_string($data['config']) ? json_decode($data['config'], true) : $data['config'])
-                : null,
+            'config' => $parsedConfig,
         ];
 
         if ($collectionId) {
@@ -198,7 +184,6 @@ class CollectionService
             $collection = Collection::query()->create($fields);
         }
 
-        // Синхронизация категорий из payload
         if (isset($data['categories']) && is_array($data['categories'])) {
             $this->syncCategories($collection, $data['categories']);
         }
@@ -208,9 +193,6 @@ class CollectionService
         ]));
     }
 
-    /**
-     * Удаление коллекции
-     */
     public function destroy(int $id): CollectionResource
     {
         $tenant = app('tenant');
@@ -220,7 +202,7 @@ class CollectionService
             ->where('tenant_id', $tenant->id)
             ->findOrFail($id);
 
-        $snapshot = $collection;
+        $snapshot = $collection->replicate(); // Сохраняем снимок для возврата в Resource
 
         DB::transaction(function () use ($collection) {
             foreach ($collection->collectionCategories as $cat) {
@@ -233,16 +215,10 @@ class CollectionService
         return new CollectionResource($snapshot);
     }
 
-    /**
-     * Переключение активности
-     */
     public function toggleActive(int $id): CollectionResource
     {
         $tenant = app('tenant');
-
-        $collection = Collection::query()
-            ->where('tenant_id', $tenant->id)
-            ->findOrFail($id);
+        $collection = Collection::query()->where('tenant_id', $tenant->id)->findOrFail($id);
 
         $collection->is_active = !$collection->is_active;
         $collection->save();
@@ -250,16 +226,10 @@ class CollectionService
         return new CollectionResource($collection);
     }
 
-    /**
-     * Переключение стоп-листа
-     */
     public function toggleStopList(int $id): CollectionResource
     {
         $tenant = app('tenant');
-
-        $collection = Collection::query()
-            ->where('tenant_id', $tenant->id)
-            ->findOrFail($id);
+        $collection = Collection::query()->where('tenant_id', $tenant->id)->findOrFail($id);
 
         $collection->in_stop_list = !$collection->in_stop_list;
         $collection->save();
@@ -271,9 +241,6 @@ class CollectionService
     // КАТЕГОРИИ ВНУТРИ КОЛЛЕКЦИИ
     // ==========================================
 
-    /**
-     * Синхронизация категорий коллекции (используется при createOrUpdate)
-     */
     protected function syncCategories(Collection $collection, array $categories): void
     {
         $existingIds = [];
@@ -290,6 +257,7 @@ class CollectionService
             ];
 
             if ($catId) {
+                // 🛡️ Безопасность: обновляем только если категория принадлежит этой коллекции
                 $cat = CollectionCategory::query()->find($catId);
                 if ($cat && $cat->collection_id === $collection->id) {
                     $cat->update($catFields);
@@ -302,7 +270,6 @@ class CollectionService
 
             $existingIds[] = $cat->id;
 
-            // Синхронизация товаров
             if (isset($catData['products']) && is_array($catData['products'])) {
                 $this->syncProductsForCategory($cat, $catData['products']);
             }
@@ -318,16 +285,10 @@ class CollectionService
             });
     }
 
-    /**
-     * Добавить категорию в коллекцию
-     */
     public function addCategory(int $collectionId, array $data): CollectionResource
     {
         $tenant = app('tenant');
-
-        $collection = Collection::query()
-            ->where('tenant_id', $tenant->id)
-            ->findOrFail($collectionId);
+        $collection = Collection::query()->where('tenant_id', $tenant->id)->findOrFail($collectionId);
 
         $validator = Validator::make($data, [
             'category_name' => 'required|string|max:255',
@@ -350,18 +311,12 @@ class CollectionService
             $this->syncProductsForCategory($category, $data['products']);
         }
 
-        return new CollectionResource(
-            $collection->fresh(['collectionCategories.products'])
-        );
+        return new CollectionResource($collection->fresh(['collectionCategories.products']));
     }
 
-    /**
-     * Обновить категорию
-     */
     public function updateCategory(int $categoryId, array $data): CollectionResource
     {
         $tenant = app('tenant');
-
         $category = CollectionCategory::query()
             ->whereHas('collection', fn ($q) => $q->where('tenant_id', $tenant->id))
             ->findOrFail($categoryId);
@@ -377,18 +332,12 @@ class CollectionService
             $this->syncProductsForCategory($category, $data['products']);
         }
 
-        return new CollectionResource(
-            $category->collection->fresh(['collectionCategories.products'])
-        );
+        return new CollectionResource($category->collection->fresh(['collectionCategories.products']));
     }
 
-    /**
-     * Удалить категорию из коллекции
-     */
     public function removeCategory(int $categoryId): CollectionResource
     {
         $tenant = app('tenant');
-
         $category = CollectionCategory::query()
             ->whereHas('collection', fn ($q) => $q->where('tenant_id', $tenant->id))
             ->findOrFail($categoryId);
@@ -398,23 +347,18 @@ class CollectionService
         $category->products()->detach();
         $category->delete();
 
-        return new CollectionResource(
-            $collection->fresh(['collectionCategories.products'])
-        );
+        return new CollectionResource($collection->fresh(['collectionCategories.products']));
     }
 
     // ==========================================
     // ТОВАРЫ В КАТЕГОРИЯХ
     // ==========================================
 
-    /**
-     * Синхронизация товаров в категории
-     */
     protected function syncProductsForCategory(CollectionCategory $category, array $products): void
     {
         $syncData = [];
         foreach ($products as $index => $product) {
-            $productId = is_array($product) ? ($product['id'] ?? $product['product_id']) : $product;
+            $productId = is_array($product) ? ($product['id'] ?? $product['product_id'] ?? null) : $product;
             if ($productId) {
                 $syncData[$productId] = [
                     'sort_order' => is_array($product) ? ($product['sort_order'] ?? $index) : $index,
@@ -424,13 +368,9 @@ class CollectionService
         $category->products()->sync($syncData);
     }
 
-    /**
-     * Добавить товары в категорию
-     */
     public function addProductsToCategory(int $categoryId, array $productIds): CollectionResource
     {
         $tenant = app('tenant');
-
         $category = CollectionCategory::query()
             ->whereHas('collection', fn ($q) => $q->where('tenant_id', $tenant->id))
             ->findOrFail($categoryId);
@@ -448,40 +388,30 @@ class CollectionService
             }
         }
 
-        return new CollectionResource(
-            $category->collection->fresh(['collectionCategories.products'])
-        );
+        return new CollectionResource($category->collection->fresh(['collectionCategories.products']));
     }
 
-    /**
-     * Удалить товар из категории
-     */
     public function removeProductFromCategory(int $categoryId, int $productId): CollectionResource
     {
         $tenant = app('tenant');
-
         $category = CollectionCategory::query()
             ->whereHas('collection', fn ($q) => $q->where('tenant_id', $tenant->id))
             ->findOrFail($categoryId);
 
         $category->products()->detach($productId);
 
-        return new CollectionResource(
-            $category->collection->fresh(['collectionCategories.products'])
-        );
+        return new CollectionResource($category->collection->fresh(['collectionCategories.products']));
     }
 
-    /**
-     * Изменить порядок товаров в категории
-     */
     public function reorderProducts(int $categoryId, array $order): CollectionResource
     {
         $tenant = app('tenant');
-
         $category = CollectionCategory::query()
             ->whereHas('collection', fn ($q) => $q->where('tenant_id', $tenant->id))
             ->findOrFail($categoryId);
 
+        // Примечание: для очень больших списков (>100 товаров) лучше использовать bulk update через CASE,
+        // но для административных задач цикл вполне допустим и сохраняет читаемость кода.
         foreach ($order as $index => $productId) {
             CollectionCategoryProduct::query()
                 ->where('collection_category_id', $categoryId)
@@ -489,25 +419,17 @@ class CollectionService
                 ->update(['sort_order' => $index]);
         }
 
-        return new CollectionResource(
-            $category->collection->fresh(['collectionCategories.products'])
-        );
+        return new CollectionResource($category->collection->fresh(['collectionCategories.products']));
     }
 
     // ==========================================
     // МАССОВЫЕ ОПЕРАЦИИ
     // ==========================================
 
-    /**
-     * Удалить все коллекции
-     */
     public function removeAll(): void
     {
         $tenant = app('tenant');
-
-        $collections = Collection::query()
-            ->where('tenant_id', $tenant->id)
-            ->get();
+        $collections = Collection::query()->where('tenant_id', $tenant->id)->get();
 
         DB::transaction(function () use ($collections) {
             foreach ($collections as $collection) {
@@ -520,13 +442,9 @@ class CollectionService
         });
     }
 
-    /**
-     * Дублировать коллекцию
-     */
     public function duplicate(int $id): CollectionResource
     {
         $tenant = app('tenant');
-
         $collection = Collection::query()
             ->with('collectionCategories.products')
             ->where('tenant_id', $tenant->id)
@@ -555,8 +473,6 @@ class CollectionService
             return $new;
         });
 
-        return new CollectionResource(
-            $newCollection->fresh(['collectionCategories.products'])
-        );
+        return new CollectionResource($newCollection->fresh(['collectionCategories.products']));
     }
 }

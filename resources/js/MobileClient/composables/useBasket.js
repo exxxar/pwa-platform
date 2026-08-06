@@ -31,6 +31,7 @@ export function useBasket() {
     // 2. ВСПОМОГАТЕЛЬНЫЕ
     // ==========================================
     const isProductLoading = (productId) => store.isProductLoading(productId);
+    const setInitialData = (data) => store.setInitialData(data);
 
     const withLoadingGuard = (actionFn) => (payload) => {
         const id = typeof payload === 'object' ? payload?.id : payload;
@@ -104,6 +105,7 @@ export function useBasket() {
         // Методы: Товары
         addProduct,
         getItemById,
+        setInitialData,
         removeProduct,
         removeProductCompletely,
         incrementQuantity,
