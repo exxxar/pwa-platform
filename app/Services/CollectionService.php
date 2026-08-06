@@ -93,6 +93,8 @@ class CollectionService
             ->orderBy('created_at', 'desc')
             ->get();
 
+
+
         return new CollectionCollection($collections);
     }
 
@@ -115,6 +117,8 @@ class CollectionService
             ->where('tenant_id', $partnerId ?? $tenant->id)
             ->where('id', $id)
             ->first();
+
+
 
         if (!$collection) {
             throw new HttpException(404, 'Коллекция не найдена');

@@ -18,7 +18,7 @@
                     <div class="collection-details">
                         <img
                             v-if="collection?.image"
-                            :src="collection.image"
+                            v-lazy="collection.image"
                             :alt="collection.name"
                             class="details-image"
                         >
@@ -94,7 +94,7 @@
                                         :key="item.product.id"
                                         class="variant-item"
                                     >
-                                        <img :src="item.product.image || '/no-image.png'" class="variant-item-img">
+                                        <img v-lazy="item.product.images[0] || '/no-image.png'" class="variant-item-img">
                                         <div class="variant-item-info">
                                             <span class="variant-item-name">{{ item.product.name }}</span>
                                             <span class="variant-item-category">{{ item.category_name }}</span>
@@ -169,8 +169,16 @@ export default {
 
             return this.collection.collection_categories.reduce((sum, cat) => {
                 const selected = this.selections[cat.id] || [];
-                const selectedProducts = (cat.products || []).filter(p => selected.includes(p.id));
-                return sum + selectedProducts.reduce((s, p) => s + (p.price || 0), 0);
+                const selectedProducts = (cat.products || []).filter(p => {
+                    // Приводим оба ID к строке для корректного сравнения
+                    return selected.includes(String(p.id));
+                });
+
+                return sum + selectedProducts.reduce((s, p) => {
+                    // Явно преобразуем price в число
+                    const price = Number(p.price) || 0;
+                    return s + price;
+                }, 0);
             }, 0);
         },
 
@@ -211,8 +219,8 @@ export default {
             this.selections = {};
             (this.collection?.collection_categories || []).forEach(cat => {
                 if (cat.selection_rule === 'all') {
-                    // Для "all" выбираем сразу все товары
-                    this.selections[cat.id] = (cat.products || []).map(p => p.id);
+                    // Приводим все ID к строке для единообразия
+                    this.selections[cat.id] = (cat.products || []).map(p => String(p.id));
                 } else {
                     this.selections[cat.id] = [];
                 }
@@ -224,7 +232,8 @@ export default {
         },
 
         setSelectedForCategory(categoryId, products) {
-            this.selections[categoryId] = products;
+            // Убеждаемся, что все ID - строки
+            this.selections[categoryId] = products.map(id => String(id));
         },
 
         async addToCart() {
