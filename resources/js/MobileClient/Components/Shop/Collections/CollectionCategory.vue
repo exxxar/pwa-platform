@@ -44,7 +44,7 @@
                 </div>
 
                 <img
-                    :src="product.image || '/no-image.png'"
+                    v-lazy="product.images[0]"
                     :alt="product.name"
                     class="option-image"
                 >
@@ -100,7 +100,7 @@ export default {
 
         ruleIcon() {
             const icons = {
-                one: 'fa-solid fa-1',
+                one: 'fa-regular fa-circle-dot',
                 all: 'fa-solid fa-list-check',
                 several: 'fa-solid fa-list',
             };

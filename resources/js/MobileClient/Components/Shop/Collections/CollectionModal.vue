@@ -331,7 +331,7 @@ $bg-secondary: #f8f9fa;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    z-index: 1000;
+    z-index: 1022;
 
     @media (min-width: 768px) {
         align-items: center;
