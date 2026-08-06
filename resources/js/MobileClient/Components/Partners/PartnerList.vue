@@ -2294,9 +2294,9 @@ $info: #3b82f6;
     // 📱 На маленьких экранах можно свернуть в круг с иконкой
     @media (max-width: 400px) {
         padding: 14px;
-        border-radius: 50%;
-        width: 52px;
-        height: 52px;
+        border-radius: 10px;
+        width: 77px;
+        height: 36px;
         justify-content: center;
 
         .fab-text {
