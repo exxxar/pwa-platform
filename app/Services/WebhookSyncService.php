@@ -93,14 +93,16 @@ class WebhookSyncService
     /**
      * Синхронизация одной коллекции
      */
+    /**
+     * Синхронизация одной коллекции
+     */
     protected function syncCollection(Tenant $tenant, array $data): array
     {
-        $externalId = (string) ($data['id'] ?? '');
+        $externalId = (string)($data['id'] ?? '');
         if (!$externalId) {
             throw new \RuntimeException('Collection external_id is missing');
         }
 
-        // Ищем существующую или создаем новую
         $collection = Collection::firstOrNew([
             'external_id' => $externalId,
             'tenant_id' => $tenant->id,
@@ -108,31 +110,122 @@ class WebhookSyncService
 
         $action = $collection->exists ? 'updated' : 'created';
 
-        // Маппинг данных
-        // Поддерживаем разные варианты названий полей из вебхука
         $collection->fill([
             'name' => $data['name'] ?? 'Без названия',
             'description' => $data['description'] ?? null,
             'short_description' => $data['short_description'] ?? null,
             'image' => $data['image'] ?? $data['image_url'] ?? null,
-            'discount' => $data['discount'] ?? 0,
+            'discount' => $data['discount_percent'] ?? $data['discount'] ?? 0,
             'order_position' => $data['sort_order'] ?? $data['order_position'] ?? 0,
             'type' => $data['type'] ?? 'manual',
             'pricing_type' => $data['pricing_type'] ?? 'sum',
             'fixed_price' => $data['fixed_price'] ?? null,
-            'in_stop_list' => (bool) ($data['in_stop_list'] ?? false),
+            'in_stop_list' => (bool)($data['in_stop_list'] ?? false),
             'config' => $data['config'] ?? null,
-            // ВОССТАНАВЛИВАЕМ АКТИВНОСТЬ
-            'is_active' => (bool) ($data['is_active'] ?? true),
+            'is_active' => (bool)($data['is_active'] ?? true),
         ]);
 
         $collection->save();
 
-        // Синхронизация товаров внутри коллекции
-        $productsInput = $data['products'] ?? [];
-        $this->syncCollectionProducts($collection, $productsInput);
+        // 🆕 Синхронизация категорий и товаров внутри коллекции
+        $categoriesData = $data['collection_categories'] ?? [];
+
+        // Fallback для плоской структуры (если вдруг придет старый формат без вложенности)
+        if (empty($categoriesData) && !empty($data['products'])) {
+            $categoriesData = [
+                [
+                    'category_id' => null,
+                    'category_name' => 'Основные товары',
+                    'selection_rule' => 'several',
+                    'sort_order' => 0,
+                    'products' => $data['products'],
+                ]
+            ];
+        }
+
+        $this->syncCollectionCategories($collection, $tenant, $categoriesData);
 
         return ['action' => $action];
+    }
+
+    protected function syncCollectionCategories(Collection $collection, Tenant $tenant, array $categoriesData): void
+    {
+        $processedCollectionCategoryIds = [];
+
+        foreach ($categoriesData as $catData) {
+            $catExternalId = (string)($catData['category_id'] ?? ''); // Это external_id глобальной категории
+            $catName = $catData['category_name'] ?? 'Без названия';
+
+            // 1. Находим локальную категорию по external_id
+            $localCategory = null;
+            if ($catExternalId) {
+                $localCategory = Category::where('tenant_id', $tenant->id)
+                    ->where('external_id', $catExternalId)
+                    ->first();
+            }
+
+            $localCategoryId = $localCategory ? $localCategory->id : null;
+
+            // 2. Находим или создаем запись CollectionCategory
+            // Используем category_id для поиска, если он найден. Иначе ищем по имени.
+            $matchAttributes = ['collection_id' => $collection->id];
+            if ($localCategoryId) {
+                $matchAttributes['category_id'] = $localCategoryId;
+            } else {
+                $matchAttributes['category_name'] = $catName;
+            }
+
+            $collectionCategory = $collection->collectionCategories()->updateOrCreate(
+                $matchAttributes,
+                [
+                    'category_name' => $catName,
+                    'selection_rule' => $catData['selection_rule'] ?? 'one',
+                    'sort_order' => $catData['sort_order'] ?? 0,
+                ]
+            );
+
+            $processedCollectionCategoryIds[] = $collectionCategory->id;
+
+            // 3. Синхронизация товаров для этой категории коллекции
+            $productsData = $catData['products'] ?? [];
+            $this->syncProductsForCollectionCategory($collectionCategory, $tenant, $productsData);
+        }
+
+        // 4. Удаляем категории коллекции, которых больше нет в вебхуке
+        $collection->collectionCategories()
+            ->whereNotIn('id', $processedCollectionCategoryIds)
+            ->each(function ($cc) {
+                $cc->products()->detach();
+                $cc->delete();
+            });
+    }
+
+    protected function syncProductsForCollectionCategory(CollectionCategory $collectionCategory, Tenant $tenant, array $productsData): void
+    {
+        $syncData = [];
+
+        foreach ($productsData as $prodData) {
+            $productExternalId = (string)($prodData['id'] ?? '');
+
+            if (!$productExternalId) {
+                continue;
+            }
+
+            // Находим локальный товар по external_id
+            $localProduct = Product::where('tenant_id', $tenant->id)
+                ->where('external_id', $productExternalId)
+                ->first();
+
+            if ($localProduct) {
+                $syncData[$localProduct->id] = [
+                    'sort_order' => $prodData['sort_order'] ?? 0,
+                ];
+            }
+        }
+
+        // sync() автоматически добавит новые связи, обновит sort_order и удалит старые,
+        // которых нет в $syncData
+        $collectionCategory->products()->sync($syncData);
     }
 
     /**
