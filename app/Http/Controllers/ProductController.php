@@ -240,7 +240,7 @@ class ProductController extends Controller
                     $radius = (float)($zone['radius'] ?? 0);
                     if ($distanceInKm <= $radius) {
                         // 🎯 ФОРМУЛА: цена_зоны + (price_per_km × км)
-                        $zoneBasePrice = $parseZonePrice($zone['price'] ?? 0);
+                        $zoneBasePrice = $parseZonePrice($zone['price'] ?? 290);
                         $deliveryPrice = round($zoneBasePrice + $distanceCost, 2);
                         $zoneFound = true;
                         break;
@@ -252,7 +252,7 @@ class ProductController extends Controller
                     $isOutsideZones = true;
 
                     // Берём цену самой дальней зоны как базу
-                    $lastZonePrice = $parseZonePrice(end($deliveryZones)['price'] ?? 0);
+                    $lastZonePrice = $parseZonePrice(end($deliveryZones)['price'] ?? 290);
 
                     // 🎯 ФОРМУЛА: цена_последней_зоны + (price_per_km × км)
                     $outsidePrice = round($lastZonePrice + $distanceCost, 2);
