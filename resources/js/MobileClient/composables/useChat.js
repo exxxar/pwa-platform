@@ -114,6 +114,7 @@ export function useChat() {
         getDialogAttachments: (id) => store.getDialogAttachments(id),
         sendMessage,
         loadOlderMessages,
+        setInitialData: (data)=>store.setInitialData(data),
         retryMessage: (msg) => store.retryMessage(msg),
         deleteMessage: (id) => store.deleteMessage(id),
 
