@@ -161,7 +161,7 @@ class WebhookSyncService
         $mainCategory = $collection->collectionCategories()->firstOrCreate(
             ['category_name' => 'sync_default_group'], // Технический идентификатор группы
             [
-                'category_id' => 0, // Пустая связь с глобальной категорией
+                'category_id' => null, // Пустая связь с глобальной категорией
                 'selection_rule' => 'all',
                 'sort_order' => 0,
             ]
