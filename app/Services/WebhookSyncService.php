@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Tenant\Category;
 use App\Models\Tenant\Collection;
+use App\Models\Tenant\CollectionCategory;
 use App\Models\Tenant\Product;
 use App\Models\Tenant\ProductAttribute;
 use App\Models\Tenant\Tenant;
