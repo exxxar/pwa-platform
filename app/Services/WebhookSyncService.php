@@ -140,20 +140,15 @@ class WebhookSyncService
      * Так как структура БД требует collection_categories, мы создаем/используем
      * одну техническую категорию ("main") для хранения товаров этой коллекции.
      */
+    /**
+     * Привязка товаров к коллекции через CollectionCategory
+     */
     protected function syncCollectionProducts(Collection $collection, array $productsInput): void
     {
         // 1. Нормализуем вход: достаем external_id товаров
         $externalIds = collect($productsInput)->map(function ($item) {
             return is_array($item) ? ($item['id'] ?? null) : $item;
         })->filter()->values()->all();
-
-        // Если товаров нет - очищаем все связи в этой коллекции
-        if (empty($externalIds)) {
-            $collection->collectionCategories()->each(function ($cat) {
-                $cat->products()->detach();
-            });
-            return;
-        }
 
         // 2. Находим реальные ID товаров в нашей БД
         $localProductIds = Product::where('tenant_id', $collection->tenant_id)
@@ -162,7 +157,7 @@ class WebhookSyncService
             ->all();
 
         // 3. Получаем или создаем "дефолтную" группу для этой коллекции
-        // Это нужно, чтобы соблюсти структуру collection_categories
+        // Используем вашу модель CollectionCategory
         $mainCategory = $collection->collectionCategories()->firstOrCreate(
             ['category_name' => 'sync_default_group'], // Технический идентификатор группы
             [
@@ -172,12 +167,13 @@ class WebhookSyncService
             ]
         );
 
-        // 4. Синхронизируем pivot таблицу (collection_category_product)
+        // 4. Синхронизируем pivot-таблицу collection_category_product
         $syncData = [];
         foreach ($localProductIds as $index => $pid) {
             $syncData[$pid] = ['sort_order' => $index];
         }
 
+        // Метод sync() автоматически удалит старые связи и добавит новые с указанным sort_order
         $mainCategory->products()->sync($syncData);
     }
     /**
