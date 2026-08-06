@@ -347,6 +347,22 @@
             :partner="selectedPartnerForMap"
             @close="showLocationModal = false"
         />
+
+        <!-- ========================================== -->
+        <!-- 🆕 ПЛАВАЮЩАЯ КНОПКА СБРОСА ФИЛЬТРОВ -->
+        <!-- ========================================== -->
+        <transition name="reset-fab">
+            <button
+                v-if="hasActiveFilters && activeMainTab === 'establishments'"
+                class="reset-filters-fab"
+                @click="handleResetFilters"
+                title="Сбросить все фильтры"
+            >
+                <i class="fa-solid fa-rotate-left"></i>
+                <span class="fab-text">Сбросить</span>
+                <span v-if="activeFiltersCount > 0" class="fab-badge">{{ activeFiltersCount }}</span>
+            </button>
+        </transition>
     </div>
 </template>
 
@@ -387,6 +403,25 @@ export default {
     },
 
     computed: {
+        hasActiveFilters() {
+            const hasSearch = this.searchQuery && this.searchQuery.trim().length > 0;
+            const hasCategory = this.selectedCategory !== null;
+            const hasCuisine = this.selectedCuisine !== null;
+            const defaultFilter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
+            const hasCustomFilter = this.filter !== defaultFilter;
+
+            return hasSearch || hasCategory || hasCuisine || hasCustomFilter;
+        },
+
+        activeFiltersCount() {
+            let count = 0;
+            if (this.searchQuery && this.searchQuery.trim()) count++;
+            if (this.selectedCategory !== null) count++;
+            if (this.selectedCuisine !== null) count++;
+            const defaultFilter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
+            if (this.filter !== defaultFilter) count++;
+            return count;
+        },
         uiSettings() {
             return window.Tenant?.settings?.partners?.ui || {};
         },
@@ -680,12 +715,7 @@ export default {
             return favs.some(id => String(id) === String(partnerId));
         },
 
-        resetFilters() {
-            this.searchQuery = '';
-            this.selectedCategory = null;
-            this.selectedCuisine = null;
-            this.filter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
-        },
+
 
         async switchOrdersTab(index) {
             this.ordersTab = index;
@@ -791,6 +821,20 @@ export default {
         getOrderTotal(order) {
             return order.summary_price || order.total || 0;
         },
+
+        resetFilters() {
+            this.searchQuery = '';
+            this.selectedCategory = null;
+            this.selectedCuisine = null;
+            this.filter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
+        },
+
+        handleResetFilters() {
+            this.resetFilters();
+            // Плавно скроллим страницу наверх
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+
     },
 
     beforeUnmount() {
@@ -2182,5 +2226,94 @@ $info: #3b82f6;
     .cuisine-modal-sheet {
         transform: translateY(100%);
     }
+}
+
+// ==========================================
+// 🆕 ПЛАВАЮЩАЯ КНОПКА СБРОСА ФИЛЬТРОВ (FAB)
+// ==========================================
+.reset-filters-fab {
+    position: fixed;
+    left: 16px;
+    bottom: 80px; // ⬇️ над нижним меню (поправьте под вашу высоту нижнего меню)
+    z-index: 500;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4), 0 4px 8px rgba(0, 0, 0, 0.1);
+
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+
+    i {
+        font-size: 1rem;
+        transition: transform 0.4s ease;
+    }
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px rgba(239, 68, 68, 0.5), 0 6px 12px rgba(0, 0, 0, 0.15);
+
+        i {
+            transform: rotate(-180deg);
+        }
+    }
+
+    &:active {
+        transform: translateY(0) scale(0.97);
+    }
+
+    .fab-text {
+        line-height: 1;
+    }
+
+    .fab-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 6px;
+        background: rgba(255, 255, 255, 0.3);
+        color: #ffffff;
+        border-radius: 11px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    // 📱 На маленьких экранах можно свернуть в круг с иконкой
+    @media (max-width: 400px) {
+        padding: 14px;
+        border-radius: 50%;
+        width: 52px;
+        height: 52px;
+        justify-content: center;
+
+        .fab-text {
+            display: none;
+        }
+    }
+}
+
+// Анимация появления/исчезновения FAB
+.reset-fab-enter-active,
+.reset-fab-leave-active {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.reset-fab-enter-from,
+.reset-fab-leave-to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
 }
 </style>
