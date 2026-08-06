@@ -130,15 +130,27 @@ class ProductController extends Controller
             ], 400);
         }
 
-        // 🆕 Выносим price_per_km наверх — он участвует в ВСЕХ расчётах
-        $pricePerKm = (float)($config["shop"]["price_per_km"]
-            ?? $config["min_base_delivery_price"]
-            ?? 80);
+        // 2. Глобальные настройки тарификации
+        $pricePerKm = (float)($config["shop"]["price_per_km"] ?? $config["price_per_km"] ?? 80);
+        $deliveryZones = $config['shop']['delivery_zones'] ?? $config['delivery_zones'] ?? [];
 
-        $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"]
-            ?? $config["min_base_delivery_price"] ?? 100);
+        // Сортируем зоны по радиусу по возрастанию, чтобы найти первую подходящую
+        usort($deliveryZones, function ($a, $b) {
+            return ((float)($a['radius'] ?? 0)) <=> ((float)($b['radius'] ?? 0));
+        });
 
-        // 2. Оптимизированный запрос ID тенантов из корзины
+        // Хелпер для парсинга строки цены зоны в float (обрабатывает "150", "150 ₽", "Бесплатно")
+        $parseZonePrice = function ($price) {
+            if (is_numeric($price)) return (float)$price;
+            $priceStr = mb_strtolower((string)$price);
+            if (str_contains($priceStr, 'бесплатно') || str_contains($priceStr, 'free')) {
+                return 0.0;
+            }
+            preg_match('/\d+([\.,]\d+)?/', $priceStr, $matches);
+            return isset($matches[0]) ? (float)str_replace(',', '.', $matches[0]) : 0.0;
+        };
+
+        // 3. Получаем ID ресторанов (партнеров), участвующих в текущей корзине
         $basketTenantIds = Basket::query()
             ->where("tenant_user_id", $tenantUser->id)
             ->where("tenant_id", $tenant->id)
@@ -147,7 +159,6 @@ class ProductController extends Controller
             ->unique()
             ->toArray();
 
-        // 3. Получение партнеров (магазинов)
         $partners = [];
         if (!empty($basketTenantIds)) {
             $partners = Tenant::query()
@@ -156,6 +167,7 @@ class ProductController extends Controller
                 ->keyBy('id');
         }
 
+        // Всегда добавляем главного тенанта (основной ресторан), если его еще нет в списке
         if (!isset($partners[$tenant->id])) {
             $partners[$tenant->id] = $tenant;
         }
@@ -164,147 +176,102 @@ class ProductController extends Controller
         $clientLng = (float)$validated['lng'];
         $address = $validated['address'];
 
-        // 4. Зоны доставки
-        $deliveryZones = $config['shop']['delivery_zones'] ?? $config['delivery_zones'] ?? [];
-
-        usort($deliveryZones, function ($a, $b) {
-            return ((float)($a['radius'] ?? 0)) <=> ((float)($b['radius'] ?? 0));
-        });
-
-        // Хелпер для парсинга цены зоны
-        $parseZonePrice = function ($price) {
-            if (is_numeric($price)) return (float)$price;
-
-            $priceStr = mb_strtolower((string)$price);
-            if (str_contains($priceStr, 'бесплатно') || str_contains($priceStr, 'free')) {
-                return 0.0;
-            }
-
-            preg_match('/\d+([\.,]\d+)?/', $priceStr, $matches);
-            return isset($matches[0]) ? (float)str_replace(',', '.', $matches[0]) : 0.0;
-        };
-
-        $sumDistance = 0.0;
-        $sumPrice = 0.0;
+        $totalDistance = 0.0;
+        $totalPrice = 0.0;
         $partnerBoxConfig = [];
 
-        // 5. Расчет для каждого партнера
+        // 4. 🎯 РАСЧЕТ ДЛЯ КАЖДОГО РЕСТОРАНА ОТДЕЛЬНО
         foreach ($partners as $partner) {
             $isPartnersActive = (bool)($config["partners"]["is_active"] ?? false);
             $isPartnersDisplaySelf = (bool)($config["partners"]["display_self"] ?? false);
 
+            // Пропускаем главного тенанта, если настроено не отображать его как отдельного партнера
             if ($isPartnersActive && !$isPartnersDisplaySelf && $partner->id === $tenant->id) {
                 continue;
             }
 
-            $shopCoords = $partner->settings["shop_coords"]
-                ?? $partner->settings["shop"]["shop_coords"]
-                ?? null;
+            $shopCoords = $partner->settings["shop_coords"] ?? $partner->settings["shop"]["shop_coords"] ?? null;
 
-            // Если координаты магазина не указаны — базовая цена без расстояния
-            if (empty($shopCoords)) {
-                $deliveryPrice = $minBaseDeliveryPrice;
-
-                $partnerUuid = $partner->uuid ?? 'partner_' . $partner->id;
-                $partnerBoxConfig[$partnerUuid] = [
-                    "id" => $partner->id,
-                    "price" => $deliveryPrice,
-                    "title" => $partner->name ?? $partner->slug ?? 'Неизвестный магазин',
-                    "distance" => 0,
-                    "address" => $address,
-                    "shop_coords" => null,
-                    "client_coords" => $clientLat . ", " . $clientLng,
-                    "is_outside_zones" => false,
-                    "no_coords" => true,
-                ];
-
-                $sumPrice += $deliveryPrice;
-                continue;
-            }
-
-            // Расчёт расстояния
-            $distanceInMeters = GEOService::call()->getDistance($clientLat, $clientLng, $shopCoords);
-            $distCoef = env("DISTANCE_COEF") ?? 1;
-            $distanceInKm = round(($distanceInMeters / 1000) * $distCoef, 2);
-
-            // 🆕 Базовая стоимость за километры (участвует ВСЕГДА)
-            $distanceCost = round($distanceInKm * $pricePerKm, 2);
-
+            $distanceInKm = 0.0;
             $deliveryPrice = 0.0;
             $isOutsideZones = false;
+            $appliedZoneName = 'Базовый тариф';
 
-            if (!empty($deliveryZones)) {
-                // Ищем первую подходящую зону
-                $zoneFound = false;
-                foreach ($deliveryZones as $zone) {
-                    $radius = (float)($zone['radius'] ?? 0);
-                    if ($distanceInKm <= $radius) {
-                        // 🎯 ФОРМУЛА: цена_зоны + (price_per_km × км)
-                        $zoneBasePrice = $parseZonePrice($zone['price'] ?? 100);
-                        $deliveryPrice = round($zoneBasePrice + $distanceCost, 2);
-                        $zoneFound = true;
-                        break;
-                    }
-                }
-
-                // За пределами всех зон
-                if (!$zoneFound) {
-                    $isOutsideZones = true;
-
-                    // Берём цену самой дальней зоны как базу
-                    $lastZonePrice = $parseZonePrice(end($deliveryZones)['price'] ?? 100);
-
-                    // 🎯 ФОРМУЛА: цена_последней_зоны + (price_per_km × км)
-                    $outsidePrice = round($lastZonePrice + $distanceCost, 2);
-
-                    // Fallback на случай если зоны есть, но цена последней = 0
-                    $fallbackPrice = round($minBaseDeliveryPrice + $distanceCost, 2);
-
-                    $deliveryPrice = max($outsidePrice, $fallbackPrice);
-                }
+            if (empty($shopCoords)) {
+                // Если у ресторана нет координат, берем базовую цену первой зоны (или дефолтную)
+                $deliveryPrice = !empty($deliveryZones) ? $parseZonePrice($deliveryZones[0]['price'] ?? 100) : 100.0;
             } else {
-                // Зоны не настроены — чистая линейная формула
-                $deliveryPrice = round($minBaseDeliveryPrice + $distanceCost, 2);
-            }
+                // Считаем расстояние от КОНКРЕТНОГО ресторана до клиента
+                $distanceInMeters = GEOService::call()->getDistance($clientLat, $clientLng, $shopCoords);
+                $distCoef = env("DISTANCE_COEF") ?? 1;
+                $distanceInKm = round(($distanceInMeters / 1000) * $distCoef, 2);
 
-            // Гарантируем минимальную цену
-            if ($deliveryPrice < $minBaseDeliveryPrice && $distanceInKm > 0) {
-                $deliveryPrice = $minBaseDeliveryPrice;
+                if (!empty($deliveryZones)) {
+                    // Ищем ПЕРВУЮ зону, радиус которой >= расстоянию
+                    $zoneFound = false;
+                    foreach ($deliveryZones as $zone) {
+                        $radius = (float)($zone['radius'] ?? 0);
+                        if ($distanceInKm <= $radius) {
+                            $zoneBasePrice = $parseZonePrice($zone['price'] ?? 0);
+
+                            // 🎯 ФОРМУЛА: Базовая цена зоны + (Расстояние * Цена за км)
+                            $deliveryPrice = round($zoneBasePrice + ($distanceInKm * $pricePerKm), 2);
+
+                            $appliedZoneName = $zone['name'] ?? 'Зона';
+                            $zoneFound = true;
+                            break; // Нашли подходящую зону, прерываем цикл
+                        }
+                    }
+
+                    // Если адрес за пределами всех настроенных зон
+                    if (!$zoneFound) {
+                        $isOutsideZones = true;
+                        $lastZone = end($deliveryZones);
+                        $lastZoneBasePrice = $parseZonePrice($lastZone['price'] ?? 0);
+                        $appliedZoneName = ($lastZone['name'] ?? 'Дальняя зона') . ' (сверх лимита)';
+
+                        // Берем базовую цену самой дальней зоны + стоимость километража
+                        $deliveryPrice = round($lastZoneBasePrice + ($distanceInKm * $pricePerKm), 2);
+                    }
+                } else {
+                    // 🔄 Fallback: если зоны вообще не настроены, используем простую линейную формулу
+                    $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"] ?? $config["min_base_delivery_price"] ?? 100);
+                    $deliveryPrice = round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
+                    $appliedZoneName = 'Без зон (линейный расчет)';
+                }
             }
 
             $partnerUuid = $partner->uuid ?? 'partner_' . $partner->id;
 
+            // Сохраняем детальный расчет по этому ресторану
             $partnerBoxConfig[$partnerUuid] = [
                 "id" => $partner->id,
-                "price" => $deliveryPrice,
                 "title" => $partner->name ?? $partner->slug ?? 'Неизвестный магазин',
-                "distance" => $distanceInKm,
-                "address" => $address,
-                "shop_coords" => $shopCoords,
-                "client_coords" => $clientLat . ", " . $clientLng,
+                "distance_km" => $distanceInKm,
+                "delivery_price" => $deliveryPrice,
                 "is_outside_zones" => $isOutsideZones,
-                // 🆕 Прозрачность расчёта для фронта
+                // 🎯 Детальная разбивка для фронтенда (чтобы показать пользователю, как сложилась цена)
                 "breakdown" => [
-                    "base_zone_price" => $deliveryPrice - $distanceCost,
+                    "zone_name" => $appliedZoneName,
                     "distance_km" => $distanceInKm,
                     "price_per_km" => $pricePerKm,
-                    "distance_cost" => $distanceCost,
+                    "distance_cost" => round($distanceInKm * $pricePerKm, 2),
                     "total" => $deliveryPrice,
-                ],
+                ]
             ];
 
-            $sumDistance += $distanceInKm;
-            $sumPrice += $deliveryPrice;
+            // Суммируем в общую стоимость заказа
+            $totalDistance += $distanceInKm;
+            $totalPrice += $deliveryPrice;
         }
 
         return response()->json([
-            "distance" => round($sumDistance, 2),
-            "price" => round($sumPrice, 2),
+            "distance" => round($totalDistance, 2), // Суммарное расстояние (или можно вернуть max, если бизнес-логика требует)
+            "price" => round($totalPrice, 2),       // Итоговая сумма доставки по всем ресторанам
             "address" => $address,
-            "config" => $partnerBoxConfig,
+            "config" => $partnerBoxConfig,          // Детализация по каждому ресторану
         ]);
     }
-
     /**
      * @throws ValidationException
      */
