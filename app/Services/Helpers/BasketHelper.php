@@ -607,6 +607,7 @@ trait BasketHelper
             'use_cashback' => ($data["use_cashback"] ?? "false") === "true",
             'customer_name' => $data["name"] ?? 'Нет имени',
             'customer_phone' => $data["phone"] ?? null,
+            'persons' => $data["persons"] ?? null,
         ];
     }
 
