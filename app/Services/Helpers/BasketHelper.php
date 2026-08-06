@@ -52,7 +52,7 @@ trait BasketHelper
         $baseUrl = request()->getSchemeAndHttpHost() ?? 'не указано';
 
         $message = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";
-        $message .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
+        $message .= "📅 " . now("+3:00")->format('d.m.Y H:i') . "\n\n";
         $message .= "👤 <b>Клиент:</b> {$order->receiver_name}\n";
         $message .= "📞 <b>Телефон:</b> <code>{$order->receiver_phone}</code>\n";
         $message .= "📦 <b>Способ получения:</b> {$orderType}\n";
@@ -707,7 +707,7 @@ trait BasketHelper
 
             $summaryCount += $countToAdd; $summaryPrice += $price; $summaryDiscount += $discountToAdd;
 
-            $item->ordered_at = env("APP_DEBUG") ? null : Carbon::now();
+            $item->ordered_at = env("APP_DEBUG") ? null : Carbon::now("+3:00");
             $item->saveQuietly();
         }
 
@@ -744,7 +744,7 @@ trait BasketHelper
             'location_id' => $context['location_id'],
             'status' => OrderStatusEnum::NewOrder->value,
             'order_type' => OrderTypeEnum::InternalStore->value,
-            'payed_at' => in_array($context['payment_type'], [0, 4]) ? Carbon::now() : null,
+            'payed_at' => in_array($context['payment_type'], [0, 4]) ? Carbon::now("+3:00") : null,
         ]);
     }
 
