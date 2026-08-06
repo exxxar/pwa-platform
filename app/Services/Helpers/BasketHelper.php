@@ -8,6 +8,7 @@ use App\Models\Tenant\Basket;
 use App\Models\Tenant\Order;
 use App\Models\Tenant\Partner;
 use App\Models\Tenant\Tenant;
+use App\Models\Tenant\TenantUser;
 use App\Services\MessageService;
 use App\Services\PaymentService;
 use Carbon\Carbon;
@@ -109,6 +110,28 @@ trait BasketHelper
             $message .= "\n📝 <b>Комментарий:</b> {$this->data['info']}\n";
         }
 
+        // 7. 🆕 Ссылки: на диалог и профиль клиента
+        $baseUrl = request()->getSchemeAndHttpHost();
+        if ($baseUrl) {
+            // Новый формат ссылки на чат: /pwa#/chat/:dialogId
+            $chatUrl = "{$baseUrl}/pwa#/chat/{$order->dialog_id}";
+            $message .= "🔗 <a href=\"{$chatUrl}\">Открыть чат</a>\n";
+
+            $client = TenantUser::query()
+                ->where("id", $order->tenant_user_id)
+                ->first();
+
+            $clientInfo = $client ? $client->getTelegramInfo() : [
+                'name' => 'Неизвестный клиент',
+                'phone' => 'Не указан',
+                'id' => $order->tenant_user_id,
+            ];
+
+            if (!empty($clientInfo['profile_url'])) {
+                $message .= "👤 <a href=\"{$clientInfo['profile_url']}\">Профиль клиента</a>\n";
+            }
+        }
+
         // 5. Формируем payload для Telegram API
         $payload = [
             'chat_id' => $channelId,
@@ -121,6 +144,8 @@ trait BasketHelper
         if (!empty($tgSettings['thread_id'])) {
             $payload['message_thread_id'] = (int) $tgSettings['thread_id'];
         }
+
+
 
         // 6. Отправляем запрос через cURL (или Http фасад, если вы его уже заменили)
         $this->sendTelegramCurlRequest($token, $payload);
