@@ -110,7 +110,7 @@ export default {
 
     methods: {
         isSelected(productId) {
-            return this.selectedProducts.includes(productId);
+            return this.selectedProducts.some(productId);
         },
 
         isDisabled(productId) {
