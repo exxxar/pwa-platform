@@ -203,6 +203,26 @@ export const themeSchemes = [
             'secondary-bg': '#292524',
             'border-color': '#78716c',
         }
+    },
+    {
+        id: 'ember',
+        name: 'Уголёк',
+        light: {
+            primary: '#ff7a1a',
+            'primary-rgb': '255, 122, 26',
+            'body-bg': '#fff8f0',        // тёплый кремовый, не чисто белый
+            'body-color': '#1a1410',     // глубокий тёплый чёрный
+            'secondary-bg': '#fff1e0',   // лёгкий персиковый оттенок
+            'border-color': '#f5d5b0',   // мягкая тёплая граница
+        },
+        dark: {
+            primary: '#ff7a1a',
+            'primary-rgb': '255, 122, 26',
+            'body-bg': '#0a0a0e',        // тот самый «космически-чёрный» фон
+            'body-color': '#f5f5f7',     // чистый почти-белый текст
+            'secondary-bg': '#14141c',   // карточки с лёгким синеватым подтоном
+            'border-color': '#2a2a35',   // мягкие границы, не режут глаз
+        }
     }
 ];
 

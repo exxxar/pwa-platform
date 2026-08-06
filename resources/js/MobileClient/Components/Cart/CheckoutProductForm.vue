@@ -179,7 +179,7 @@
                                             <i class="fa-solid fa-location-dot"></i>
                                         </div>
                                         <div class="zone-title">{{ zone.name || `Зона ${index + 1}` }}</div>
-                                        <div v-if="zone.radius" class="zone-radius-badge">{{ zone.radius }} км</div>
+                                        <div v-if="zone.radius" class="zone-radius-badge">до {{ zone.radius }} км</div>
                                     </div>
                                     <div class="zone-body">
                                         <div class="zone-row">
@@ -187,8 +187,8 @@
                                             <span class="zone-value">{{ zone.time || '—' }}</span>
                                         </div>
                                         <div class="zone-row">
-                                            <span class="zone-label"><i class="fa-solid fa-ruble-sign text-muted me-1"></i> Стоимость</span>
-                                            <span class="zone-value price-highlight">{{ zone.price || 'По тарифу' }}</span>
+                                            <span class="zone-label"><i class="fa-solid fa-ruble-sign text-muted me-1"></i> Базовая цена доставки</span>
+                                            <span class="zone-value price-highlight">{{ zone.price || 'По тарифу' }} ₽ + {{settings.price_per_km || 0}}₽/км</span>
                                         </div>
                                         <div v-if="zone.minOrder" class="zone-row">
                                             <span class="zone-label"><i class="fa-solid fa-basket-shopping text-muted me-1"></i> Мин. заказ</span>
