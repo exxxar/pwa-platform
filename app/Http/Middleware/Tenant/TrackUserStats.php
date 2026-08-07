@@ -17,6 +17,11 @@ class TrackUserStats
             return $response;
         }
 
+        if (is_null($request->tenant ?? null))
+        {
+            return $response;
+        }
+
         $userId = Auth::guard('tenant')->id();
 
         // 🆕 incrementStat вместо increment
