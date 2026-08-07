@@ -20,9 +20,6 @@ use App\Services\PricingService;
 |
 */
 
-Route::domain('mypwa.ru')->group(function(){
-    Route::view("/", "landing-2");
-});
 
 Route::view('/maintenance', 'pages.maintenance')
     ->name('maintenance');

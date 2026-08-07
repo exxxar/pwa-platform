@@ -49,6 +49,10 @@ use Jenssegers\Agent\Agent;
 
 
 
+Route::domain('mypwa.ru')->group(function(){
+    Route::view("/", "landing-2");
+});
+
 
 /*function managerRoutes() {
     Route::get('/job', function (Request $request) {
