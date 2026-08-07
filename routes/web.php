@@ -20,15 +20,9 @@ use App\Services\PricingService;
 |
 */
 
-/*Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
-});*/
-
+Route::domain('mypwa.ru')->group(function(){
+    Route::view("/", "landing");
+});
 
 Route::view('/maintenance', 'pages.maintenance')
     ->name('maintenance');

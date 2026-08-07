@@ -47,6 +47,9 @@ use App\Http\Controllers\Tenant\TenantEmailVerificationController;
 use Inertia\Inertia;
 use Jenssegers\Agent\Agent;
 
+
+
+
 /*function managerRoutes() {
     Route::get('/job', function (Request $request) {
 
