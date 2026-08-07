@@ -13,14 +13,17 @@ class TrackUserStats
     {
         $response = $next($request);
 
+        $host = $request->getHost();
+        $systemDomains = config('tenant_domains.system_domains', []);
+
+        if (in_array($host, $systemDomains) && !(env("APP_DEBUG") ?? false)) {
+            return $next($request);
+        }
+
         if (!Auth::guard('tenant')->check()) {
             return $response;
         }
 
-        if (is_null($request->tenant ?? null))
-        {
-            return $response;
-        }
 
         $userId = Auth::guard('tenant')->id();
 
