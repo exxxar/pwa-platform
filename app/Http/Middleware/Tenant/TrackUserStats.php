@@ -11,19 +11,21 @@ class TrackUserStats
 {
     public function handle(Request $request, Closure $next, string $statKey)
     {
-        $response = $next($request);
-
         $host = $request->getHost();
         $systemDomains = config('tenant_domains.system_domains', []);
 
+        // 1. Сначала проверяем системные домены. Если это они - просто пропускаем запрос.
         if (in_array($host, $systemDomains) && !(env("APP_DEBUG") ?? false)) {
             return $next($request);
         }
 
+        // 2. Выполняем сам запрос к контроллеру
+        $response = $next($request);
+
+        // 3. Считаем статистику (после успешного выполнения запроса)
         if (!Auth::guard('tenant')->check()) {
             return $response;
         }
-
 
         $userId = Auth::guard('tenant')->id();
 

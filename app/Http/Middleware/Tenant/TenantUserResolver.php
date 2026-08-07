@@ -17,6 +17,14 @@ class TenantUserResolver
     public function handle(Request $request, Closure $next): Response
     {
         $tenant = $request->tenant;
+
+        // ==========================================
+        // 🛡️ ЗАЩИТА: Если тенант не определен (системный домен)
+        // ==========================================
+        if (!$tenant) {
+            return $next($request);
+        }
+
         $tempUser = Auth::guard('tenant')->user();
 
         if (!is_null($tempUser)) {
@@ -26,9 +34,19 @@ class TenantUserResolver
         $uuid = $request->session()->get('user_uuid');
         $header = $request->header('X-Integration-Auth');
 
+        // Явная инициализация, чтобы избежать ошибки Undefined variable в PHP 8+
+        $parsedTenantId = null;
+        $parsedUuid = null;
+
         if ($header) {
             $decoded = base64_decode($header);
-            [$tenantId, $uuid] = explode(':', $decoded, 2);
+            if (str_contains($decoded, ':')) {
+                [$parsedTenantId, $parsedUuid] = explode(':', $decoded, 2);
+                // Если uuid пришел в заголовке и его нет в сессии, используем его
+                if ($parsedUuid && !$uuid) {
+                    $uuid = $parsedUuid;
+                }
+            }
         }
 
         $user = null;
@@ -61,6 +79,10 @@ class TenantUserResolver
             }
 
             // 🆕 3. Выбираем случайное имя и формируем полное имя
+            // Защита от пустого массива идентичностей
+            if (empty($identities)) {
+                $identities = ['Неизвестный'];
+            }
             $randomIdentity = $identities[array_rand($identities)];
             $guestName = 'Гость • ' . $randomIdentity;
 
@@ -103,13 +125,9 @@ class TenantUserResolver
         // ==========================================
 
         // 1. Принудительно устанавливаем время жизни сессии в 30 дней (43200 минут).
-        // Если хотите 1 год, поставьте 525600.
-        // Это заставит Laravel отправить браузеру cookie с далекой датой истечения.
         config(['session.lifetime' => 43200]);
 
         // 2. Авторизуем пользователя с флагом "true" (Remember Me).
-        // Это критически важно: без этого true сессия всё равно может прерваться
-        // при закрытии вкладки в некоторых конфигурациях браузера.
         Auth::guard('tenant')->login($user, true);
 
         return $next($request);
