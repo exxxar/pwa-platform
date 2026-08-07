@@ -365,7 +365,7 @@ export default {
 
 @media (max-width: 576px) {
     .collections-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(1, 1fr);
         gap: 12px;
     }
 }

@@ -76,9 +76,15 @@ trait BasketHelper
             $message .= "\n🏪 <b>{$box['name']}:</b>\n";
 
             // Товары конкретного заведения
+            // Товары конкретного заведения
             foreach ($box['products'] as $product) {
                 $priceFormatted = number_format($product['price'], 0, '.', ' ');
                 $message .= "  • {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
+
+                // 🆕 Если это коллекция, выводим её состав с красивым отступом
+                if (!empty($product['details'])) {
+                    $message .= $product['details'] . "\n";
+                }
             }
 
             // 🆕 Сумма по этому заведению
@@ -675,27 +681,49 @@ trait BasketHelper
 
             if ($item->collection) {
                 $params = is_array($item->params) ? (object)$item->params : $item->params;
-                $collectionTitles = ""; $collectionPrice = 0;
+                $collectionPrice = 0;
+                $collectionItemsText = "";
 
+                // Собираем товары, входящие в эту конкретную коллекцию
                 foreach (($item->collection->products ?? []) as $product) {
                     if (!in_array($product->id, $params->ids ?? [])) continue;
-                    $collectionTitles .= "-" . $product->name . "\n";
-                    $collectionPrice += ($product->price ?? 0) * (1 + $extraCharge / 100);
 
-                    $tmpOrderProductInfo[] = [
-                        "id"=>$product->id,
-                        "name" => "Коллекция `{$item->collection->name}`: {$product->name}", "count" => 1,
-                        "price" => $this->safeFloat($product->price ?? 0),
-                        'external_source' => $product->external_source ?? null, 'external_id' => $product->external_id ?? null,
-                    ];
-
-                    if (!in_array($product->id, $processedProductIds)) {
-                        $processedProductIds[] = $product->id;
-                        $partnerProductBox[$uuid]["products"][] = end($tmpOrderProductInfo);
-                    }
+                    $itemPrice = ($product->price ?? 0) * (1 + $extraCharge / 100);
+                    $collectionPrice += $itemPrice;
+                    $collectionItemsText .= "    ├─ {$product->name}\n";
                 }
-                $price += $collectionPrice * $item->count;
-                $partnerProductBox[$uuid]["message"] .= sprintf("💎Коллекция `%s` x%s=%s руб.:\n%s\n", $item->collection->name, $item->count, $price, $collectionTitles);
+
+                $totalCollectionPrice = $collectionPrice * $item->count;
+
+                // 🎯 1. Для PDF и CRM (детализированная запись)
+                $tmpOrderProductInfo[] = [
+                    "id" => "collection_" . $item->collection->id, // Уникальный ID, чтобы не конфликтовал с обычными товарами
+                    "name" => "📦 Коллекция: {$item->collection->name}",
+                    "count" => $item->count,
+                    "price" => $this->safeFloat($totalCollectionPrice),
+                    'external_source' => 'collection',
+                    'external_id' => $item->collection->id,
+                    'collection_details' => rtrim($collectionItemsText, "\n")
+                ];
+
+                // 🎯 2. Для Telegram (группированная запись для красивого вывода)
+                $partnerProductBox[$uuid]["products"][] = [
+                    'name' => "📦 Коллекция: {$item->collection->name}",
+                    'count' => $item->count,
+                    'price' => $this->safeFloat($totalCollectionPrice),
+                    'details' => rtrim($collectionItemsText, "\n") // Передаем список товаров внутрь
+                ];
+
+                // 🎯 3. Формируем текст сообщения для этого партнера
+                $partnerProductBox[$uuid]["message"] .= sprintf(
+                    "💎 %s x%s = %s руб.\n%s\n",
+                    "Коллекция `{$item->collection->name}`",
+                    $item->count,
+                    number_format($totalCollectionPrice, 0, '.', ' '),
+                    $collectionItemsText
+                );
+
+                $price += $totalCollectionPrice;
             }
 
             $countToAdd = $isWeightProduct ? 1 : $item->count;

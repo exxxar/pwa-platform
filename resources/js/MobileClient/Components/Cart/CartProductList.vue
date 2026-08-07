@@ -72,29 +72,35 @@
                 </div>
 
                 <div class="products-list">
+                    <!-- 🆕 Используем basket_id для ключа, так как структура стала плоской -->
                     <div
-                        v-for="item in cartProducts"
-                        :key="item.product ? 'product-' + item.product.id : 'collection-' + item.collection?.id"
+                        v-for="(item, index) in cartProducts"
+                        :key="item.basket_id || 'item-' + index"
                     >
+                        <!-- 🆕 Обычный товар: проверяем type или product_id -->
                         <ProductCardSimple
-                            v-if="item.product"
-                            :item="item.product"
+                            v-if="item.type === 'product' || item.product_id"
+                            :item="normalizeProductItem(item)"
                             :comment="item.comment"
                             :config="item.params"
                         >
                             <template #partner>
                                 <div class="partner-info">
                                     <i class="fa-solid fa-store"></i>
-                                    <span>{{ item.product.tenant_name || tenant?.name || 'Магазин' }}</span>
+                                    <span>{{ tenant?.name || 'Магазин' }}</span>
                                 </div>
                             </template>
                         </ProductCardSimple>
 
+                        <!-- 🆕 Коллекция (подборка) -->
                         <CollectionCardSimple
-                            v-else-if="item.collection"
-                            :item="item.collection"
+                            v-else-if="item.type === 'collection'"
+                            :item="item"
                             :comment="item.comment"
                             :params="item.params"
+                            @remove="removeCollectionItem"
+                            @increment="incrementCollectionItem"
+                            @decrement="decrementCollectionItem"
                         >
                             <template #partner>
                                 <div class="partner-info" v-if="item.partner">
@@ -106,7 +112,6 @@
                     </div>
                 </div>
             </div>
-
             <!-- ========================================== -->
             <!-- ВЫБОР ПРИЗА КОЛЕСА ФОРТУНЫ -->
             <!-- ========================================== -->
@@ -322,7 +327,7 @@ import 'vue3-carousel/dist/carousel.css';
 import { Carousel, Slide, Pagination, Navigation } from 'vue3-carousel';
 import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
 import ProductCardSimple from '@/MobileClient/Components/Shop/ProductCardSimple.vue';
-import CollectionCardSimple from '@/MobileClient/Components/Shop/CollectionCardSimple.vue';
+import CollectionCardSimple from '@/MobileClient/Components/Shop/Collections/CollectionCardSimple.vue';
 
 export default {
     name: "CartProductList",
@@ -409,6 +414,72 @@ export default {
     },
 
     methods: {
+        normalizeProductItem(item) {
+            return {
+                ...item,
+                // Компонент ждет массив images, а бэкенд отдает строку image
+                images: item.image ? [item.image] : (item.images || []),
+                // Компонент ждет in_stop_list_at для блокировки, добавляем фоллбэк
+                in_stop_list_at: item.in_stop_list_at || (item.is_active === false ? new Date().toISOString() : null),
+                // Убеждаемся, что цена точно число
+                price: Number(item.price) || 0,
+                old_price: Number(item.old_price) || 0,
+            };
+        },
+
+        // 🆕 Методы для управления сборкой в корзине
+        async removeCollectionItem(item) {
+            const variantId = item.params?.variant_id;
+            if (!variantId) {
+                console.error('Не найден variant_id для удаления');
+                return;
+            }
+            try {
+                await this.basketStore.removeCollectionVariant({
+                    variant_id: variantId,
+                    collection_id: item.collection_id
+                });
+                this.$notify?.({
+                    title: 'Удалено',
+                    text: 'Сборка удалена из корзины',
+                    type: 'success',
+                });
+            } catch (error) {
+                console.error('Ошибка удаления сборки:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Не удалось удалить сборку',
+                    type: 'error',
+                });
+            }
+        },
+
+        async incrementCollectionItem(item) {
+            console.log("collection item", item)
+            const variantId = item.params?.variant_id;
+            if (!variantId) return;
+            try {
+                await this.basketStore.incCollectionVariant({
+                    variant_id: variantId,
+                    collection_id: item.collection_id
+                });
+            } catch (error) {
+                console.error('Ошибка увеличения количества:', error);
+            }
+        },
+
+        async decrementCollectionItem(item) {
+            const variantId = item.params?.variant_id;
+            if (!variantId) return;
+            try {
+                await this.basketStore.decCollectionVariant({
+                    variant_id: variantId,
+                    collection_id: item.collection_id
+                });
+            } catch (error) {
+                console.error('Ошибка уменьшения количества:', error);
+            }
+        },
         goToCatalog() {
             this.$router.push({ name: 'Catalog' });
         },

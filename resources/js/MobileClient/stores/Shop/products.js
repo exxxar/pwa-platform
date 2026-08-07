@@ -135,7 +135,34 @@ export const useProductsStore = defineStore('products', {
     // ACTIONS
     // ==========================================
     actions: {
+        // 🆕 Новый метод для загрузки товаров по массиву ID
+        async fetchProductsByIds(ids) {
+            if (!ids || ids.length === 0) return;
 
+            // Убираем дубликаты и оставляем только те ID, которых еще нет в кэше
+            const uniqueIds = [...new Set(ids)];
+            const missingIds = uniqueIds.filter(id => !this.productsById[id]);
+
+            if (missingIds.length === 0) {
+                return; // Все нужные товары уже загружены
+            }
+
+            this.isLoadingByIds = true;
+            try {
+                const response = await axios.post('/shop/products/by-ids', {
+                    ids: missingIds
+                });
+
+                // Сохраняем в кэш по ID для мгновенного доступа
+                response.data.forEach(product => {
+                    this.productsById[product.id] = product;
+                });
+            } catch (error) {
+                console.error('Ошибка загрузки товаров по ID:', error);
+            } finally {
+                this.isLoadingByIds = false;
+            }
+        },
         /**
          * 🆕 Установить рекомендации
          */

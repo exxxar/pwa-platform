@@ -53,8 +53,8 @@ export function useBasket() {
 
     // --- 🆕 ВАРИАНТЫ КОЛЛЕКЦИЙ (новая логика) ---
     const addCollectionVariant = (variant) => store.addCollectionVariantToCart(variant);
-    const incCollectionVariant = (variantId) => store.incCollectionVariantQuantity(variantId);
-    const decCollectionVariant = (variantId) => store.decCollectionVariantQuantity(variantId);
+    const incCollectionVariant = (payload) => store.incCollectionVariant(payload);
+    const decCollectionVariant = (payload) => store.decCollectionVariant(payload);
     const removeCollectionVariant = (variantId) => store.removeCollectionVariant(variantId);
     const removeAllVariantsOfCollection = (collectionId) => store.removeAllVariantsOfCollection(collectionId);
     const replaceCollectionVariant = (variantId, newVariant) => store.replaceCollectionVariant(variantId, newVariant);

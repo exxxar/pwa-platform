@@ -44,7 +44,7 @@
                 </div>
 
                 <img
-                    v-lazy="product.images[0]"
+                    v-lazy="product.images?.[0]"
                     :alt="product.name"
                     class="option-image"
                 >
@@ -76,6 +76,7 @@ export default {
             type: Object,
             required: true,
         },
+        // Теперь ожидаем массив объектов товаров, а не просто ID
         selectedProducts: {
             type: Array,
             default: () => [],
@@ -109,29 +110,31 @@ export default {
     },
 
     methods: {
+        // 🆕 ИСПРАВЛЕНИЕ: Приводим к строке для надежного сравнения Number и String
         isSelected(productId) {
-            return this.selectedProducts.some(productId);
+            return this.selectedProducts.some(p => String(p.id) === String(productId));
         },
 
         isDisabled(productId) {
-            // Для "all" все товары зафиксированы
             return this.rule === 'all';
         },
 
         toggleProduct(product) {
-            if (this.rule === 'all') return; // нельзя снять выбор
+            if (this.rule === 'all') return;
 
+            // Работаем с массивом объектов
             let selected = [...this.selectedProducts];
 
             if (this.rule === 'one') {
-                // Radio-логика: один товар
-                selected = this.isSelected(product.id) ? [] : [product.id];
+                const isAlreadySelected = this.isSelected(product.id);
+                // Если уже выбран, очищаем массив, иначе кладем туда весь объект товара
+                selected = isAlreadySelected ? [] : [product];
             } else if (this.rule === 'several') {
-                // Checkbox-логика: несколько
-                if (this.isSelected(product.id)) {
-                    selected = selected.filter(id => id !== product.id);
+                const index = selected.findIndex(p => String(p.id) === String(product.id));
+                if (index !== -1) {
+                    selected.splice(index, 1); // Убираем товар
                 } else {
-                    selected.push(product.id);
+                    selected.push(product); // Добавляем весь объект товара (с partner_id, price и т.д.)
                 }
             }
 
@@ -145,7 +148,6 @@ export default {
     },
 };
 </script>
-
 <style lang="scss" scoped>
 @use 'sass:color';
 

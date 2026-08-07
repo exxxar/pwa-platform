@@ -10,6 +10,18 @@ use Illuminate\Validation\ValidationException;
 
 class BasketController extends Controller
 {
+
+    public function index()
+    {
+        $cartData = BasketService::call()->productsInBasket();
+
+        // Если вы используете API Resources, можно передать $cartData['items'] в BasketCollection
+        // return new BasketCollection(collect($cartData['items']));
+
+        // Или вернуть сразу массив:
+        return response()->json($cartData);
+    }
+
     public function useWheelOfFortunePrize(Request $request)
     {
         $request->validate([
@@ -150,7 +162,7 @@ class BasketController extends Controller
         return response()->noContent();
     }
 
-    public function loadProductsInBasket(Request $request): BasketCollection
+    public function loadProductsInBasket(Request $request)
     {
 
         return BasketService::call()
@@ -160,7 +172,7 @@ class BasketController extends Controller
     /**
      * @throws ValidationException
      */
-    public function commentProductInBasket(Request $request): BasketCollection
+    public function commentProductInBasket(Request $request)
     {
         BasketService::call()
             ->addProductComment($request->all());
@@ -172,7 +184,7 @@ class BasketController extends Controller
     /**
      * @throws ValidationException
      */
-    public function incProductInBasket(Request $request): BasketCollection
+    public function incProductInBasket(Request $request)
     {
         BasketService::call()
             ->addAndIncrementProduct($request->all());
@@ -184,7 +196,7 @@ class BasketController extends Controller
     /**
      * @throws ValidationException
      */
-    public function incCollectionInBasket(Request $request): BasketCollection
+    public function incCollectionInBasket(Request $request)
     {
         $variantId = $request->variant_id ?? null;
         is_null($variantId) ?
@@ -198,7 +210,7 @@ class BasketController extends Controller
     }
 
 
-    public function decProductInBasket(Request $request): BasketCollection
+    public function decProductInBasket(Request $request)
     {
         $request->validate([
             "product_id" => "required"
@@ -210,21 +222,28 @@ class BasketController extends Controller
             ->productsInBasket();
     }
 
-    public function decCollectionInBasket(Request $request): BasketCollection
+    public function removeCollection(Request $request)
     {
-        $request->validate([
-            "product_collection_id" => "required"
-        ]);
 
         BasketService::call()
-            ->decrementAndRemoveCollection($request->all());
+            ->removeCollectionFromBasket($request->all());
+
+        return BasketService::call()
+            ->productsInBasket();
+    }
+
+    public function decCollectionInBasket(Request $request)
+    {
+
+        BasketService::call()
+            ->decrementCollection($request->all());
 
         return BasketService::call()
             ->productsInBasket();
     }
 
 
-    public function clearBasket(Request $request): BasketCollection
+    public function clearBasket(Request $request)
     {
         BasketService::call()
             ->clearBasket();
@@ -233,7 +252,7 @@ class BasketController extends Controller
             ->productsInBasket();
     }
 
-    public function removeBasketItem(Request $request, $id): BasketCollection
+    public function removeBasketItem(Request $request, $id)
     {
         BasketService::call()
             ->removeFromBasket($id);
@@ -243,7 +262,7 @@ class BasketController extends Controller
 
     }
 
-    public function incrementItem(Request $request, $id): BasketCollection
+    public function incrementItem(Request $request, $id)
     {
         BasketService::call()
             ->increment($id);
@@ -253,7 +272,7 @@ class BasketController extends Controller
 
     }
 
-    public function decrementItem(Request $request, $id): BasketCollection
+    public function decrementItem(Request $request, $id)
     {
         BasketService::call()
             ->decrement($id);

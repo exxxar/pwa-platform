@@ -405,6 +405,7 @@ function routes() {
             Route::post('/inc-collection', "incCollectionInBasket")
                 ->middleware(['track.stats:collections_in_cart']);
             Route::post('/dec-collection', "decCollectionInBasket");
+            Route::post('/remove-collection', "removeCollection");
             Route::delete('/clear', "clearBasket");
             Route::delete('/remove/{id}', "removeBasketItem");
 
@@ -517,6 +518,7 @@ function routes() {
                     Route::post("/export-all-products", [ProductController::class, "exportAllProducts"]);
                     Route::post("/load-recommended-products", [ProductController::class, "loadRecommendedProducts"]);
                     Route::post("/by-ids", [ProductController::class, "getProductsByIds"]);
+
                     Route::post("/random", [ProductController::class, "randomProducts"]);
                     Route::post("/categories", [ProductController::class, "getCategories"]);
                     Route::post("/add-product", [ProductController::class, "saveProduct"]);

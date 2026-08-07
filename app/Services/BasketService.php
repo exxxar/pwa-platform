@@ -41,6 +41,146 @@ class BasketService
     }
 
     /**
+     * 🆕 Получение полного списка продуктов и коллекций в корзине
+     */
+    public function productsInBasket(): array
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        if (!$tenantUser) {
+            return [
+                'items' => [],
+                'items_count' => 0,
+                'total_price' => 0,
+            ];
+        }
+
+        // 1. Получаем все активные записи корзины с необходимыми связями
+        // 1. Получаем все активные записи корзины с необходимыми связями
+        $basketItems = Basket::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $tenantUser->id)
+            ->whereNull('ordered_at')
+            ->whereNull('table_approved_at')
+            ->with([
+                // 🛡️ ИСПРАВЛЕНО: убрали weight_config, добавили config
+                'product:id,name,price,old_price,images,is_weight_product,config,tenant_id',
+                'collection:id,name,image,pricing_type,fixed_price',
+            ])
+            ->get();
+
+        // 🆕 Оптимизация N+1: Собираем все ID товаров из всех коллекций заранее
+        $allCollectionProductIds = [];
+        foreach ($basketItems as $item) {
+            // Безопасно получаем массив params (на случай если cast не сработал)
+            $params = is_array($item->params) ? $item->params : (json_decode($item->params, true) ?? []);
+
+            if ($item->collection_id && !empty($params['ids']) && is_array($params['ids'])) {
+                // 🛡️ КРИТИЧЕСКИ ВАЖНО: Приводим все ID к строке для надежного сравнения
+                $ids = array_map('strval', $params['ids']);
+                $allCollectionProductIds = array_merge($allCollectionProductIds, $ids);
+            }
+        }
+        $allCollectionProductIds = array_unique($allCollectionProductIds);
+
+        // 🆕 Делаем ОДИН запрос к БД, чтобы получить цены всех нужных товаров
+        $productsPriceMap = [];
+        if (!empty($allCollectionProductIds)) {
+            $products = Product::whereIn('id', $allCollectionProductIds)
+                ->select('id', 'price')
+                ->get();
+
+            foreach ($products as $product) {
+                // 🛡️ Ключ массива обязательно строка, чтобы совпадать с JSON декодированием
+                $productsPriceMap[(string)$product->id] = (float)($product->price ?? 0);
+            }
+
+
+        }
+
+        // 2. Форматируем данные для фронтенда
+        $formattedItems = $basketItems->map(function ($item) use ($tenant, $productsPriceMap) {
+            // Безопасно получаем params
+            $params = is_array($item->params) ? $item->params : (json_decode($item->params, true) ?? []);
+            $extraCharge = (float)($params['extra_charge'] ?? 0);
+
+            $baseData = [
+                'basket_id' => $item->id,
+                'count' => $item->count,
+                'comment' => $item->comment,
+                'params' => $params,
+                'tenant_partner_id' => $item->tenant_partner_id,
+                'extra_charge' => $extraCharge,
+            ];
+
+            // Сценарий А: Это обычный товар
+            if ($item->product_id && $item->product) {
+                $product = $item->product;
+                $price = (float)($product->price ?? 0);
+                $finalPrice = $price + $extraCharge;
+
+                return array_merge($baseData, [
+                    'type' => 'product',
+                    'product_id' => $product->id,
+                    'name' => $product->name,
+                    'image' => $product->images[0] ?? null,
+                    'price' => $price,
+                    'final_price' => $finalPrice,
+                    'total_price' => $finalPrice * $item->count,
+                    'is_weight_product' => $product->is_weight_product ?? false,
+                ]);
+            }
+
+            // Сценарий Б: Это коллекция (подборка)
+            if ($item->collection_id && $item->collection) {
+                $collection = $item->collection;
+                $selectedProductIds = $params['ids'] ?? [];
+                $collectionPrice = 0.0;
+
+                // Если цена фиксированная, берем её
+                if ($collection->pricing_type === 'fixed' && $collection->fixed_price) {
+                    $collectionPrice = (float)$collection->fixed_price;
+                }
+                // Иначе считаем сумму выбранных товаров внутри коллекции
+                elseif (is_array($selectedProductIds) && !empty($selectedProductIds)) {
+                    foreach ($selectedProductIds as $pid) {
+                        // 🛡️ Надежное извлечение цены по строковому ключу
+                        $collectionPrice += $productsPriceMap[(string)$pid] ?? 0.0;
+                    }
+                }
+
+                // Добавляем наценку партнера к цене коллекции, если она есть
+                $finalCollectionPrice = $collectionPrice + $extraCharge;
+
+                return array_merge($baseData, [
+                    'type' => 'collection',
+                    'collection_id' => $collection->id,
+                    'name' => $collection->name,
+                    'image' => $collection->image ?? null,
+                    'selected_product_ids' => $selectedProductIds,
+                    'price' => $collectionPrice,
+                    'final_price' => $finalCollectionPrice,
+                    'total_price' => $finalCollectionPrice * $item->count,
+                ]);
+            }
+
+            // Если запись "битая" (нет ни товара, ни коллекции), возвращаем null
+            return null;
+        })->filter()->values(); // Убираем null и сбрасываем ключи массива
+
+        // 3. Считаем итоги
+        $itemsCount = $formattedItems->sum('count');
+        $totalPrice = $formattedItems->sum('total_price');
+
+        return [
+            'items' => $formattedItems,
+            'items_count' => $itemsCount,
+            'total_price' => round($totalPrice, 2),
+        ];
+    }
+
+    /**
      * 🆕 Краткая информация о корзине
      */
     public function getCartSummary(int $tenantId, ?int $userId): array
@@ -70,7 +210,7 @@ class BasketService
                     'id' => $item->id,
                     'product_id' => $item->product_id,
                     'count' => $item->count,
-                    'price' => $item->product->price ??  0,
+                    'price' => $item->product->price ?? 0,
                     'name' => $item->product->name,
                     'image' => $item->product->images[0] ?? null,
                 ];
@@ -95,74 +235,46 @@ class BasketService
     }
 
     /**
-     * Получение товаров в корзине
-     * @throws HttpException
-     */
-    public function productsInBasket($tableId = null): BasketCollection
-    {
-        $tenant = app('tenant');
-        $tenantUser = Auth::guard('tenant')->user();
-
-        $query = Basket::query()
-            ->with(['product' => fn($q) => $q->withTrashed()])
-            ->where("tenant_user_id", $tenantUser->id)
-            ->where("tenant_id", $tenant->id)
-            ->whereNull("table_approved_at")
-            ->whereNull("ordered_at");
-
-        if (!is_null($tableId)) {
-            $query->where("table_id", $tableId);
-        }
-
-        $allProductsInBasket = $query->get();
-
-        // Удаляем товары, которые были удалены из каталога
-        foreach ($allProductsInBasket as $item) {
-            if (!is_null($item->product?->deleted_at)) {
-                $item->delete();
-            }
-        }
-
-        // Перезагружаем коллекцию после удаления
-        $allProductsInBasket = $query->get();
-
-        return new BasketCollection($allProductsInBasket);
-    }
-
-    /**
      * Добавление подборки (коллекции) в корзину
      * @throws ValidationException|HttpException
      */
     public function addCollection(array $data): void
     {
+
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
         $validator = Validator::make($data, [
             "product_collection" => "required",
+            "partner_id" => "nullable|integer", // 🆕 Обязательно указываем партнера
         ]);
 
         if ($validator->fails()) {
             throw new ValidationException($validator);
         }
 
-        // Безопасное приведение к объекту (исправлен баг с массивами)
+        $partnerId = (int)$data["partner_id"];
+
+        // Безопасное приведение к объекту
         $collectionData = is_array($data["product_collection"])
-            ? (object) $data["product_collection"]
+            ? (object)$data["product_collection"]
             : $data["product_collection"];
 
-        $variantId = $data["variant_id"] ?? null;
-        $collectionId = $collectionData->id ?? null;
+        $variantId = $collectionData->variant_id ?? null;
+        $collectionId = $collectionData->collection_id ?? null;
 
+        // 🆕 Добавили проверку partner_id для безопасности
         $collection = Collection::query()
-            ->where("tenant_id", $tenant->id)
+            ->where("tenant_id", $partnerId ?? $tenant->id)
             ->where("id", $collectionId)
             ->first();
+
 
         if (is_null($collection)) {
             throw new HttpException(404, "Коллекция не найдена в системе!");
         }
 
+        // 🆕 Добавили фильтрацию по partner_id, чтобы не задублировать запись другого ресторана
         $productsInBasket = Basket::query()
             ->where("collection_id", $collection->id)
             ->where("tenant_user_id", $tenantUser->id)
@@ -171,16 +283,15 @@ class BasketService
             ->whereNull("table_approved_at")
             ->get();
 
-        $ids = collect($collectionData->products ?? [])
-            ->where("is_checked", true)
-            ->pluck("id")
+        $ids = collect($collectionData->selected_products ?? [])
+            ->pluck("product_id")
             ->toArray();
 
         $tableWithClient = Table::query()
             ->where("tenant_id", $tenant->id)
             ->whereNull("closed_at")
             ->whereHas('clients', function ($query) use ($tenantUser) {
-                $query->where('tenant_users.id', $tenantUser->id);  // ← указали таблицу
+                $query->where('tenant_users.id', $tenantUser->id);
             })->first();
 
         $basketData = [
@@ -196,58 +307,46 @@ class BasketService
             ],
         ];
 
-        if ($productsInBasket->isEmpty()) {
+        if ($productsInBasket->isEmpty() || is_null($variantId)) {
             Basket::query()->create($basketData);
+
         } else {
-            $findVariant = false;
 
             foreach ($productsInBasket as $pib) {
-                $params = is_array($pib->params) ? (object) $pib->params : $pib->params;
+                $params = is_array($pib->params) ? (object)$pib->params : $pib->params;
 
                 if (!is_null($variantId) && ($params->variant_id ?? null) == $variantId) {
-                    $findVariant = true;
+
                     $pib->count++;
                     $pib->save();
                     break;
                 }
             }
-
-            if (!$findVariant) {
-                Basket::query()->create($basketData);
-            }
         }
+
     }
 
-    /**
-     * Увеличение количества подборки
-     * @throws ValidationException|HttpException
-     */
+
     public function incrementCollection(array $data): void
     {
+
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
-        $validator = Validator::make($data, [
-            "collection_id" => "required",
-            "variant_id" => "required",
-        ]);
+        $variantId = $data["variant_id"] ?? null;
+        $collectionId = $data["collection_id"] ?? null;
 
-        if ($validator->fails()) {
-            throw new ValidationException($validator);
-        }
-
-        $variantId = $data["variant_id"];
-        $collectionId = $data["collection_id"];
-
+        // 🆕 Добавили проверку partner_id для безопасности
         $collection = Collection::query()
-            ->where("tenant_id", $tenant->id)
             ->where("id", $collectionId)
             ->first();
+
 
         if (is_null($collection)) {
             throw new HttpException(404, "Коллекция не найдена в системе!");
         }
 
+        // 🆕 Добавили фильтрацию по partner_id, чтобы не задублировать запись другого ресторана
         $productsInBasket = Basket::query()
             ->where("collection_id", $collection->id)
             ->where("tenant_user_id", $tenantUser->id)
@@ -256,15 +355,108 @@ class BasketService
             ->whereNull("table_approved_at")
             ->get();
 
-        foreach ($productsInBasket as $pib) {
-            $params = is_array($pib->params) ? (object) $pib->params : $pib->params;
 
-            if (($params->variant_id ?? null) == $variantId) {
+        foreach ($productsInBasket as $pib) {
+            $params = is_array($pib->params) ? (object)$pib->params : $pib->params;
+
+            if (!is_null($variantId) && ($params->variant_id ?? null) == $variantId) {
+
                 $pib->count++;
                 $pib->save();
                 break;
             }
         }
+
+
+    }
+
+
+    public function removeCollectionFromBasket(array $data): void
+    {
+
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        $variantId = $data["variant_id"] ?? null;
+        $collectionId = $data["collection_id"] ?? null;
+
+        // 🆕 Добавили проверку partner_id для безопасности
+        $collection = Collection::query()
+            ->where("id", $collectionId)
+            ->first();
+
+        if (is_null($collection)) {
+            throw new HttpException(404, "Коллекция не найдена в системе!");
+        }
+
+        // 🆕 Добавили фильтрацию по partner_id, чтобы не задублировать запись другого ресторана
+        $productsInBasket = Basket::query()
+            ->where("collection_id", $collection->id)
+            ->where("tenant_user_id", $tenantUser->id)
+            ->where("tenant_id", $tenant->id)
+            ->whereNull("ordered_at")
+            ->whereNull("table_approved_at")
+            ->get();
+
+
+        foreach ($productsInBasket as $pib) {
+            $params = is_array($pib->params) ? (object)$pib->params : $pib->params;
+
+            if (!is_null($variantId) && ($params->variant_id ?? null) == $variantId) {
+                    $pib->delete();
+                break;
+            }
+        }
+
+
+    }
+
+    public function decrementCollection(array $data): void
+    {
+
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        $variantId = $data["variant_id"] ?? null;
+        $collectionId = $data["collection_id"] ?? null;
+
+        // 🆕 Добавили проверку partner_id для безопасности
+        $collection = Collection::query()
+            ->where("id", $collectionId)
+            ->first();
+
+
+        if (is_null($collection)) {
+            throw new HttpException(404, "Коллекция не найдена в системе!");
+        }
+
+        // 🆕 Добавили фильтрацию по partner_id, чтобы не задублировать запись другого ресторана
+        $productsInBasket = Basket::query()
+            ->where("collection_id", $collection->id)
+            ->where("tenant_user_id", $tenantUser->id)
+            ->where("tenant_id", $tenant->id)
+            ->whereNull("ordered_at")
+            ->whereNull("table_approved_at")
+            ->get();
+
+
+        foreach ($productsInBasket as $pib) {
+            $params = is_array($pib->params) ? (object)$pib->params : $pib->params;
+
+            if (!is_null($variantId) && ($params->variant_id ?? null) == $variantId) {
+
+                if ($pib->count > 1) {
+                    $pib->count--;
+                    $pib->save();
+                }
+
+                if ($pib->count == 1)
+                    $pib->delete();
+                break;
+            }
+        }
+
+
     }
 
     /**
@@ -438,7 +630,6 @@ class BasketService
         $ids = $hasPartners
             ? [$tenant->id, ...$tenant->partners()->get()->pluck("tenant_partner_id")]
             : [$tenant->id];
-
 
 
         $productId = $data["product_id"] ?? null;
@@ -625,7 +816,6 @@ class BasketService
         $collectionId = $data["collection_id"];
 
         $collection = Collection::query()
-            ->where("tenant_id", $tenant->id)
             ->where("id", $collectionId)
             ->first();
 
@@ -642,7 +832,7 @@ class BasketService
             ->get();
 
         foreach ($productsInBasket as $pib) {
-            $params = is_array($pib->params) ? (object) $pib->params : $pib->params;
+            $params = is_array($pib->params) ? (object)$pib->params : $pib->params;
 
             if (($params->variant_id ?? null) == $variantId) {
                 if ($pib->count - 1 > 0) {
@@ -724,17 +914,17 @@ class BasketService
         }
 
         if (is_array($config)) {
-            $config = (object) $config;
+            $config = (object)$config;
         }
 
         if (!is_object($config)) {
-            $config = (object) [];
+            $config = (object)[];
         }
 
-        return (object) [
-            'min' => max(1, (int) ($config->min ?? 100)),
-            'max' => max(0, (int) ($config->max ?? 0)),
-            'step' => max(1, (int) ($config->step ?? 50)),
+        return (object)[
+            'min' => max(1, (int)($config->min ?? 100)),
+            'max' => max(0, (int)($config->max ?? 0)),
+            'step' => max(1, (int)($config->step ?? 50)),
         ];
     }
 }

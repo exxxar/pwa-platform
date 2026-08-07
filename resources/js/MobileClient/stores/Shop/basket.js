@@ -20,6 +20,7 @@ export const useBasketStore = defineStore('basket', {
         lastSyncAt: null,
     }),
 
+
     // ==========================================
     // GETTERS
     // ==========================================
@@ -27,84 +28,89 @@ export const useBasketStore = defineStore('basket', {
         getProductsInBasket: (state) => state.basket_items || [],
         getBasketPaginateObject: (state) => state.basket_items_paginate_object || null,
 
-        /**
-         * Количество конкретного варианта коллекции в корзине
-         */
         inCollectionCart: (state) => (collectionId, variantId = null) => {
             return state.basket_items.find(bItem =>
-                bItem.collection?.id === collectionId &&
+                (bItem.collection?.id === collectionId || bItem.collection_id === collectionId) &&
                 (variantId == null || bItem.params?.variant_id === variantId)
             )?.count || 0;
         },
 
+        // 🆕 ИСПРАВЛЕНО: Проверяем и вложенный объект, и плоское свойство product_id
         inCart: (state) => (id) => {
-            return (state.basket_items.find(item => item.product?.id === id))?.count || 0;
+            const item = state.basket_items.find(
+                item => (item.product?.id === id) || (item.product_id === id)
+            );
+            return item?.count || 0;
         },
 
         cartProducts: (state) => state.basket_items || [],
 
-        cartCollections: (state) => (state.basket_items || []).filter(item => item.collection),
+        cartCollections: (state) => (state.basket_items || []).filter(item => item.type === 'collection' || item.collection_id),
 
-        /**
-         * 🆕 Все варианты конкретной коллекции в корзине
-         */
         getCollectionVariants: (state) => (collectionId) => {
             return (state.basket_items || []).filter(
-                item => item.collection?.id === collectionId
+                item => (item.collection?.id === collectionId || item.collection_id === collectionId)
             );
         },
 
-        /**
-         * 🆕 Получить конкретный вариант корзины по variant_id
-         */
         getBasketItemByVariantId: (state) => (variantId) => {
             return (state.basket_items || []).find(
                 item => item.params?.variant_id === variantId
             ) || null;
         },
 
+        /**
+         * 🆕 Обновленный подсчет общего количества позиций в корзине
+         * Теперь корректно учитывает и обычные товары, и коллекции
+         */
         cartTotalCount: (state) => {
             if (!state.basket_items?.length) return 0;
             return state.basket_items.reduce((sum, item) => {
-                return sum + (item.product?.is_weight_product ? 1 : item.count);
+                // Для весового товара считаем как 1 позицию (или можно item.count, зависит от вашей бизнес-логики)
+                if (item.product?.is_weight_product) {
+                    return sum + 1;
+                }
+                // Для обычных товаров и коллекций прибавляем количество
+                return sum + (item.count || 1);
             }, 0);
         },
 
         /**
-         * Улучшенный расчёт общей суммы корзины.
-         * Работает и с товарами, и с вариантами коллекций.
+         * 🆕 Обновленный расчёт общей суммы корзины
+         * Приоритет отдается цене, которую посчитал бэкенд (total_price / final_price)
          */
-        cartTotalPrice: (state) => {
+        cartTotalPrice: (state, getters) => {
             if (!state.basket_items?.length) return 0;
 
             return state.basket_items.reduce((sum, item) => {
-                // ==========================================
-                // ОБЫЧНЫЙ ТОВАР
-                // ==========================================
-                if (item.product) {
+                if (item.product || item.product_id) { // 🆕 Добавлена проверка product_id
                     const currentPrice = item.params?.discount_price
                         ? item.params.discount_price
-                        : (item.product.price || 0);
+                        : (item.product?.price || item.price || 0); // 🆕 Fallback на item.price
 
-                    const count = item.product?.is_weight_product ? 1 : item.count;
+                    const count = item.product?.is_weight_product ? 1 : (item.count || 1);
                     const price = item.product?.is_weight_product
-                        ? (currentPrice * item.count) / (item.product.weight_config?.step || 100)
+                        ? (currentPrice * item.count) / (item.product?.weight_config?.step || 100)
                         : currentPrice;
 
-                    return sum + price * count;
+                    return sum + (price * count);
                 }
 
-                // ==========================================
-                // ВАРИАНТ КОЛЛЕКЦИИ
-                // ==========================================
-                if (item.collection) {
-                    const variantPrice = this._calculateVariantPrice(item);
-                    return sum + variantPrice * (item.count || 1);
+                if (item.type === 'collection' || item.collection_id) {
+                    if (item.total_price > 0) {
+                        return sum + item.total_price;
+                    }
+                    if (item.final_price > 0) {
+                        return sum + (item.final_price * (item.count || 1));
+                    }
+                    const fallbackPrice = getters._calculateVariantPrice(item);
+                    return sum + (fallbackPrice * (item.count || 1));
                 }
 
                 return sum;
             }, 0);
         },
+
 
         isEmpty: (state) => !state.basket_items?.length,
 
@@ -112,36 +118,43 @@ export const useBasketStore = defineStore('basket', {
             return !!state.productActions[String(productId)];
         },
 
+        // 🆕 ИСПРАВЛЕНО: Проверяем и вложенный объект, и плоское свойство product_id
         getItemById: (state) => (productId) => {
-            return state.basket_items.find(item => item.product?.id === productId) || null;
+            return state.basket_items.find(
+                item => (item.product?.id === productId) || (item.product_id === productId)
+            ) || null;
         },
 
         getCollectionById: (state) => (collectionId) => {
-            return state.basket_items.find(item => item.collection?.id === collectionId) || null;
+            return state.basket_items.find(item => (item.collection?.id === collectionId || item.collection_id === collectionId)) || null;
         },
 
         /**
-         * 🆕 Подсчёт цены одного варианта коллекции
-         * Вынесен во внутренний метод, чтобы переиспользовать в разных местах
+         * 🆕 Подсчёт цены одного варианта коллекции (для fallback-расчета)
          */
         _calculateVariantPrice: () => (basketItem) => {
-            if (!basketItem?.collection) return 0;
+            if (!basketItem) return 0;
 
-            const collection = basketItem.collection;
+            // Если у нас уже есть посчитанная цена от бэкенда, возвращаем её
+            if (basketItem.final_price > 0) return basketItem.final_price;
+
+            const collection = basketItem.collection || {};
             const params = basketItem.params || {};
+
+            // Поддерживаем оба варианта получения ID выбранных товаров
+            const selectedIds = params.ids || basketItem.selected_product_ids || [];
 
             // 1. Фиксированная цена коллекции
             if (collection.pricing_type === 'fixed' && collection.fixed_price) {
                 const price = parseFloat(collection.fixed_price) || 0;
-                const discount = collection.discount || 0;
+                const discount = collection.discount_percent || collection.discount || 0;
                 return discount > 0 ? price * (1 - discount / 100) : price;
             }
 
             // 2. Цена как сумма выбранных товаров
-            const selectedIds = params.ids || [];
             let variantPrice = 0;
 
-            // Пытаемся найти товары в collection_categories
+            // Пытаемся найти товары в collection_categories (новая структура)
             if (collection.collection_categories?.length) {
                 collection.collection_categories.forEach(cat => {
                     (cat.products || []).forEach(p => {
@@ -161,7 +174,7 @@ export const useBasketStore = defineStore('basket', {
             }
 
             // Применяем скидку коллекции
-            const discount = collection.discount || 0;
+            const discount = collection.discount_percent || collection.discount || 0;
             if (discount > 0) {
                 variantPrice = variantPrice * (1 - discount / 100);
             }
@@ -193,10 +206,15 @@ export const useBasketStore = defineStore('basket', {
         },
 
         _updateBasketFromResponse(dataObject) {
+            console.log("_updateBasketFromResponse", dataObject)
             if (!dataObject) return;
-            this.basket_items = dataObject.data || [];
-            const { data, ...pagination } = dataObject;
-            this.basket_items_paginate_object = pagination;
+
+            // 🆕 ИСПРАВЛЕНИЕ: Поддержка обоих форматов ответа: { data: [...] } и { items: [...] }
+            this.basket_items = dataObject.data || dataObject.items || [];
+
+            // Корректное извлечение пагинации, исключая 'data' или 'items', чтобы не засорять объект
+            const { data, items, ...pagination } = dataObject;
+            this.basket_items_paginate_object = Object.keys(pagination).length > 0 ? pagination : null;
             this.lastSyncAt = new Date();
         },
 
@@ -408,17 +426,18 @@ export const useBasketStore = defineStore('basket', {
         /**
          * 🆕 Увеличить количество конкретного варианта коллекции
          */
-        async incCollectionVariantQuantity(variantId) {
-            if (!variantId) throw new Error('variantId обязателен');
+        async incCollectionVariant(payload) {
+            if (!payload.variant_id) throw new Error('variantId обязателен');
 
-            this.productActions[String(variantId)] = 'inc-variant';
+            this.productActions[String(payload.variant_id)] = 'inc-variant';
 
-            const item = this.basket_items.find(i => i.params?.variant_id === variantId);
+            const item = this.basket_items.find(i => i.params?.variant_id === payload.variant_id);
             if (item) item.count++;
 
             try {
-                const response = await axios.post(`${BASE}/inc-collection-variant`, {
-                    variant_id: variantId,
+                const response = await axios.post(`${BASE}/inc-collection`, {
+                    variant_id: payload.variant_id,
+                    collection_id: payload.collection_id,
                 });
                 this._updateBasketFromResponse(response.data);
                 return response.data;
@@ -427,19 +446,19 @@ export const useBasketStore = defineStore('basket', {
                 console.error('[Basket Store] Ошибка увеличения варианта:', err);
                 throw err;
             } finally {
-                delete this.productActions[String(variantId)];
+                delete this.productActions[String(payload.variant_id)];
             }
         },
 
         /**
          * 🆕 Уменьшить количество конкретного варианта коллекции
          */
-        async decCollectionVariantQuantity(variantId) {
-            if (!variantId) throw new Error('variantId обязателен');
+        async decCollectionVariant(payload) {
+            if (!payload.variant_id) throw new Error('variantId обязателен');
 
-            this.productActions[String(variantId)] = 'dec-variant';
+            this.productActions[String(payload.variant_id)] = 'dec-variant';
 
-            const item = this.basket_items.find(i => i.params?.variant_id === variantId);
+            const item = this.basket_items.find(i => i.params?.variant_id === payload.variant_id);
             if (item && item.count > 1) {
                 item.count--;
             } else if (item && item.count === 1) {
@@ -448,8 +467,9 @@ export const useBasketStore = defineStore('basket', {
             }
 
             try {
-                const response = await axios.post(`${BASE}/dec-collection-variant`, {
-                    variant_id: variantId,
+                const response = await axios.post(`${BASE}/dec-collection`, {
+                    variant_id: payload.variant_id,
+                    collection_id: payload.collection_id,
                 });
                 this._updateBasketFromResponse(response.data);
                 return response.data;
@@ -457,27 +477,28 @@ export const useBasketStore = defineStore('basket', {
                 console.error('[Basket Store] Ошибка уменьшения варианта:', err);
                 throw err;
             } finally {
-                delete this.productActions[String(variantId)];
+                delete this.productActions[String(payload.variant_id)];
             }
         },
 
         /**
          * 🆕 Полностью удалить конкретный вариант коллекции из корзины
          */
-        async removeCollectionVariant(variantId) {
-            if (!variantId) throw new Error('variantId обязателен');
+        async removeCollectionVariant(payload) {
+            if (!payload.variant_id) throw new Error('variantId обязателен');
 
-            this.productActions[String(variantId)] = 'remove-variant';
+            this.productActions[String(payload.variant_id)] = 'remove-variant';
 
             const previousItems = [...this.basket_items];
-            const removedIndex = this.basket_items.findIndex(i => i.params?.variant_id === variantId);
+            const removedIndex = this.basket_items.findIndex(i => i.params?.variant_id === payload.variant_id);
             const removedItem = removedIndex !== -1 ? this.basket_items[removedIndex] : null;
 
             if (removedIndex !== -1) this.basket_items.splice(removedIndex, 1);
 
             try {
-                const response = await axios.post(`${BASE}/remove-collection-variant`, {
-                    variant_id: variantId,
+                const response = await axios.post(`${BASE}/remove-collection`, {
+                    variant_id: payload.variant_id,
+                    collection_id: payload.collection_id,
                 });
                 this._updateBasketFromResponse(response.data);
                 return response.data;
@@ -488,7 +509,7 @@ export const useBasketStore = defineStore('basket', {
                 console.error('[Basket Store] Ошибка удаления варианта:', err);
                 throw err;
             } finally {
-                delete this.productActions[String(variantId)];
+                delete this.productActions[String(payload.variant_id)];
             }
         },
 
@@ -554,19 +575,25 @@ export const useBasketStore = defineStore('basket', {
             return this._calculateVariantPrice(item);
         },
 
-        // ==========================================
-        // СТАРЫЕ МЕТОДЫ КОЛЛЕКЦИЙ (для обратной совместимости)
-        // ==========================================
-        async addCollectionToCart(collection) {
-            const collectionId = collection?.id;
+        async addCollectionToCart(collectionPayload) {
+            // 🆕 ИСПРАВЛЕНИЕ: Поддержка и collection.id, и collection.collection_id
+            const collectionId = collectionPayload?.id || collectionPayload?.collection_id;
+            const partnerId = collectionPayload?.partner_id || null;
+
             if (collectionId) {
                 this.productActions[String(collectionId)] = 'inc-collection';
             }
 
             try {
+                // 🆕 ИСПРАВЛЕНИЕ: Создаем копию объекта, чтобы избежать мутации пропсов (избавляемся от delete)
+                const payload = { ...collectionPayload };
+                delete payload.partner_id; // Убираем из тела product_collection, так как передаем его отдельно
+
                 const response = await axios.post(`${BASE}/inc-collection`, {
-                    product_collection: collection,
+                    product_collection: payload,
+                    partner_id: partnerId
                 });
+
                 this._updateBasketFromResponse(response.data);
                 return response.data;
             } catch (err) {

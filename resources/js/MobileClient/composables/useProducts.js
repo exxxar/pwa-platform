@@ -97,6 +97,7 @@ export function useProducts() {
 
         isProductLoading: (id) => store.isProductLoading(id),
         isCategoryLoading: (id) => store.isCategoryLoading(id),
+        fetchProductsByIds: (ids) => store.fetchProductsByIds(ids),
 
         // Методы (остаются без изменений)
         loadProducts: (payload = {}) => store.loadProducts(payload),

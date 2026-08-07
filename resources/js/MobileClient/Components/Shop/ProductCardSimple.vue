@@ -3,7 +3,7 @@
         v-if="item"
         class="cart-product-card"
         :class="{
-            'is-loading': isProductLoading(item.id),
+            'is-loading': isProductLoading,
             'is-weight': item.is_weight_product
         }"
     >
@@ -103,8 +103,8 @@
                         :disabled="item.in_stop_list_at || !canProductAction"
                         @click="incProductCart"
                     >
-                        <i :class="isProductLoading(item.id) ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-cart-plus'"></i>
-                        <span>{{ isProductLoading(item.id) ? 'Добавляем...' : 'Добавить' }}</span>
+                        <i :class="isProductLoading(productId)? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-cart-plus'"></i>
+                        <span>{{ isProductLoading(productId)? 'Добавляем...' : 'Добавить' }}</span>
                         <span class="add-price">
                             {{ item.is_weight_product
                             ? `от ${formatPrice(pricePerMin)}`
@@ -117,7 +117,7 @@
                     <div
                         v-else
                         class="quantity-stepper"
-                        :class="{ 'is-updating': isProductLoading(item.id) }"
+                        :class="{ 'is-updating': isProductLoading(productId)}"
                     >
                         <button
                             type="button"
@@ -281,28 +281,33 @@ export default {
 
     computed: {
         /**
+         * 🆕 Универсальный ID товара (поддержка и product_id из корзины, и id из каталога)
+         */
+        productId() {
+            return this.item.product_id || this.item.id;
+        },
+
+        /**
          * Количество товара в корзине
          */
         cartCount() {
-            return this.inCartFn(this.item.id) || 0;
+            return this.inCartFn(this.productId) || 0;
         },
 
         /**
          * Текущий элемент корзины (для доступа к params)
          */
         basketItem() {
-            return this.getItemById(this.item.id);
+            return this.getItemById(this.productId);
         },
 
         /**
          * Конфигурация веса товара
          */
         weightConfig() {
-            // Приоритет 1: из params корзины (сохранено бэкендом)
             const fromBasket = this.basketItem?.params?.weight_config;
             if (fromBasket) return fromBasket;
 
-            // Приоритет 2: из самого товара
             const fromProduct = this.item?.weight_config;
             if (!fromProduct) return { min: 100, max: 0, step: 50 };
 
@@ -338,7 +343,7 @@ export default {
         canProductAction() {
             return (
                 this.isOnline &&
-                !this.isProductLoading(this.item.id) &&
+                !this.isProductLoading(this.productId) && // 🆕 Используем productId
                 !this.item?.in_stop_list_at
             );
         },
@@ -350,7 +355,6 @@ export default {
             if (!this.canProductAction) return false;
 
             if (this.item?.is_weight_product) {
-                // Для весовых: нельзя уменьшить, если станет меньше минимума
                 const nextCount = this.cartCount - this.weightStep;
                 return nextCount >= this.minWeight;
             }
@@ -364,7 +368,6 @@ export default {
             if (!this.canProductAction) return false;
 
             if (this.item?.is_weight_product && this.maxWeight > 0) {
-                // Для весовых: нельзя увеличить, если превысит максимум
                 return (this.cartCount + this.weightStep) <= this.maxWeight;
             }
             return true;
@@ -406,7 +409,6 @@ export default {
          */
         totalPrice() {
             if (this.item?.is_weight_product) {
-                // Для весовых: цена за шаг × (количество / шаг)
                 const stepsCount = Math.ceil(this.cartCount / this.weightStep);
                 return this.currentPrice * stepsCount;
             }
@@ -430,13 +432,11 @@ export default {
     },
 
     mounted() {
-        // Регистрируем обработчики online/offline
         this._onlineHandler = () => { this.isOnline = true; };
         this._offlineHandler = () => { this.isOnline = false; };
         window.addEventListener('online', this._onlineHandler);
         window.addEventListener('offline', this._offlineHandler);
 
-        // Инициализация комментария
         if (this.comment) {
             this.form.need_comment = true;
             this.form.comment = this.comment;
@@ -444,29 +444,22 @@ export default {
     },
 
     beforeUnmount() {
-        // Корректно удаляем обработчики
         if (this._onlineHandler) window.removeEventListener('online', this._onlineHandler);
         if (this._offlineHandler) window.removeEventListener('offline', this._offlineHandler);
     },
 
     methods: {
-        /**
-         * Добавление товара в корзину (клик по изображению)
-         */
         addToCart() {
             if (this.cartCount === 0 && !this.item?.in_stop_list_at) {
                 this.incProductCart();
             }
         },
 
-        /**
-         * Добавление комментария к товару
-         */
         async addCommentToProduct() {
             if (!this.form.comment?.trim()) return;
 
             this.saving = true;
-            this.form.id = this.item.id;
+            this.form.id = this.productId; // 🆕 Используем productId
 
             try {
                 await this.addCommentToCart({ form: { ...this.form } });
@@ -487,12 +480,8 @@ export default {
             }
         },
 
-        /**
-         * Увеличение количества товара
-         */
         async incProductCart() {
             if (!this.canIncrement) {
-                // Показываем уведомление о достижении лимита
                 if (this.item?.is_weight_product && this.maxWeight > 0) {
                     this.$notify?.({
                         title: 'Ограничение',
@@ -504,7 +493,7 @@ export default {
             }
 
             try {
-                await this.addProduct(this.item.id);
+                await this.addProduct(this.productId); // 🆕 Используем productId
 
                 this.justAdded = true;
                 setTimeout(() => { this.justAdded = false; }, 600);
@@ -515,7 +504,6 @@ export default {
                     type: 'success',
                 });
             } catch (error) {
-                // Обработка ошибки "достигнут максимум"
                 const message = error?.response?.data?.message || 'Не удалось добавить товар';
                 this.$notify?.({
                     title: 'Ошибка',
@@ -525,14 +513,11 @@ export default {
             }
         },
 
-        /**
-         * Уменьшение количества товара
-         */
         async decProductCart() {
             if (!this.canDecrement) return;
 
             try {
-                await this.removeProduct(this.item.id);
+                await this.removeProduct(this.productId); // 🆕 Используем productId
             } catch (error) {
                 console.error('Ошибка уменьшения:', error);
                 this.$notify?.({
@@ -543,9 +528,6 @@ export default {
             }
         },
 
-        /**
-         * Форматирование цены
-         */
         formatPrice(price) {
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',

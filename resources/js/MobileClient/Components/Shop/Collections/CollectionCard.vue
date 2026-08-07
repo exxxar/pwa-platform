@@ -317,6 +317,7 @@ $bg-secondary: #f8f9fa;
 .collection-image-wrapper {
     position: relative;
     width: 100%;
+    height:150px;
     aspect-ratio: 1;
     overflow: hidden;
     background: var(--bs-secondary-bg, #{$bg-secondary});

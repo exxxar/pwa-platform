@@ -11,6 +11,7 @@ class Basket extends Model
 
     protected $fillable = [
         'product_id',
+        'collection_id',
         'count',
         'comment',
         'tenant_user_id',
@@ -38,6 +39,11 @@ class Basket extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function collection()
+    {
+        return $this->belongsTo(Collection::class);
     }
 
     public function tenantUser()
