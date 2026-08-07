@@ -10,6 +10,19 @@ class TenantResolver
 {
     public function handle($request, Closure $next)
     {
+        $host = $request->getHost();
+        $systemDomains = config('tenant_domains.system_domains', []);
+
+        // ---------------------------------------------------------
+        // 0. ПРОВЕРКА СЛУЖЕБНЫХ ДОМЕНОВ
+        // Пропускаем запросы на системные домены без поиска тенанта.
+        // В режиме отладки (APP_DEBUG) проверка игнорируется, чтобы
+        // можно было полноценно тестировать тенантов локально.
+        // ---------------------------------------------------------
+        if (in_array($host, $systemDomains) && !(env("APP_DEBUG") ?? false)) {
+            return $next($request);
+        }
+
         if (env("APP_DEBUG") ?? false) {
             $tenantName = env("TEST_PWA_NAME") ?? 'test';
             if ($request->route()) {
@@ -59,11 +72,10 @@ class TenantResolver
 
         // ---------------------------------------------------------
         // 2. СТАНДАРТНАЯ ЛОГИКА: Поддомены
+        // (Убрана жесткая проверка на localhost/127.0.0.1, так как
+        // теперь они обрабатываются глобально через system_domains)
         // ---------------------------------------------------------
-        if (
-            !filter_var($host, FILTER_VALIDATE_IP) &&
-            !in_array($host, ['localhost', '127.0.0.1'])
-        ) {
+        if (!filter_var($host, FILTER_VALIDATE_IP)) {
             $parts = explode('.', $host);
 
             if (count($parts) > 2) {
