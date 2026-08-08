@@ -14,7 +14,7 @@
         <!-- ========================================== -->
         <div class="product-image-wrapper" @click="showProductDetails">
             <img
-                v-lazy="item?.images?.[0] || '/no-image.png'"
+                v-lazy="item?.images?.[0].url || '/no-image.png'"
                 :alt="item?.name"
                 class="product-image"
                 loading="lazy"
