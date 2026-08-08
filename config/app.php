@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Facade;
 
 return [
-
+    'products_host' => env('PRODUCTS_HOST', 'https://products.mypwa.ru'),
     'version' => env('APP_VERSION', '1.0.0'),
     /*
     |--------------------------------------------------------------------------

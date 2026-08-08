@@ -459,6 +459,9 @@ class WebhookSyncService
     /**
      * ✅ Добавление хоста текущего запроса к относительному URL картинки
      */
+    /**
+     * ✅ Формирование полного URL картинки с фиксированным хостом из конфига
+     */
     protected function resolveImageUrl(string $url): string
     {
         $url = trim($url);
@@ -467,32 +470,23 @@ class WebhookSyncService
             return '';
         }
 
-        // Абсолютный URL
+        // ✅ Если URL уже абсолютный — возвращаем как есть (на случай, если уже с CDN)
         if (preg_match('/^https?:\/\//i', $url)) {
             return $url;
         }
 
-        // data:image / base64
+        // ✅ data:image / base64 — не трогаем
         if (str_starts_with($url, 'data:')) {
             return $url;
         }
 
-        // ✅ Берём хост текущего запроса, если он есть (веб-контекст)
-        if (app()->runningInConsole() === false && request()) {
-            $baseUrl = rtrim(request()->getSchemeAndHttpHost(), '/');
-        } else {
-            // Фолбэк: если из CLI/Queue — берём из конфига
-            $baseUrl = rtrim(config('app.url') ?? '', '/');
+        // ✅ Берём хост из конфига (читается из .env)
+        $host = rtrim(config('app.products_host', 'https://products.mypwa.ru'), '/');
 
-            // Если и конфиг пуст — просто вернём путь как есть
-            if (empty($baseUrl)) {
-                return $url;
-            }
-        }
-
+        // Убираем ведущий слэш у относительного пути
         $path = ltrim($url, '/');
 
-        return $baseUrl . '/' . $path;
+        return $host . '/' . $path;
     }
 
     /**
