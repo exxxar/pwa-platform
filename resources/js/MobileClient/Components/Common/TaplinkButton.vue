@@ -161,7 +161,6 @@ $btn-shadow: 0 8px 32px rgba(168, 85, 247, 0.25);
         padding: 12px 24px;
         font-size: 0.95rem;
         width: 100%;
-        max-width: 320px;
     }
 }
 </style>

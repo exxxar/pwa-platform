@@ -1001,4 +1001,70 @@ export default {
 .modal-fade-enter-from, .modal-fade-leave-to {
     opacity: 0;
 }
+
+/* ==========================================
+   📱 FLOATING HEADER ДЛЯ iPHONE (iOS Safari)
+   ==========================================
+   Детектор: -webkit-touch-callout работает только в iOS Safari / WebView
+*/
+
+
+@supports (-webkit-touch-callout: none) {
+    .app-layout {
+        padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+    }
+
+    .modern-header {
+        margin: calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px 12px;
+        border-radius: 22px;
+
+        /* Настоящее iOS-стекло */
+        background: rgba(var(--bs-body-bg-rgb, 255, 255, 255), 0.72);
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+
+        /* Тонкая окантовка в стиле iOS */
+        border: 0.5px solid rgba(0, 0, 0, 0.12);
+        box-shadow:
+            0 1px 0 rgba(255, 255, 255, 0.5) inset,
+            0 8px 24px rgba(0, 0, 0, 0.08);
+
+        border-bottom: none; /* Убираем лишний бордер */
+    }
+
+    [data-bs-theme="dark"] .modern-header {
+        background: rgba(var(--bs-body-bg-rgb, 33, 37, 41), 0.72);
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow:
+            0 1px 0 rgba(255, 255, 255, 0.05) inset,
+            0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Более тонкие внутренние отступы для компактности */
+    .header-container {
+        padding: 6px 12px;
+    }
+}
+
+/* ==========================================
+   🔧 ДОПОЛНИТЕЛЬНО: Скрываем плавающий стиль
+      на iPad, оставляем только для iPhone (узкие экраны)
+   ========================================== */
+@supports (-webkit-touch-callout: none) {
+    @media (min-width: 768px) {
+        /* На iPad возвращаем классический полноэкранный header */
+        .modern-header {
+            margin: 0;
+            border-radius: 0;
+            box-shadow: none;
+            border: none;
+            border-bottom: 1px solid rgba(var(--bs-border-color-rgb, 0, 0, 0), 0.08);
+        }
+
+        .header-container {
+            padding: 12px 16px;
+            border-radius: 0;
+        }
+    }
+}
 </style>

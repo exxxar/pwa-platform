@@ -14,10 +14,11 @@
         <!-- ========================================== -->
         <div class="product-image-wrapper" @click="showProductDetails">
             <img
-                v-lazy="item?.images?.[0].url || '/no-image.png'"
-                :alt="item?.name"
+                v-lazy="getFirstImage"
+                :alt="item?.name || 'Товар'"
                 class="product-image"
                 loading="lazy"
+                @error="$event.target.src = '/no-image.png'"
             >
 
             <!-- Overlay с элементами управления -->
@@ -252,6 +253,23 @@ export default {
     },
 
     computed: {
+
+        getFirstImage() {
+            if (!this.item) return '/no-image.png';
+
+            const img = this.item.images?.[0];
+            if (!img) return this.item.image || this.item.photo || '/no-image.png';
+
+            // Если строка — это уже URL
+            if (typeof img === 'string') return img;
+
+            // Если объект — достаём url/src/path
+            if (typeof img === 'object') {
+                return img.url || img.src || img.path || '/no-image.png';
+            }
+
+            return '/no-image.png';
+        },
         checkInCart() {
             return this.inCartFn(this.item.id) || 0;
         },

@@ -312,43 +312,56 @@ export const useProductsStore = defineStore('products', {
         async loadMoreProducts(categoryId, offset, partnerId = null) {
             this.isLoadingMore = true;
             try {
-                const response = await axios.post('/shop/products/more-by-category',
-                    {
-                        category_id: categoryId,
-                        offset: offset,
-                        partner_id: partnerId
+                const response = await axios.post('/shop/products/more-by-category', {
+                    category_id: categoryId,
+                    offset: offset,
+                    partner_id: partnerId
+                });
 
-                    });
-
-                // 🆕 Безопасное извлечение массива (учитываем вложенность Axios)
                 const responseData = response.data?.data || response.data || [];
                 const newProducts = Array.isArray(responseData) ? responseData : [];
 
                 console.log('🔄 [Store] Загружено новых товаров:', newProducts.length);
 
-                // 🆕 Ищем категорию. Приводим к строке для 100% совпадения ID
                 const category = this.categories.find(c => String(c.id) === String(categoryId));
 
                 if (category) {
                     console.log('✅ [Store] Категория найдена:', category.name);
-                    console.log('📊 [Store] Было товаров:', category.products.length, 'Всего на сервере:', category.products_count);
+                    console.log('📊 [Store] Было товаров:', category.products.length);
 
-                    // 1. Добавляем новые товары в реактивный массив
-                    category.products.push(...newProducts);
+                    // 🎯 ЗАЩИТА ОТ ДУБЛЕЙ: собираем Set уже существующих ID
+                    const existingIds = new Set(category.products.map(p => p.id));
 
-                    // 2. 🚨 ВАЖНО: Мы НЕ меняем category.products_count!
-                    // products_count - это общее число товаров на сервере (константа для этой сессии).
-                    // Остаток пересчитается в шаблоне автоматически:
-                    // remaining = cat.products_count (например, 10) - cat.products.length (стало 8) = 2
+                    // Фильтруем: оставляем только те, которых ещё нет
+                    const uniqueNewProducts = newProducts.filter(p => {
+                        if (!p || !p.id) return false;
+                        return !existingIds.has(p.id);
+                    });
 
-                    console.log('🎉 [Store] Стало товаров:', category.products.length, 'Осталось загрузить:', category.products_count - category.products.length);
+                    console.log('🔒 [Store] Уникальных новых:', uniqueNewProducts.length,
+                        '(отфильтровано дублей:', newProducts.length - uniqueNewProducts.length, ')');
+
+                    // Пушим только уникальные
+                    if (uniqueNewProducts.length > 0) {
+                        category.products.push(...uniqueNewProducts);
+                    }
+
+                    // 🎯 Если пришло меньше, чем просили (или все были дублями) —
+                    // значит больше грузить нечего. Обновляем products_count до текущего length
+                    if (newProducts.length < 12 || uniqueNewProducts.length === 0) {
+                        // Корректируем products_count, чтобы кнопка "Загрузить ещё" исчезла
+                        category.products_count = category.products.length;
+                        console.log('🏁 [Store] Все товары загружены. products_count обновлён до:', category.products_count);
+                    }
+
+                    console.log('🎉 [Store] Стало товаров:', category.products.length);
                 } else {
-                    console.error('❌ [Store] Категория с ID', categoryId, 'не найдена в массиве categories!');
+                    console.error('❌ [Store] Категория с ID', categoryId, 'не найдена!');
                 }
 
                 return newProducts.length;
             } catch (error) {
-                console.error('[Products Store] Ошибка загрузки доп. товаров:', error);
+                console.error('[Products Store] Ошибка загрузки:', error);
                 throw error;
             } finally {
                 this.isLoadingMore = false;

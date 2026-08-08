@@ -45,11 +45,19 @@
                     <!-- ГАЛЕРЕЯ -->
                     <div class="gallery-section">
                         <div class="main-image-wrapper">
+                            <!-- 🆕 Картинка есть -->
                             <img
+                                v-if="selectedImage"
                                 v-lazy="selectedImage"
                                 :alt="item.title"
                                 class="main-image"
                             >
+
+                            <!-- 🆕 Плейсхолдер когда картинок нет -->
+                            <div v-else class="image-placeholder">
+                                <i class="fa-solid fa-image"></i>
+                                <span>Фото отсутствует</span>
+                            </div>
 
                             <!-- Бейдж скидки -->
                             <div v-if="discount > 0" class="discount-badge">
@@ -63,16 +71,16 @@
                             </div>
                         </div>
 
-                        <!-- Превью -->
-                        <div v-if="(item.images || []).length > 1" class="thumbnails-scroll">
+                        <!-- 🆕 Превью — только если больше 1 картинки -->
+                        <div v-if="normalizedImages.length > 1" class="thumbnails-scroll">
                             <button
-                                v-for="(img, index) in item.images"
+                                v-for="(img, index) in normalizedImages"
                                 :key="index"
                                 class="thumbnail-btn"
                                 :class="{ 'active': selectedImage === img }"
                                 @click="selectedImage = img"
                             >
-                                <img :src="img" :alt="'Фото ' + (index + 1)">
+                                <img v-lazy="img" :alt="'Фото ' + (index + 1)">
                             </button>
                         </div>
                     </div>
@@ -348,6 +356,27 @@ export default {
     },
 
     computed: {
+        normalizedImages() {
+            if (!this.item || !Array.isArray(this.item.images)) return [];
+
+            return this.item.images
+                .map(img => {
+                    if (!img) return null;
+                    // Если это строка — возвращаем как есть
+                    if (typeof img === 'string') return img;
+                    // Если объект — берём url
+                    if (typeof img === 'object') {
+                        return img.url || img.src || img.path || null;
+                    }
+                    return null;
+                })
+                .filter(url => url && typeof url === 'string' && url.length > 0);
+        },
+
+        // 🆕 Есть ли вообще картинки
+        hasImages() {
+            return this.normalizedImages.length > 0;
+        },
         checkInCart() {
             return this.item ? this.basketStore.inCart(this.item.id) : 0;
         },
@@ -388,8 +417,10 @@ export default {
     methods: {
         onProductInfo(event) {
             this.item = event.detail.product;
-            this.selectedImage = this.item.images?.[0].url || null;
             this.activeTab = 'description';
+
+            this.selectedImage = this.normalizedImages[0] || null;
+
             this.reviews = [];
             this.paginate = null;
             this.isOpen = true;
@@ -1395,5 +1426,32 @@ export default {
     .btn-price {
         font-size: 1.1rem;
     }
+}
+
+/* ==========================================
+   🖼️ PLACEHOLDER КОГДА НЕТ КАРТИНОК
+   ========================================== */
+.image-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: linear-gradient(135deg, var(--bs-secondary-bg) 0%, var(--bs-body-bg) 100%);
+    color: var(--bs-secondary-color);
+    user-select: none;
+}
+
+.image-placeholder i {
+    font-size: 3rem;
+    opacity: 0.4;
+}
+
+.image-placeholder span {
+    font-size: 0.9rem;
+    font-weight: 500;
+    opacity: 0.6;
 }
 </style>

@@ -611,6 +611,66 @@
             </div>
         </div>
 
+        <!-- 🆕 Модалка: Предупреждение перед выходом -->
+        <div class="modal fade" id="securityCheckModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content edit-modal">
+                    <div class="modal-header">
+                        <div class="modal-icon" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="modal-title mb-0">Подождите!</h5>
+                            <small class="text-muted">Важно сохранить данные для входа</small>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cancelLogoutFlow"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning mb-3">
+                            <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                            Если вы сейчас выйдете, то можете <strong>потерять доступ</strong> к своему аккаунту.
+                        </div>
+
+                        <p class="mb-3 fw-semibold">Чего не хватает для безопасного входа:</p>
+
+                        <ul class="missing-items-list mb-0">
+                            <li v-if="securityCheck.needsLogin" class="missing-item">
+                                <div class="missing-icon" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                                    <i class="fa-solid fa-phone"></i>
+                                </div>
+                                <div class="missing-content">
+                                    <div class="missing-title">Телефон или Email</div>
+                                    <div class="missing-desc">Нужен хотя бы один идентификатор для входа</div>
+                                </div>
+                            </li>
+                            <li v-if="securityCheck.needsPassword" class="missing-item">
+                                <div class="missing-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                    <i class="fa-solid fa-lock"></i>
+                                </div>
+                                <div class="missing-content">
+                                    <div class="missing-title">Пароль</div>
+                                    <div class="missing-desc">Альтернативный способ входа (кроме SMS)</div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="modal-footer flex-column gap-2">
+                        <button type="button" class="btn btn-primary w-100" @click="proceedToSaveAndLogout">
+                            <i class="fa-solid fa-floppy-disk me-2"></i>
+                            Сохранить и выйти
+                        </button>
+                        <button type="button" class="btn btn-outline-danger w-100" @click="proceedToLogoutAnyway">
+                            <i class="fa-solid fa-right-from-bracket me-2"></i>
+                            Выйти всё равно
+                        </button>
+                        <button type="button" class="btn btn-link text-secondary" data-bs-dismiss="modal" @click="cancelLogoutFlow">
+                            Остаться в профиле
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Уведомления -->
         <div v-if="notification" class="notification-toast" :class="notification.type">
             <i :class="notification.icon"></i>
@@ -673,6 +733,9 @@ export default {
                 text: '',
                 color: 'muted',
             },
+
+            pendingLogoutSteps: [], // Например: ['login', 'password']
+            securityCheckVisible: false,
         };
     },
 
@@ -725,6 +788,20 @@ export default {
             if (newPassword !== confirmPassword) return false;
 
             return true;
+        },
+
+
+        needsLoginCredentials() {
+            return !this.self?.phone && !this.self?.email;
+        },
+        securityCheck() {
+            return {
+                needsLogin: this.needsLoginCredentials,
+                needsPassword: !this.hasPassword,
+            };
+        },
+        hasSecurityIssues() {
+            return this.securityCheck.needsLogin || this.securityCheck.needsPassword;
         },
     },
 
@@ -804,9 +881,105 @@ export default {
         goToAchievements() {
             this.$router.push({name: 'Achievements'})
         },
-        changeAccount() {
-            this.$router.push({name: 'Auth'})
+        async checkAndLogout() {
+            // Если всё в порядке (есть логин и пароль) — сразу выходим
+            if (!this.hasSecurityIssues) {
+                if (confirm('Вы уверены, что хотите выйти из аккаунта?')) {
+                    this.doLogout();
+                }
+                return;
+            }
+
+            // Иначе показываем предупреждающую модалку
+            if (this.modals.securityCheck) {
+                this.modals.securityCheck.show();
+            }
         },
+
+        // 🆕 Алиас для кнопки "Сменить аккаунт"
+        changeAccount() {
+            this.checkAndLogout();
+        },
+
+        // 🆕 Алиас для кнопки "Выйти" (теперь тоже с проверкой!)
+        async logout() {
+            this.checkAndLogout();
+        },
+
+        // 🆕 РЕАЛЬНЫЙ выход — вызывается БЕЗ confirm, когда решение уже принято
+        async doLogout() {
+            this.isLoggingOut = true;
+
+            try {
+                await axios.post('/auth/logout');
+            } catch (error) {
+                console.error('Ошибка при выходе с сервера:', error);
+                // Даже если сервер вернул ошибку — всё равно очищаем локальные данные
+            } finally {
+                // Очистка локальных данных
+                window.TenantUser = null;
+                localStorage.removeItem('token');
+
+                // Перенаправление на страницу входа
+                window.location.href = "/auth/login";
+
+                this.isLoggingOut = false;
+            }
+        },
+
+        // 🆕 Отмена процесса выхода
+        cancelLogoutFlow() {
+            this.pendingLogoutSteps = [];
+            this.showNotification('info', 'Выход отменён', 'fa-solid fa-circle-info');
+        },
+
+        // 🆕 Пользователь выбрал "Выйти всё равно" в модалке
+        proceedToLogoutAnyway() {
+            if (this.modals.securityCheck) {
+                this.modals.securityCheck.hide();
+            }
+            this.pendingLogoutSteps = [];
+            // Сразу выходим БЕЗ дополнительного confirm
+            this.doLogout();
+        },
+
+        // 🆕 Пользователь выбрал "Сохранить и выйти"
+        proceedToSaveAndLogout() {
+            if (this.modals.securityCheck) {
+                this.modals.securityCheck.hide();
+            }
+
+            const steps = [];
+            if (this.securityCheck.needsLogin) steps.push('login');
+            if (this.securityCheck.needsPassword) steps.push('password');
+
+            this.pendingLogoutSteps = steps;
+            this.executeNextStep();
+        },
+
+        // 🆕 Выполняет следующий шаг из очереди
+        executeNextStep() {
+            if (this.pendingLogoutSteps.length === 0) {
+                // Все шаги выполнены — выходим БЕЗ confirm (пользователь уже согласился)
+                this.doLogout();
+                return;
+            }
+
+            const step = this.pendingLogoutSteps[0];
+
+            if (step === 'login') {
+                this.phoneForm.phone = this.self?.phone || '';
+                this.phoneError = '';
+                if (this.modals.phone) {
+                    this.modals.phone.show();
+                }
+                this.showNotification('info', 'Укажите номер телефона или Email для входа', 'fa-solid fa-phone');
+            } else if (step === 'password') {
+                this.openPasswordModal();
+                this.showNotification('info', 'Установите пароль для входа', 'fa-solid fa-lock');
+            }
+        },
+
         initModals() {
             this.$nextTick(() => {
                 if (typeof bootstrap !== 'undefined') {
@@ -818,6 +991,24 @@ export default {
                     this.modals.avatar = new bootstrap.Modal(document.getElementById('editAvatarModal'));
                     this.modals.password = new bootstrap.Modal(document.getElementById('passwordModal'));
 
+                    this.modals.securityCheck = new bootstrap.Modal(document.getElementById('securityCheckModal'));
+
+                    // 🆕 Сбрасываем очередь при закрытии любой модалки без сохранения
+                    ['phone', 'password', 'name', 'email'].forEach(key => {
+                        const el = document.getElementById(
+                            key === 'phone' ? 'phoneModal' :
+                                key === 'password' ? 'passwordModal' :
+                                    `edit${key.charAt(0).toUpperCase() + key.slice(1)}Modal`
+                        );
+                        if (el) {
+                            el.addEventListener('hidden.bs.modal', () => {
+                                // Если пользователь закрыл модалку крестиком/отменой — сбрасываем очередь
+                                if (this.pendingLogoutSteps.length > 0) {
+                                    this.cancelLogoutFlow();
+                                }
+                            });
+                        }
+                    });
                 }
             });
         },
@@ -953,7 +1144,20 @@ export default {
                 if (this.modals[field]) {
                     this.modals[field].hide();
                 }
+
                 this.showNotification('success', 'Данные успешно обновлены', 'fa-solid fa-check-circle');
+
+                // 🆕 Если сохраняли email в рамках выхода — переходим к следующему шагу
+                if (
+                    field === 'email' &&
+                    this.pendingLogoutSteps.length > 0 &&
+                    this.pendingLogoutSteps[0] === 'login'
+                ) {
+                    this.pendingLogoutSteps.shift();
+                    setTimeout(() => this.executeNextStep(), 400);
+                    return;
+                }
+
             } catch (error) {
                 console.error('Ошибка сохранения:', error);
                 const errorMsg = error.response?.data?.errors
@@ -987,29 +1191,6 @@ export default {
             this.$router.push({name: 'Cashback'});
         },
 
-        async logout() {
-            if (!confirm('Вы уверены, что хотите выйти?')) return;
-
-            this.isLoggingOut = true;
-
-            try {
-                // 🆕 Вызываем серверный logout
-                await axios.post('/auth/logout');
-            } catch (error) {
-                console.error('Ошибка при выходе с сервера:', error);
-                // Даже если сервер вернул ошибку, мы всё равно должны
-                // очистить локальные данные, чтобы не застрять в сломанном состоянии
-            } finally {
-                // 🆕 Очистка локальных данных
-                window.TenantUser = null;
-                localStorage.removeItem('token'); // Или 'auth_token', в зависимости от того, как вы его сохраняете
-
-                // 🆕 Перенаправление на страницу входа
-                window.location.href = "/auth/login"
-
-                this.isLoggingOut = false;
-            }
-        },
 
         showNotification(type, text, icon) {
             this.notification = {type, text, icon};
@@ -1089,6 +1270,13 @@ export default {
                     response.data.message || 'Пароль сохранён',
                     'fa-solid fa-check-circle'
                 );
+
+                // 🆕 Если это часть процесса выхода — переходим к следующему шагу
+                if (this.pendingLogoutSteps.length > 0 && this.pendingLogoutSteps[0] === 'password') {
+                    this.pendingLogoutSteps.shift();
+                    setTimeout(() => this.executeNextStep(), 400);
+                    return;
+                }
             } catch (error) {
                 console.error('Ошибка сохранения пароля:', error);
 
@@ -1147,6 +1335,14 @@ export default {
                     'Номер телефона сохранён',
                     'fa-solid fa-check-circle'
                 );
+
+                // 🆕 Если это часть процесса выхода — переходим к следующему шагу
+                if (this.pendingLogoutSteps.length > 0 && this.pendingLogoutSteps[0] === 'login') {
+                    this.pendingLogoutSteps.shift(); // Удаляем выполненный шаг
+                    // Небольшая задержка, чтобы модалка успела закрыться
+                    setTimeout(() => this.executeNextStep(), 400);
+                    return;
+                }
             } catch (error) {
                 console.error('Ошибка сохранения телефона:', error);
                 const errorMsg = error.response?.data?.errors?.phone?.[0]
@@ -2181,6 +2377,69 @@ export default {
 
 .unverified-tag i {
     font-size: 0.6rem;
+}
+
+/* 🆕 Стили для модалки предупреждения выхода */
+.missing-items-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.missing-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(var(--bs-primary-rgb), 0.04);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    transition: background 0.2s ease;
+}
+
+.missing-item:last-child {
+    margin-bottom: 0;
+}
+
+.missing-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.missing-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.missing-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--bs-body-color);
+    margin-bottom: 2px;
+}
+
+.missing-desc {
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    line-height: 1.3;
+}
+
+.modal-footer.flex-column .btn {
+    border-radius: 10px;
+}
+
+#securityCheckModal .alert-warning {
+    border-radius: 12px;
+    border: none;
+    font-size: 0.9rem;
+    line-height: 1.5;
 }
 </style>
 
