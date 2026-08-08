@@ -388,7 +388,7 @@ export default {
     methods: {
         onProductInfo(event) {
             this.item = event.detail.product;
-            this.selectedImage = this.item.images?.[0] || null;
+            this.selectedImage = this.item.images?.[0].url || null;
             this.activeTab = 'description';
             this.reviews = [];
             this.paginate = null;
