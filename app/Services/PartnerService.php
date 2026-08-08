@@ -592,58 +592,204 @@ class PartnerService
             );
         }
 
-        // 🆕 Разрешённые поля для обновления
-        $allowedFields = [
+        // ==========================================
+        // 🆕 РАЗДЕЛЯЕМ ПОЛЯ ПО ТИПАМ
+        // ==========================================
+
+        // Булевые поля (программа лояльности)
+        $booleanFields = [
             'is_active' => 'sometimes|boolean',
             'display_self' => 'sometimes|boolean',
-
-            'address' => 'nullable|string|max:255',
-            'shop_coords' => 'nullable|string|max:50',
-            // Можно добавить в будущем:
-            // 'commission_rate' => 'sometimes|numeric|min:0|max:100',
-            // 'auto_approve' => 'sometimes|boolean',
         ];
 
-        $validator = Validator::make($data, $allowedFields);
+        // Строковые поля
+        $stringFields = [
+            'address' => 'nullable|string|max:255',
+            'shop_coords' => 'nullable|string|max:50',
+        ];
+
+        // UI-настройки (из модалки PartnersUiSettingsModal)
+        $uiFields = [
+            // Hero секция
+            'hero.enabled' => 'sometimes|boolean',
+            'hero.title' => 'nullable|string|max:255',
+            'hero.subtitle' => 'nullable|string|max:500',
+            'hero.search_placeholder' => 'nullable|string|max:100',
+            'hero.bg_image_1' => 'nullable|image|max:2048',
+            'hero.bg_image_2' => 'nullable|image|max:2048',
+            'hero.bg_image_3' => 'nullable|image|max:2048',
+            'hero.bg_image_4' => 'nullable|image|max:2048',
+            'hero.bg_image_1_url' => 'nullable|string|max:500',
+            'hero.bg_image_2_url' => 'nullable|string|max:500',
+            'hero.bg_image_3_url' => 'nullable|string|max:500',
+            'hero.bg_image_4_url' => 'nullable|string|max:500',
+
+            // Категории
+            'categories_title' => 'nullable|string|max:100',
+            'categories' => 'nullable|string', // JSON-строка
+
+            // Сервисы
+            'services' => 'nullable|string', // JSON-строка
+
+            // Фильтры
+            'filters' => 'nullable|string', // JSON-строка
+        ];
+
+        // Объединяем все правила валидации
+        $validationRules = array_merge($booleanFields, $stringFields, $uiFields);
+
+        $validator = Validator::make($data, $validationRules);
 
         if ($validator->fails()) {
             throw new ValidationException($validator);
         }
 
-        // 🆕 Получаем текущие настройки
+        // ==========================================
+        // 🆕 ПОЛУЧАЕМ ТЕКУЩИЕ НАСТРОЙКИ
+        // ==========================================
+
         $meta = $tenant->meta ?? [];
-        $partnersConfig = $meta["partners"] ?? [];
 
-        if (is_string($meta))
-            $meta = (array)json_decode($meta);
+        if (is_string($meta)) {
+            $meta = (array) json_decode($meta, true);
+        }
 
-        // 🆕 Обновляем только переданные поля
-        foreach (array_keys($allowedFields) as $field) {
+        $partnersConfig = $meta['partners'] ?? [];
+        $uiConfig = $partnersConfig['ui'] ?? [];
+        $heroConfig = $uiConfig['hero'] ?? [];
+
+        // ==========================================
+        // 🆕 ОБНОВЛЯЕМ БУЛЕВЫЕ ПОЛЯ (программа)
+        // ==========================================
+
+        foreach (array_keys($booleanFields) as $field) {
             if (array_key_exists($field, $data)) {
                 $partnersConfig[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN);
             }
         }
 
-        // 🆕 Логическая проверка: display_self требует is_active
+        // ==========================================
+        // 🆕 ОБНОВЛЯЕМ СТРОКОВЫЕ ПОЛЯ
+        // ==========================================
+
+        foreach (array_keys($stringFields) as $field) {
+            if (array_key_exists($field, $data)) {
+                $partnersConfig[$field] = $data[$field];
+            }
+        }
+
+        // ==========================================
+        // 🆕 ЛОГИЧЕСКАЯ ПРОВЕРКА: display_self требует is_active
+        // ==========================================
+
         if (($partnersConfig['display_self'] ?? false) && !($partnersConfig['is_active'] ?? false)) {
             $partnersConfig['display_self'] = false;
         }
 
-        $meta["partners"] = $partnersConfig;
+        // ==========================================
+        // 🆕 ОБНОВЛЯЕМ UI-НАСТРОЙКИ
+        // ==========================================
 
+        // Hero секция
+        if (isset($data['hero'])) {
+            $heroData = $data['hero'];
+
+            // Булевые поля
+            if (array_key_exists('enabled', $heroData)) {
+                $heroConfig['enabled'] = filter_var($heroData['enabled'], FILTER_VALIDATE_BOOLEAN);
+            }
+
+            // Строковые поля
+            foreach (['title', 'subtitle', 'search_placeholder'] as $textKey) {
+                if (array_key_exists($textKey, $heroData)) {
+                    $heroConfig[$textKey] = $heroData[$textKey];
+                }
+            }
+
+            // Обработка изображений (файлы или URL)
+            foreach (['bg_image_1', 'bg_image_2', 'bg_image_3', 'bg_image_4'] as $imgKey) {
+                // Если пришёл файл — загружаем
+                if (isset($data["hero_{$imgKey}"]) && $data["hero_{$imgKey}"] instanceof \Illuminate\Http\UploadedFile) {
+                    $file = $data["hero_{$imgKey}"];
+                    $path = $file->store("tenants/{$tenant->id}/partners/hero", 'public');
+                    $heroConfig[$imgKey] = \Illuminate\Support\Facades\Storage::url($path);
+                }
+                // Если пришёл URL (существующая картинка) — сохраняем
+                elseif (isset($data["hero_{$imgKey}_url"])) {
+                    $heroConfig[$imgKey] = $data["hero_{$imgKey}_url"];
+                }
+                // Если файл в самом hero (альтернативный формат)
+                elseif (isset($heroData[$imgKey]) && $heroData[$imgKey] instanceof \Illuminate\Http\UploadedFile) {
+                    $file = $heroData[$imgKey];
+                    $path = $file->store("tenants/{$tenant->id}/partners/hero", 'public');
+                    $heroConfig[$imgKey] = \Illuminate\Support\Facades\Storage::url($path);
+                }
+            }
+
+            $uiConfig['hero'] = $heroConfig;
+        }
+
+        // Заголовок категорий
+        if (array_key_exists('categories_title', $data)) {
+            $uiConfig['categories_title'] = $data['categories_title'];
+        }
+
+        // Категории (JSON)
+        if (array_key_exists('categories', $data)) {
+            $categories = $data['categories'];
+            if (is_string($categories)) {
+                $decoded = json_decode($categories, true);
+                $uiConfig['categories'] = is_array($decoded) ? $decoded : [];
+            } elseif (is_array($categories)) {
+                $uiConfig['categories'] = $categories;
+            }
+            // Поддержка старого имени cuisines
+            unset($uiConfig['cuisines']);
+        }
+
+        // Сервисы (JSON)
+        if (array_key_exists('services', $data)) {
+            $services = $data['services'];
+            if (is_string($services)) {
+                $decoded = json_decode($services, true);
+                $uiConfig['services'] = is_array($decoded) ? $decoded : [];
+            } elseif (is_array($services)) {
+                $uiConfig['services'] = $services;
+            }
+        }
+
+        // Фильтры (JSON)
+        if (array_key_exists('filters', $data)) {
+            $filters = $data['filters'];
+            if (is_string($filters)) {
+                $decoded = json_decode($filters, true);
+                $uiConfig['filters'] = is_array($decoded) ? $decoded : [];
+            } elseif (is_array($filters)) {
+                $uiConfig['filters'] = $filters;
+            }
+        }
+
+        // ==========================================
+        // 🆕 СОБИРАЕМ И СОХРАНЯЕМ
+        // ==========================================
+
+        $partnersConfig['ui'] = $uiConfig;
+        $meta['partners'] = $partnersConfig;
 
         $tenant->meta = $meta;
         $tenant->save();
 
+        // ==========================================
+        // 🆕 ПРИ ОТКЛЮЧЕНИИ ПРОГРАММЫ — ДЕАКТИВИРУЕМ ПАРТНЁРОВ
+        // ==========================================
 
-        // 🆕 При отключении программы — деактивируем партнёров
         if (!($partnersConfig['is_active'] ?? false)) {
             Partner::where('tenant_id', $tenant->id)
                 ->where('is_active', true)
                 ->update(['is_active' => false]);
         }
 
-        return $meta["partners"];
+        return $meta['partners'];
     }
 
     /**

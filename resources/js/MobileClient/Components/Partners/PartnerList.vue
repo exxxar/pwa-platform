@@ -29,8 +29,10 @@
         <!-- ВКЛАДКА: ЗАВЕДЕНИЯ -->
         <!-- ========================================== -->
         <div v-if="activeMainTab === 'establishments'">
-            <!-- HERO SECTION -->
-            <div class="hero-section" :style="heroBackgroundStyle">
+            <!-- ========================================== -->
+            <!-- HERO SECTION (показывается по настройке) -->
+            <!-- ========================================== -->
+            <div v-if="isHeroEnabled" class="hero-section" :style="heroBackgroundStyle">
                 <div class="hero-orb orb-1"></div>
                 <div class="hero-orb orb-2"></div>
 
@@ -44,50 +46,73 @@
                 <div class="hero-content">
                     <h2 class="hero-title">{{ dynamicHeroSettings.title }}</h2>
                     <p class="hero-subtitle">{{ dynamicHeroSettings.subtitle }}</p>
+                </div>
+            </div>
 
-                    <div class="search-container">
-                        <div class="search-box">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                            <input v-model="searchQuery" type="text" class="search-input"
-                                   :placeholder="dynamicHeroSettings.searchPlaceholder">
-                            <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''"><i
-                                class="fa-solid fa-xmark"></i></button>
-                        </div>
-                    </div>
-
-                    <!-- Динамические категории (бывшие кухни в шапке, если нужны) -->
-                    <div class="categories-row" v-if="dynamicCategories.length > 0">
-                        <button v-for="category in dynamicCategories" :key="category.id" class="category-pill"
-                                :class="{ 'active': selectedCategory === category.id }"
-                                @click="selectCategory(category.id)">
-                            <span class="category-icon">{{ category.icon || '🍽️' }}</span>
-                            <span class="category-name">{{ category.name }}</span>
+            <!-- ========================================== -->
+            <!-- 🆕 КОМПАКТНАЯ ФУНКЦИОНАЛЬНАЯ ПАНЕЛЬ -->
+            <!-- (всегда видна, независимо от Hero) -->
+            <!-- ========================================== -->
+            <div class="functional-panel" :class="{ 'compact-mode': !isHeroEnabled }">
+                <!-- Поиск -->
+                <div class="search-container">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input
+                            v-model="searchQuery"
+                            type="text"
+                            class="search-input"
+                            :placeholder="dynamicHeroSettings.searchPlaceholder"
+                        >
+                        <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">
+                            <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
+                </div>
 
-                    <!-- Динамические сервисы -->
-                    <div class="service-features-wrapper" v-if="dynamicServices.length > 0">
-                        <div class="service-features">
-                            <div v-for="feature in dynamicServices" :key="feature.id" class="feature-item">
-                                <div class="feature-icon-wrapper"><i :class="feature.icon"></i></div>
-                                <span class="feature-label">{{ feature.label }}</span>
-                            </div>
+                <!-- Категории -->
+                <div class="categories-row" v-if="dynamicCategories.length > 0">
+                    <button
+                        v-for="category in dynamicCategories"
+                        :key="category.id"
+                        class="category-pill"
+                        :class="{ 'active': selectedCategory === category.id }"
+                        @click="selectCategory(category.id)"
+                    >
+                        <span class="category-icon">{{ category.icon || '🍽️' }}</span>
+                        <span class="category-name">{{ category.name }}</span>
+                    </button>
+                </div>
+
+                <!-- Сервисы (только в полном режиме) -->
+                <div class="service-features-wrapper" v-if="isHeroEnabled && dynamicServices.length > 0">
+                    <div class="service-features">
+                        <div v-for="feature in dynamicServices" :key="feature.id" class="feature-item">
+                            <div class="feature-icon-wrapper"><i :class="feature.icon"></i></div>
+                            <span class="feature-label">{{ feature.label }}</span>
                         </div>
                     </div>
+                </div>
 
-
-                    <!-- 🆕 ПЕРЕМЕЩЕНО СЮДА: Переключатель вида (внизу слева) -->
-                    <div class="view-mode-toggle-wrapper">
-                        <div class="view-mode-toggle">
-                            <button class="view-btn" :class="{ 'active': viewMode === 'list' }"
-                                    @click="viewMode = 'list'" title="Список">
-                                <i class="fa-solid fa-list"></i>
-                            </button>
-                            <button class="view-btn" :class="{ 'active': viewMode === 'grid' }"
-                                    @click="viewMode = 'grid'" title="Сетка">
-                                <i class="fa-solid fa-grip"></i>
-                            </button>
-                        </div>
+                <!-- Переключатель вида -->
+                <div class="view-mode-toggle-wrapper">
+                    <div class="view-mode-toggle">
+                        <button
+                            class="view-btn"
+                            :class="{ 'active': viewMode === 'list' }"
+                            @click="viewMode = 'list'"
+                            title="Список"
+                        >
+                            <i class="fa-solid fa-list"></i>
+                        </button>
+                        <button
+                            class="view-btn"
+                            :class="{ 'active': viewMode === 'grid' }"
+                            @click="viewMode = 'grid'"
+                            title="Сетка"
+                        >
+                            <i class="fa-solid fa-grip"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -147,7 +172,7 @@
                     </div>
                 </div>
 
-                <div v-else-if="filteredPartners.length === 0" class="empty-state">
+                <div v-else-if="!filteredPartners || filteredPartners.length === 0" class="empty-state">
                     <div class="empty-icon-wrapper">
                         <div class="empty-icon"><i class="fa-solid fa-handshake"></i></div>
                     </div>
@@ -237,8 +262,8 @@
                         <div v-for="(group, dateKey) in groupedOrders" :key="dateKey" class="orders-group">
                             <div class="group-header">
                                 <div class="group-date">{{ group.label }}</div>
-                                <div class="group-count">{{ group.orders.length }}
-                                    {{ pluralize(group.orders.length, 'заказ', 'заказа', 'заказов') }}
+                                <div class="group-count">{{ (group.orders || []).length }}
+                                    {{ pluralize((group.orders || []).length, 'заказ', 'заказа', 'заказов') }}
                                 </div>
                             </div>
                             <div v-for="order in group.orders" :key="order.id" class="order-card">
@@ -403,13 +428,26 @@ export default {
     },
 
     computed: {
+        // 🎯 УНИВЕРСАЛЬНЫЙ UI SETTINGS
+        uiSettings() {
+            const tenant = window.Tenant || {};
+            const fromMeta = tenant?.meta?.partners?.ui;
+            if (fromMeta && typeof fromMeta === 'object') return fromMeta;
+            const fromSettings = tenant?.settings?.partners?.ui;
+            if (fromSettings && typeof fromSettings === 'object') return fromSettings;
+            return {};
+        },
+
+        isHeroEnabled() {
+            return this.uiSettings?.hero?.enabled !== false;
+        },
+
         hasActiveFilters() {
             const hasSearch = this.searchQuery && this.searchQuery.trim().length > 0;
             const hasCategory = this.selectedCategory !== null;
             const hasCuisine = this.selectedCuisine !== null;
             const defaultFilter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
             const hasCustomFilter = this.filter !== defaultFilter;
-
             return hasSearch || hasCategory || hasCuisine || hasCustomFilter;
         },
 
@@ -422,13 +460,9 @@ export default {
             if (this.filter !== defaultFilter) count++;
             return count;
         },
-        uiSettings() {
-            return window.Tenant?.settings?.partners?.ui || {};
-        },
 
-        // ✅ УСТОЙЧИВОСТЬ: Всегда возвращаем массив
         dynamicCuisines() {
-            const cuisines = this.uiSettings.cuisines;
+            const cuisines = this.uiSettings.categories || this.uiSettings.cuisines;
             if (Array.isArray(cuisines) && cuisines.length > 0) return cuisines;
             return [
                 {id: 1, name: 'Итальянская', slug: 'italian', image: this.getDefaultImage('pizza')},
@@ -441,15 +475,16 @@ export default {
             const settings = this.uiSettings.categories || this.uiSettings.cuisines;
             if (Array.isArray(settings) && settings.length > 0) return settings;
             return [
-                {id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza'}, {id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers'},
-                {id: 3, name: 'Шаурма', icon: '🌯', slug: 'shawarma'}, {id: 4, name: 'Суши и роллы', icon: '🍣', slug: 'sushi'},
-                {id: 5, name: 'Шашлык', icon: '🍖', slug: 'shashlik'}, {id: 6, name: 'Хинкали', icon: '🥟', slug: 'khinkali'},
-                {id: 7, name: 'Хачапури', icon: '🫓', slug: 'khachapuri'}, {id: 8, name: 'Лапша / Wok', icon: '🍜', slug: 'wok'},
-                {id: 9, name: 'Паста', icon: '🍝', slug: 'pasta'}, {id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner'},
-                {id: 11, name: 'Тако и буррито', icon: '🌮', slug: 'taco'}, {id: 12, name: 'Пельмени', icon: '🥟', slug: 'dumplings'},
-                {id: 13, name: 'Обеды', icon: '🍱', slug: 'lunch'}, {id: 14, name: 'Морепродукты', icon: '🦞', slug: 'seafood'},
-                {id: 15, name: 'Закуски', icon: '🍟', slug: 'snacks'}, {id: 16, name: 'Пивные закуски', icon: '🍺', slug: 'beer_snacks'},
-                {id: 17, name: 'Салаты', icon: '🥗', slug: 'salads'}, {id: 18, name: 'ПП', icon: '🥑', slug: 'pp'}
+                {id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza'},
+                {id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers'},
+                {id: 3, name: 'Шаурма', icon: '🌯', slug: 'shawarma'},
+                {id: 4, name: 'Суши и роллы', icon: '🍣', slug: 'sushi'},
+                {id: 5, name: 'Шашлык', icon: '🍖', slug: 'shashlik'},
+                {id: 6, name: 'Хинкали', icon: '🥟', slug: 'khinkali'},
+                {id: 7, name: 'Хачапури', icon: '🫓', slug: 'khachapuri'},
+                {id: 8, name: 'Лапша / Wok', icon: '🍜', slug: 'wok'},
+                {id: 9, name: 'Паста', icon: '🍝', slug: 'pasta'},
+                {id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner'},
             ];
         },
 
@@ -482,7 +517,7 @@ export default {
                     backgroundPosition: 'center'
                 };
             }
-            return {background: this.dynamicHeroSettings.backgroundColor};
+            return { background: this.dynamicHeroSettings.backgroundColor };
         },
 
         dynamicServices() {
@@ -500,18 +535,22 @@ export default {
             const filters = this.uiSettings.filters;
             if (Array.isArray(filters) && filters.length > 0) return filters;
             return [
-                {id: 1, name: 'Все', slug: 'all'}, {id: 2, name: 'Избранные', slug: 'favorites'},
-                {id: 3, name: 'С акциями', slug: 'promo'}, {id: 4, name: 'Популярные', slug: 'popular'}
+                {id: 1, name: 'Все', slug: 'all'},
+                {id: 2, name: 'Избранные', slug: 'favorites'},
+                {id: 3, name: 'С акциями', slug: 'promo'},
+                {id: 4, name: 'Популярные', slug: 'popular'}
             ];
         },
 
+        // 🎯 ВОТ ЭТИ COMPUTED БЫЛИ ПРОПУЩЕНЫ — ВОССТАНАВЛИВАЕМ
         activePartners() {
             const list = Array.isArray(this.partnerList) ? this.partnerList : [];
             return list.filter(p => p && p.is_active);
         },
 
         filteredPartners() {
-            let list = [...this.activePartners];
+            // 🛡️ Защита: всегда возвращаем массив
+            let list = [...(this.activePartners || [])];
 
             // 1. Фильтр по вкладке
             if (this.filter === 'favorites') {
@@ -538,7 +577,7 @@ export default {
                 });
             }
 
-            // 3. Категория (Защита от разных типов данных: объект, число, строка)
+            // 3. Категория
             if (this.selectedCategory) {
                 const selCatStr = String(this.selectedCategory);
                 list = list.filter(p => {
@@ -592,7 +631,7 @@ export default {
             ordersList.forEach(order => {
                 if (!order || !order.created_at) return;
                 const date = new Date(order.created_at);
-                if (isNaN(date.getTime())) return; // Защита от невалидных дат
+                if (isNaN(date.getTime())) return;
 
                 let key, label;
                 if (date.toDateString() === today.toDateString()) {
@@ -621,10 +660,24 @@ export default {
     },
 
     mounted() {
-        // Инициализируем фильтр первым элементом из динамических настроек
         this.filter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
         this.loadInitialData();
         if (this.loadOrders) this.loadOrders({page: 0, size: 20});
+
+        // 🎯 Слушаем обновление UI-настроек
+        this._uiUpdateHandler = (event) => {
+            console.log('🔄 UI настройки обновлены:', event.detail);
+            // Принудительно заставляем Vue пересчитать computed
+            this.$forceUpdate();
+        };
+        window.addEventListener('partners-ui-updated', this._uiUpdateHandler);
+    },
+
+    beforeUnmount() {
+        document.body.style.overflow = '';
+        if (this._uiUpdateHandler) {
+            window.removeEventListener('partners-ui-updated', this._uiUpdateHandler);
+        }
     },
 
     methods: {
@@ -837,9 +890,7 @@ export default {
 
     },
 
-    beforeUnmount() {
-        document.body.style.overflow = '';
-    }
+
 };
 </script>
 
@@ -2315,5 +2366,116 @@ $info: #3b82f6;
 .reset-fab-leave-to {
     opacity: 0;
     transform: translateY(20px) scale(0.8);
+}
+
+// ==========================================
+// 🆕 КОМПАКТНАЯ ФУНКЦИОНАЛЬНАЯ ПАНЕЛЬ
+// ==========================================
+.functional-panel {
+    padding: 20px;
+    max-width: 700px;
+    margin: 0 auto 16px;
+    transition: all 0.3s ease;
+
+    // Когда Hero выключен — панель становится более заметной
+    &.compact-mode {
+        padding-top: 24px;
+        padding-bottom: 16px;
+        background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+        border-radius: 0 0 24px 24px;
+        margin-bottom: 24px;
+
+        .search-box .search-input {
+            border-color: #cbd5e1;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+    }
+
+    .search-container {
+        margin-bottom: 16px;
+    }
+
+    .search-box {
+        position: relative;
+        max-width: 500px;
+        margin: 0 auto;
+        width: 100%;
+
+        .search-icon {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 16px 48px 16px 48px;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            font-size: 1rem;
+            background: #ffffff;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+
+            &:focus {
+                outline: none;
+                border-color: #3b82f6;
+                box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+            }
+        }
+
+        .search-clear {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #f1f5f9;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s;
+
+            &:hover {
+                background: #e2e8f0;
+                color: #1e293b;
+            }
+        }
+    }
+
+    .categories-row {
+        margin-bottom: 16px;
+    }
+
+    .view-mode-toggle-wrapper {
+        margin-top: 16px;
+        display: flex;
+        justify-content: flex-start;
+    }
+}
+
+// Адаптивность для компактного режима
+@media (max-width: 768px) {
+    .functional-panel {
+        padding: 16px;
+
+        &.compact-mode {
+            padding: 16px;
+            border-radius: 0 0 16px 16px;
+        }
+
+        .search-box .search-input {
+            padding: 12px 40px 12px 40px;
+            font-size: 0.9rem;
+        }
+    }
 }
 </style>

@@ -898,7 +898,7 @@ export default {
 
         // 🆕 Алиас для кнопки "Сменить аккаунт"
         changeAccount() {
-            this.checkAndLogout();
+            this.$router.push({ name: 'Auth' })
         },
 
         // 🆕 Алиас для кнопки "Выйти" (теперь тоже с проверкой!)

@@ -48,38 +48,108 @@
 
                     <!-- 1. HERO СЕКЦИЯ -->
                     <div v-if="activeTab === 'hero'" class="settings-card fade-in">
-                        <h4 class="card-title"><i class="fa-solid fa-image"></i> Главный экран</h4>
-                        <div class="form-grid">
-                            <div class="form-group full-width">
-                                <label>Заголовок</label>
-                                <input v-model="uiForm.hero.title" type="text" class="form-input"
-                                       placeholder="Вкусные блюда...">
-                            </div>
-                            <div class="form-group full-width">
-                                <label>Подзаголовок</label>
-                                <input v-model="uiForm.hero.subtitle" type="text" class="form-input"
-                                       placeholder="Доставка из кафе...">
-                            </div>
-                            <div class="form-group full-width">
-                                <label>Текст в поле поиска</label>
-                                <input v-model="uiForm.hero.search_placeholder" type="text" class="form-input"
-                                       placeholder="Поиск блюд и заведений">
+                        <!-- 🆕 ШАПКА С ПЕРЕКЛЮЧАТЕЛЕМ -->
+                        <div class="card-header-row with-toggle">
+                            <h4 class="card-title"><i class="fa-solid fa-image"></i> Главный экран</h4>
+                            <div class="toggle-wrapper">
+                                <span class="toggle-label">{{ isHeroEnabled ? 'Включено' : 'Выключено' }}</span>
+                                <label class="toggle-switch">
+                                    <input
+                                        type="checkbox"
+                                        v-model="uiForm.hero.enabled"
+                                    >
+                                    <span class="toggle-slider"></span>
+                                </label>
                             </div>
                         </div>
-                        <div class="images-grid">
-                            <div v-for="(img, index) in ['bg_image_1', 'bg_image_2', 'bg_image_3', 'bg_image_4']"
-                                 :key="img" class="image-upload-box">
-                                <label class="image-label">Картинка {{ index + 1 }}</label>
-                                <div class="image-preview"
-                                     :style="{ backgroundImage: imagePreviews[img] ? `url(${imagePreviews[img]})` : 'none' }">
-                                    <div v-if="!imagePreviews[img]" class="image-placeholder"><i
-                                        class="fa-solid fa-cloud-arrow-up"></i></div>
-                                    <button v-else class="remove-image" @click.prevent="removeImage(img)" type="button">
-                                        <i class="fa-solid fa-xmark"></i></button>
+
+                        <!-- 🆕 Подсказка при выключенной секции -->
+                        <div v-if="!isHeroEnabled" class="hero-disabled-notice">
+                            <i class="fa-solid fa-eye-slash"></i>
+                            <div>
+                                <div class="notice-title">Секция скрыта</div>
+                                <div class="notice-desc">
+                                    Главный экран не будет отображаться на странице партнёров.
+                                    Настройки сохранятся и будут применены при включении.
                                 </div>
-                                <input type="file" accept="image/*" @change="(e) => handleImageUpload(e, img)"
-                                       class="file-input" hidden :ref="'file_' + img">
-                                <button class="upload-btn" @click.prevent="triggerFileInput(img)">Выбрать</button>
+                            </div>
+                        </div>
+
+                        <!-- 🆕 Обёртка с классом disabled когда выключено -->
+                        <div class="hero-settings-content" :class="{ 'is-disabled': !isHeroEnabled }">
+                            <div class="form-grid">
+                                <div class="form-group full-width">
+                                    <label>Заголовок</label>
+                                    <input
+                                        v-model="uiForm.hero.title"
+                                        type="text"
+                                        class="form-input"
+                                        placeholder="Вкусные блюда..."
+                                        :disabled="!isHeroEnabled"
+                                    >
+                                </div>
+                                <div class="form-group full-width">
+                                    <label>Подзаголовок</label>
+                                    <input
+                                        v-model="uiForm.hero.subtitle"
+                                        type="text"
+                                        class="form-input"
+                                        placeholder="Доставка из кафе..."
+                                        :disabled="!isHeroEnabled"
+                                    >
+                                </div>
+                                <div class="form-group full-width">
+                                    <label>Текст в поле поиска</label>
+                                    <input
+                                        v-model="uiForm.hero.search_placeholder"
+                                        type="text"
+                                        class="form-input"
+                                        placeholder="Поиск блюд и заведений"
+                                        :disabled="!isHeroEnabled"
+                                    >
+                                </div>
+                            </div>
+
+                            <div class="images-grid">
+                                <div
+                                    v-for="(img, index) in ['bg_image_1', 'bg_image_2', 'bg_image_3', 'bg_image_4']"
+                                    :key="img"
+                                    class="image-upload-box"
+                                >
+                                    <label class="image-label">Картинка {{ index + 1 }}</label>
+                                    <div
+                                        class="image-preview"
+                                        :style="{ backgroundImage: imagePreviews[img] ? `url(${imagePreviews[img]})` : 'none' }"
+                                    >
+                                        <div v-if="!imagePreviews[img]" class="image-placeholder">
+                                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                                        </div>
+                                        <button
+                                            v-else
+                                            class="remove-image"
+                                            @click.prevent="removeImage(img)"
+                                            type="button"
+                                        >
+                                            <i class="fa-solid fa-xmark"></i>
+                                        </button>
+                                    </div>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        @change="(e) => handleImageUpload(e, img)"
+                                        class="file-input"
+                                        hidden
+                                        :ref="'file_' + img"
+                                        :disabled="!isHeroEnabled"
+                                    >
+                                    <button
+                                        class="upload-btn"
+                                        @click.prevent="isHeroEnabled && triggerFileInput(img)"
+                                        :disabled="!isHeroEnabled"
+                                    >
+                                        Выбрать
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -276,6 +346,7 @@ export default {
             ],
             uiForm: {
                 hero: {
+                    enabled: true,
                     title: 'Вкусные блюда из любимых заведений',
                     subtitle: 'Доставка из кафе и ресторанов быстро и удобно',
                     search_placeholder: 'Поиск блюд и заведений',
@@ -317,6 +388,9 @@ export default {
     },
 
     computed: {
+        isHeroEnabled() {
+            return this.uiForm.hero.enabled !== false;
+        },
         tenant() {
             return window.Tenant;
         },
@@ -377,17 +451,69 @@ export default {
         async saveSettings() {
             this.isSaving = true;
             try {
-                // TODO: Заменить на реальный API запрос
-                await new Promise(resolve => setTimeout(resolve, 600));
+                // 🎯 Подготовка данных для отправки
+                const formData = new FormData();
 
+                // Текстовые данные
+                formData.append('hero[enabled]', this.uiForm.hero.enabled ? '1' : '0');
+                formData.append('hero[title]', this.uiForm.hero.title || '');
+                formData.append('hero[subtitle]', this.uiForm.hero.subtitle || '');
+                formData.append('hero[search_placeholder]', this.uiForm.hero.search_placeholder || '');
+
+                // Изображения (только если это File объекты, а не строки URL)
+                ['bg_image_1', 'bg_image_2', 'bg_image_3', 'bg_image_4'].forEach(key => {
+                    const image = this.uiForm.hero[key];
+                    if (image instanceof File) {
+                        formData.append(`hero[${key}]`, image);
+                    } else if (typeof image === 'string' && image) {
+                        // Сохраняем существующие URL
+                        formData.append(`hero[${key}_url]`, image);
+                    }
+                });
+
+                // Категории
+                formData.append('categories_title', this.uiForm.categories_title || '');
+                formData.append('categories', JSON.stringify(this.uiForm.categories));
+
+                // Сервисы
+                formData.append('services', JSON.stringify(this.uiForm.services));
+
+                // Фильтры
+                formData.append('filters', JSON.stringify(this.uiForm.filters));
+
+                // 🎯 Реальный API-запрос на бэкенд
+                const response = await axios.post('/partners/update-settings', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                });
+
+                // Обновляем локальные данные
+                if (!this.tenant.settings) this.tenant.settings = {};
                 if (!this.tenant.settings.partners) this.tenant.settings.partners = {};
                 this.tenant.settings.partners.ui = JSON.parse(JSON.stringify(this.uiForm));
 
-                this.$notify?.({title: 'Успех', text: 'Настройки сохранены', type: 'success'});
+                this.$notify?.({
+                    title: 'Успех',
+                    text: 'Настройки сохранены',
+                    type: 'success'
+                });
+
                 this.$emit('saved', this.uiForm);
                 this.closeModal();
+
             } catch (error) {
-                this.$notify?.({title: 'Ошибка', text: 'Не удалось сохранить', type: 'error'});
+                console.error('Ошибка сохранения настроек:', error);
+
+                const errorMessage = error.response?.data?.message
+                    || error.response?.data?.error
+                    || 'Не удалось сохранить настройки';
+
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: errorMessage,
+                    type: 'error'
+                });
             } finally {
                 this.isSaving = false;
             }
@@ -1545,6 +1671,136 @@ label {
         span {
             display: inline; // На очень маленьких экранах можно вернуть текст, если иконок мало
         }
+    }
+}
+
+// ==========================================
+// 🆕 ПЕРЕКЛЮЧАТЕЛЬ ВИДИМОСТИ HERO
+// ==========================================
+.card-header-row.with-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+
+    .card-title {
+        margin: 0;
+    }
+}
+
+.toggle-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.toggle-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $admin-text-muted;
+    min-width: 70px;
+    text-align: right;
+    transition: color 0.2s;
+}
+
+// Стилизируем label в зависимости от состояния
+.toggle-wrapper:has(input:checked) .toggle-label {
+    color: $admin-success;
+}
+
+// Стильный iOS-like toggle
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+    flex-shrink: 0;
+
+    input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: $admin-border;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 26px;
+
+    &::before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background: white;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+}
+
+input:checked + .toggle-slider {
+    background: $admin-success;
+    box-shadow: 0 0 0 3px rgba($admin-success, 0.15);
+}
+
+input:checked + .toggle-slider::before {
+    transform: translateX(22px);
+}
+
+.toggle-switch:hover .toggle-slider {
+    box-shadow: 0 0 0 3px rgba($admin-primary, 0.1);
+}
+
+// 🆕 Подсказка при выключенной секции
+.hero-disabled-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(#ffc107, 0.08) 0%, rgba(#ff9800, 0.05) 100%);
+    border: 1px solid rgba(#ffc107, 0.3);
+    border-radius: 12px;
+    margin-bottom: 16px;
+    animation: fadeInTab 0.3s ease-out;
+
+    > i {
+        font-size: 1.2rem;
+        color: #d97706;
+        margin-top: 2px;
+        flex-shrink: 0;
+    }
+
+    .notice-title {
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: $admin-text;
+        margin-bottom: 2px;
+    }
+
+    .notice-desc {
+        font-size: 0.8rem;
+        color: $admin-text-muted;
+        line-height: 1.4;
+    }
+}
+
+// 🆕 Блокировка контента когда секция выключена
+.hero-settings-content {
+    transition: all 0.3s ease;
+    position: relative;
+
+    &.is-disabled {
+        opacity: 0.45;
+        pointer-events: none;
+        filter: grayscale(30%);
+        user-select: none;
     }
 }
 </style>
