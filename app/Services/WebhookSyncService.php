@@ -413,20 +413,86 @@ class WebhookSyncService
     }
 
     /**
-     * Маппинг картинок — массив URL-строк
+     * ✅ Маппинг картинок с автоматическим добавлением хоста
+     *
+     * Принимает:
+     *   - массив массивов [['url' => '...', 'name' => '...'], ...]
+     *   - массив строк   ['images/photo.jpg', ...]
+     *   - одну строку    'images/photo.jpg'
      */
-    protected function mapImages(array $images): array
+    protected function mapImages($images): array
     {
+        if (empty($images)) {
+            return [];
+        }
+
+        // Если пришла одна строка — обернём в массив
+        if (is_string($images)) {
+            $images = [['url' => $images, 'name' => '']];
+        }
+
         return collect($images)
-            ->map(function ($img) {
-                if (is_array($img)) {
-                    return $img['url'] ?? null;
-                }
-                return is_string($img) ? $img : null;
-            })
             ->filter()
+            ->map(function ($img) {
+                // Нормализуем входные данные в массив
+                if (is_string($img)) {
+                    $img = ['url' => $img, 'name' => ''];
+                }
+
+                $url = $img['url'] ?? '';
+                $name = $img['name'] ?? '';
+
+                // Формируем полный URL
+                $fullUrl = $this->resolveImageUrl($url);
+
+                return [
+                    'url' => $fullUrl,
+                    'name' => $name ?: basename(parse_url($fullUrl, PHP_URL_PATH) ?? ''),
+                ];
+            })
+            ->filter(fn($img) => !empty($img['url'])) // Убираем пустые записи
             ->values()
             ->all();
+    }
+
+
+    /**
+     * ✅ Добавление хоста текущего запроса к относительному URL картинки
+     */
+    protected function resolveImageUrl(string $url): string
+    {
+        $url = trim($url);
+
+        if (empty($url)) {
+            return '';
+        }
+
+        // Абсолютный URL
+        if (preg_match('/^https?:\/\//i', $url)) {
+            return $url;
+        }
+
+        // data:image / base64
+        if (str_starts_with($url, 'data:')) {
+            return $url;
+        }
+
+        // ✅ Берём хост текущего запроса, если он есть (веб-контекст)
+        if (app()->runningInConsole() === false && request()) {
+            $baseUrl = rtrim(request()->getSchemeAndHttpHost(), '/');
+        } else {
+            // Фолбэк: если из CLI/Queue — берём из конфига
+            $baseUrl = rtrim(config('app.url') ?? '', '/');
+
+            // Если и конфиг пуст — просто вернём путь как есть
+            if (empty($baseUrl)) {
+                return $url;
+            }
+        }
+
+        $path = ltrim($url, '/');
+
+        return $baseUrl . '/' . $path;
     }
 
     /**
