@@ -306,14 +306,10 @@ export const useProductsStore = defineStore('products', {
             }
         },
 
-        /**
-         * Загрузка дополнительных товаров (пагинация внутри категории)
-         */
-        /**
-         * Загрузка дополнительных товаров (пагинация внутри категории)
-         */
         async loadMoreProducts(categoryId, offset, partnerId = null) {
             this.isLoadingMore = true;
+            let uniqueNewProducts = []; // 👈 Объявляем здесь, ДО блока if
+
             try {
                 const response = await axios.post('/shop/products/more-by-category', {
                     category_id: categoryId,
@@ -334,10 +330,10 @@ export const useProductsStore = defineStore('products', {
                     console.log('📊 [Store] Было товаров:', category.products.length);
                     console.log('🆔 [Store] ID существующих:', category.products.map(p => p.id));
 
-                    // Защита от дублей
                     const existingIds = new Set(category.products.map(p => String(p.id)));
 
-                    const uniqueNewProducts = newProducts.filter(p => {
+                    // 👈 Присваиваем значение (не объявляем заново через const)
+                    uniqueNewProducts = newProducts.filter(p => {
                         if (!p || !p.id) return false;
                         return !existingIds.has(String(p.id));
                     });
@@ -354,7 +350,7 @@ export const useProductsStore = defineStore('products', {
                         );
                     }
 
-                    // 🎯 ВАЖНО: Заменяем массив целиком для гарантии реактивности
+                    // Заменяем массив целиком для гарантии реактивности
                     if (uniqueNewProducts.length > 0) {
                         category.products = [...category.products, ...uniqueNewProducts];
                     }
@@ -366,6 +362,8 @@ export const useProductsStore = defineStore('products', {
                     }
 
                     console.log('🎉 [Store] Итого товаров:', category.products.length);
+                } else {
+                    console.error('❌ [Store] Категория с ID', categoryId, 'не найдена!');
                 }
 
                 return uniqueNewProducts.length;
@@ -376,7 +374,6 @@ export const useProductsStore = defineStore('products', {
                 this.isLoadingMore = false;
             }
         },
-
 
         // ==========================================
         // ТОВАРЫ: CRUD

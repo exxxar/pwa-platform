@@ -51,27 +51,22 @@
                         @select-category="onCategorySelect"
                     />
 -->
-
                     <!-- 🆕 СЕКЦИЯ КОЛЛЕКЦИЙ (над товарами) -->
-                    <div v-if="activeCollections.length > 0" class="collections-section px-1 mt-3">
-                        <div class="section-header">
-                            <h5 class="section-title">
-                                <i class="fa-solid fa-layer-group"></i>
-                                <span>Коллекции</span>
-                            </h5>
-                            <span class="section-badge">{{ activeCollections.length }}</span>
-                        </div>
+                    <div v-if="activeCollections.length > 0" class="collections-section">
+                        <div class="container g-2">
+                            <AppDivider text="Коллекции" icon="fa-layer-group" />
 
-                        <div class="collections-grid">
-                            <CollectionCard
-                                v-for="collection in activeCollections"
-                                :key="collection.id"
-                                :item="collection"
-                                @open-collection="onCollectionOpen"
-                            />
+                            <!-- Та же сетка, что и у товаров -->
+                            <div class="row row-cols-2 row-cols-sm-2 row-cols-lg-6 row-cols-md-4 g-2 mb-3">
+                                <div class="col" v-for="collection in activeCollections" :key="collection.id">
+                                    <CollectionCard
+                                        :item="collection"
+                                        @open-collection="onCollectionOpen"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
-
                     <!-- Товары по категориям -->
                     <ProductGrid
                         :categories="filteredProducts"
@@ -103,11 +98,13 @@ import ProductGrid from '@/MobileClient/Components/Shop/Menu/ProductGrid.vue';
 import BookingDropdown from '@/MobileClient/Components/Shop/Booking/BookingDropdown.vue';
 import CollectionCard from '@/MobileClient/Components/Shop/Collections/CollectionCard.vue';
 import CollectionModal from '@/MobileClient/Components/Shop/Collections/CollectionModal.vue';
+import AppDivider from '@/MobileClient/Components/AppDivider.vue';
 
 export default {
     name: 'Menu',
 
     components: {
+        AppDivider,
         PartnersList,
         CategoryList,
         ProductGrid,
@@ -282,7 +279,6 @@ export default {
     },
 };
 </script>
-
 <style scoped>
 .menu-container {
     min-height: 100vh;
@@ -313,60 +309,8 @@ export default {
     height: 3rem;
 }
 
-/* Секция коллекций */
+/* Секция коллекций - минимальные стили */
 .collections-section {
     margin-bottom: 24px;
-}
-
-.section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-}
-
-.section-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--bs-body-color, #1f2937);
-}
-
-.section-title i {
-    color: #8b5cf6;
-    font-size: 1.2rem;
-}
-
-.section-badge {
-    background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
-    color: white;
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 4px 12px;
-    border-radius: 20px;
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
-}
-
-.collections-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-}
-
-@media (max-width: 768px) {
-    .collections-grid {
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 12px;
-    }
-}
-
-@media (max-width: 576px) {
-    .collections-grid {
-        grid-template-columns: repeat(1, 1fr);
-        gap: 12px;
-    }
 }
 </style>
