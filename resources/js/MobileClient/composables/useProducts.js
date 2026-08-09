@@ -95,6 +95,9 @@ export function useProducts() {
         filteredProducts,
         totalProductsCount,
 
+        setRecommendations: (products) => store.setRecommendations(products),
+        setTotalCount: (count) => store.setTotalCount(count),
+
         isProductLoading: (id) => store.isProductLoading(id),
         isCategoryLoading: (id) => store.isCategoryLoading(id),
         fetchProductsByIds: (ids) => store.fetchProductsByIds(ids),

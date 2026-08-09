@@ -42,6 +42,9 @@ export const useProductsStore = defineStore('products', {
         // Время последней синхронизации
         lastSyncAt: null,
 
+        recommendations: [],
+        totalCount: 0,
+
         // 🆕 UI состояние меню
         searchQuery: '',
         selectedCategory: null,
@@ -321,47 +324,53 @@ export const useProductsStore = defineStore('products', {
                 const responseData = response.data?.data || response.data || [];
                 const newProducts = Array.isArray(responseData) ? responseData : [];
 
-                console.log('🔄 [Store] Загружено новых товаров:', newProducts.length);
+                console.log('🔄 [Store] Загружено с сервера:', newProducts.length, 'товаров');
+                console.log('🆔 [Store] ID загруженных:', newProducts.map(p => p.id));
 
                 const category = this.categories.find(c => String(c.id) === String(categoryId));
 
                 if (category) {
-                    console.log('✅ [Store] Категория найдена:', category.name);
+                    console.log('✅ [Store] Категория:', category.name);
                     console.log('📊 [Store] Было товаров:', category.products.length);
+                    console.log('🆔 [Store] ID существующих:', category.products.map(p => p.id));
 
-                    // 🎯 ЗАЩИТА ОТ ДУБЛЕЙ: собираем Set уже существующих ID
-                    const existingIds = new Set(category.products.map(p => p.id));
+                    // Защита от дублей
+                    const existingIds = new Set(category.products.map(p => String(p.id)));
 
-                    // Фильтруем: оставляем только те, которых ещё нет
                     const uniqueNewProducts = newProducts.filter(p => {
                         if (!p || !p.id) return false;
-                        return !existingIds.has(p.id);
+                        return !existingIds.has(String(p.id));
                     });
 
-                    console.log('🔒 [Store] Уникальных новых:', uniqueNewProducts.length,
-                        '(отфильтровано дублей:', newProducts.length - uniqueNewProducts.length, ')');
+                    const duplicatesCount = newProducts.length - uniqueNewProducts.length;
 
-                    // Пушим только уникальные
+                    console.log('🔒 [Store] Уникальных:', uniqueNewProducts.length);
+                    console.log('❌ [Store] Отсеяно дублей:', duplicatesCount);
+
+                    if (duplicatesCount > 0) {
+                        console.warn('⚠️ [Store] Обнаружены дубликаты! Проверьте offset на сервере.');
+                        console.log('🔍 Дублирующиеся ID:',
+                            newProducts.filter(p => existingIds.has(String(p.id))).map(p => p.id)
+                        );
+                    }
+
+                    // 🎯 ВАЖНО: Заменяем массив целиком для гарантии реактивности
                     if (uniqueNewProducts.length > 0) {
-                        category.products.push(...uniqueNewProducts);
+                        category.products = [...category.products, ...uniqueNewProducts];
                     }
 
-                    // 🎯 Если пришло меньше, чем просили (или все были дублями) —
-                    // значит больше грузить нечего. Обновляем products_count до текущего length
+                    // Если пришло меньше ожидаемого - больше грузить нечего
                     if (newProducts.length < 12 || uniqueNewProducts.length === 0) {
-                        // Корректируем products_count, чтобы кнопка "Загрузить ещё" исчезла
                         category.products_count = category.products.length;
-                        console.log('🏁 [Store] Все товары загружены. products_count обновлён до:', category.products_count);
+                        console.log('🏁 [Store] Все загружено. products_count =', category.products_count);
                     }
 
-                    console.log('🎉 [Store] Стало товаров:', category.products.length);
-                } else {
-                    console.error('❌ [Store] Категория с ID', categoryId, 'не найдена!');
+                    console.log('🎉 [Store] Итого товаров:', category.products.length);
                 }
 
-                return newProducts.length;
+                return uniqueNewProducts.length;
             } catch (error) {
-                console.error('[Products Store] Ошибка загрузки:', error);
+                console.error('[Products Store] Ошибка:', error);
                 throw error;
             } finally {
                 this.isLoadingMore = false;
@@ -971,6 +980,9 @@ export const useProductsStore = defineStore('products', {
             this.selectedCategory = null;
             this.selectedPartner = null;
             this.extraCharge = 0;
+
+            this.recommendations = [];
+            this.totalCount = 0;
         },
     },
 });
