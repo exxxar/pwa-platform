@@ -8,7 +8,7 @@ class CollectionResource extends JsonResource
 {
     public function toArray($request): array
     {
-        return [
+        $data = [
             'id' => $this->id,
             'tenant_id' => $this->tenant_id,
             'name' => $this->name,
@@ -25,17 +25,24 @@ class CollectionResource extends JsonResource
             'config' => $this->config,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-
-            'collection_categories' => CollectionCategoryResource::collection(
-                $this->whenLoaded('collectionCategories')
-            ),
-
-            // Для совместимости со старым кодом фронта
-            'products_count' => $this->whenLoaded('collectionCategories', function () {
-                return $this->collectionCategories->sum(
-                    fn ($cat) => $cat->products->count()
-                );
-            }),
         ];
+
+        // 🔥 ВСЕГДА возвращаем collection_categories (даже пустой массив)
+        if ($this->resource->relationLoaded('collectionCategories')) {
+            $data['collection_categories'] = CollectionCategoryResource::collection(
+                $this->collectionCategories
+            );
+        } else {
+            $data['collection_categories'] = [];
+        }
+
+        // Для совместимости
+        $data['products_count'] = $this->whenLoaded('collectionCategories', function () {
+            return $this->collectionCategories->sum(
+                fn ($cat) => $cat->products->count()
+            );
+        });
+
+        return $data;
     }
 }

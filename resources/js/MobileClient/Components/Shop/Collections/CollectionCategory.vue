@@ -43,8 +43,9 @@
                     <i v-else class="fa-regular fa-square"></i>
                 </div>
 
+                <!-- ✅ ПРАВИЛЬНО: Извлекаем URL из объекта -->
                 <img
-                    v-lazy="product.images?.[0]"
+                    v-lazy="product.images?.[0]?.url || '/no-image.png'"
                     :alt="product.name"
                     class="option-image"
                 >

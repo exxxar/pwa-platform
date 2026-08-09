@@ -147,7 +147,7 @@
                                             :key="item.product?.id"
                                             class="variant-item"
                                         >
-                                            <img v-lazy="item.product?.images?.[0]" class="variant-item-img">
+                                            <img v-lazy="item.product?.images?.[0]?.url" class="variant-item-img">
                                             <div class="variant-item-info">
                                                 <span class="variant-item-name">{{ item.product?.name || 'Неизвестный товар' }}</span>
                                                 <span class="variant-item-category">{{ item.category_name }}</span>
@@ -274,6 +274,11 @@ export default {
 
     methods: {
         open(collection) {
+            // 🛡️ Гарантируем что collection_categories существует
+            if (!collection.collection_categories) {
+                collection.collection_categories = [];
+            }
+
             this.collection = collection;
             this.visible = true;
             this.activeTab = 'build';
@@ -293,8 +298,11 @@ export default {
         initSelections() {
             this.selections = {};
             (this.collection?.collection_categories || []).forEach(cat => {
+                // 🛡️ Гарантируем что products существует
+                const products = cat.products || [];
+
                 if (cat.selection_rule === 'all') {
-                    this.selections[cat.id] = [...(cat.products || [])];
+                    this.selections[cat.id] = [...products];
                 } else {
                     this.selections[cat.id] = [];
                 }

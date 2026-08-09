@@ -190,14 +190,15 @@ export default {
         minPrice() {
             if (!this.item?.collection_categories) return 0;
 
-            return this.item.collection_categories.reduce((sum, cat) => {
+            const allPrices = [];
+            this.item.collection_categories.forEach(cat => {
                 const products = cat.products || [];
-                if (products.length === 0) return sum;
+                products.forEach(p => {
+                    if (p.price) allPrices.push(Number(p.price));
+                });
+            });
 
-                // Берем самый дешевый товар из категории
-                const minProductPrice = Math.min(...products.map(p => p.price || 0));
-                return sum + minProductPrice;
-            }, 0);
+            return allPrices.length > 0 ? Math.min(...allPrices) : 0;
         },
     },
 

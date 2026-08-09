@@ -39,7 +39,13 @@ class CollectionService
 
         $query = Collection::query()
             ->with(['collectionCategories' => function ($q) {
-                $q->orderBy('sort_order')->orderBy('id');
+                $q->with(['products' => function ($pq) {
+                    $pq->where('in_stop_list', false)
+                        ->whereNull('deleted_at')
+                        ->orderBy('collection_category_product.sort_order');
+                }])
+                    ->orderBy('sort_order')
+                    ->orderBy('id');
             }])
             ->where('tenant_id', $tenant->id);
 
