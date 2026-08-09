@@ -106,7 +106,7 @@ class ProductService
             ->with(['categories']);
 
         // Если есть пользователь — учитываем его историю
-        if ($userId) {
+       /* if ($userId) {
             $purchasedProductIds = \App\Models\Tenant\OrderProduct::whereHas('order', function ($q) use ($userId) {
                 $q->where('tenant_user_id', $userId);
             })->pluck('product_id')->toArray();
@@ -114,7 +114,7 @@ class ProductService
             if (!empty($purchasedProductIds)) {
                 $query->whereNotIn('id', $purchasedProductIds);
             }
-        }
+        }*/
 
         return $query->inRandomOrder()
             ->limit($limit)

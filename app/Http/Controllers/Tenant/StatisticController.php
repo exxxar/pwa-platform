@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\CashBack;
 use App\Models\Tenant\CashBackHistory;
 use App\Models\Tenant\Order;
-use App\Models\Tenant\OrderProduct;
+
 use App\Models\Tenant\TenantUser;
 use App\Models\Tenant\TrafficSource;
 use Carbon\Carbon;

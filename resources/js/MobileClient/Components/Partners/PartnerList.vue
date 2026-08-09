@@ -29,9 +29,7 @@
         <!-- ВКЛАДКА: ЗАВЕДЕНИЯ -->
         <!-- ========================================== -->
         <div v-if="activeMainTab === 'establishments'">
-            <!-- ========================================== -->
-            <!-- HERO SECTION (показывается по настройке) -->
-            <!-- ========================================== -->
+            <!-- HERO SECTION -->
             <div v-if="isHeroEnabled" class="hero-section" :style="heroBackgroundStyle">
                 <div class="hero-orb orb-1"></div>
                 <div class="hero-orb orb-2"></div>
@@ -49,116 +47,76 @@
                 </div>
             </div>
 
-            <!-- ========================================== -->
-            <!-- 🆕 КОМПАКТНАЯ ФУНКЦИОНАЛЬНАЯ ПАНЕЛЬ -->
-            <!-- (всегда видна, независимо от Hero) -->
-            <!-- ========================================== -->
-            <div class="functional-panel" :class="{ 'compact-mode': !isHeroEnabled }">
-                <!-- Поиск -->
-                <div class="search-container">
-                    <div class="search-box">
-                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                        <input
-                            v-model="searchQuery"
-                            type="text"
-                            class="search-input"
-                            :placeholder="dynamicHeroSettings.searchPlaceholder"
-                        >
-                        <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                </div>
+     
 
-                <!-- Категории -->
-                <div class="categories-row" v-if="dynamicCategories.length > 0">
+            <!-- ВОЗДУШНАЯ ПАНЕЛЬ ФИЛЬТРОВ + ВИД -->
+            <div class="filter-bar-wrapper" v-if="activeMainTab === 'establishments'">
+                <div class="filter-bar">
                     <button
-                        v-for="category in dynamicCategories"
-                        :key="category.id"
-                        class="category-pill"
-                        :class="{ 'active': selectedCategory === category.id }"
-                        @click="selectCategory(category.id)"
+                        class="view-orb"
+                        :class="{ 'active': viewMode === 'list' }"
+                        @click="viewMode = 'list'"
+                        title="Список"
                     >
-                        <span class="category-icon">{{ category.icon || '🍽️' }}</span>
-                        <span class="category-name">{{ category.name }}</span>
+                        <i class="fa-solid fa-list"></i>
                     </button>
-                </div>
 
-                <!-- Сервисы (только в полном режиме) -->
-                <div class="service-features-wrapper" v-if="isHeroEnabled && dynamicServices.length > 0">
-                    <div class="service-features">
-                        <div v-for="feature in dynamicServices" :key="feature.id" class="feature-item">
-                            <div class="feature-icon-wrapper"><i :class="feature.icon"></i></div>
-                            <span class="feature-label">{{ feature.label }}</span>
-                        </div>
-                    </div>
-                </div>
+                    <div class="bar-line"></div>
 
-                <!-- Переключатель вида -->
-                <div class="view-mode-toggle-wrapper">
-                    <div class="view-mode-toggle">
-                        <button
-                            class="view-btn"
-                            :class="{ 'active': viewMode === 'list' }"
-                            @click="viewMode = 'list'"
-                            title="Список"
-                        >
-                            <i class="fa-solid fa-list"></i>
-                        </button>
-                        <button
-                            class="view-btn"
-                            :class="{ 'active': viewMode === 'grid' }"
-                            @click="viewMode = 'grid'"
-                            title="Сетка"
-                        >
-                            <i class="fa-solid fa-grip"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- CUISINES SLIDER (Динамический заголовок и данные) -->
-            <div class="cuisines-section">
-                <div class="section-header">
-                    <h3 class="section-title">{{ uiSettings.cuisines_title || 'Популярные кухни' }}</h3>
-                    <button class="view-all-btn" @click="viewAllCuisines">
-                        <span>Смотреть все</span>
-                        <i class="fa-solid fa-chevron-right"></i>
-                    </button>
-                </div>
-                <!-- В блоке CUISINES SLIDER -->
-                <div class="cuisines-slider">
-                    <div
-                        v-for="cuisine in dynamicCuisines"
-                        :key="cuisine.id"
-                        class="cuisine-card"
-                        :class="{ 'active': selectedCuisine === cuisine.slug }"
-                        @click="selectCuisine(cuisine)"
-                    >
-                        <div class="cuisine-image-wrapper">
-                            <img :src="cuisine.image || getDefaultImage('pizza')" :alt="cuisine.name"
-                                 class="cuisine-image">
-                            <div class="cuisine-overlay"></div>
-                        </div>
-                        <div class="cuisine-info"><span class="cuisine-name">{{ cuisine.name }}</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ДИНАМИЧЕСКИЕ ФИЛЬТРЫ -->
-            <div class="filter-tabs-container" v-if="dynamicFilters.length > 0">
-                <div class="filter-tabs">
                     <button
-                        v-for="filterItem in dynamicFilters"
-                        :key="filterItem.id"
-                        class="filter-tab"
-                        :class="{ 'active': filter === filterItem.slug }"
-                        @click="filter = filterItem.slug"
+                        class="filter-orb"
+                        :class="{ 'has-active': totalFiltersCount > 0 }"
+                        @click="openFiltersModal"
                     >
-                        {{ filterItem.name }}
+                        <span class="orb-pulse" v-if="totalFiltersCount > 0"></span>
+                        <span class="orb-pulse delayed" v-if="totalFiltersCount > 0"></span>
+
+                        <div class="orb-icon">
+                            <i class="fa-solid fa-sliders"></i>
+                        </div>
+
+                        <transition name="badge-pop">
+                            <span v-if="totalFiltersCount > 0" class="orb-badge">
+                                {{ totalFiltersCount }}
+                            </span>
+                        </transition>
+                    </button>
+
+                    <div class="bar-line"></div>
+
+                    <button
+                        class="view-orb"
+                        :class="{ 'active': viewMode === 'grid' }"
+                        @click="viewMode = 'grid'"
+                        title="Сетка"
+                    >
+                        <i class="fa-solid fa-grip"></i>
                     </button>
                 </div>
             </div>
+
+            <!-- Сводка активных фильтров -->
+            <transition name="summary-slide">
+                <div class="filter-summary" v-if="totalFiltersCount > 0 && activeMainTab === 'establishments'">
+                    <span class="summary-text">{{ filtersSummaryText }}</span>
+                    <button class="summary-reset" @click="handleResetFilters" title="Сбросить">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </transition>
+
+            <!-- ПЛАВАЮЩАЯ КНОПКА СБРОСА (при прокрутке) -->
+            <transition name="reset-fab">
+                <button
+                    v-if="totalFiltersCount > 0 && activeMainTab === 'establishments' && scrollY > 300"
+                    class="reset-filters-fab"
+                    @click="handleResetFilters"
+                    title="Сбросить все фильтры"
+                >
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span v-if="totalFiltersCount > 0" class="fab-badge">{{ totalFiltersCount }}</span>
+                </button>
+            </transition>
 
             <div class="container px-3">
                 <div v-if="isPartnersLoading" class="loading-state">
@@ -187,7 +145,6 @@
 
                 <div v-else class="partners-list">
                     <div class="partners-grid mb-3" :class="{ 'grid-view': viewMode === 'grid' }">
-
                         <div v-for="partner in filteredPartners" :key="partner.id">
                             <PartnerCard
                                 :partner="partner"
@@ -198,14 +155,13 @@
                                 @show-location="showPartnerLocation"
                             />
                         </div>
-
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- ========================================== -->
-        <!-- ВКЛАДКА: ЗАКАЗЫ (без изменений) -->
+        <!-- ВКЛАДКА: ЗАКАЗЫ -->
         <!-- ========================================== -->
         <div v-else-if="activeMainTab === 'orders'" class="orders-tab-content">
             <div class="orders-hero">
@@ -327,40 +283,193 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- BOTTOM SHEET MODAL: ВСЕ КАТЕГОРИИ -->
+        <!-- 🆕 BOTTOM SHEET MODAL: ВСЕ ФИЛЬТРЫ -->
         <!-- ========================================== -->
         <transition name="bottom-sheet">
-            <div v-if="showCuisinesModal" class="cuisine-modal-backdrop" @click="closeCuisinesModal">
-                <div class="cuisine-modal-sheet" @click.stop>
+            <div v-if="showFiltersModal" class="filters-modal-backdrop" @click="closeFiltersModal">
+                <div class="filters-modal-sheet" @click.stop>
                     <div class="modal-handle"></div>
 
                     <div class="modal-header">
-                        <!-- Динамический заголовок модалки -->
-                        <h3 class="modal-title">Все
-                            {{ uiSettings.cuisines_title ? uiSettings.cuisines_title.toLowerCase() : 'кухни' }}</h3>
-                        <button class="modal-close-btn" @click="closeCuisinesModal">
+                        <h3 class="modal-title">
+                            <i class="fa-solid fa-sliders"></i>
+                            Фильтры
+                            <span v-if="totalFiltersCount > 0" class="modal-badge">{{ totalFiltersCount }}</span>
+                        </h3>
+                        <button class="modal-close-btn" @click="closeFiltersModal">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
 
-                    <!-- В блоке BOTTOM SHEET MODAL: ВСЕ КАТЕГОРИИ -->
-                    <div class="cuisine-modal-grid">
-                        <div
-                            v-for="cuisine in dynamicCuisines"
-                            :key="cuisine.id"
-                            class="cuisine-modal-card"
-                            :class="{ 'active': selectedCuisine === cuisine.slug }"
-                            @click="selectCuisineAndClose(cuisine)"
+                    <!-- 🆕 ПОИСК ВНУТРИ МОДАЛКИ -->
+                    <div class="modal-search-wrapper">
+                        <div class="modal-search-box">
+                            <i class="fa-solid fa-magnifying-glass modal-search-icon"></i>
+                            <input
+                                v-model="searchQuery"
+                                type="text"
+                                class="modal-search-input"
+                                placeholder="Поиск заведений, блюд..."
+                                ref="modalSearchInput"
+                            >
+                            <button
+                                v-if="searchQuery"
+                                class="modal-search-clear"
+                                @click="searchQuery = ''"
+                                type="button"
+                            >
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="modal-search-hint" v-if="searchQuery">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span>Найдено заведений: <strong>{{ filteredPartners.length }}</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ КУХОНЬ СВЕРХУ -->
+                    <div class="cuisines-scroll-wrapper" v-if="dynamicCuisines.length > 0">
+                        <div class="cuisines-scroll-label">
+                            <i class="fa-solid fa-utensils"></i>
+                            <span>Кухни мира</span>
+                        </div>
+                        <div class="cuisines-scroll">
+                            <button
+                                v-for="cuisine in filteredModalCuisines"
+                                :key="cuisine.id"
+                                class="cuisine-chip"
+                                :class="{ 'active': selectedCuisine === cuisine.slug }"
+                                @click="selectCuisine(cuisine)"
+                            >
+                                <div class="cuisine-chip-image">
+                                    <img :src="cuisine.image || getDefaultImage('pizza')" :alt="cuisine.name">
+                                </div>
+                                <span class="cuisine-chip-name">{{ cuisine.name }}</span>
+                                <i v-if="selectedCuisine === cuisine.slug" class="fa-solid fa-check cuisine-chip-check"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Вкладки -->
+                    <div class="filters-tabs">
+                        <button
+                            class="filter-tab-btn"
+                            :class="{ 'active': filtersTab === 'categories' }"
+                            @click="filtersTab = 'categories'"
                         >
-                            <div class="cuisine-modal-image-wrapper">
-                                <img :src="cuisine.image || getDefaultImage('pizza')" :alt="cuisine.name"
-                                     class="cuisine-modal-image">
-                                <div class="cuisine-modal-overlay"></div>
+                            <i class="fa-solid fa-tags"></i>
+                            <span>Категории</span>
+                            <span v-if="selectedCategory" class="tab-indicator"></span>
+                        </button>
+                        <button
+                            class="filter-tab-btn"
+                            :class="{ 'active': filtersTab === 'filters' }"
+                            @click="filtersTab = 'filters'"
+                        >
+                            <i class="fa-solid fa-filter"></i>
+                            <span>Фильтры</span>
+                            <span v-if="isCustomFilterActive" class="tab-indicator"></span>
+                        </button>
+                        <button
+                            class="filter-tab-btn"
+                            :class="{ 'active': filtersTab === 'view' }"
+                            @click="filtersTab = 'view'"
+                        >
+                            <i class="fa-solid fa-grip"></i>
+                            <span>Вид</span>
+                        </button>
+                    </div>
+
+                    <div class="filters-modal-body">
+                        <!-- ВКЛАДКА: КАТЕГОРИИ -->
+                        <div v-if="filtersTab === 'categories'" class="filters-section fade-in">
+                            <div class="filters-section-title">Выберите категорию</div>
+                            <div class="filters-grid" v-if="filteredModalCategories.length > 0">
+                                <button
+                                    v-for="category in filteredModalCategories"
+                                    :key="category.id"
+                                    class="filter-card"
+                                    :class="{ 'active': selectedCategory === category.id }"
+                                    @click="selectCategory(category.id)"
+                                >
+                                    <div class="filter-card-icon">{{ category.icon || '🍽️' }}</div>
+                                    <div class="filter-card-name">{{ category.name }}</div>
+                                    <i v-if="selectedCategory === category.id" class="fa-solid fa-check filter-card-check"></i>
+                                </button>
                             </div>
-                            <div class="cuisine-modal-info">
-                                <span class="cuisine-modal-name">{{ cuisine.name }}</span>
+                            <div v-else class="modal-empty-hint">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <span>По запросу "{{ searchQuery }}" ничего не найдено</span>
                             </div>
                         </div>
+
+                        <!-- ВКЛАДКА: ФИЛЬТРЫ -->
+                        <div v-if="filtersTab === 'filters'" class="filters-section fade-in">
+                            <div class="filters-section-title">Дополнительные фильтры</div>
+                            <div class="filters-list">
+                                <button
+                                    v-for="filterItem in dynamicFilters"
+                                    :key="filterItem.id"
+                                    class="filter-option"
+                                    :class="{ 'active': filter === filterItem.slug }"
+                                    @click="selectFilter(filterItem.slug)"
+                                >
+                                    <div class="filter-option-content">
+                                        <div class="filter-option-icon">
+                                            <i :class="getFilterIcon(filterItem.slug)"></i>
+                                        </div>
+                                        <span class="filter-option-name">{{ filterItem.name }}</span>
+                                    </div>
+                                    <i v-if="filter === filterItem.slug" class="fa-solid fa-check filter-option-check"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ВКЛАДКА: ВИД -->
+                        <div v-if="filtersTab === 'view'" class="filters-section fade-in">
+                            <div class="filters-section-title">Отображение</div>
+                            <div class="view-mode-grid">
+                                <button
+                                    class="view-mode-option"
+                                    :class="{ 'active': viewMode === 'list' }"
+                                    @click="viewMode = 'list'"
+                                >
+                                    <div class="view-mode-icon">
+                                        <i class="fa-solid fa-list"></i>
+                                    </div>
+                                    <div class="view-mode-info">
+                                        <div class="view-mode-title">Список</div>
+                                        <div class="view-mode-desc">Удобный просмотр деталей</div>
+                                    </div>
+                                    <i v-if="viewMode === 'list'" class="fa-solid fa-circle-check view-mode-check"></i>
+                                </button>
+
+                                <button
+                                    class="view-mode-option"
+                                    :class="{ 'active': viewMode === 'grid' }"
+                                    @click="viewMode = 'grid'"
+                                >
+                                    <div class="view-mode-icon">
+                                        <i class="fa-solid fa-grip"></i>
+                                    </div>
+                                    <div class="view-mode-info">
+                                        <div class="view-mode-title">Сетка</div>
+                                        <div class="view-mode-desc">Больше заведений на экране</div>
+                                    </div>
+                                    <i v-if="viewMode === 'grid'" class="fa-solid fa-circle-check view-mode-check"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Кнопка сброса -->
+                        <button
+                            v-if="hasActiveFilters"
+                            class="reset-filters-btn"
+                            @click="resetFilters"
+                        >
+                            <i class="fa-solid fa-rotate-left"></i>
+                            <span>Сбросить все фильтры</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -373,21 +482,6 @@
             @close="showLocationModal = false"
         />
 
-        <!-- ========================================== -->
-        <!-- 🆕 ПЛАВАЮЩАЯ КНОПКА СБРОСА ФИЛЬТРОВ -->
-        <!-- ========================================== -->
-        <transition name="reset-fab">
-            <button
-                v-if="hasActiveFilters && activeMainTab === 'establishments'"
-                class="reset-filters-fab"
-                @click="handleResetFilters"
-                title="Сбросить все фильтры"
-            >
-                <i class="fa-solid fa-rotate-left"></i>
-                <span class="fab-text">Сбросить</span>
-                <span v-if="activeFiltersCount > 0" class="fab-badge">{{ activeFiltersCount }}</span>
-            </button>
-        </transition>
     </div>
 </template>
 
@@ -411,6 +505,9 @@ export default {
 
     data() {
         return {
+            showFiltersModal: false,
+            filtersTab: 'categories',
+            scrollY: 0,
             showLocationModal: false,
             selectedPartnerForMap: null,
             activeMainTab: 'establishments',
@@ -423,12 +520,45 @@ export default {
             isPartnersLoading: false,
             ordersTab: 0,
             reviewsLoaded: false,
-            showCuisinesModal: false,
         };
     },
 
     computed: {
-        // 🎯 УНИВЕРСАЛЬНЫЙ UI SETTINGS
+        totalFiltersCount() {
+            let count = 0;
+            if (this.searchQuery && this.searchQuery.trim()) count++;
+            if (this.selectedCategory !== null) count++;
+            if (this.selectedCuisine !== null) count++;
+            const defaultFilter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
+            if (this.filter !== defaultFilter) count++;
+            return count;
+        },
+
+        isCustomFilterActive() {
+            const defaultFilter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
+            return this.filter !== defaultFilter;
+        },
+
+        filtersSummaryText() {
+            const parts = [];
+            if (this.selectedCategory) {
+                const cat = this.dynamicCategories.find(c => c.id === this.selectedCategory);
+                if (cat) parts.push(cat.icon + ' ' + cat.name);
+            }
+            if (this.selectedCuisine) {
+                const cu = this.dynamicCuisines.find(c => c.slug === this.selectedCuisine);
+                if (cu) parts.push(cu.name);
+            }
+            if (this.isCustomFilterActive) {
+                const f = this.dynamicFilters.find(f => f.slug === this.filter);
+                if (f) parts.push(f.name);
+            }
+            if (this.searchQuery && this.searchQuery.trim()) {
+                parts.push(`"${this.searchQuery.trim()}"`);
+            }
+            return parts.join(' · ') || 'Все заведения';
+        },
+
         uiSettings() {
             const tenant = window.Tenant || {};
             const fromMeta = tenant?.meta?.partners?.ui;
@@ -443,37 +573,29 @@ export default {
         },
 
         hasActiveFilters() {
-            const hasSearch = this.searchQuery && this.searchQuery.trim().length > 0;
-            const hasCategory = this.selectedCategory !== null;
-            const hasCuisine = this.selectedCuisine !== null;
-            const defaultFilter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
-            const hasCustomFilter = this.filter !== defaultFilter;
-            return hasSearch || hasCategory || hasCuisine || hasCustomFilter;
+            return this.totalFiltersCount > 0;
         },
 
-        activeFiltersCount() {
-            let count = 0;
-            if (this.searchQuery && this.searchQuery.trim()) count++;
-            if (this.selectedCategory !== null) count++;
-            if (this.selectedCuisine !== null) count++;
-            const defaultFilter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
-            if (this.filter !== defaultFilter) count++;
-            return count;
-        },
-
+        // 🎯 КУХНИ — ТОЛЬКО из cuisines (отдельный массив в настройках)
         dynamicCuisines() {
-            const cuisines = this.uiSettings.categories || this.uiSettings.cuisines;
+            const cuisines = this.uiSettings.cuisines;
             if (Array.isArray(cuisines) && cuisines.length > 0) return cuisines;
+            // Дефолтный набор кухонь (отличается от категорий!)
             return [
                 {id: 1, name: 'Итальянская', slug: 'italian', image: this.getDefaultImage('pizza')},
                 {id: 2, name: 'Японская', slug: 'japanese', image: this.getDefaultImage('sushi')},
-                {id: 3, name: 'Американская', slug: 'american', image: this.getDefaultImage('burger')}
+                {id: 3, name: 'Американская', slug: 'american', image: this.getDefaultImage('burger')},
+                {id: 4, name: 'Грузинская', slug: 'georgian', image: this.getDefaultImage('khachapuri')},
+                {id: 5, name: 'Азиатская', slug: 'asian', image: this.getDefaultImage('sushi')},
+                {id: 6, name: 'Европейская', slug: 'european', image: this.getDefaultImage('pasta')},
             ];
         },
 
+        // 🎯 КАТЕГОРИИ — ТОЛЬКО из categories (отдельный массив в настройках)
         dynamicCategories() {
-            const settings = this.uiSettings.categories || this.uiSettings.cuisines;
-            if (Array.isArray(settings) && settings.length > 0) return settings;
+            const categories = this.uiSettings.categories;
+            if (Array.isArray(categories) && categories.length > 0) return categories;
+            // Дефолтный набор категорий блюд (отличается от кухонь!)
             return [
                 {id: 1, name: 'Пицца', icon: '🍕', slug: 'pizza'},
                 {id: 2, name: 'Бургеры', icon: '🍔', slug: 'burgers'},
@@ -486,6 +608,30 @@ export default {
                 {id: 9, name: 'Паста', icon: '🍝', slug: 'pasta'},
                 {id: 10, name: 'Донер / Кебаб', icon: '🥙', slug: 'doner'},
             ];
+        },
+
+        // 🆕 Фильтрация категорий по поиску (для модалки)
+        filteredModalCategories() {
+            if (!this.searchQuery || !this.searchQuery.trim()) {
+                return this.dynamicCategories;
+            }
+            const q = this.searchQuery.toLowerCase().trim();
+            return this.dynamicCategories.filter(c =>
+                (c.name || '').toLowerCase().includes(q) ||
+                (c.slug || '').toLowerCase().includes(q)
+            );
+        },
+
+        // 🆕 Фильтрация кухонь по поиску (для модалки)
+        filteredModalCuisines() {
+            if (!this.searchQuery || !this.searchQuery.trim()) {
+                return this.dynamicCuisines;
+            }
+            const q = this.searchQuery.toLowerCase().trim();
+            return this.dynamicCuisines.filter(c =>
+                (c.name || '').toLowerCase().includes(q) ||
+                (c.slug || '').toLowerCase().includes(q)
+            );
         },
 
         dynamicHeroSettings() {
@@ -517,7 +663,7 @@ export default {
                     backgroundPosition: 'center'
                 };
             }
-            return { background: this.dynamicHeroSettings.backgroundColor };
+            return {background: this.dynamicHeroSettings.backgroundColor};
         },
 
         dynamicServices() {
@@ -542,17 +688,14 @@ export default {
             ];
         },
 
-        // 🎯 ВОТ ЭТИ COMPUTED БЫЛИ ПРОПУЩЕНЫ — ВОССТАНАВЛИВАЕМ
         activePartners() {
             const list = Array.isArray(this.partnerList) ? this.partnerList : [];
             return list.filter(p => p && p.is_active);
         },
 
         filteredPartners() {
-            // 🛡️ Защита: всегда возвращаем массив
             let list = [...(this.activePartners || [])];
 
-            // 1. Фильтр по вкладке
             if (this.filter === 'favorites') {
                 const favIds = Array.isArray(this.favoriteIds) ? this.favoriteIds.map(String) : [];
                 list = list.filter(p => favIds.includes(String(p.id)));
@@ -566,7 +709,6 @@ export default {
                 list = list.filter(p => (p.rating || 0) >= 4.5 || (p.order_position || 0) > 0);
             }
 
-            // 2. Поиск
             if (this.searchQuery && this.searchQuery.trim()) {
                 const query = this.searchQuery.toLowerCase().trim();
                 list = list.filter(p => {
@@ -577,7 +719,6 @@ export default {
                 });
             }
 
-            // 3. Категория
             if (this.selectedCategory) {
                 const selCatStr = String(this.selectedCategory);
                 list = list.filter(p => {
@@ -593,7 +734,6 @@ export default {
                 });
             }
 
-            // 4. Кухня
             if (this.selectedCuisine) {
                 const selCuisineStr = String(this.selectedCuisine);
                 list = list.filter(p => {
@@ -602,7 +742,6 @@ export default {
                 });
             }
 
-            // 5. Сортировка
             return list.sort((a, b) => {
                 const posA = a.order_position || 0;
                 const posB = b.order_position || 0;
@@ -635,9 +774,11 @@ export default {
 
                 let key, label;
                 if (date.toDateString() === today.toDateString()) {
-                    key = 'today'; label = 'Сегодня';
+                    key = 'today';
+                    label = 'Сегодня';
                 } else if (date.toDateString() === yesterday.toDateString()) {
-                    key = 'yesterday'; label = 'Вчера';
+                    key = 'yesterday';
+                    label = 'Вчера';
                 } else {
                     key = date.toISOString().split('T')[0];
                     label = date.toLocaleDateString('ru-RU', {
@@ -659,18 +800,28 @@ export default {
         }
     },
 
+    watch: {
+        // 🆕 При открытии модалки — фокус на поиск
+        showFiltersModal(val) {
+            if (val) {
+                this.$nextTick(() => {
+                    this.$refs.modalSearchInput?.focus();
+                });
+            }
+        }
+    },
+
     mounted() {
         this.filter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
         this.loadInitialData();
         if (this.loadOrders) this.loadOrders({page: 0, size: 20});
 
-        // 🎯 Слушаем обновление UI-настроек
         this._uiUpdateHandler = (event) => {
             console.log('🔄 UI настройки обновлены:', event.detail);
-            // Принудительно заставляем Vue пересчитать computed
             this.$forceUpdate();
         };
         window.addEventListener('partners-ui-updated', this._uiUpdateHandler);
+        window.addEventListener('scroll', this.handleScroll, {passive: true});
     },
 
     beforeUnmount() {
@@ -678,9 +829,30 @@ export default {
         if (this._uiUpdateHandler) {
             window.removeEventListener('partners-ui-updated', this._uiUpdateHandler);
         }
+        window.removeEventListener('scroll', this.handleScroll);
     },
 
     methods: {
+        openFiltersModal() {
+            this.showFiltersModal = true;
+            document.body.style.overflow = 'hidden';
+        },
+
+        closeFiltersModal() {
+            this.showFiltersModal = false;
+            document.body.style.overflow = '';
+        },
+
+        getFilterIcon(slug) {
+            const icons = {
+                'all': 'fa-solid fa-globe',
+                'favorites': 'fa-solid fa-heart',
+                'promo': 'fa-solid fa-percent',
+                'popular': 'fa-solid fa-fire',
+            };
+            return icons[slug] || 'fa-solid fa-filter';
+        },
+
         showPartnerLocation(partner) {
             this.selectedPartnerForMap = partner;
             this.showLocationModal = true;
@@ -718,36 +890,11 @@ export default {
         },
 
         selectCategory(categoryId) {
-            if (this.selectedCategory === categoryId) {
-                this.selectedCategory = null;
-            } else {
-                this.selectedCategory = categoryId;
-                this.selectedCuisine = null;
-            }
+            this.selectedCategory = this.selectedCategory === categoryId ? null : categoryId;
         },
 
         selectCuisine(cuisine) {
-            if (this.selectedCuisine === cuisine.slug) {
-                this.selectedCuisine = null;
-            } else {
-                this.selectedCuisine = cuisine.slug;
-                this.selectedCategory = null;
-            }
-        },
-
-        viewAllCuisines() {
-            this.showCuisinesModal = true;
-            document.body.style.overflow = 'hidden';
-        },
-
-        closeCuisinesModal() {
-            this.showCuisinesModal = false;
-            document.body.style.overflow = '';
-        },
-
-        selectCuisineAndClose(cuisine) {
-            this.selectCuisine(cuisine);
-            this.closeCuisinesModal();
+            this.selectedCuisine = this.selectedCuisine === cuisine.slug ? null : cuisine.slug;
         },
 
         selectPartner(partner) {
@@ -768,8 +915,6 @@ export default {
             return favs.some(id => String(id) === String(partnerId));
         },
 
-
-
         async switchOrdersTab(index) {
             this.ordersTab = index;
             if (index === 1 && !this.reviewsLoaded && this.loadReviews) {
@@ -781,7 +926,6 @@ export default {
         async repeatOrderHandler(item) {
             if (this.repeatOrder && this.clearCart && this.addProductToCart) {
                 try {
-                    // ✅ Используем устойчивый метод получения товаров
                     const products = this.getOrderProducts(item);
                     const productTitles = products.map(p => p.name || p.title).filter(Boolean);
                     const resp = await this.repeatOrder({products: productTitles});
@@ -798,6 +942,14 @@ export default {
                     console.error('Ошибка повторного заказа:', error);
                 }
             }
+        },
+
+        selectFilter(slug) {
+            this.filter = slug;
+        },
+
+        handleScroll() {
+            this.scrollY = window.scrollY;
         },
 
         pluralize(count, one, two, five) {
@@ -843,21 +995,16 @@ export default {
             }).format(num);
         },
 
-        // ✅ УСТОЙЧИВОСТЬ: Поддержка обоих форматов JSON из бэкенда
         getOrderProducts(order) {
             if (!order || !order.product_details) return [];
             const details = order.product_details;
-
-            // Вариант 1: Массив групп (стандартный)
             if (Array.isArray(details)) {
                 for (const group of details) {
                     if (group && Array.isArray(group.products)) {
                         return group.products;
                     }
                 }
-            }
-            // Вариант 2: Плоский объект (Fallback, как в бэкенде)
-            else if (typeof details === 'object' && details !== null && Array.isArray(details.products)) {
+            } else if (typeof details === 'object' && details !== null && Array.isArray(details.products)) {
                 return details.products;
             }
             return [];
@@ -884,13 +1031,9 @@ export default {
 
         handleResetFilters() {
             this.resetFilters();
-            // Плавно скроллим страницу наверх
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({top: 0, behavior: 'smooth'});
         },
-
     },
-
-
 };
 </script>
 
@@ -913,7 +1056,7 @@ $warning: #f59e0b;
 $info: #3b82f6;
 
 // ==========================================
-// MODERN STICKY TABS (Адаптивные табы)
+// MODERN STICKY TABS
 // ==========================================
 .modern-tabs-wrapper {
     position: sticky;
@@ -928,7 +1071,6 @@ $info: #3b82f6;
     justify-content: center;
 
     @media (max-width: 768px) {
-        justify-content: center;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         &::-webkit-scrollbar {
@@ -940,7 +1082,6 @@ $info: #3b82f6;
 .modern-tabs {
     display: inline-flex;
     gap: 8px;
-
     background: rgba(0, 0, 0, 0.04);
     padding: 4px;
     border-radius: 16px;
@@ -974,7 +1115,7 @@ $info: #3b82f6;
 }
 
 // ==========================================
-// HERO SECTION (Адаптивный Hero)
+// HERO SECTION
 // ==========================================
 .hero-section {
     position: relative;
@@ -1196,44 +1337,6 @@ $info: #3b82f6;
     }
 }
 
-// Горизонтальный скролл для мобильных (категории и фичи)
-.categories-row, .service-features {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding: 4px 4px 12px 4px;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
-
-    &::-webkit-scrollbar {
-        display: none;
-    }
-}
-
-.category-pill {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 18px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 50px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.2s;
-    scroll-snap-align: start;
-
-    &.active {
-        background: #3b82f6;
-        color: #ffffff;
-        border-color: #3b82f6;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-    }
-}
-
 .service-features-wrapper {
     margin: 24px auto 0;
     max-width: 600px;
@@ -1272,236 +1375,305 @@ $info: #3b82f6;
 }
 
 // ==========================================
-// 🆕 ПЕРЕКЛЮЧАТЕЛЬ ВИДА (Внизу слева)
+// 🎯 ВОЗДУШНАЯ ПАНЕЛЬ ФИЛЬТРОВ + ВИД
 // ==========================================
-.view-mode-toggle-wrapper {
-    margin-top: 32px;
-    display: flex;
-    justify-content: flex-start; // Выравнивание по левому краю
-
-    @media (max-width: 768px) {
-        margin-top: 24px;
-        // На мобильных можно оставить слева или сделать по центру,
-        // но раз вам понравилось слева, оставляем flex-start
-    }
-}
-
-.view-mode-toggle {
-    display: inline-flex;
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.view-btn {
-    width: 40px;
-    height: 40px;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    color: #94a3b8;
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-
-    &.active {
-        background: #3b82f6;
-        color: #ffffff;
-        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-    }
-
-    &:hover:not(.active) {
-        background: #f1f5f9;
-        color: #475569;
-    }
-}
-
-.view-btn {
-    width: 36px;
-    height: 36px;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    color: #94a3b8;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &.active {
-        background: #3b82f6;
-        color: #ffffff;
-    }
-}
-
-// ==========================================
-// CUISINES SLIDER (Адаптивный слайдер)
-// ==========================================
-.cuisines-section {
-    padding: 32px 0 16px;
-}
-
-.section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    margin-bottom: 16px;
-}
-
-.section-title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #1e293b;
-    margin: 0;
-}
-
-.view-all-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: transparent;
-    border: none;
-    color: #3b82f6;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.2s;
-
-    &:hover {
-        opacity: 0.8;
-    }
-}
-
-.cuisines-slider {
-    display: flex;
-    gap: 16px;
-    overflow-x: auto;
-    padding: 8px 16px 24px;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
-
-    &::-webkit-scrollbar {
-        display: none;
-    }
-}
-
-.cuisine-card {
-    flex-shrink: 0;
-    width: 140px;
-    cursor: pointer;
-    scroll-snap-align: start;
-    transition: transform 0.2s;
-
-    &.active {
-        transform: scale(1.05);
-    }
-
-    @media (max-width: 768px) {
-        width: 120px;
-    }
-}
-
-.cuisine-image-wrapper {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1;
-    border-radius: 20px;
-    overflow: hidden;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-    margin-bottom: 8px;
-}
-
-.cuisine-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.3s;
-}
-
-.cuisine-card:hover .cuisine-image {
-    transform: scale(1.1);
-}
-
-.cuisine-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.4) 0%, transparent 60%);
-}
-
-.cuisine-info {
-    text-align: center;
-}
-
-.cuisine-name {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #334155;
-}
-
-// ==========================================
-// FILTER TABS (Липкие фильтры)
-// ==========================================
-.filter-tabs-container {
+.filter-bar-wrapper {
     position: sticky;
-    top: 65px; /* Подстраивается под высоту modern-tabs-wrapper */
+    top: 65px;
     z-index: 90;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px);
-    padding: 12px 16px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    margin-bottom: 16px;
+    padding: 20px 16px;
+    background: transparent;
+    display: flex;
+    justify-content: center;
 
     @media (max-width: 768px) {
         top: 84px;
+        padding: 16px 12px;
     }
 }
 
-.filter-tabs {
+.filter-bar {
     display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 4px;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 20px;
+    max-width: 380px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 50px;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.08),
+        0 2px 8px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    transition: all 0.3s ease;
 
-    &::-webkit-scrollbar {
-        display: none;
+    &:hover {
+        box-shadow:
+            0 12px 40px rgba(0, 0, 0, 0.1),
+            0 4px 12px rgba(0, 0, 0, 0.05),
+            inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    @media (max-width: 768px) {
+        gap: 10px;
+        padding: 6px 14px;
+        max-width: 340px;
     }
 }
 
-.filter-tab {
-    flex-shrink: 0;
-    padding: 8px 16px;
-    background: #f1f5f9;
-    border: 1px solid transparent;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #64748b;
+.bar-line {
+    flex: 0 0 1px;
+    width: 1px;
+    height: 24px;
+    background: linear-gradient(
+            to bottom,
+            transparent 0%,
+            rgba($primary, 0.25) 30%,
+            rgba($primary, 0.4) 50%,
+            rgba($primary, 0.25) 70%,
+            transparent 100%
+    );
+    border-radius: 1px;
+}
+
+.view-orb {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.6);
+    color: $text-muted;
     cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+
+    @media (max-width: 768px) {
+        width: 32px;
+        height: 32px;
+        font-size: 0.8rem;
+    }
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.95);
+        color: $primary;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba($primary, 0.15);
+    }
+
+    &:active {
+        transform: translateY(0) scale(0.95);
+    }
 
     &.active {
-        background: #1e293b;
-        color: #ffffff;
+        background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba($primary, 0.35);
+
+        &:hover {
+            color: white;
+            box-shadow: 0 6px 16px rgba($primary, 0.45);
+        }
+    }
+}
+
+.filter-orb {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+        0 6px 20px rgba($primary, 0.4),
+        0 2px 8px rgba($primary, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+        width: 46px;
+        height: 46px;
+    }
+
+    &:hover {
+        transform: scale(1.08) translateY(-2px);
+        box-shadow:
+            0 10px 28px rgba($primary, 0.5),
+            0 4px 12px rgba($primary, 0.3);
+
+        .orb-icon {
+            transform: rotate(15deg);
+        }
+    }
+
+    &:active {
+        transform: scale(0.95);
+    }
+
+    &.has-active {
+        background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+        box-shadow:
+            0 6px 20px rgba(236, 72, 153, 0.4),
+            0 2px 8px rgba(139, 92, 246, 0.3);
+
+        &:hover {
+            box-shadow:
+                0 10px 28px rgba(236, 72, 153, 0.5),
+                0 4px 12px rgba(139, 92, 246, 0.4);
+        }
+    }
+}
+
+.orb-icon {
+    color: white;
+    font-size: 1.2rem;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 2;
+
+    @media (max-width: 768px) {
+        font-size: 1.05rem;
+    }
+}
+
+.orb-pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+    animation: orbPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    z-index: 0;
+
+    &.delayed {
+        animation-delay: 1s;
+    }
+}
+
+@keyframes orbPulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+    100% {
+        transform: scale(1.7);
+        opacity: 0;
+    }
+}
+
+.orb-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: #ffffff;
+    color: $primary;
+    border-radius: 11px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+    z-index: 3;
+    border: 2px solid $primary;
+}
+
+.filter-summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 16px;
+    margin: -8px auto 16px;
+    max-width: 90%;
+    width: fit-content;
+    background: rgba($primary, 0.08);
+    border: 1px solid rgba($primary, 0.15);
+    border-radius: 50px;
+
+    .summary-text {
+        font-size: 0.85rem;
+        color: $text;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 300px;
+    }
+
+    .summary-reset {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba($danger, 0.1);
+        color: $danger;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        transition: all 0.2s;
+        flex-shrink: 0;
+
+        &:hover {
+            background: $danger;
+            color: white;
+            transform: rotate(90deg);
+        }
+    }
+}
+
+.summary-slide-enter-active,
+.summary-slide-leave-active {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.summary-slide-enter-from,
+.summary-slide-leave-to {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+.badge-pop-enter-active {
+    animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.badge-pop-leave-active {
+    animation: badgePop 0.3s ease reverse;
+}
+
+@keyframes badgePop {
+    0% {
+        opacity: 0;
+        transform: scale(0) rotate(-180deg);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
     }
 }
 
 // ==========================================
-// 🆕 ВКЛАДКА ЗАКАЗОВ (Orders Tab)
+// ORDERS TAB
 // ==========================================
 .orders-tab-content {
     animation: fadeIn 0.3s ease;
 }
 
-// Hero секция заказов
 .orders-hero {
     position: relative;
     padding: 48px 32px;
@@ -1554,8 +1726,12 @@ $info: #3b82f6;
 }
 
 @keyframes floatIcon {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-6px);
+    }
 }
 
 .hero-title-orders {
@@ -1564,7 +1740,9 @@ $info: #3b82f6;
     margin: 0;
     letter-spacing: -0.02em;
 
-    @media (max-width: 768px) { font-size: 1.5rem; }
+    @media (max-width: 768px) {
+        font-size: 1.5rem;
+    }
 }
 
 .hero-subtitle-orders {
@@ -1573,12 +1751,11 @@ $info: #3b82f6;
     margin: 0;
     max-width: 400px;
 
-    @media (max-width: 768px) { font-size: 0.9rem; }
+    @media (max-width: 768px) {
+        font-size: 0.9rem;
+    }
 }
 
-// ==========================================
-// ТАБЫ ВНУТРИ ЗАКАЗОВ
-// ==========================================
 .orders-tabs-wrapper {
     margin-bottom: 20px;
     background: $bg;
@@ -1610,7 +1787,9 @@ $info: #3b82f6;
     transition: all 0.2s;
     position: relative;
 
-    i { font-size: 1rem; }
+    i {
+        font-size: 1rem;
+    }
 
     &:hover {
         background: $bg-secondary;
@@ -1639,9 +1818,6 @@ $info: #3b82f6;
     }
 }
 
-// ==========================================
-// ИНФОРМАЦИОННЫЙ БАННЕР
-// ==========================================
 .info-banner {
     display: flex;
     align-items: flex-start;
@@ -1660,8 +1836,14 @@ $info: #3b82f6;
 }
 
 @keyframes slideInLeft {
-    from { opacity: 0; transform: translateX(-10px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 .info-icon {
@@ -1683,12 +1865,11 @@ $info: #3b82f6;
     color: $text;
     line-height: 1.5;
 
-    strong { color: $primary; }
+    strong {
+        color: $primary;
+    }
 }
 
-// ==========================================
-// ГРУППЫ ЗАКАЗОВ (по датам)
-// ==========================================
 .orders-list {
     display: flex;
     flex-direction: column;
@@ -1734,9 +1915,6 @@ $info: #3b82f6;
     font-weight: 600;
 }
 
-// ==========================================
-// КАРТОЧКА ЗАКАЗА
-// ==========================================
 .order-card {
     background: $bg;
     border: 1px solid $border;
@@ -1752,7 +1930,9 @@ $info: #3b82f6;
         border-color: rgba($primary, 0.3);
     }
 
-    &:last-child { margin-bottom: 0; }
+    &:last-child {
+        margin-bottom: 0;
+    }
 
     @media (max-width: 768px) {
         padding: 16px;
@@ -1796,19 +1976,21 @@ $info: #3b82f6;
     letter-spacing: 0.5px;
     white-space: nowrap;
 
-    // Статусы (подставьте свои классы)
     &.new, &.pending {
         background: rgba($warning, 0.1);
         color: darken($warning, 15%);
     }
+
     &.processing, &.cooking {
         background: rgba($primary, 0.1);
         color: $primary;
     }
+
     &.ready, &.delivered, &.completed {
         background: rgba($success, 0.1);
         color: $success;
     }
+
     &.cancelled {
         background: rgba($danger, 0.1);
         color: $danger;
@@ -1823,7 +2005,10 @@ $info: #3b82f6;
     color: $text-muted;
     margin-bottom: 12px;
 
-    i { color: $primary; font-size: 0.9rem; }
+    i {
+        color: $primary;
+        font-size: 0.9rem;
+    }
 }
 
 .order-products {
@@ -1909,21 +2094,17 @@ $info: #3b82f6;
         box-shadow: 0 6px 16px rgba($primary, 0.3);
     }
 
-    i { font-size: 1rem; }
+    i {
+        font-size: 1rem;
+    }
 }
 
-// ==========================================
-// СПИСОК ОТЗЫВОВ
-// ==========================================
 .reviews-list {
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
 
-// ==========================================
-// ПУСТОЕ СОСТОЯНИЕ
-// ==========================================
 .empty-state {
     display: flex;
     flex-direction: column;
@@ -1991,9 +2172,6 @@ $info: #3b82f6;
     }
 }
 
-// ==========================================
-// СОСТОЯНИЕ ЗАГРУЗКИ (Skeleton)
-// ==========================================
 .loading-state {
     display: flex;
     flex-direction: column;
@@ -2036,9 +2214,17 @@ $info: #3b82f6;
     100% { background-position: -200% 0; }
 }
 
-// ==========================================
-// АДАПТИВ ДЛЯ ВКЛАДКИ ЗАКАЗОВ
-// ==========================================
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 @media (max-width: 768px) {
     .orders-tabs-container {
         flex-direction: row;
@@ -2076,7 +2262,7 @@ $info: #3b82f6;
 }
 
 // ==========================================
-// 🆕 АДАПТИВНАЯ СЕТКА ПАРТНЕРОВ (List / Grid)
+// PARTNERS GRID
 // ==========================================
 .partners-list {
     width: 100%;
@@ -2084,61 +2270,47 @@ $info: #3b82f6;
 
 .partners-grid {
     display: grid;
-    gap: 16px; // Отступы между карточками (заменяет необходимость в mb-2, но можно оставить для совместимости)
-
-    // 📱 МОБИЛЬНЫЕ УСТРОЙСТВА (по умолчанию, < 768px)
-    // Список: 1 карточка в ряд
-    // Сетка: 2 карточки в ряд (чтобы на телефоне это все еще выглядело как сетка)
+    gap: 16px;
     grid-template-columns: 1fr;
 
     &.grid-view {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    // 💻 ПЛАНШЕТЫ (md >= 768px)
     @media (min-width: 768px) {
-        // Список: 2 карточки в ряд
         grid-template-columns: repeat(2, 1fr);
 
         &.grid-view {
-            // Сетка: 3 карточки в ряд
             grid-template-columns: repeat(3, 1fr);
         }
     }
 
-    // 🖥️ ДЕСКТОП (lg >= 992px)
     @media (min-width: 992px) {
-        // Список: 3 карточки в ряд
         grid-template-columns: repeat(3, 1fr);
 
         &.grid-view {
-            // Сетка: 5 карточек в ряд
             grid-template-columns: repeat(5, 1fr);
         }
     }
 
-    // 🖥️ БОЛЬШИЕ ДЕСКТОПЫ (xl >= 1200px) - опционально, чтобы не растягивались слишком сильно
     @media (min-width: 1200px) {
         &.grid-view {
-            grid-template-columns: repeat(5, 1fr); // Можно оставить 5 или увеличить до 6
+            grid-template-columns: repeat(5, 1fr);
         }
     }
 }
 
-// Небольшая оптимизация для карточки внутри грида, чтобы она занимала всю высоту ячейки
 .partners-grid > div {
     height: 100%;
     display: flex;
     flex-direction: column;
-
-    // Убираем лишний нижний отступ, так как gap в grid уже дает пространство
     margin-bottom: 0 !important;
 }
 
 // ==========================================
-// 🆕 BOTTOM SHEET MODAL (CUISINES)
+// 🆕 BOTTOM SHEET MODAL: ФИЛЬТРЫ
 // ==========================================
-.cuisine-modal-backdrop {
+.filters-modal-backdrop {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
@@ -2149,7 +2321,7 @@ $info: #3b82f6;
     justify-content: center;
 }
 
-.cuisine-modal-sheet {
+.filters-modal-sheet {
     background: #ffffff;
     width: 100%;
     max-width: 600px;
@@ -2176,16 +2348,23 @@ $info: #3b82f6;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
-    padding: 0 8px;
+    margin-bottom: 12px;
+    padding: 0 4px;
     flex-shrink: 0;
 }
 
 .modal-title {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     font-weight: 700;
     color: #1e293b;
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    i {
+        color: $primary;
+    }
 }
 
 .modal-close-btn {
@@ -2208,64 +2387,609 @@ $info: #3b82f6;
     }
 }
 
-.cuisine-modal-grid {
+.modal-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+    color: white;
+    border-radius: 11px;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+// ==========================================
+// 🆕 ПОИСК ВНУТРИ МОДАЛКИ
+// ==========================================
+.modal-search-wrapper {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid $border;
+}
+
+.modal-search-box {
+    position: relative;
+    width: 100%;
+}
+
+.modal-search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 0.95rem;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.modal-search-input {
+    width: 100%;
+    padding: 14px 44px 14px 44px;
+    border: 2px solid #e2e8f0;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    background: $bg-secondary;
+    color: $text;
+    transition: all 0.25s ease;
+    box-sizing: border-box;
+
+    &::placeholder {
+        color: #94a3b8;
+    }
+
+    &:focus {
+        outline: none;
+        background: #ffffff;
+        border-color: $primary;
+        box-shadow: 0 0 0 4px rgba($primary, 0.1);
+    }
+}
+
+.modal-search-clear {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+    z-index: 1;
+
+    &:hover {
+        background: $danger;
+        color: white;
+    }
+}
+
+.modal-search-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba($primary, 0.08);
+    border-radius: 10px;
+    font-size: 0.8rem;
+    color: $text-muted;
+
+    i {
+        color: $primary;
+        font-size: 0.85rem;
+    }
+
+    strong {
+        color: $primary;
+        font-weight: 700;
+    }
+}
+
+// ==========================================
+// ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ КУХОНЬ СВЕРХУ
+// ==========================================
+.cuisines-scroll-wrapper {
+    padding: 0 4px 16px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid $border;
+}
+
+.cuisines-scroll-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 0 4px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: $text;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+
+    i {
+        color: #ec4899;
+        font-size: 0.9rem;
+    }
+}
+
+.cuisines-scroll {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 4px 4px 8px;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+
+    scrollbar-width: none;
+}
+
+.cuisine-chip {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    scroll-snap-align: start;
+
+    &:hover {
+        transform: translateY(-2px);
+    }
+
+    &:active {
+        transform: scale(0.95);
+    }
+}
+
+.cuisine-chip-image {
+    position: relative;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid transparent;
+    background: $bg-secondary;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s ease;
+    }
+
+    .cuisine-chip:hover & img {
+        transform: scale(1.1);
+    }
+
+    .cuisine-chip.active & {
+        border-color: $primary;
+        box-shadow: 0 6px 16px rgba($primary, 0.35);
+    }
+}
+
+.cuisine-chip-name {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: $text-muted;
+    max-width: 72px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
+    transition: color 0.2s ease;
+
+    .cuisine-chip.active & {
+        color: $primary;
+    }
+}
+
+.cuisine-chip-check {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: $primary;
+    color: white;
+    font-size: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    border: 2px solid white;
+    z-index: 2;
+    animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes checkPop {
+    0% {
+        transform: scale(0);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+// ==========================================
+// МОДАЛКА — ПУСТАЯ ПОДСКАЗКА
+// ==========================================
+.modal-empty-hint {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    color: $text-muted;
+
+    i {
+        font-size: 2rem;
+        color: #cbd5e1;
+    }
+
+    span {
+        font-size: 0.9rem;
+        font-weight: 500;
+        max-width: 240px;
+        line-height: 1.4;
+    }
+}
+
+// Вкладки
+.filters-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 4px;
+    border-bottom: 1px solid $border;
+    background: $bg;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 16px;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.filter-tab-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 14px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: $text-muted;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+
+    i {
+        font-size: 0.95rem;
+    }
+
+    &:hover {
+        color: $text;
+    }
+
+    &.active {
+        color: $primary;
+        border-bottom-color: $primary;
+    }
+}
+
+.tab-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ec4899;
+    animation: indicatorPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes indicatorPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.2);
+    }
+}
+
+.filters-modal-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.filters-section {
+    flex: 1;
+}
+
+.filters-section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: $text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    padding: 0 4px;
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+.filters-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    overflow-y: auto;
+    gap: 10px;
 
     @media (max-width: 480px) {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
-.cuisine-modal-card {
+.filter-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    background: $bg-secondary;
+    border: 2px solid transparent;
+    border-radius: 14px;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: rgba($primary, 0.05);
+        border-color: rgba($primary, 0.2);
+        transform: translateY(-2px);
+    }
 
     &.active {
-        transform: scale(1.05);
+        background: rgba($primary, 0.1);
+        border-color: $primary;
     }
 }
 
-.cuisine-modal-image-wrapper {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1;
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    margin-bottom: 8px;
+.filter-card-icon {
+    font-size: 1.8rem;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
-.cuisine-modal-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.cuisine-modal-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.4) 0%, transparent 60%);
-}
-
-.cuisine-modal-info {
+.filter-card-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $text;
     text-align: center;
+    line-height: 1.2;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.cuisine-modal-name {
+.filter-card-check {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: $primary;
+    color: white;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.filters-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.filter-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: $bg-secondary;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: rgba($primary, 0.05);
+        border-color: rgba($primary, 0.2);
+    }
+
+    &.active {
+        background: rgba($primary, 0.1);
+        border-color: $primary;
+    }
+}
+
+.filter-option-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.filter-option-icon {
+    width: 36px;
+    height: 36px;
+    background: rgba($primary, 0.1);
+    color: $primary;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.filter-option.active .filter-option-icon {
+    background: $primary;
+    color: white;
+}
+
+.filter-option-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: $text;
+}
+
+.filter-option-check {
+    font-size: 1.1rem;
+    color: $primary;
+    flex-shrink: 0;
+}
+
+.view-mode-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.view-mode-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    background: $bg-secondary;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+
+    &:hover {
+        background: rgba($primary, 0.05);
+        border-color: rgba($primary, 0.2);
+    }
+
+    &.active {
+        background: rgba($primary, 0.1);
+        border-color: $primary;
+    }
+}
+
+.view-mode-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba($primary, 0.1);
+    color: $primary;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+
+    .view-mode-option.active & {
+        background: $primary;
+        color: white;
+    }
+}
+
+.view-mode-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.view-mode-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: $text;
+    margin-bottom: 2px;
+}
+
+.view-mode-desc {
+    font-size: 0.8rem;
+    color: $text-muted;
+    line-height: 1.3;
+}
+
+.view-mode-check {
+    font-size: 1.3rem;
+    color: $primary;
+    flex-shrink: 0;
+    animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.reset-filters-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px;
+    background: rgba($danger, 0.1);
+    color: $danger;
+    border: 2px solid rgba($danger, 0.2);
+    border-radius: 12px;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 8px;
+
+    &:hover {
+        background: $danger;
+        color: white;
+        border-color: $danger;
+    }
 }
 
-// Transition для bottom sheet
 .bottom-sheet-enter-active,
 .bottom-sheet-leave-active {
     transition: opacity 0.3s ease;
 
-    .cuisine-modal-sheet {
+    .filters-modal-sheet {
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 }
@@ -2274,18 +2998,18 @@ $info: #3b82f6;
 .bottom-sheet-leave-to {
     opacity: 0;
 
-    .cuisine-modal-sheet {
+    .filters-modal-sheet {
         transform: translateY(100%);
     }
 }
 
 // ==========================================
-// 🆕 ПЛАВАЮЩАЯ КНОПКА СБРОСА ФИЛЬТРОВ (FAB)
+// ПЛАВАЮЩАЯ КНОПКА СБРОСА (FAB)
 // ==========================================
 .reset-filters-fab {
     position: fixed;
     left: 16px;
-    bottom: 80px; // ⬇️ над нижним меню (поправьте под вашу высоту нижнего меню)
+    bottom: 80px;
     z-index: 500;
 
     display: inline-flex;
@@ -2301,7 +3025,6 @@ $info: #3b82f6;
     font-weight: 600;
     cursor: pointer;
     box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4), 0 4px 8px rgba(0, 0, 0, 0.1);
-
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     white-space: nowrap;
 
@@ -2323,10 +3046,6 @@ $info: #3b82f6;
         transform: translateY(0) scale(0.97);
     }
 
-    .fab-text {
-        line-height: 1;
-    }
-
     .fab-badge {
         display: inline-flex;
         align-items: center;
@@ -2342,21 +3061,15 @@ $info: #3b82f6;
         line-height: 1;
     }
 
-    // 📱 На маленьких экранах можно свернуть в круг с иконкой
     @media (max-width: 400px) {
         padding: 14px;
-        border-radius: 10px;
-        width: 77px;
-        height: 36px;
+        border-radius: 50%;
+        width: 52px;
+        height: 52px;
         justify-content: center;
-
-        .fab-text {
-            display: none;
-        }
     }
 }
 
-// Анимация появления/исчезновения FAB
 .reset-fab-enter-active,
 .reset-fab-leave-active {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -2369,7 +3082,7 @@ $info: #3b82f6;
 }
 
 // ==========================================
-// 🆕 КОМПАКТНАЯ ФУНКЦИОНАЛЬНАЯ ПАНЕЛЬ
+// ФУНКЦИОНАЛЬНАЯ ПАНЕЛЬ
 // ==========================================
 .functional-panel {
     padding: 20px;
@@ -2377,7 +3090,6 @@ $info: #3b82f6;
     margin: 0 auto 16px;
     transition: all 0.3s ease;
 
-    // Когда Hero выключен — панель становится более заметной
     &.compact-mode {
         padding-top: 24px;
         padding-bottom: 16px;
@@ -2451,18 +3163,20 @@ $info: #3b82f6;
         }
     }
 
-    .categories-row {
-        margin-bottom: 16px;
-    }
-
-    .view-mode-toggle-wrapper {
-        margin-top: 16px;
+    .service-features {
         display: flex;
-        justify-content: flex-start;
+        gap: 10px;
+        overflow-x: auto;
+        padding: 4px 4px 12px 4px;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory;
+
+        &::-webkit-scrollbar {
+            display: none;
+        }
     }
 }
 
-// Адаптивность для компактного режима
 @media (max-width: 768px) {
     .functional-panel {
         padding: 16px;
