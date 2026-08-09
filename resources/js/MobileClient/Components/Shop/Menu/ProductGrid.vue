@@ -32,7 +32,7 @@
                             :remaining="cat.products_count - cat.products.length"
                             :is-loading="isLoadingMore"
                             :disabled="isLoadingMore"
-                            @load-more="$emit('load-more', cat.id, cat.products.length)"
+                            @load-more="$emit('load-more', cat.id)"
                         />
                     </div>
                 </template>

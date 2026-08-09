@@ -1,6 +1,6 @@
 <template>
     <div class="address-list-container mb-3">
-        <!-- HEADER (без изменений) -->
+        <!-- HEADER -->
         <div class="address-header">
             <div class="header-content">
                 <div class="header-icon">
@@ -50,68 +50,103 @@
                     v-for="item in displayedAddresses"
                     :key="item.id"
                     class="address-card"
+                    :data-address-id="item.id"
                     :class="{
-                        'is-selected': modelValue?.id === item.id,
-                        'is-default': item.is_default
-                    }"
+        'is-selected': modelValue?.id === item.id,
+        'is-default': item.is_default
+    }"
                     @click="selectAddress(item)"
                 >
-                    <div class="address-radio">
-                        <div class="radio-outer">
-                            <div class="radio-inner"></div>
+                    <!-- 🎯 ВНУТРЕННИЙ КОНТЕЙНЕР -->
+                    <div class="address-card-inner">
+                        <div class="address-radio">
+                            <div class="radio-outer">
+                                <div class="radio-inner"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="address-content">
-                        <div class="address-title-row">
-                            <h6 class="address-title">{{ item.title }}</h6>
-                            <span v-if="item.is_default" class="default-badge">
-                                <i class="fa-solid fa-star"></i>
-                                Основной
-                            </span>
+                        <div class="address-content">
+                            <div class="address-title-row">
+                                <h6 class="address-title">{{ item.title }}</h6>
+                                <span v-if="item.is_default" class="default-badge">
+                    <i class="fa-solid fa-star"></i>
+                    Основной
+                </span>
+                            </div>
+                            <p class="address-text">{{ item.address }}</p>
+
+                            <transition name="slide-down">
+                                <div v-if="isExpanded" class="address-details">
+                                    <div v-if="item.city" class="detail-item">
+                                        <i class="fa-solid fa-city"></i>
+                                        <span>{{ item.city }}</span>
+                                    </div>
+                                    <div v-if="item.street" class="detail-item">
+                                        <i class="fa-solid fa-road"></i>
+                                        <span>{{ item.street }}</span>
+                                    </div>
+                                </div>
+                            </transition>
                         </div>
-                        <p class="address-text">{{ item.address }}</p>
 
-                        <transition name="slide-down">
-                            <div v-if="isExpanded" class="address-details">
-                                <div v-if="item.city" class="detail-item">
-                                    <i class="fa-solid fa-city"></i>
-                                    <span>{{ item.city }}</span>
-                                </div>
-                                <div v-if="item.street" class="detail-item">
-                                    <i class="fa-solid fa-road"></i>
-                                    <span>{{ item.street }}</span>
-                                </div>
+                        <transition name="fade">
+                            <div v-if="isExpanded" class="address-actions">
+                                <button
+                                    v-if="!item.is_default"
+                                    type="button"
+                                    class="action-btn set-default-btn"
+                                    @click.stop="setDefault(item)"
+                                    title="Сделать основным"
+                                >
+                                    <i class="fa-solid fa-star"></i>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="action-btn remove-btn"
+                                    @click.stop="remove(item.id)"
+                                    title="Удалить адрес"
+                                >
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
                             </div>
                         </transition>
                     </div>
 
-                    <transition name="fade">
-                        <div v-if="isExpanded" class="address-actions">
-                            <button
-                                v-if="!item.is_default"
-                                type="button"
-                                class="action-btn set-default-btn"
-                                @click.stop="setDefault(item)"
-                                title="Сделать основным"
-                            >
-                                <i class="fa-solid fa-star"></i>
-                            </button>
-                            <button
-                                type="button"
-                                class="action-btn remove-btn"
-                                @click.stop="remove(item.id)"
-                                title="Удалить адрес"
-                            >
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
+                    <!-- 🎯 SWIPE-ТРЕК (теперь отдельный элемент снизу карточки) -->
+                    <div
+                        v-if=" !isExpanded && modelValue?.id === item.id"
+                        class="swipe-track"
+                        @mousedown="onSwipeStart($event, item)"
+                        @touchstart="onSwipeStart($event, item)"
+                        @click.stop
+                    >
+                        <div class="swipe-track-bg">
+                            <div class="swipe-progress" :style="{ width: swipeProgress + '%' }"></div>
+                            <div class="swipe-hint" :class="{ 'hidden': swipeProgress > 10 }">
+                                <i class="fa-solid fa-arrow-right-long"></i>
+                                <span>Проведите для подтверждения</span>
+                            </div>
+                            <div class="swipe-success-text" :class="{ 'visible': swipeProgress > 70 }">
+                                <i class="fa-solid fa-check"></i>
+                                <span>Адрес выбран!</span>
+                            </div>
                         </div>
-                    </transition>
+                        <div
+                            class="swipe-thumb"
+                            :class="{
+                'dragging': isDragging,
+                'completed': swipeProgress >= 100
+            }"
+                            :style="{ transform: `translateX(${swipeTranslate}px)` }"
+                        >
+                            <i :class="swipeProgress >= 100 ? 'fa-solid fa-check' : 'fa-solid fa-chevron-right'"></i>
+                        </div>
+                    </div>
                 </div>
             </transition-group>
         </div>
 
-        <!-- МОДАЛКИ (без изменений в структуре) -->
+        <!-- МОДАЛКИ -->
         <div class="modal fade" ref="modal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content address-modal">
@@ -162,7 +197,6 @@ export default {
     name: "AddressList",
     components: { AddressForm },
 
-    // 1. ЗАМЕНЯЕМ ДВА ПРОПСА НА ОДИН СТАНДАРТНЫЙ modelValue
     props: {
         modelValue: {
             type: Object,
@@ -170,7 +204,6 @@ export default {
         }
     },
 
-    // 2. ОСТАВЛЯЕМ ТОЛЬКО ОДИН EMIT
     emits: ['update:modelValue'],
 
     setup() {
@@ -186,6 +219,15 @@ export default {
             removeModalInstance: null,
             addressToRemove: null,
             isRemoving: false,
+
+            // Swipe state
+            isDragging: false,
+            swipeTranslate: 0,
+            swipeProgress: 0,
+            swipeStartX: 0,
+            swipeTrackWidth: 0,
+            swipeThreshold: 0.7,
+            currentSwipeItem: null,
         };
     },
 
@@ -197,7 +239,6 @@ export default {
         displayedAddresses() {
             if (this.isExpanded) return this.addresses;
 
-            // 3. ПРОВЕРЯЕМ ЧЕРЕЗ modelValue?.id
             if (this.modelValue?.id) {
                 const selected = this.addresses.find(a => a.id === this.modelValue.id);
                 if (selected) return [selected];
@@ -224,13 +265,51 @@ export default {
     },
 
     methods: {
-        selectAddress(item) {
+        async selectAddress(item) {
             if (this.modelValue?.id === item.id) {
                 return;
             }
 
+            // 🎯 ПРОВЕРКА: список развёрнут и карточка не в видимой области?
+            const wasExpanded = this.isExpanded;
+            const cardElement = document.querySelector(`[data-address-id="${item.id}"]`);
+
+            if (wasExpanded && cardElement) {
+                // 1. СНАЧАЛА скроллим к карточке (плавный скролл)
+                const cardRect = cardElement.getBoundingClientRect();
+                const viewportHeight = window.innerHeight;
+                const isCardOutOfView = cardRect.top < 80 || cardRect.bottom > viewportHeight - 80;
+
+                if (isCardOutOfView) {
+                    cardElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                    });
+                }
+
+                // 2. НЕБОЛЬШАЯ ЗАДЕРЖКА перед сворачиванием (чтобы скролл успел отобразиться)
+                await new Promise(resolve => setTimeout(resolve, 250));
+            }
+
+            // 3. ТЕПЕРЬ обновляем modelValue
             this.$emit('update:modelValue', item);
 
+            // 4. Flash-анимация на выбранной карточке
+            this.$nextTick(() => {
+                const selectedCard = document.querySelector(`.address-card.is-selected`);
+                if (selectedCard) {
+                    selectedCard.classList.add('flash-reload');
+                    setTimeout(() => selectedCard.classList.remove('flash-reload'), 600);
+                }
+            });
+
+            // 5. СВОРАЧИВАЕМ список (если был развёрнут) — с задержкой
+            if (wasExpanded) {
+                await new Promise(resolve => setTimeout(resolve, 150));
+                this.isExpanded = false;
+            }
+
+            // 6. Диспатчим событие для пересчёта доставки
             window.dispatchEvent(new CustomEvent('change-delivery-address', {
                 detail: {
                     address: item.address,
@@ -257,11 +336,9 @@ export default {
         async onSaved() {
             this.modalInstance?.hide();
 
-            // 🛠 ИСПРАВЛЕНИЕ: Берем свежие данные из стора, но с надежным фоллбэком
             const freshAddresses = this.store.getAddresses;
             if (freshAddresses && freshAddresses.length > 0) {
                 this.addresses = freshAddresses;
-                // Синхронизируем с глобальным объектом
                 if (this.self) this.self.addresses = freshAddresses;
             }
 
@@ -282,12 +359,8 @@ export default {
             try {
                 await this.store.removeAddress({ id: this.addressToRemove });
 
-                // 🛠 ГЛАВНОЕ ИСПРАВЛЕНИЕ:
-                // Вместо слепого доверия к store.getAddresses, мы просто фильтруем
-                // локальный массив. Это гарантирует, что UI обновится мгновенно.
                 this.addresses = this.addresses.filter(addr => addr.id !== this.addressToRemove);
 
-                // Синхронизируем изменения с глобальным объектом пользователя
                 if (this.self && this.self.addresses) {
                     this.self.addresses = this.addresses;
                 }
@@ -312,13 +385,11 @@ export default {
             try {
                 await this.store.setDefaultAddress({ id: item.id });
 
-                // 🛠 ИСПРАВЛЕНИЕ: Обновляем локальный массив, помечая новый адрес как дефолтный
                 this.addresses = this.addresses.map(addr => ({
                     ...addr,
                     is_default: addr.id === item.id
                 }));
 
-                // Синхронизируем с глобальным объектом
                 if (this.self) this.self.addresses = this.addresses;
 
                 this.$notify?.({ title: 'Адрес', text: 'Адрес установлен как основной', type: 'success' });
@@ -336,13 +407,122 @@ export default {
             if (n1 === 1) return one;
             return five;
         },
+
+        onSwipeStart(e, item) {
+            this.currentSwipeItem = item;
+            this.isDragging = true;
+
+            const track = e.currentTarget;
+            this.swipeTrackWidth = track.offsetWidth - 56;
+
+            const point = e.touches ? e.touches[0] : e;
+            this.swipeStartX = point.clientX;
+
+            document.body.style.overflow = 'hidden';
+
+            if (e.type === 'touchstart') {
+                document.addEventListener('touchmove', this.onSwipeMove, { passive: false });
+                document.addEventListener('touchend', this.onSwipeEnd);
+            } else {
+                document.addEventListener('mousemove', this.onSwipeMove);
+                document.addEventListener('mouseup', this.onSwipeEnd);
+            }
+
+            e.preventDefault();
+        },
+
+        onSwipeMove(e) {
+            if (!this.isDragging) return;
+
+            const point = e.touches ? e.touches[0] : e;
+            const deltaX = point.clientX - this.swipeStartX;
+
+            const clampedDelta = Math.max(0, deltaX);
+
+            let translate;
+            if (clampedDelta >= this.swipeTrackWidth) {
+                const overflow = clampedDelta - this.swipeTrackWidth;
+                translate = this.swipeTrackWidth + overflow * 0.3;
+            } else {
+                translate = clampedDelta;
+            }
+
+            this.swipeTranslate = translate;
+            this.swipeProgress = Math.min(100, (translate / this.swipeTrackWidth) * 100);
+
+            if (e.cancelable && e.type === 'touchmove') {
+                e.preventDefault();
+            }
+        },
+
+        onSwipeEnd() {
+            if (!this.isDragging) return;
+
+            document.removeEventListener('touchmove', this.onSwipeMove);
+            document.removeEventListener('touchend', this.onSwipeEnd);
+            document.removeEventListener('mousemove', this.onSwipeMove);
+            document.removeEventListener('mouseup', this.onSwipeEnd);
+            document.body.style.overflow = '';
+
+            const completed = this.swipeProgress >= this.swipeThreshold * 100;
+
+            if (completed && this.currentSwipeItem) {
+                const item = this.currentSwipeItem;
+                this.swipeTranslate = this.swipeTrackWidth;
+                this.swipeProgress = 100;
+
+                // 🎯 Показываем "успех" короткое время, потом плавно возвращаем
+                setTimeout(() => {
+                    // ❌ УБРАЛИ: this.$emit('update:modelValue', null) — именно он вызывал скачки!
+
+                    // ✅ Вместо этого — просто диспатчим событие повторно
+                    // Это и есть "перезагрузка" для расчёта доставки
+                    window.dispatchEvent(new CustomEvent('change-delivery-address', {
+                        detail: {
+                            address: item.address,
+                            lng: item.lng,
+                            lat: item.lat,
+                            city: item.city,
+                            location_id: item.id,
+                            _retrigger: Date.now(), // 🆕 добавляем timestamp чтобы событие гарантированно обработалось
+                        },
+                    }));
+
+                    // 🎨 Flash-анимация на карточке
+                    const selectedCard = document.querySelector(`[data-address-id="${item.id}"]`);
+                    if (selectedCard) {
+                        selectedCard.classList.add('flash-reload');
+                        setTimeout(() => selectedCard.classList.remove('flash-reload'), 600);
+                    }
+
+                    // ✅ Уведомление о том, что расчёт обновлён
+                    this.$notify?.({
+                        title: 'Адрес подтверждён',
+                        text: 'Расчёт доставки обновлён',
+                        type: 'success',
+                    });
+
+                    // 🎯 Плавный возврат ползунка в начало
+                    this.resetSwipe();
+                }, 500); // 500ms — чтобы пользователь успел увидеть "Адрес выбран!"
+            } else {
+                // Не дотянули — плавно возвращаем
+                this.resetSwipe();
+            }
+
+            this.isDragging = false;
+        },
+
+        resetSwipe() {
+            this.swipeTranslate = 0;
+            this.swipeProgress = 0;
+            this.currentSwipeItem = null;
+        },
     },
 };
 </script>
 
-
-
-<style scoped>
+<style scoped lang="scss">
 .address-list-container {
     background: var(--bs-body-bg);
     border: 1px solid var(--bs-border-color);
@@ -350,9 +530,6 @@ export default {
     overflow: hidden;
 }
 
-/* ==========================================
-   HEADER
-   ========================================== */
 .address-header {
     display: flex;
     align-items: center;
@@ -460,9 +637,6 @@ export default {
     font-size: 0.8rem;
 }
 
-/* ==========================================
-   СПИСОК АДРЕСОВ
-   ========================================== */
 .addresses-wrapper {
     padding: 12px;
 }
@@ -473,20 +647,17 @@ export default {
     gap: 10px;
 }
 
-/* ==========================================
-   КАРТОЧКА АДРЕСА
-   ========================================== */
+/* 🎯 ИСПРАВЛЕННАЯ КАРТОЧКА АДРЕСА */
 .address-card {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px;
+    flex-direction: column; /* Контейнер для карточки + swipe */
     background: var(--bs-body-bg);
     border: 2px solid var(--bs-border-color);
     border-radius: 14px;
     cursor: pointer;
     transition: all 0.2s ease;
     position: relative;
+    overflow: hidden; /* Важно для swipe-track */
 }
 
 .address-card:hover {
@@ -508,7 +679,15 @@ export default {
     border-color: var(--bs-primary);
 }
 
-/* Radio-индикатор */
+/* 🎯 ВНУТРЕННИЙ КОНТЕЙНЕР (radio + content + actions) */
+.address-card-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    position: relative;
+}
+
 .address-radio {
     flex-shrink: 0;
     padding-top: 2px;
@@ -542,7 +721,6 @@ export default {
     transform: scale(1);
 }
 
-/* Контент */
 .address-content {
     flex: 1;
     min-width: 0;
@@ -586,7 +764,6 @@ export default {
     line-height: 1.4;
 }
 
-/* Детали адреса */
 .address-details {
     display: flex;
     flex-wrap: wrap;
@@ -609,7 +786,6 @@ export default {
     font-size: 0.7rem;
 }
 
-/* Действия */
 .address-actions {
     display: flex;
     flex-direction: column;
@@ -644,9 +820,6 @@ export default {
     color: #dc3545;
 }
 
-/* ==========================================
-   ПУСТОЕ СОСТОЯНИЕ
-   ========================================== */
 .empty-state {
     text-align: center;
     padding: 40px 20px;
@@ -690,9 +863,6 @@ export default {
     box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.3);
 }
 
-/* ==========================================
-   МОДАЛКА: ФОРМА АДРЕСА
-   ========================================== */
 .address-modal {
     border-radius: 16px;
     border: none;
@@ -752,9 +922,6 @@ export default {
     padding: 20px 10px;
 }
 
-/* ==========================================
-   МОДАЛКА: ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ
-   ========================================== */
 .confirm-modal {
     border-radius: 20px;
     border: none;
@@ -830,9 +997,6 @@ export default {
     cursor: not-allowed;
 }
 
-/* ==========================================
-   АНИМАЦИИ
-   ========================================== */
 .slide-down-enter-active,
 .slide-down-leave-active {
     transition: all 0.3s ease;
@@ -861,7 +1025,6 @@ export default {
     opacity: 0;
 }
 
-/* Transition-group анимации */
 .list-enter-active,
 .list-leave-active {
     transition: all 0.3s ease;
@@ -882,7 +1045,182 @@ export default {
 }
 
 /* ==========================================
-   АДАПТИВ
+   🎯 SWIPE-TO-SELECT (ИСПРАВЛЕНО)
+   ========================================== */
+.swipe-track {
+    position: relative;
+    height: 48px;
+    width: 100%;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    cursor: grab;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.swipe-track:active {
+    cursor: grabbing;
+}
+
+.swipe-track-bg {
+    position: relative;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 0.08) 0%, rgba(var(--bs-primary-rgb), 0.15) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.swipe-progress {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: linear-gradient(90deg,
+    rgba(var(--bs-primary-rgb), 0.15) 0%,
+    rgba(var(--bs-primary-rgb), 0.35) 70%,
+    rgba(25, 135, 84, 0.4) 100%);
+    transition: none;
+    pointer-events: none;
+}
+
+.swipe-hint {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--bs-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.swipe-hint.hidden {
+    opacity: 0;
+}
+
+.swipe-hint i {
+    font-size: 0.9rem;
+    animation: swipeHintPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes swipeHintPulse {
+    0%, 100% {
+        transform: translateX(0);
+        opacity: 0.7;
+    }
+    50% {
+        transform: translateX(6px);
+        opacity: 1;
+    }
+}
+
+.swipe-success-text {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #198754;
+    font-size: 0.9rem;
+    font-weight: 700;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.swipe-success-text.visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.swipe-success-text i {
+    font-size: 1rem;
+}
+
+.swipe-thumb {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 56px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    box-shadow:
+        0 4px 12px rgba(var(--bs-primary-rgb), 0.35),
+        0 2px 4px rgba(0, 0, 0, 0.1);
+    /* 🎯 ВАЖНО: более медленный transition для плавного возврата */
+    transition:
+        transform 0.45s cubic-bezier(0.25, 1, 0.5, 1),
+        background 0.3s ease,
+        box-shadow 0.3s ease;
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* Во время перетаскивания — БЕЗ transition (мгновенный отклик) */
+.swipe-thumb.dragging {
+    transition: none;
+    box-shadow:
+        0 8px 20px rgba(var(--bs-primary-rgb), 0.45),
+        0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.swipe-thumb.completed {
+    background: linear-gradient(135deg, #198754 0%, #157347 100%);
+    box-shadow:
+        0 8px 20px rgba(25, 135, 84, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: scale(1.05);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.swipe-thumb.dragging {
+    transition: none;
+    box-shadow:
+        0 8px 20px rgba(var(--bs-primary-rgb), 0.45),
+        0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.swipe-thumb.completed {
+    background: linear-gradient(135deg, #198754 0%, #157347 100%);
+    box-shadow:
+        0 8px 20px rgba(25, 135, 84, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: scale(1.05);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes addressFlash {
+    0% {
+        background: rgba(25, 135, 84, 0.3);
+        transform: scale(1);
+    }
+    50% {
+        background: rgba(25, 135, 84, 0.15);
+        transform: scale(1.02);
+    }
+    100% {
+        background: transparent;
+        transform: scale(1);
+    }
+}
+
+.address-card.is-selected.flash-reload {
+    animation: addressFlash 0.6s ease-out;
+}
+
+/* ==========================================
+   🎯 АДАПТИВ
    ========================================== */
 @media (max-width: 576px) {
     .address-header {
@@ -907,7 +1245,7 @@ export default {
         padding: 8px 10px;
     }
 
-    .address-card {
+    .address-card-inner {
         padding: 12px;
         gap: 10px;
     }
@@ -924,6 +1262,29 @@ export default {
         width: 30px;
         height: 30px;
         font-size: 0.75rem;
+    }
+
+    .swipe-track {
+        height: 44px;
+    }
+
+    .swipe-thumb {
+        width: 50px;
+        height: 44px;
+        /* 🎯 transition сохраняем и для мобилок */
+        transition:
+            transform 0.45s cubic-bezier(0.25, 1, 0.5, 1),
+            background 0.3s ease,
+            box-shadow 0.3s ease;
+    }
+
+    .swipe-thumb.dragging {
+        transition: none;
+    }
+
+    .swipe-hint {
+        font-size: 0.8rem;
+        gap: 8px;
     }
 }
 </style>

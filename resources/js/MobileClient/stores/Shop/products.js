@@ -306,67 +306,58 @@ export const useProductsStore = defineStore('products', {
             }
         },
 
-        async loadMoreProducts(categoryId, offset, partnerId = null) {
+        async loadMoreProducts(categoryId, partnerId = null) {
             this.isLoadingMore = true;
-            let uniqueNewProducts = []; // 👈 Объявляем здесь, ДО блока if
 
             try {
-                const response = await axios.post('/shop/products/more-by-category', {
-                    category_id: categoryId,
-                    offset: offset,
-                    partner_id: partnerId
-                });
-
-                const responseData = response.data?.data || response.data || [];
-                const newProducts = Array.isArray(responseData) ? responseData : [];
-
-                console.log('🔄 [Store] Загружено с сервера:', newProducts.length, 'товаров');
-                console.log('🆔 [Store] ID загруженных:', newProducts.map(p => p.id));
-
                 const category = this.categories.find(c => String(c.id) === String(categoryId));
 
-                if (category) {
-                    console.log('✅ [Store] Категория:', category.name);
-                    console.log('📊 [Store] Было товаров:', category.products.length);
-                    console.log('🆔 [Store] ID существующих:', category.products.map(p => p.id));
+                // 🎯 Берём ID последнего товара из самой категории (актуальный!)
+                let lastProductId = null;
+                if (category && category.products && category.products.length > 0) {
+                    lastProductId = category.products[category.products.length - 1].id;
+                }
 
-                    const existingIds = new Set(category.products.map(p => String(p.id)));
+                console.log('🔍 [Store] Запрос для категории:', categoryId);
+                console.log('🔍 [Store] Последний товар ID:', lastProductId);
 
-                    // 👈 Присваиваем значение (не объявляем заново через const)
-                    uniqueNewProducts = newProducts.filter(p => {
-                        if (!p || !p.id) return false;
-                        return !existingIds.has(String(p.id));
-                    });
+                const response = await axios.post('/shop/products/more-by-category', {
+                    category_id: categoryId,
+                    last_product_id: lastProductId, // 🎯 Всегда актуальный ID
+                    partner_id: partnerId,
+                    limit: 12
+                });
 
-                    const duplicatesCount = newProducts.length - uniqueNewProducts.length;
+                const responseData = response.data?.data || [];
+                const newProducts = Array.isArray(responseData) ? responseData : [];
 
-                    console.log('🔒 [Store] Уникальных:', uniqueNewProducts.length);
-                    console.log('❌ [Store] Отсеяно дублей:', duplicatesCount);
+                console.log('📦 [Store] Получено товаров:', newProducts.length);
 
-                    if (duplicatesCount > 0) {
-                        console.warn('⚠️ [Store] Обнаружены дубликаты! Проверьте offset на сервере.');
-                        console.log('🔍 Дублирующиеся ID:',
-                            newProducts.filter(p => existingIds.has(String(p.id))).map(p => p.id)
-                        );
-                    }
+                if (category && newProducts.length > 0) {
+                    // Защита от дублей (на всякий случай)
+                    const existingIdsSet = new Set(category.products.map(p => String(p.id)));
+                    const uniqueNewProducts = newProducts.filter(p =>
+                        !existingIdsSet.has(String(p.id))
+                    );
 
-                    // Заменяем массив целиком для гарантии реактивности
+                    console.log('✅ [Store] Уникальных новых:', uniqueNewProducts.length);
+
                     if (uniqueNewProducts.length > 0) {
                         category.products = [...category.products, ...uniqueNewProducts];
                     }
 
-                    // Если пришло меньше ожидаемого - больше грузить нечего
-                    if (newProducts.length < 12 || uniqueNewProducts.length === 0) {
-                        category.products_count = category.products.length;
-                        console.log('🏁 [Store] Все загружено. products_count =', category.products_count);
-                    }
+                    // Обновляем has_more флаг
+                    category.has_more = response.data.has_more;
 
-                    console.log('🎉 [Store] Итого товаров:', category.products.length);
-                } else {
-                    console.error('❌ [Store] Категория с ID', categoryId, 'не найдена!');
+                    // Сохраняем ID последнего товара для следующего запроса
+                    category.last_product_id = response.data.last_product_id;
+
+                    console.log('🎉 [Store] Добавлено товаров:', uniqueNewProducts.length);
+                    console.log('📊 [Store] Есть ещё:', category.has_more);
+                    console.log('🔚 [Store] Новый last_product_id:', category.last_product_id);
                 }
 
-                return uniqueNewProducts.length;
+                return newProducts.length;
             } catch (error) {
                 console.error('[Products Store] Ошибка:', error);
                 throw error;

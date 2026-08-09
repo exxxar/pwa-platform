@@ -47,7 +47,7 @@
                 </div>
             </div>
 
-     
+
 
             <!-- ВОЗДУШНАЯ ПАНЕЛЬ ФИЛЬТРОВ + ВИД -->
             <div class="filter-bar-wrapper" v-if="activeMainTab === 'establishments'">
@@ -301,7 +301,8 @@
                         </button>
                     </div>
 
-                    <!-- 🆕 ПОИСК ВНУТРИ МОДАЛКИ -->
+<!--
+                    &lt;!&ndash; 🆕 ПОИСК ВНУТРИ МОДАЛКИ &ndash;&gt;
                     <div class="modal-search-wrapper">
                         <div class="modal-search-box">
                             <i class="fa-solid fa-magnifying-glass modal-search-icon"></i>
@@ -326,40 +327,77 @@
                             <span>Найдено заведений: <strong>{{ filteredPartners.length }}</strong></span>
                         </div>
                     </div>
+-->
+
+                    <!-- 🆕 РЕЖИМ СОВПАДЕНИЯ ФИЛЬТРОВ -->
+                    <div class="match-mode-wrapper">
+                        <div class="match-mode-info">
+                            <div class="match-mode-label">
+                                <i class="fa-solid fa-compass-drafting"></i>
+                                <span>Критерий совпадения</span>
+                            </div>
+                            <div class="match-mode-hint">
+                                {{ filterMatchMode === 'any'
+                                ? 'Покажем заведения с любым из выбранных'
+                                : 'Только заведения со всеми выбранными' }}
+                            </div>
+                        </div>
+
+                        <div class="match-mode-toggle">
+                            <button
+                                type="button"
+                                class="match-mode-btn"
+                                :class="{ 'active': filterMatchMode === 'any' }"
+                                @click="filterMatchMode = 'any'"
+                            >
+                                <i class="fa-solid fa-circle-dot"></i>
+                                <span>Хотя бы одна</span>
+                            </button>
+                            <button
+                                type="button"
+                                class="match-mode-btn"
+                                :class="{ 'active': filterMatchMode === 'all' }"
+                                @click="filterMatchMode = 'all'"
+                            >
+                                <i class="fa-solid fa-layer-group"></i>
+                                <span>Все</span>
+                            </button>
+                        </div>
+                    </div>
+
 
                     <!-- ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ КУХОНЬ СВЕРХУ -->
                     <div class="cuisines-scroll-wrapper" v-if="dynamicCuisines.length > 0">
                         <div class="cuisines-scroll-label">
                             <i class="fa-solid fa-utensils"></i>
                             <span>Кухни мира</span>
+                            <span v-if="selectedCuisines.length > 0" class="selection-badge">
+            {{ selectedCuisines.length }}
+        </span>
                         </div>
                         <div class="cuisines-scroll">
                             <button
                                 v-for="cuisine in filteredModalCuisines"
                                 :key="cuisine.id"
                                 class="cuisine-chip"
-                                :class="{ 'active': selectedCuisine === cuisine.slug }"
+                                :class="{ 'active': isCuisineSelected(cuisine.slug) }"
                                 @click="selectCuisine(cuisine)"
                             >
                                 <div class="cuisine-chip-image">
                                     <img :src="cuisine.image || getDefaultImage('pizza')" :alt="cuisine.name">
                                 </div>
                                 <span class="cuisine-chip-name">{{ cuisine.name }}</span>
-                                <i v-if="selectedCuisine === cuisine.slug" class="fa-solid fa-check cuisine-chip-check"></i>
+                                <i v-if="isCuisineSelected(cuisine.slug)" class="fa-solid fa-check cuisine-chip-check"></i>
                             </button>
                         </div>
                     </div>
 
                     <!-- Вкладки -->
                     <div class="filters-tabs">
-                        <button
-                            class="filter-tab-btn"
-                            :class="{ 'active': filtersTab === 'categories' }"
-                            @click="filtersTab = 'categories'"
-                        >
+                        <button class="filter-tab-btn" :class="{ 'active': filtersTab === 'categories' }" @click="filtersTab = 'categories'">
                             <i class="fa-solid fa-tags"></i>
                             <span>Категории</span>
-                            <span v-if="selectedCategory" class="tab-indicator"></span>
+                            <span v-if="selectedCategories.length > 0" class="tab-indicator"></span>
                         </button>
                         <button
                             class="filter-tab-btn"
@@ -383,18 +421,23 @@
                     <div class="filters-modal-body">
                         <!-- ВКЛАДКА: КАТЕГОРИИ -->
                         <div v-if="filtersTab === 'categories'" class="filters-section fade-in">
-                            <div class="filters-section-title">Выберите категорию</div>
+                            <div class="filters-section-title">
+                                Выберите категории
+                                <span v-if="selectedCategories.length > 0" class="selection-badge-sm">
+            {{ selectedCategories.length }} выбрано
+        </span>
+                            </div>
                             <div class="filters-grid" v-if="filteredModalCategories.length > 0">
                                 <button
                                     v-for="category in filteredModalCategories"
                                     :key="category.id"
                                     class="filter-card"
-                                    :class="{ 'active': selectedCategory === category.id }"
+                                    :class="{ 'active': isCategorySelected(category.id) }"
                                     @click="selectCategory(category.id)"
                                 >
                                     <div class="filter-card-icon">{{ category.icon || '🍽️' }}</div>
                                     <div class="filter-card-name">{{ category.name }}</div>
-                                    <i v-if="selectedCategory === category.id" class="fa-solid fa-check filter-card-check"></i>
+                                    <i v-if="isCategorySelected(category.id)" class="fa-solid fa-check filter-card-check"></i>
                                 </button>
                             </div>
                             <div v-else class="modal-empty-hint">
@@ -512,14 +555,19 @@ export default {
             selectedPartnerForMap: null,
             activeMainTab: 'establishments',
             searchQuery: '',
-            selectedCategory: null,
-            selectedCuisine: null,
+
+            // 🆕 МНОЖЕСТВЕННЫЙ ВЫБОР
+            selectedCategories: [],
+            selectedCuisines: [],
+
             filter: 'all',
             viewMode: 'list',
             partnerList: [],
             isPartnersLoading: false,
             ordersTab: 0,
             reviewsLoaded: false,
+
+            filterMatchMode: 'any',
         };
     },
 
@@ -527,8 +575,9 @@ export default {
         totalFiltersCount() {
             let count = 0;
             if (this.searchQuery && this.searchQuery.trim()) count++;
-            if (this.selectedCategory !== null) count++;
-            if (this.selectedCuisine !== null) count++;
+            count += this.selectedCategories.length; // 🆕 каждый элемент = 1 фильтр
+            count += this.selectedCuisines.length;   // 🆕
+
             const defaultFilter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
             if (this.filter !== defaultFilter) count++;
             return count;
@@ -539,25 +588,49 @@ export default {
             return this.filter !== defaultFilter;
         },
 
+        // 🆕 СВОДКА АКТИВНЫХ ФИЛЬТРОВ (поддерживает множественный выбор)
         filtersSummaryText() {
             const parts = [];
-            if (this.selectedCategory) {
-                const cat = this.dynamicCategories.find(c => c.id === this.selectedCategory);
-                if (cat) parts.push(cat.icon + ' ' + cat.name);
+            const joiner = this.filterMatchMode === 'all' ? ' + ' : ', ';
+
+            if (this.selectedCategories.length > 0) {
+                const catNames = this.selectedCategories
+                    .map(id => {
+                        const cat = this.dynamicCategories.find(c => c.id === id);
+                        return cat ? `${cat.icon || ''} ${cat.name}`.trim() : null;
+                    })
+                    .filter(Boolean);
+
+                parts.push(catNames.length <= 2
+                    ? catNames.join(joiner)
+                    : `${catNames.slice(0, 2).join(joiner)} +${catNames.length - 2}`);
             }
-            if (this.selectedCuisine) {
-                const cu = this.dynamicCuisines.find(c => c.slug === this.selectedCuisine);
-                if (cu) parts.push(cu.name);
+
+            if (this.selectedCuisines.length > 0) {
+                const cuisineNames = this.selectedCuisines
+                    .map(slug => {
+                        const cu = this.dynamicCuisines.find(c => c.slug === slug);
+                        return cu ? cu.name : null;
+                    })
+                    .filter(Boolean);
+
+                parts.push(cuisineNames.length <= 2
+                    ? cuisineNames.join(joiner)
+                    : `${cuisineNames.slice(0, 2).join(joiner)} +${cuisineNames.length - 2}`);
             }
+
             if (this.isCustomFilterActive) {
                 const f = this.dynamicFilters.find(f => f.slug === this.filter);
                 if (f) parts.push(f.name);
             }
+
             if (this.searchQuery && this.searchQuery.trim()) {
                 parts.push(`"${this.searchQuery.trim()}"`);
             }
+
             return parts.join(' · ') || 'Все заведения';
         },
+
 
         uiSettings() {
             const tenant = window.Tenant || {};
@@ -696,6 +769,7 @@ export default {
         filteredPartners() {
             let list = [...(this.activePartners || [])];
 
+            // Фильтры favorites/promo/popular
             if (this.filter === 'favorites') {
                 const favIds = Array.isArray(this.favoriteIds) ? this.favoriteIds.map(String) : [];
                 list = list.filter(p => favIds.includes(String(p.id)));
@@ -709,6 +783,7 @@ export default {
                 list = list.filter(p => (p.rating || 0) >= 4.5 || (p.order_position || 0) > 0);
             }
 
+            // Поиск по тексту
             if (this.searchQuery && this.searchQuery.trim()) {
                 const query = this.searchQuery.toLowerCase().trim();
                 list = list.filter(p => {
@@ -719,28 +794,59 @@ export default {
                 });
             }
 
-            if (this.selectedCategory) {
-                const selCatStr = String(this.selectedCategory);
-                list = list.filter(p => {
-                    const categories = Array.isArray(p.categories) ? p.categories : [];
-                    if (categories.length > 0) {
-                        return categories.some(c => {
-                            const cId = (typeof c === 'object' && c !== null) ? c.id : c;
-                            return String(cId) === selCatStr;
-                        });
-                    }
-                    const pCatId = p.category_id || p.category;
-                    return String(pCatId) === selCatStr;
+            // 🎯 МНОЖЕСТВЕННАЯ ФИЛЬТРАЦИЯ С УЧЁТОМ РЕЖИМА
+            const hasCuisines = this.selectedCuisines.length > 0;
+            const hasCategories = this.selectedCategories.length > 0;
+
+            // Если ничего не выбрано — возвращаем отфильтрованный список как есть
+            if (!hasCuisines && !hasCategories) {
+                return list.sort((a, b) => {
+                    const posA = a.order_position || 0;
+                    const posB = b.order_position || 0;
+                    if (posB !== posA) return posB - posA;
+                    return (a.name || '').localeCompare(b.name || '');
                 });
             }
 
-            if (this.selectedCuisine) {
-                const selCuisineStr = String(this.selectedCuisine);
-                list = list.filter(p => {
-                    const tags = Array.isArray(p.tags) ? p.tags.map(String) : [];
-                    return tags.includes(selCuisineStr);
-                });
-            }
+            const selectedCuisineStrs = hasCuisines
+                ? this.selectedCuisines.map(slug => String(slug))
+                : [];
+
+            const selectedCatStrs = hasCategories
+                ? this.selectedCategories.map(id => String(id))
+                : [];
+
+            list = list.filter(p => {
+                // Извлекаем теги (кухни)
+                const tags = Array.isArray(p.tags) ? p.tags.map(String) : [];
+
+                // Извлекаем категории
+                const categories = Array.isArray(p.categories) ? p.categories : [];
+                let partnerCatIds = [];
+
+                if (categories.length > 0) {
+                    partnerCatIds = categories.map(c =>
+                        String((typeof c === 'object' && c !== null) ? c.id : c)
+                    );
+                } else {
+                    const pCatId = p.category_id || p.category;
+                    if (pCatId) partnerCatIds = [String(pCatId)];
+                }
+
+                if (this.filterMatchMode === 'all') {
+                    // 🎯 РЕЖИМ "ВСЕ": каждый выбранный критерий должен присутствовать
+                    const allCuisinesMatch = !hasCuisines || selectedCuisineStrs.every(slug => tags.includes(slug));
+                    const allCategoriesMatch = !hasCategories || selectedCatStrs.every(catId => partnerCatIds.includes(catId));
+
+                    return allCuisinesMatch && allCategoriesMatch;
+                } else {
+                    // 🎯 РЕЖИМ "ХОТЯ БЫ ОДНА": глобальный OR между всеми фильтрами
+                    const matchesCuisine = hasCuisines && selectedCuisineStrs.some(slug => tags.includes(slug));
+                    const matchesCategory = hasCategories && selectedCatStrs.some(catId => partnerCatIds.includes(catId));
+
+                    return matchesCuisine || matchesCategory;
+                }
+            });
 
             return list.sort((a, b) => {
                 const posA = a.order_position || 0;
@@ -889,12 +995,40 @@ export default {
             }
         },
 
+        // 🆕 Переключение категории (добавить/убрать)
         selectCategory(categoryId) {
-            this.selectedCategory = this.selectedCategory === categoryId ? null : categoryId;
+            const index = this.selectedCategories.indexOf(categoryId);
+            if (index === -1) {
+                this.selectedCategories.push(categoryId);
+            } else {
+                this.selectedCategories.splice(index, 1);
+            }
         },
 
+        // 🆕 Переключение кухни (добавить/убрать)
         selectCuisine(cuisine) {
-            this.selectedCuisine = this.selectedCuisine === cuisine.slug ? null : cuisine.slug;
+            const index = this.selectedCuisines.indexOf(cuisine.slug);
+            if (index === -1) {
+                this.selectedCuisines.push(cuisine.slug);
+            } else {
+                this.selectedCuisines.splice(index, 1);
+            }
+        },
+
+        // 🆕 Хелперы для проверки активности
+        isCategorySelected(categoryId) {
+            return this.selectedCategories.includes(categoryId);
+        },
+
+        isCuisineSelected(cuisineSlug) {
+            return this.selectedCuisines.includes(cuisineSlug);
+        },
+
+        resetFilters() {
+            this.searchQuery = '';
+            this.selectedCategories = []; // 🆕 массив вместо null
+            this.selectedCuisines = [];   // 🆕 массив вместо null
+            this.filter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
         },
 
         selectPartner(partner) {
@@ -1022,12 +1156,7 @@ export default {
             return order.summary_price || order.total || 0;
         },
 
-        resetFilters() {
-            this.searchQuery = '';
-            this.selectedCategory = null;
-            this.selectedCuisine = null;
-            this.filter = this.dynamicFilters.length > 0 ? this.dynamicFilters[0].slug : 'all';
-        },
+
 
         handleResetFilters() {
             this.resetFilters();
@@ -3189,6 +3318,176 @@ $info: #3b82f6;
         .search-box .search-input {
             padding: 12px 40px 12px 40px;
             font-size: 0.9rem;
+        }
+    }
+}
+
+// ==========================================
+// 🆕 БЕЙДЖИ МНОЖЕСТВЕННОГО ВЫБОРА
+// ==========================================
+.selection-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+    color: white;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    margin-left: 8px;
+    box-shadow: 0 2px 6px rgba(236, 72, 153, 0.3);
+    animation: badgePop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.selection-badge-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    background: rgba($primary, 0.1);
+    color: $primary;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-left: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+// Улучшаем визуальный отклик для множественного выбора
+.cuisine-chip.active .cuisine-chip-image {
+    border-color: $primary;
+    box-shadow: 0 6px 16px rgba($primary, 0.35);
+    transform: scale(1.05);
+}
+
+.cuisine-chip.active .cuisine-chip-image::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba($primary, 0.1);
+    border-radius: 50%;
+}
+
+.filter-card.active {
+    background: rgba($primary, 0.1);
+    border-color: $primary;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba($primary, 0.2);
+}
+
+// Анимация появления галочки
+.cuisine-chip-check,
+.filter-card-check {
+    animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes checkPop {
+    0% {
+        transform: scale(0) rotate(-180deg);
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+    }
+}
+
+// ==========================================
+// 🆕 РЕЖИМ СОВПАДЕНИЯ (any / all)
+// ==========================================
+.match-mode-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    margin-bottom: 14px;
+    background: $bg-secondary;
+    border: 1px solid $border;
+    border-radius: 14px;
+}
+
+.match-mode-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.match-mode-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: $text;
+    white-space: nowrap;
+
+    i {
+        color: $primary;
+        font-size: 0.85rem;
+    }
+}
+
+.match-mode-hint {
+    font-size: 0.72rem;
+    color: $text-muted;
+    line-height: 1.3;
+}
+
+.match-mode-toggle {
+    display: inline-flex;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.match-mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $text-muted;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+
+    i {
+        font-size: 0.75rem;
+    }
+
+    &.active {
+        background: #ffffff;
+        color: $primary;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+
+    &:not(.active):hover {
+        color: $text;
+    }
+}
+
+@media (max-width: 480px) {
+    .match-mode-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .match-mode-toggle {
+        align-self: stretch;
+
+        .match-mode-btn {
+            flex: 1;
+            justify-content: center;
         }
     }
 }

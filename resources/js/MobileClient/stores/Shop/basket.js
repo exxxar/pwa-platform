@@ -683,9 +683,23 @@ export const useBasketStore = defineStore('basket', {
             this.isSending = true;
             try {
                 const response = await axios.post(`${BASE}/checkout`, payload.deliveryForm);
-                this.basket_items = [];
-                this.basket_items_paginate_object = null;
-                return response.data;
+                const data = response.data;
+
+                // ✅ Очищаем корзину ТОЛЬКО если сервер подтвердил успешное создание заказа
+                if (data?.success) {
+                    this.basket_items = [];
+                    this.basket_items_paginate_object = null;
+
+                    // Если есть computed для totalCount и totalPrice — сбрасываем их тоже
+                    if (this.cartTotalCount !== undefined) {
+                        this.cartTotalCount = 0;
+                    }
+                    if (this.cartTotalPrice !== undefined) {
+                        this.cartTotalPrice = 0;
+                    }
+                }
+
+                return data;
             } catch (err) {
                 console.error('[Basket Store] Ошибка оформления заказа:', err);
                 throw err;

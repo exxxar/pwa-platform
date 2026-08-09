@@ -317,13 +317,13 @@ class ProductController extends Controller
     {
         $request->validate([
             "category_id" => "required",
-            "offset" => "required"
+            //"offset" => "required"
         ]);
 
         return ProductService::call()
             ->loadMoreProductsByCategories(
                 $request->category_id,
-                $request->offset,
+                $request->last_product_id,
                 $request->partner_id ?? null);
     }
 

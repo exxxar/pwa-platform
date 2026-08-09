@@ -232,7 +232,98 @@
             </div>
         </template>
 
+        <!-- 5. МОДАЛКА ОШИБКИ МИНИМАЛЬНОЙ СУММЫ -->
+        <transition name="min-order-error">
+            <div v-if="showMinOrderError" class="min-order-error-overlay" @click.self="closeMinOrderError">
+                <div class="min-order-error-modal">
+                    <!-- Шапка -->
+                    <div class="modal-header error-header">
+                        <div class="error-icon-wrapper">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <h3 class="modal-title">Не достигнута минимальная сумма</h3>
+                        <p class="modal-subtitle">Для оформления заказа необходимо добавить товаров</p>
+                    </div>
 
+                    <!-- Список магазинов с ошибками -->
+                    <div class="modal-body">
+                        <div class="error-list">
+                            <div
+                                v-for="(error, index) in minOrderErrors"
+                                :key="error.partner_id"
+                                class="error-item"
+                            >
+                                <!-- Заголовок магазина -->
+                                <div class="error-item-header">
+                                    <div class="partner-info">
+                                        <div class="partner-icon">
+                                            <i class="fa-solid fa-store"></i>
+                                        </div>
+                                        <div class="partner-details">
+                                            <h4 class="partner-name">{{ error.partner_name }}</h4>
+                                            <span class="partner-badge">Заведение #{{ error.partner_id }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="error-badge">
+                                        <i class="fa-solid fa-circle-xmark"></i>
+                                    </div>
+                                </div>
+
+                                <!-- Детальная информация -->
+                                <div class="error-item-body">
+                                    <div class="info-grid">
+                                        <div class="info-cell">
+                                            <span class="info-label">Текущая сумма</span>
+                                            <span class="info-value current-amount">{{ formatPrice(error.current_amount) }}</span>
+                                        </div>
+                                        <div class="info-cell">
+                                            <span class="info-label">Минимальная</span>
+                                            <span class="info-value required-amount">{{ formatPrice(error.min_required) }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Прогресс-бар -->
+                                    <div class="progress-section">
+                                        <div class="progress-header">
+                                            <span class="progress-label">Прогресс</span>
+                                            <span class="progress-percent">{{ getProgressPercent(error) }}%</span>
+                                        </div>
+                                        <div class="progress-bar-wrapper">
+                                            <div
+                                                class="progress-bar"
+                                                :style="{ width: getProgressPercent(error) + '%' }"
+                                                :class="{ 'progress-bar-danger': getProgressPercent(error) < 50 }"
+                                            ></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Сообщение о нехватке -->
+                                    <div class="shortage-message">
+                                        <i class="fa-solid fa-circle-info"></i>
+                                        <span>Не хватает <strong>{{ formatPrice(error.shortage) }}</strong></span>
+                                    </div>
+                                </div>
+
+                                <!-- Разделитель (кроме последнего элемента) -->
+                                <div v-if="index < minOrderErrors.length - 1" class="error-divider"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Кнопки действий -->
+                    <div class="modal-footer">
+                        <button class="modal-btn primary-btn" @click="goToCatalogFromError">
+                            <i class="fa-solid fa-cart-plus"></i>
+                            <span>Добавить товары</span>
+                        </button>
+                        <button class="modal-btn secondary-btn" @click="closeMinOrderError">
+                            <i class="fa-solid fa-xmark"></i>
+                            <span>Закрыть</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
 
     </div>
 </template>
@@ -352,6 +443,10 @@ export default {
             },
             _scrollToBasketHandler: null,
             _switchToCartHandler: null,
+
+            // 🆕 Данные для модалки минимальной суммы
+            showMinOrderError: false,
+            minOrderErrors: [],
         };
     },
 
@@ -476,21 +571,32 @@ export default {
     },
 
     methods: {
+        formatPrice(value) {
+            if (!value && value !== 0) return '0';
+            return Number(value).toLocaleString('ru-RU');
+        },
+
         goToStep(index) {
-            if (index <= this.currentStep) this.currentStep = index;
+            if (index <= this.currentStep) {
+                this.currentStep = index;
+            }
         },
 
-        changeTab(index) {
-            this.currentStep = index;
+        goBack() {
+            if (this.currentStep > 0) {
+                this.currentStep--;
+            }
         },
 
-        goToCatalog() {
-            this.$router.push({name: 'Catalog'}).catch(() => {
-            });
-        },
-
-        selectPrize(item) {
-            this.deliveryForm.action_prize = item;
+        handleClose() {
+            if (this.orderJustPlaced) {
+                this.dismissSuccessSheet();
+            } else {
+                this.$emit('close');
+                setTimeout(() => {
+                    this.currentStep = 0;
+                }, 300);
+            }
         },
 
         async handleActionClick() {
@@ -502,12 +608,15 @@ export default {
             }
 
             if (label === 'Данные') {
-                // 🔥 ВЫЗЫВАЕМ ВАЛИДАЦИЮ У КОМПОНЕНТА ШАГА 1
                 const formRef = this.$refs.step1Form;
                 if (formRef && typeof formRef.validate === 'function') {
                     const isValid = await formRef.validate();
                     if (!isValid) {
-                        // Валидация не прошла. Дочерний компонент сам должен показать ошибки (красные поля или notify)
+                        this.$notify?.({
+                            title: 'Проверьте данные',
+                            text: 'Заполните все обязательные поля корректно',
+                            type: 'warning'
+                        });
                         return;
                     }
                 }
@@ -520,17 +629,22 @@ export default {
                     this.currentStep = 3;
                     return;
                 }
-                // Если выбран другой тип оплаты, сразу пытаемся оформить
                 this.startCheckout();
                 return;
             }
 
             if (label === 'Чек') {
-                // 🔥 ВЫЗЫВАЕМ ВАЛИДАЦИЮ У КОМПОНЕНТА ШАГА 3 (проверка, что чек прикреплен)
                 const formRef = this.$refs.step3Form;
                 if (formRef && typeof formRef.validate === 'function') {
                     const isValid = await formRef.validate();
-                    if (!isValid) return;
+                    if (!isValid) {
+                        this.$notify?.({
+                            title: 'Чек не загружен',
+                            text: 'Прикрепите скриншот перевода для подтверждения оплаты',
+                            type: 'warning'
+                        });
+                        return;
+                    }
                 }
                 this.startCheckout();
                 return;
@@ -542,7 +656,6 @@ export default {
 
             const data = new FormData();
             data.append("display_type", this.settings.shop_display_type || 0);
-
             Object.keys(this.deliveryForm).forEach(key => {
                 const item = this.deliveryForm[key];
                 if (item === null || item === undefined) {
@@ -554,132 +667,142 @@ export default {
                 }
             });
 
-            if (this.type) data.append("type", this.type);
-            if (this.settings.need_automatic_delivery_request) {
-                data.append("need_automatic_delivery_request", true);
-            }
-
             if (this.deliveryForm.image instanceof File) {
                 data.append('photo', this.deliveryForm.image);
                 data.delete("image");
             }
 
-            if (this.deliveryForm.payment_type === 0 && this.settings.can_use_card) {
-                try {
-                    this.sending = true;
-                    const response = await this.createCheckoutLink({deliveryForm: data});
-                    if (response?.url) {
-                        window.location.href = response.url;
-                    } else {
-                        throw new Error('Не получен URL для оплаты');
-                    }
-                } catch (error) {
-                    this.handleCheckoutError(error);
-                } finally {
-                    this.sending = false;
-                }
-                return;
-            }
-
             this.sending = true;
 
             try {
-                const response = await this.startCheckoutAction({deliveryForm: data});
+                const response = await this.startCheckoutAction({ deliveryForm: data });
 
                 if (response?.success) {
                     this.lastOrderId = response.order_id;
-                    this.lastOrderDialogId = response.dialog_id || null; // 🆕 Сохраняем ID диалога
                     this.lastOrderTotal = response.summary_price;
 
+                    // ✅ Уведомление об успешном заказе
+                    this.$notify?.({
+                        title: 'Заказ оформлен!',
+                        text: `Заказ #${response.order_id} успешно создан на сумму ${this.formatPrice(response.summary_price)} ₽`,
+                        type: 'success'
+                    });
+
                     if (this.deliveryForm.payment_type === 4 && response.payment_data?.url) {
+                        this.$notify?.({
+                            title: 'Перенаправление на оплату',
+                            text: 'Сейчас вы будете перенаправлены на страницу оплаты через СБП',
+                            type: 'info'
+                        });
                         window.location.href = response.payment_data.url;
                         return;
                     }
 
                     this.orderJustPlaced = true;
-                    this.$notify?.({
-                        title: 'Заказ оформлен',
-                        text: response.message || 'Инструкция отправлена вам в бот!',
-                        type: 'success',
-                    });
+                    this.$emit('success', response);
+
                 } else {
-                    throw new Error(response?.message || 'Сервер вернул успех: false');
+                    // ❌ Ошибка сервера — корзина НЕ очищается
+                    if (response?.min_order_errors?.length > 0) {
+                        this.showMinOrderErrorModal(response.min_order_errors);
+                        return;
+                    }
+
+                    this.$notify?.({
+                        title: 'Не удалось оформить заказ',
+                        text: response?.message || 'Сервер вернул ошибку. Попробуйте ещё раз.',
+                        type: 'error'
+                    });
                 }
+
             } catch (error) {
-                this.handleCheckoutError(error);
+                // ❌ Сетевая ошибка — корзина НЕ очищается
+                console.error('Ошибка оформления:', error);
+
+                const errorMsg = error.response?.data?.message
+                    || error.message
+                    || 'Не удалось связаться с сервером. Проверьте интернет-соединение.';
+
+                this.$notify?.({
+                    title: 'Ошибка соединения',
+                    text: errorMsg,
+                    type: 'error'
+                });
+
             } finally {
                 this.sending = false;
             }
         },
 
-        handleCheckoutError(error) {
-            console.error('=== КРИТИЧЕСКАЯ ОШИБКА ОФОРМЛЕНИЯ ЗАКАЗА ===', error);
-            const errorMsg = error.response?.data?.message || error.message || 'Не удалось оформить заказ. Попробуйте позже.';
-
-            if (this.$notify) {
-                this.$notify({title: 'Ошибка', text: errorMsg, type: 'error', duration: 5000});
-            } else {
-                alert('Ошибка оформления заказа:\n\n' + errorMsg);
-            }
-        },
-
         showOrderSuccess() {
             this.orderJustPlaced = true;
-            this.autoCloseCountdown = 10;
+            this.autoCloseCountdown = 5;
             this.countdownTimer = setInterval(() => {
                 this.autoCloseCountdown--;
                 if (this.autoCloseCountdown <= 0) this.dismissSuccessSheet();
             }, 1000);
-            this.autoCloseTimer = setTimeout(() => this.dismissSuccessSheet(), 10000);
+            this.autoCloseTimer = setTimeout(() => this.dismissSuccessSheet(), 5000);
         },
 
         dismissSuccessSheet() {
             this.orderJustPlaced = false;
-            this.clearAutoCloseTimers();
+            if (this.autoCloseTimer) clearTimeout(this.autoCloseTimer);
+            if (this.countdownTimer) clearInterval(this.countdownTimer);
             this.currentStep = 0;
             this.lastOrderId = null;
             this.lastOrderTotal = 0;
-            this.goToCatalog();
+            this.handleClose();
         },
 
-        goToOrderChat() {
-            this.clearAutoCloseTimers();
+        showMinOrderErrorModal(errors) {
+            this.minOrderErrors = errors;
+            this.showMinOrderError = true;
 
-            // 🆕 Приоритет отдаем dialog_id, но если его нет, пробуем order_id (на случай, если ChatRoom умеет искать по нему)
-            const targetId = this.lastOrderDialogId || this.lastOrderId;
+            // ✅ Уведомление о минимальной сумме
+            const firstError = errors[0];
+            if (firstError) {
+                this.$notify?.({
+                    title: 'Минимальная сумма не достигнута',
+                    text: `Для заведения «${firstError.partner_name}» минимальный заказ: ${this.formatPrice(firstError.min_required)} ₽. Не хватает: ${this.formatPrice(firstError.shortage)} ₽`,
+                    type: 'warning'
+                });
+            }
+        },
 
-            this.$router.push({
-                name: 'ChatRoom', // 🆕 Исправлено имя роута на то, что в вашем конфиге
-                params: { id: targetId }
-            }).catch(() => {
-                this.$router.push({ name: 'Catalog' });
+        closeMinOrderError() {
+            this.showMinOrderError = false;
+            this.minOrderErrors = [];
+            this.currentStep = 0; // Возвращаем в корзину, чтобы пользователь добавил товары
+        },
+
+        // 🆕 Уведомления при изменении количества товаров
+        handleIncrement(productId) {
+            this.basket.incrementQuantity(productId);
+        },
+
+        handleDecrement(productId) {
+            this.basket.decrementQuantity(productId);
+        },
+
+        handleRemove(productId) {
+            const item = this.cartItemsList.find(i => i.product_id === productId);
+            const itemName = item?.name || 'Товар';
+
+            this.basket.removeProductCompletely(productId);
+
+            this.$notify?.({
+                title: 'Товар удалён',
+                text: `«${itemName}» удалён из корзины`,
+                type: 'info'
             });
-
-            this.orderJustPlaced = false;
-            this.lastOrderId = null;
-            this.lastOrderDialogId = null;
-            this.lastOrderTotal = 0;
         },
 
-        clearAutoCloseTimers() {
-            if (this.autoCloseTimer) {
-                clearTimeout(this.autoCloseTimer);
-                this.autoCloseTimer = null;
-            }
-            if (this.countdownTimer) {
-                clearInterval(this.countdownTimer);
-                this.countdownTimer = null;
-            }
-        },
-
-        formatPrice(price) {
-            return new Intl.NumberFormat('ru-RU', {
-                style: 'currency',
-                currency: 'RUB',
-                minimumFractionDigits: 2
-            }).format(Number(price || 0));
-        },
-    },
+        getProgressPercent(error) {
+            if (!error.min_required || error.min_required === 0) return 0;
+            const percent = (error.current_amount / error.min_required) * 100;
+            return Math.min(Math.round(percent), 100);
+        }
+    }
 };
 </script>
 
@@ -1583,6 +1706,316 @@ $card-bg: #ffffff;
     .success-btn {
         font-size: 0.85rem;
         padding: 11px 16px;
+    }
+}
+
+/* 🆕 МОДАЛКА ОШИБКИ МИНИМАЛЬНОЙ СУММЫ */
+.min-order-error-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.min-order-error-modal {
+    background: white;
+    border-radius: 20px;
+    max-width: 500px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.error-header {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    padding: 24px;
+    text-align: center;
+    border-radius: 20px 20px 0 0;
+}
+
+.error-icon-wrapper {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 28px;
+}
+
+.modal-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 8px;
+}
+
+.modal-subtitle {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.error-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.error-item {
+    background: #f8f9fa;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid #e9ecef;
+}
+
+.error-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: white;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.partner-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.partner-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 18px;
+}
+
+.partner-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.partner-name {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: #2c3e50;
+}
+
+.partner-badge {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.error-badge {
+    color: #dc3545;
+    font-size: 24px;
+}
+
+.error-item-body {
+    padding: 16px;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.info-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.info-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.info-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.current-amount {
+    color: #6c757d;
+}
+
+.required-amount {
+    color: #dc3545;
+}
+
+.progress-section {
+    margin-bottom: 16px;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.progress-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.progress-percent {
+    font-size: 0.85rem;
+    color: #dc3545;
+    font-weight: 700;
+}
+
+.progress-bar-wrapper {
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #ffc107 0%, #ff9800 100%);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.progress-bar-danger {
+    background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+}
+
+.shortage-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    border-radius: 6px;
+    color: #856404;
+    font-size: 0.9rem;
+}
+
+.shortage-message i {
+    font-size: 16px;
+}
+
+.error-divider {
+    height: 1px;
+    background: #e9ecef;
+    margin: 0;
+}
+
+.modal-footer {
+    padding: 20px;
+    display: flex;
+    gap: 12px;
+    border-top: 1px solid #e9ecef;
+}
+
+.modal-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.primary-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+}
+
+.secondary-btn {
+    background: #f8f9fa;
+    color: #6c757d;
+}
+
+.secondary-btn:hover {
+    background: #e9ecef;
+}
+
+/* Анимация появления/исчезновения */
+.min-order-error-enter-active,
+.min-order-error-leave-active {
+    transition: opacity 0.3s ease;
+}
+
+.min-order-error-enter-from,
+.min-order-error-leave-to {
+    opacity: 0;
+}
+
+/* Адаптивность */
+@media (max-width: 576px) {
+    .min-order-error-modal {
+        max-width: 100%;
+        border-radius: 16px;
+    }
+
+    .modal-title {
+        font-size: 1.3rem;
+    }
+
+    .info-value {
+        font-size: 1rem;
+    }
+
+    .modal-footer {
+        flex-direction: column;
     }
 }
 </style>

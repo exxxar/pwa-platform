@@ -46,66 +46,76 @@ class Category extends Model
         return $this->attributes['name'] ?? null;
     }
 
-    public static function getCategoriesWithProducts(int $tenantId)
+    public static function getCategoriesWithProducts(int $tenantId, int $productsPerCategory = 4)
     {
-        // 1) Категории
-        $categories = Category::query()
-            ->select('id', 'name', 'order_position', 'is_active')
-            ->where('tenant_id', $tenantId)
-            ->where('is_active', true)
-            ->orderBy('order_position')
-            ->get();
+        // 🎯 КЭШИРОВАНИЕ: кэшируем результат на 5 минут
+        $cacheKey = "categories_with_products_{$tenantId}_{$productsPerCategory}";
 
-        if ($categories->isEmpty()) {
-            return [];
-        }
+        return cache()->remember($cacheKey, 300, function () use ($tenantId, $productsPerCategory) {
+            // 1) Получаем категории с количеством товаров ОДНИМ запросом
+            $categories = Category::query()
+                ->select('categories.id', 'categories.name', 'categories.order_position', 'categories.is_active')
+                ->selectRaw('COUNT(DISTINCT products.id) as products_count')
+                ->leftJoin('product_categories as ppc', 'ppc.category_id', '=', 'categories.id')
+                ->leftJoin('products', function ($join) use ($tenantId) {
+                    $join->on('ppc.product_id', '=', 'products.id')
+                        ->where('products.tenant_id', '=', $tenantId)
+                        ->whereNull('products.deleted_at')
+                        ->where('products.in_stop_list', '=', false);
+                })
+                ->where('categories.tenant_id', $tenantId)
+                ->where('categories.is_active', true)
+                ->groupBy('categories.id', 'categories.name', 'categories.order_position', 'categories.is_active')
+                ->havingRaw('COUNT(DISTINCT products.id) > 0')
+                ->orderBy('categories.order_position')
+                ->get();
 
-        $categoryIds = $categories->pluck('id')->toArray();
+            if ($categories->isEmpty()) {
+                return [];
+            }
 
-        // 2) 🆕 Получаем ОБЩЕЕ количество товаров по каждой категории (для кнопки "Загрузить ещё")
-        $productsCount = Product::query()
-            ->selectRaw('ppc.category_id, COUNT(products.id) as count')
-            ->join('product_categories as ppc', 'ppc.product_id', '=', 'products.id')
-            ->whereIn('ppc.category_id', $categoryIds)
-            ->where('products.tenant_id', $tenantId)
-            ->whereNull('products.deleted_at')
-            ->where('products.in_stop_list', false)
-            ->groupBy('ppc.category_id')
-            ->pluck('count', 'category_id') // Вернет массив вида [1 => 10, 2 => 5]
-            ->toArray();
+            $categoryIds = $categories->pluck('id')->toArray();
 
-        // 3) Получаем все товары (чтобы сгруппировать их)
-        $products = Product::query()
-            ->select(
-                'products.*',
-                'ppc.category_id'
-            )
-            ->join('product_categories as ppc', 'ppc.product_id', '=', 'products.id')
-            ->whereIn('ppc.category_id', $categoryIds)
-            ->where('products.tenant_id', $tenantId)
-            ->whereNull('products.deleted_at')
-            ->where('products.in_stop_list', false)
-            ->orderBy('products.order_position') // Лучше сортировать по порядку, а не по ID
-            ->get()
-            ->groupBy('category_id');
+            // 2) Получаем товары для всех категорий ОДНИМ запросом
+            $products = Product::query()
+                ->select(
+                    'products.id',
+                    'products.name',
+                    'products.price',
+                    'products.images',
+                    'products.description',
+                    'products.order_position',
+                    'ppc.category_id'
+                )
+                ->join('product_categories as ppc', 'ppc.product_id', '=', 'products.id')
+                ->whereIn('ppc.category_id', $categoryIds)
+                ->where('products.tenant_id', $tenantId)
+                ->whereNull('products.deleted_at')
+                ->where('products.in_stop_list', false)
+                ->orderBy('products.order_position')
+                ->orderBy('products.id')
+                ->get();
 
-        // 4) 🆕 Собираем структуру с лимитом в 4 товара и общим количеством
-        $result = [];
+            // 3) Группируем товары по category_id
+            $productsByCategory = $products->groupBy('category_id');
 
-        foreach ($categories as $category) {
-            $categoryProducts = ($products[$category->id] ?? collect())->values();
+            // 4) Собираем результат
+            $result = [];
+            foreach ($categories as $category) {
+                $categoryProducts = $productsByCategory->get($category->id, collect());
 
-            $result[] = [
-                'id' => $category->id,
-                'name' => $category->name,
-                'order_position' => $category->order_position,
-                'is_active' => $category->is_active,
-                'products' => $categoryProducts->take(4)->values()->toArray(), // 🎯 БЕРЕМ ТОЛЬКО 4 ПЕРВЫХ ТОВАРА
-                'products_count' => $productsCount[$category->id] ?? 0,         // 🎯 ДОБАВЛЯЕМ ОБЩЕЕ КОЛИЧЕСТВО
-            ];
-        }
+                $result[] = [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'order_position' => $category->order_position,
+                    'is_active' => $category->is_active,
+                    'products' => $categoryProducts->take($productsPerCategory)->values()->toArray(),
+                    'products_count' => $category->products_count,
+                ];
+            }
 
-        return $result;
+            return $result;
+        });
     }
 
 }

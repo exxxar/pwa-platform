@@ -247,10 +247,10 @@ export default {
             this.setSearch(query);
         },
 
-        async onLoadMore(categoryId, offset) {
+        async onLoadMore(categoryId) {
             try {
                 const partnerId = this.selectedPartner?.tenant_partner_id || null;
-                await this.loadMoreProducts(categoryId, offset, partnerId);
+                await this.loadMoreProducts(categoryId, partnerId);
             } catch (error) {
                 console.error('Ошибка загрузки:', error);
             }

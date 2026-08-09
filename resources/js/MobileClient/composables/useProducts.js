@@ -123,7 +123,7 @@ export function useProducts() {
         syncFromFrontPad: () => store.updateProductsFromFrontPad(),
         loadRecommendedProducts: store.loadRecommendedProducts,
         loadProductsByCategory: store.loadProductsByCategory,
-        loadMoreProducts: store.loadMoreProducts,
+        loadMoreProducts: (categoryId, partnerId = null) => store.loadMoreProducts(categoryId, partnerId),
         loadProductsInCategory: store.loadProductsInCategory,
         loadProduct: store.loadProduct,
         removeAllProducts: store.removeAllProducts,

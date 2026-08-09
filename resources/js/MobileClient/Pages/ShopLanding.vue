@@ -74,11 +74,10 @@
 
         <!-- 🆕 Обновленная корзина (исправлены пропсы) -->
         <ShopCart
-            v-if="showCart"
             :is-open="showCart"
             :config="config.cart"
             @close="showCart = false"
-            @checkout="openCheckoutForm"
+            @success="onOrderSuccess"
         />
 
         <!-- 🆕 НОВАЯ МОДАЛКА ОФОРМЛЕНИЯ ЗАКАЗА -->
@@ -248,6 +247,14 @@ export default {
     },
 
     methods: {
+        onOrderSuccess(response) {
+            this.$notify?.({
+                title: 'Заказ оформлен!',
+                text: 'Инструкция отправлена вам в бот.',
+                type: 'success'
+            });
+            this.showCart = false; // Закрываем корзину после успеха
+        },
         // 🆕 Метод для получения дефолтных настроек (фоллбэк)
         getDefaultConfig() {
             return {

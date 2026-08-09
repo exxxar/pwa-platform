@@ -534,26 +534,88 @@ trait BasketHelper
         }
     }
 
-    // ==========================================
-    // 🎯 ОСНОВНОЙ МЕТОД (ОРКЕСТРАТОР)
-    // ==========================================
+    /**
+     * 🎯 ПРОВЕРКА МИНИМАЛЬНЫХ СУММ ЗАКАЗА ПО ЗАВЕДЕНИЯМ
+     */
+    private function validateMinimumOrderAmounts(array $basketData): array
+    {
+        $errors = [];
+
+        foreach ($basketData['partner_boxes'] as $uuid => $box) {
+            $partnerId = $box['id'];
+            $partner = Tenant::query()->find($partnerId);
+
+            if (!$partner) {
+                continue;
+            }
+
+            // Получаем минимальную сумму заказа из настроек заведения
+            $settings = $partner->settings ?? [];
+            $minPrice = $this->safeFloat($settings['min_price'] ?? 0);
+
+            // Если минимальная сумма не установлена, пропускаем
+            if ($minPrice <= 0) {
+                continue;
+            }
+
+            $currentAmount = $box['summary_price'];
+
+            // Проверяем, не меньше ли текущая сумма минимальной
+            if ($currentAmount < $minPrice) {
+                $errors[] = [
+                    'partner_id' => $partnerId,
+                    'partner_name' => $partner->name ?? $partner->title ?? 'Заведение',
+                    'partner_slug' => $partner->slug ?? '',
+                    'min_required' => $minPrice,
+                    'current_amount' => $currentAmount,
+                    'shortage' => $minPrice - $currentAmount,
+                ];
+            }
+        }
+
+        return $errors;
+    }
+
     private function foodShopCheckout(): array
     {
         try {
             $context = $this->prepareCheckoutContext();
             $basketData = $this->processBasketAndCalculateTotals($context);
 
+            // 🎯 НОВАЯ ВАЛИДАЦИЯ: Проверка минимальных сумм заказа
+            $minOrderErrors = $this->validateMinimumOrderAmounts($basketData);
+
+            if (!empty($minOrderErrors)) {
+                // Формируем понятное сообщение об ошибке
+                $errorMessages = [];
+                foreach ($minOrderErrors as $error) {
+                    $errorMessages[] = sprintf(
+                        '❌ %s: минимальная сумма заказа %s ₽ (сейчас %s ₽, не хватает %s ₽)',
+                        $error['partner_name'],
+                        number_format($error['min_required'], 0, '.', ' '),
+                        number_format($error['current_amount'], 0, '.', ' '),
+                        number_format($error['shortage'], 0, '.', ' ')
+                    );
+                }
+
+                return [
+                    'success' => false,
+                    'message' => 'Не достигнута минимальная сумма заказа',
+                    'errors' => $errorMessages,
+                    'min_order_errors' => $minOrderErrors,
+                ];
+            }
+
             // 1. Создаем заказ.
-            // 🎯 OrderObserver автоматически перехватит событие 'created' и создаст TenantDialog!
             $order = $this->createOrderRecord($context, $basketData);
 
-            // 2. Принудительно подгружаем связь dialog, чтобы она была доступна в памяти сразу
+            // 2. Принудительно подгружаем связь dialog
             $order->load('dialog');
 
-            // 3. Уведомления (теперь метод сам возьмет $order->dialog)
+            // 3. Уведомления
             $kanbanTaskId = $this->notifyStakeholders($order, $context, $basketData);
 
-            // 4. Оплата и чеки (тоже сам возьмет $order->dialog)
+            // 4. Оплата и чеки
             $paymentData = $this->processPaymentAndReceipt($order, $context, $basketData, $kanbanTaskId);
 
             $this->finalizeOrder($order);
@@ -561,7 +623,7 @@ trait BasketHelper
             return [
                 'success' => true,
                 'order_id' => $order->id,
-                'dialog_id' => $order->dialog_id, // 🆕 Обязательно добавляем это поле!
+                'dialog_id' => $order->dialog_id,
                 'summary_price' => $basketData['final_price'],
                 'payment_type' => $context['payment_type'],
                 'payment_status_text' => $this->getPaymentStatusText($context['payment_type']),

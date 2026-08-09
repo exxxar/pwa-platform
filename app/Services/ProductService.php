@@ -43,40 +43,54 @@ class ProductService
         return new ProductCollection($products);
     }
 
-    public function loadMoreProductsByCategories(int $categoryId, int $offset, ?int $partnerId = null)
+    public function loadMoreProductsByCategories(int $categoryId, ?int $lastProductId = null, ?int $partnerId = null, int $limit = 12)
     {
         $tenant = app('tenant');
         $tenantId = $partnerId ?? $tenant->id;
 
-        // 🎯 Базовый запрос для всех категорий
         $query = Product::query()
             ->where('tenant_id', $tenantId)
             ->whereNull('deleted_at')
             ->where('in_stop_list', false);
 
-        // 🎯 Фильтрация по категории через whereHas (EXISTS подзапрос)
+        // 🎯 Фильтрация по категории
         if ($categoryId === -1) {
-            // Товары без категорий
-            $query->has('categories', '=', 0);
+            $query->whereDoesntHave('categories');
         } else {
-            // Товары в конкретной категории
             $query->whereHas('categories', function ($q) use ($categoryId) {
                 $q->where('categories.id', $categoryId);
             });
         }
 
+        // 🎯 КУРСОРНАЯ ПАГИНАЦИЯ: если есть lastProductId, берём товары ПОСЛЕ него
+        if ($lastProductId) {
+            // Получаем order_position последнего товара
+            $lastProduct = Product::find($lastProductId);
+            if ($lastProduct) {
+                $query->where(function ($q) use ($lastProduct) {
+                    $q->where('order_position', '>', $lastProduct->order_position)
+                        ->orWhere(function ($q2) use ($lastProduct) {
+                            $q2->where('order_position', '=', $lastProduct->order_position)
+                                ->where('id', '>', $lastProduct->id);
+                        });
+                });
+            }
+        }
+
         $products = $query
             ->orderBy('order_position', 'asc')
             ->orderBy('id', 'asc')
-            ->skip($offset)
-            ->take(12)
+            ->take($limit + 1) // Берём на 1 больше для проверки has_more
             ->get();
+
+        $hasMore = $products->count() > $limit;
+        $products = $products->take($limit); // Отрезаем лишний
 
         return (object)[
             "data" => $products->toArray(),
             "count" => $products->count(),
-            "offset" => $offset,
-            "has_more" => $products->count() === 12,
+            "has_more" => $hasMore,
+            "last_product_id" => $products->isNotEmpty() ? $products->last()->id : null,
         ];
     }
 
@@ -136,24 +150,34 @@ class ProductService
 
     public function listByCategories(array $data = null)
     {
-
         $tenant = app('tenant');
-
-
         $tenantId = $data["partner_id"] ?? $tenant->id;
 
+        // 🎯 Получаем категории с товарами (с кэшированием)
         $categories = Category::getCategoriesWithProducts($tenantId);
 
+        // 🎯 Товары без категории — тоже кэшируем
+        $cacheKey = "products_without_category_{$tenantId}";
+        $withoutCategory = cache()->remember($cacheKey, 300, function () use ($tenantId) {
+            return Product::query()
+                ->select('id', 'name', 'price', 'images', 'description', 'order_position')
+                ->where('tenant_id', $tenantId)
+                ->where('in_stop_list', false)
+                ->whereNull('deleted_at')
+                ->whereDoesntHave('categories') // Более быстрый способ чем has('categories', '=', 0)
+                ->orderBy('order_position')
+                ->take(8)
+                ->get()
+                ->toArray();
+        });
 
-        // Товары без категории
-        $withoutCategory = Product::query()
-            ->where("tenant_id", $tenantId)
-            ->has("categories", "=", 0)
-            ->where("in_stop_list", false)
-            ->whereNull("deleted_at")
-            ->take(8)
-            ->offset(0)
-            ->get();
+        // Получаем общее количество товаров без категории
+        $withoutCategoryCount = Product::query()
+            ->where('tenant_id', $tenantId)
+            ->where('in_stop_list', false)
+            ->whereNull('deleted_at')
+            ->whereDoesntHave('categories')
+            ->count();
 
         $tmpCategory = [
             "id" => -1,
@@ -161,15 +185,13 @@ class ProductService
             "order_position" => 0,
             "name" => "Без категории",
             "tenant_id" => $tenantId,
-            "products" => $withoutCategory->toArray(),
-            "products_count" => $withoutCategory->count()
+            "products" => $withoutCategory,
+            "products_count" => $withoutCategoryCount,
         ];
 
         return (object)[
             "data" => [$tmpCategory, ...$categories]
         ];
-
-
     }
 
     public function favList(): ProductCollection
