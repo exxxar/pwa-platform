@@ -91,9 +91,7 @@ class WebhookSyncService
         }
     }
 
-    /**
-     * Синхронизация одной коллекции
-     */
+
     /**
      * Синхронизация одной коллекции
      */
@@ -111,11 +109,15 @@ class WebhookSyncService
 
         $action = $collection->exists ? 'updated' : 'created';
 
+        // 🔥 РЕШЕНИЕ: Резолвим URL для картинки коллекции так же, как для товаров
+        $rawImageUrl = $data['image'] ?? $data['image_url'] ?? null;
+        $resolvedImageUrl = $rawImageUrl ? $this->resolveImageUrl($rawImageUrl) : null;
+
         $collection->fill([
             'name' => $data['name'] ?? 'Без названия',
             'description' => $data['description'] ?? null,
             'short_description' => $data['short_description'] ?? null,
-            'image' => $data['image'] ?? $data['image_url'] ?? null,
+            'image' => $resolvedImageUrl, // ✅ Теперь здесь будет https://products.mypwa.ru/...
             'discount' => $data['discount_percent'] ?? $data['discount'] ?? 0,
             'order_position' => $data['sort_order'] ?? $data['order_position'] ?? 0,
             'type' => $data['type'] ?? 'manual',
@@ -212,6 +214,19 @@ class WebhookSyncService
                 continue;
             }
 
+            // 🔥 ЕСЛИ ПРИШЛИ ПОЛНЫЕ ДАННЫЕ ТОВАРА - синхронизируем их
+            if (isset($prodData['name']) || isset($prodData['images']) || isset($prodData['price'])) {
+                try {
+                    // Синхронизируем товар полностью (обновляем картинки, цены и т.д.)
+                    $this->syncProduct($tenant, $prodData);
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to sync product from collection', [
+                        'external_id' => $productExternalId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             // Находим локальный товар по external_id
             $localProduct = Product::where('tenant_id', $tenant->id)
                 ->where('external_id', $productExternalId)
@@ -224,8 +239,6 @@ class WebhookSyncService
             }
         }
 
-        // sync() автоматически добавит новые связи, обновит sort_order и удалит старые,
-        // которых нет в $syncData
         $collectionCategory->products()->sync($syncData);
     }
 
