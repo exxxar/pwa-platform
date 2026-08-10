@@ -106,7 +106,7 @@ export default {
                 all: 'fa-solid fa-list-check',
                 several: 'fa-solid fa-list',
             };
-            return icons[this.rule] || 'fa-solid fa-1';
+            return icons[this.rule] || 'fa-circle-dot';
         },
     },
 

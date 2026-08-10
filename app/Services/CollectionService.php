@@ -104,27 +104,23 @@ class CollectionService
         return new CollectionCollection($collections);
     }
 
-    public function show(int $id,?int $partnerId = null): CollectionResource
+    public function show(int $id, ?int $partnerId = null): CollectionResource
     {
         $tenant = app('tenant');
 
         $collection = Collection::query()
             ->with([
-                'collectionCategories' => function ($q) {
-                    $q->with(['category', 'products' => function ($pq) {
-                        $pq->where('in_stop_list', false)
-                            ->whereNull('deleted_at')
-                            ->orderBy('collection_category_product.sort_order');
-                    }])
-                        ->orderBy('sort_order')
-                        ->orderBy('id');
+                'collectionCategories' => fn($q) => $q->orderBy('sort_order')->orderBy('id'),
+                'collectionCategories.category', // Точечная нотация для вложенных
+                'collectionCategories.products' => function ($pq) {
+                    $pq->where('in_stop_list', false)
+                        ->whereNull('deleted_at')
+                        ->orderBy('collection_category_product.sort_order');
                 },
             ])
             ->where('tenant_id', $partnerId ?? $tenant->id)
             ->where('id', $id)
             ->first();
-
-
 
         if (!$collection) {
             throw new HttpException(404, 'Коллекция не найдена');

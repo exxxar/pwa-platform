@@ -567,7 +567,7 @@ export default {
     beforeUnmount() {
         if (this._scrollToBasketHandler) window.removeEventListener("scroll-to-basket", this._scrollToBasketHandler);
         if (this._switchToCartHandler) document.removeEventListener('switch-to-cart', this._switchToCartHandler);
-        this.clearAutoCloseTimers();
+        //this.clearAutoCloseTimers();
     },
 
     methods: {

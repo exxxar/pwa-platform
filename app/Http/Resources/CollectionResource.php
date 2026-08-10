@@ -28,7 +28,7 @@ class CollectionResource extends JsonResource
         ];
 
         // 🔥 ВСЕГДА возвращаем collection_categories (даже пустой массив)
-        if ($this->resource->relationLoaded('collectionCategories')) {
+        if ($this->resource && $this->resource->relationLoaded('collectionCategories')) {
             $data['collection_categories'] = CollectionCategoryResource::collection(
                 $this->collectionCategories
             );
@@ -36,12 +36,20 @@ class CollectionResource extends JsonResource
             $data['collection_categories'] = [];
         }
 
-        // Для совместимости
         $data['products_count'] = $this->whenLoaded('collectionCategories', function () {
+            // Проверяем, что хотя бы у первой категории products загружен
+            $firstCategory = $this->collectionCategories->first();
+            if ($firstCategory && !$firstCategory->relationLoaded('products')) {
+                // Fallback: считаем только количество загруженных товаров
+                return $this->collectionCategories->sum(
+                    fn ($cat) => $cat->products()->count() // Используем отношение как query builder
+                );
+            }
+
             return $this->collectionCategories->sum(
                 fn ($cat) => $cat->products->count()
             );
-        });
+        }, 0);
 
         return $data;
     }
