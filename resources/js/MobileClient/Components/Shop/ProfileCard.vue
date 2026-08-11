@@ -623,7 +623,8 @@
                             <h5 class="modal-title mb-0">Подождите!</h5>
                             <small class="text-muted">Важно сохранить данные для входа</small>
                         </div>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cancelLogoutFlow"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                @click="cancelLogoutFlow"></button>
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-warning mb-3">
@@ -635,7 +636,8 @@
 
                         <ul class="missing-items-list mb-0">
                             <li v-if="securityCheck.needsLogin" class="missing-item">
-                                <div class="missing-icon" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                                <div class="missing-icon"
+                                     style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
                                     <i class="fa-solid fa-phone"></i>
                                 </div>
                                 <div class="missing-content">
@@ -644,7 +646,8 @@
                                 </div>
                             </li>
                             <li v-if="securityCheck.needsPassword" class="missing-item">
-                                <div class="missing-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                <div class="missing-icon"
+                                     style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                                     <i class="fa-solid fa-lock"></i>
                                 </div>
                                 <div class="missing-content">
@@ -663,7 +666,8 @@
                             <i class="fa-solid fa-right-from-bracket me-2"></i>
                             Выйти всё равно
                         </button>
-                        <button type="button" class="btn btn-link text-secondary" data-bs-dismiss="modal" @click="cancelLogoutFlow">
+                        <button type="button" class="btn btn-link text-secondary" data-bs-dismiss="modal"
+                                @click="cancelLogoutFlow">
                             Остаться в профиле
                         </button>
                     </div>
@@ -883,22 +887,6 @@ export default {
         goToAchievements() {
             this.$router.push({name: 'Achievements'})
         },
-        async checkAndLogout() {
-            // Если всё в порядке (есть логин и пароль) — сразу выходим
-            if (!this.hasSecurityIssues) {
-                if (confirm('Вы уверены, что хотите выйти из аккаунта?')) {
-                    this.doLogout();
-                }
-                return;
-            }
-
-            // Иначе показываем предупреждающую модалку
-            if (this.modals.securityCheck) {
-                this.modals.securityCheck.show();
-            }
-        },
-
-
 
 
         // 🆕 Пользователь выбрал "Сохранить и выйти"
@@ -914,7 +902,6 @@ export default {
             this.pendingLogoutSteps = steps;
             this.executeNextStep();
         },
-
 
 
         initModals() {
@@ -1034,8 +1021,6 @@ export default {
         },
 
 
-
-
         formatPhoneInput() {
             let value = this.phoneForm.phone.replace(/\D/g, '');
             if (value.startsWith('8')) value = '7' + value.slice(1);
@@ -1051,7 +1036,6 @@ export default {
             this.phoneForm.phone = formatted;
             this.phoneError = '';
         },
-
 
 
         formatTime(seconds) {
@@ -1292,17 +1276,12 @@ export default {
         },
 
 
-
-        // 🆕 УНИВЕРСАЛЬНАЯ ПРОВЕРКА безопасности перед любым действием
+// 🆕 УНИВЕРСАЛЬНАЯ ПРОВЕРКА безопасности перед любым действием
         async checkSecurityAndProceed(action) {
             if (!this.hasSecurityIssues) {
-                const message = action === 'logout'
-                    ? 'Вы уверены, что хотите выйти из аккаунта?'
-                    : 'Вы уверены, что хотите сменить аккаунт? Текущая сессия будет завершена.';
-
+                const message = 'Вы уверены, что хотите выйти из аккаунта?';
                 if (confirm(message)) {
-                    this.pendingAction = action;
-                    this.executeFinalAction();
+                    this.doLogout();
                 }
                 return;
             }
@@ -1325,14 +1304,10 @@ export default {
 
 // 🆕 ФИНАЛЬНОЕ ДЕЙСТВИЕ после всех проверок
         executeFinalAction() {
-            if (this.pendingAction === 'switchAccount') {
-                this.doSwitchAccount();
-            } else {
-                this.doLogout();
-            }
+            this.doLogout();
         },
 
-// 🆕 РЕАЛЬНЫЙ выход (для кнопки "Выйти")
+// 🆕 РЕАЛЬНЫЙ выход
         async doLogout() {
             this.isLoggingOut = true;
             try {
@@ -1342,25 +1317,26 @@ export default {
             } finally {
                 window.TenantUser = null;
                 localStorage.removeItem('token');
-                this.$router.push({ name: 'Auth' });
+                this.$router.push({name: 'Auth'});
                 this.isLoggingOut = false;
                 this.pendingAction = null;
             }
         },
 
-// 🆕 СМЕНА АККАУНТА (то же самое, но семантически разделено)
-        async doSwitchAccount() {
-            this.isLoggingOut = true;
-            try {
-                await axios.post('/auth/logout');
-            } catch (error) {
-                console.error('Ошибка при выходе с сервера:', error);
-            } finally {
-                window.TenantUser = null;
-                localStorage.removeItem('token');
-                this.$router.push({ name: 'Auth' });
-                this.isLoggingOut = false;
-                this.pendingAction = null;
+// 🆕 Пользователь выбрал "Всё равно выйти/сменить"
+        proceedToLogoutAnyway() {
+            this.pendingLogoutSteps = [];
+
+            if (this.modals.securityCheck) {
+                const modalEl = document.getElementById('securityCheckModal');
+                if (modalEl) {
+                    modalEl.addEventListener('hidden.bs.modal', () => {
+                        this.doLogout();
+                    }, {once: true});
+                }
+                this.modals.securityCheck.hide();
+            } else {
+                this.doLogout();
             }
         },
 
@@ -1371,19 +1347,9 @@ export default {
             this.showNotification('info', 'Действие отменено', 'fa-solid fa-circle-info');
         },
 
-// 🆕 Пользователь выбрал "Всё равно выйти/сменить"
-        proceedToLogoutAnyway() {
-            if (this.modals.securityCheck) {
-                this.modals.securityCheck.hide();
-            }
-            this.pendingLogoutSteps = [];
-            this.executeFinalAction();
-        },
-
 // 🆕 Выполняет следующий шаг из очереди
         executeNextStep() {
             if (this.pendingLogoutSteps.length === 0) {
-                // Все шаги выполнены — выполняем финальное действие
                 this.executeFinalAction();
                 return;
             }
@@ -1402,6 +1368,25 @@ export default {
                 this.showNotification('info', 'Установите пароль для входа', 'fa-solid fa-lock');
             }
         },
+
+
+// 🆕 СМЕНА АККАУНТА (то же самое, но семантически разделено)
+        async doSwitchAccount() {
+            this.isLoggingOut = true;
+            try {
+                await axios.post('/auth/logout');
+            } catch (error) {
+                console.error('Ошибка при выходе с сервера:', error);
+            } finally {
+                window.TenantUser = null;
+                localStorage.removeItem('token');
+                this.$router.push({name: 'Auth'});
+                this.isLoggingOut = false;
+                this.pendingAction = null;
+            }
+        },
+
+
     },
 };
 </script>
