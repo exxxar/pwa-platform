@@ -246,7 +246,7 @@
             <AppDivider text="Управление аккаунтом"/>
 
             <!-- 🆕 Сменить аккаунт -->
-            <button class="btn-change-account mb-2" @click="simpleChangeAccount">
+            <button class="btn-change-account mb-2" @click="changeAccount">
                 <i class="fa-solid fa-user-switch me-2"></i> Сменить аккаунт
             </button>
 
