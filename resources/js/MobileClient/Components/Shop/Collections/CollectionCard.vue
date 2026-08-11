@@ -133,7 +133,7 @@
 
 <script>
 import { useBasket } from '@/MobileClient/Composables/useBasket.js';
-
+import { useRouter } from 'vue-router';
 export default {
     name: "CollectionCard",
 
@@ -151,10 +151,13 @@ export default {
 
     setup() {
         const basket = useBasket();
+        const router = useRouter();
         return {
             getCollectionVariants: basket.getCollectionVariants || (() => []),
+            router,
         };
     },
+
 
     data() {
         return {
@@ -217,7 +220,14 @@ export default {
 
     methods: {
         openCollection() {
-            this.$emit('open-collection', this.item);
+
+            this.router.push({
+                name: 'CollectionPage',
+                params: {
+                    id: this.item.id,
+                    partnerId: this.partnerId || null
+                }
+            });
         },
 
         formatPrice(price) {

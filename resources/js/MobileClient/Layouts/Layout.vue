@@ -35,7 +35,7 @@
                     title="Ваш кэшбэк"
                 >
                     <i class="fa-solid fa-coins"></i>
-                    <span class="cashback-amount">{{ formatCashback(cashback) }}</span>
+                    <span class="cashback-amount">{{ formatCashback(self.cashback_balance || 0) }}</span>
                 </a>
 
             </div>

@@ -45,7 +45,7 @@
                     <div class="stat-item" @click="goTo('Cashback')">
                         <i class="fa-solid fa-coins"></i>
                         <div class="stat-info">
-                            <span class="stat-value">{{ self?.cashBack?.amount || 0 }} ₽</span>
+                            <span class="stat-value">{{ self?.cashback_balance|| 0 }} ₽</span>
                             <span class="stat-label">Баланс</span>
                         </div>
                     </div>
@@ -53,7 +53,7 @@
                     <div class="stat-item" @click="goTo('Orders')">
                         <i class="fa-solid fa-bag-shopping"></i>
                         <div class="stat-info">
-                            <span class="stat-value">{{ self?.order_count || 0 }}</span>
+                            <span class="stat-value">{{ self?.orders_count || 0 }}</span>
                             <span class="stat-label">Заказов</span>
                         </div>
                     </div>

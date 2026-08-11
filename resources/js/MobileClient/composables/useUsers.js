@@ -15,13 +15,15 @@ export function useUsers() {
         isDownloading,
         lastError,
         filters,
-
+        isLoadingMore,
         // --- Геттеры (Getters) ---
         usersCount,
         admins,
         vips,
         deliverymen,
     } = storeToRefs(store);
+
+    const manageCashback = (userId, payload) => store.manageCashback(userId, payload);
 
     return {
         // Состояние (Refs)
@@ -32,6 +34,7 @@ export function useUsers() {
         isDownloading,
         lastError,
         filters,
+        isLoadingMore,
 
         // Геттеры (Refs)
         usersCount,
@@ -41,6 +44,7 @@ export function useUsers() {
 
         // Методы (Actions)
         // Прямое маппирование — это отлично и эффективно
+        manageCashback,
         loadUsers: store.loadUsers,
         downloadUsers: store.downloadUsers,
         downloadCashbackHistory: store.downloadCashbackHistory,
@@ -51,6 +55,11 @@ export function useUsers() {
         toggleBlock: store.toggleBlock,
         toggleVip: store.toggleVip,
         clearCurrentUser: store.clearCurrentUser,
+
+
+        loadMoreUsers: store.loadMoreUsers,
+        addCashback: store.addCashback,
+        startChat: store.startChat,
 
         // Сброс стора
         $reset: store.$reset,

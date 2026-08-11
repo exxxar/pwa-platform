@@ -93,7 +93,16 @@
         <!-- ========================================== -->
         <div class="product-action">
             <template v-if="collectionMode">
-                <!-- ... режим коллекции без изменений ... -->
+                <!-- 🆕 УПРОЩЕННЫЙ РЕЖИМ: ТОЛЬКО ВЫБОР -->
+                <button
+                    class="select-btn"
+                    :class="{ selected: isSelected }"
+                    @click.stop="selectInCollection(item)"
+                    :disabled="!canSelect"
+                >
+                    <i :class="isSelected ? 'fa-solid fa-check' : 'fa-regular fa-square'"></i>
+                    <span>{{ isSelected ? 'Выбрано' : 'Выбрать' }}</span>
+                </button>
             </template>
 
             <template v-else>
@@ -209,6 +218,7 @@ export default {
             type: Boolean,
             default: false,
         },
+        isSelected: { type: Boolean, default: false },
         canSelect: {
             type: Boolean,
             default: true,
@@ -1107,6 +1117,41 @@ $bg-secondary: #f8f9fa;
     &:hover {
         background: transparent;
         color: inherit;
+    }
+}
+
+.select-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    background: var(--bs-body-bg, #{$bg});
+    border: 2px solid var(--bs-border-color, #{$border});
+    border-radius: 12px;
+    color: var(--bs-body-color, #{$text});
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover:not(:disabled) {
+        border-color: var(--bs-primary, #{$primary});
+        color: var(--bs-primary, #{$primary});
+        background: rgba($primary, 0.03);
+    }
+
+    &.selected {
+        background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
+        border-color: $primary;
+        color: white;
+        box-shadow: 0 4px 12px rgba($primary, 0.3);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 }
 </style>

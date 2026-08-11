@@ -116,7 +116,7 @@
                                         <span>Вариант {{ index + 1 }}</span>
                                         <span class="variant-count-badge">x{{ variant.count || 1 }}</span>
                                     </div>
-                                    <div class="variant-header-right" @click.stop>
+                                    <div class="variant-header-right" >
                                         <div class="variant-controls">
                                             <button class="ctrl-btn" :disabled="isProcessing(variant, 'dec')" @click="decrementVariant(index)">
                                                 <i v-if="isProcessing(variant, 'dec')" class="fa-solid fa-spinner fa-spin"></i>
@@ -131,7 +131,9 @@
                                                 <i v-else class="fa-solid fa-trash"></i>
                                             </button>
                                         </div>
-                                        <i class="fa-solid fa-chevron-down expand-icon" :class="{ 'rotated': isVariantExpanded(variant) }"></i>
+                                        <i class="fa-solid fa-chevron-down expand-icon"
+                                           @click.stop="toggleVariantDetails(variant)"
+                                           :class="{ 'rotated': isVariantExpanded(variant) }"></i>
                                     </div>
                                 </div>
 
@@ -394,16 +396,44 @@ export default {
         // 🆕 Методы для управления количеством в корзине (с состояниями загрузки)
         async incrementVariant(index) {
             const variant = this.cartVariants[index];
-            const vId = variant.params?.variant_id;
+            const vId = variant.params?.variant_id || variant.id;
+
+            console.group('🔵 Increment Variant');
+            console.log('Index:', index);
+            console.log('Variant:', variant);
+            console.log('Variant ID:', vId);
+            console.log('Collection ID:', this.collection.id);
+            console.groupEnd();
+
+            if (!vId) {
+                console.error('❌ Нет variant_id!');
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'ID варианта не найден',
+                    type: 'error',
+                });
+                return;
+            }
+
             this.processingVariants[vId] = 'inc';
 
             try {
-                await this.incrementCollectionVariant({
+                console.log('📞 Вызываем incrementCollectionVariant...');
+
+                const result = await this.incrementCollectionVariant({
                     collection_id: this.collection.id,
                     variant_id: vId
                 });
+
+                console.log('✅ Результат:', result);
+
             } catch (error) {
-                console.error('Ошибка инкремента:', error);
+                console.error('❌ Ошибка:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.message || 'Не удалось увеличить количество',
+                    type: 'error',
+                });
             } finally {
                 delete this.processingVariants[vId];
             }

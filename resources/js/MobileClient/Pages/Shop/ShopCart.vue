@@ -325,6 +325,66 @@
             </div>
         </transition>
 
+        <!-- 🆕 6. МОДАЛКА ОШИБКИ ГРАФИКА РАБОТЫ -->
+        <transition name="schedule-error">
+            <div v-if="showScheduleError" class="schedule-error-overlay" @click.self="closeScheduleError">
+                <div class="schedule-error-modal">
+                    <!-- Шапка -->
+                    <div class="modal-header closed-header">
+                        <div class="closed-icon-wrapper">
+                            <i class="fa-solid fa-store-slash"></i>
+                        </div>
+                        <h3 class="modal-title">Заведение или доставка закрыты</h3>
+                        <p class="modal-subtitle">В данный момент оформление заказа невозможно</p>
+                    </div>
+
+                    <!-- Список закрытых мест -->
+                    <div class="modal-body">
+                        <div class="error-list">
+                            <div
+                                v-for="(error, index) in scheduleErrors"
+                                :key="index"
+                                class="error-item"
+                            >
+                                <div class="error-item-header">
+                                    <div class="partner-info">
+                                        <div class="partner-icon closed-icon">
+                                            <i class="fa-solid fa-moon"></i>
+                                        </div>
+                                        <div class="partner-details">
+                                            <h4 class="partner-name">{{ error.name }}</h4>
+                                            <span class="partner-badge">{{ error.type === 'main_tenant' ? 'Служба доставки' : 'Партнер' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="error-item-body">
+                                    <p class="error-message-text">
+                                        <i class="fa-solid fa-circle-info"></i>
+                                        {{ error.message }}
+                                    </p>
+
+                                    <div v-if="error.closes_at" class="reopens-info">
+                                        <i class="fa-regular fa-clock"></i>
+                                        <span>Следующее открытие: сегодня в <strong>{{ error.closes_at }}</strong></span>
+                                    </div>
+                                </div>
+
+                                <div v-if="index < scheduleErrors.length - 1" class="error-divider"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Кнопки действий -->
+                    <div class="modal-footer">
+                        <button class="modal-btn secondary-btn" @click="closeScheduleError">
+                            <i class="fa-solid fa-xmark"></i>
+                            <span>Понятно</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
     </div>
 </template>
 
@@ -708,6 +768,13 @@ export default {
                         return;
                     }
 
+                    // 🆕 Обработка ошибок графика работы
+                    if (response?.schedule_errors?.length > 0) {
+                        this.scheduleErrors = response.schedule_errors;
+                        this.showScheduleError = true;
+                        return;
+                    }
+
                     this.$notify?.({
                         title: 'Не удалось оформить заказ',
                         text: response?.message || 'Сервер вернул ошибку. Попробуйте ещё раз.',
@@ -753,7 +820,10 @@ export default {
             this.lastOrderTotal = 0;
             this.handleClose();
         },
-
+        closeScheduleError() {
+            this.showScheduleError = false;
+            this.scheduleErrors = [];
+        },
         showMinOrderErrorModal(errors) {
             this.minOrderErrors = errors;
             this.showMinOrderError = true;
@@ -2017,5 +2087,95 @@ $card-bg: #ffffff;
     .modal-footer {
         flex-direction: column;
     }
+}
+
+/* 🆕 МОДАЛКА ОШИБКИ ГРАФИКА РАБОТЫ */
+.schedule-error-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.schedule-error-modal {
+    background: white;
+    border-radius: 20px;
+    max-width: 450px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalSlideUp 0.3s ease-out;
+}
+
+.closed-header {
+    background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+    color: white;
+    padding: 24px;
+    text-align: center;
+    border-radius: 20px 20px 0 0;
+}
+
+.closed-icon-wrapper {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 28px;
+}
+
+.closed-icon {
+    background: linear-gradient(135deg, #64748b 0%, #475569 100%) !important;
+}
+
+.error-message-text {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    background: #f1f5f9;
+    border-left: 4px solid #64748b;
+    border-radius: 6px;
+    color: #334155;
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+}
+
+.reopens-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #fffbeb;
+    border-left: 4px solid #f59e0b;
+    border-radius: 6px;
+    color: #92400e;
+    font-size: 0.85rem;
+
+    strong {
+        font-weight: 700;
+    }
+}
+
+.schedule-error-enter-active,
+.schedule-error-leave-active {
+    transition: opacity 0.3s ease;
+}
+
+.schedule-error-enter-from,
+.schedule-error-leave-to {
+    opacity: 0;
 }
 </style>

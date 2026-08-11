@@ -17,7 +17,7 @@ class Basket extends Model
         'tenant_user_id',
         'tenant_id',
         'ordered_at',
-        'product_collection_id',
+     //   'container_id',
         'params',
         'table_id',
         'table_approved_at',

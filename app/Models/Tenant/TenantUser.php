@@ -73,7 +73,9 @@ class TenantUser extends Authenticatable
         'cashback_subs',
         'referral_link',
         'has_password',
-        'wheel_wins'
+        'wheel_wins',
+        'orders_count',
+
 
     ];
 
@@ -528,6 +530,21 @@ class TenantUser extends Authenticatable
         return $this->roles()->where('name', $role)->exists();
     }
 
+    public function scopeAdmins($query, $tenantId)
+    {
+        return $query->whereHas('roles', function ($q) use ($tenantId) {
+            $q->where('name', 'super_admin')
+                ->wherePivot('tenant_id', $tenantId);
+        });
+    }
+
+    public function scopeRegularUsers($query, $tenantId)
+    {
+        return $query->whereDoesntHave('roles', function ($q) use ($tenantId) {
+            $q->where('name', 'super_admin')
+                ->wherePivot('tenant_id', $tenantId);
+        });
+    }
     public function hasPermission(string $permission): bool
     {
         return $this->roles()
@@ -568,6 +585,11 @@ class TenantUser extends Authenticatable
         return $this->hasMany(CashBack::class, 'tenant_user_id');
     }
 
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class, 'tenant_user_id');
+    }
+
     protected function cashbackSubs(): Attribute
     {
         return Attribute::make(
@@ -580,12 +602,31 @@ class TenantUser extends Authenticatable
         );
     }
 
+    protected function ordersCount(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // Если withCount уже загрузил — используем готовое значение (экономим запрос)
+                if (array_key_exists('orders_count', $this->attributes)) {
+                    return (int) $this->attributes['orders_count'];
+                }
+
+                // Иначе — считаем через запрос (только для оплаченных)
+                return (int) $this->orders()
+                    ->whereNotNull('payed_at')
+                    ->count();
+            },
+        );
+    }
+
     protected function cashbackBalance(): Attribute
     {
         return Attribute::make(
             get: fn() => (float)$this->cashBacks()->sum('amount'),
         );
     }
+
+
 
     public function dialogs()
     {

@@ -3,9 +3,30 @@
 namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\ResourceCollection;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PartnerCollection extends ResourceCollection
 {
+    protected function publicStorageUrl(?string $path): ?string
+    {
+        if (!$path) {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        $path = ltrim($path, '/');
+
+        if (Str::startsWith($path, 'storage/')) {
+            $path = Str::after($path, 'storage/');
+        }
+
+        return Storage::disk('public')->url($path);
+    }
+
     /**
      * Transform the resource collection into an array.
      */
@@ -21,7 +42,7 @@ class PartnerCollection extends ResourceCollection
                     'name' => $partner->title, // для совместимости
                     'description' => $partner->description,
                     'tags' => $partner->tags ?? [],
-                    'image' => $partner->image,
+                    'image' => $this->publicStorageUrl($partner->image), // ✅ Изменено
                     'is_active' => $partner->is_active,
                     'extra_charge' => $partner->extra_charge,
                     'order_position' => $partner->order_position,

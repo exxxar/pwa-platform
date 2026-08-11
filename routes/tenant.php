@@ -305,6 +305,9 @@ function routes() {
             Route::get('/download', [UsersController::class, 'download']);
             Route::get('/cashback-history', [UsersController::class, 'cashbackHistory']);
 
+            Route::post('/{userId}/cashback', [UsersController::class, 'addCashback']);
+            Route::post('/{userId}/add-cashback', [UsersController::class, 'manageCashback']);
+            Route::post('/{userId}/start-chat', [UsersController::class, 'startChat']);
             Route::get('/{userId}/edit', [UsersController::class, 'edit']);
             Route::put('/{userId}', [UsersController::class, 'update']);
             Route::post('/{userId}/toggle-block', [UsersController::class, 'toggleBlock']);

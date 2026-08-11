@@ -238,7 +238,7 @@ $text-muted: #6b7280;
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
-    z-index: 1000;
+    z-index: 1030;
     display: flex;
     align-items: center;
     justify-content: center;

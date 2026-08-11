@@ -585,6 +585,16 @@ trait BasketHelper
             // 🎯 НОВАЯ ВАЛИДАЦИЯ: Проверка минимальных сумм заказа
             $minOrderErrors = $this->validateMinimumOrderAmounts($basketData);
 
+            $scheduleErrors = $this->validateSchedule($basketData);
+            if (!empty($scheduleErrors)) {
+                return [
+                    'success' => false,
+                    'message' => 'Некоторые заведения или служба доставки сейчас закрыты',
+                    'schedule_errors' => $scheduleErrors,
+                ];
+            }
+
+
             if (!empty($minOrderErrors)) {
                 // Формируем понятное сообщение об ошибке
                 $errorMessages = [];
@@ -1092,5 +1102,94 @@ trait BasketHelper
 
         $message .= $this->fsPrepareUserInfo($order, $cashback) . $this->fsPrepareDisabilities();
         return $message;
+    }
+
+    /**
+     * 🎯 ПРОВЕРКА ГРАФИКА РАБОТЫ (Главный тенант + Партнеры)
+     */
+    private function validateSchedule(array $basketData): array
+    {
+        $errors = [];
+
+        // 1. Проверка основного тенанта (Служба доставки)
+        $mainTenantSchedule = $this->tenant->settings['company']['schedule'] ?? null;
+        if (!$this->isCurrentlyOpen($mainTenantSchedule)) {
+            $errors[] = [
+                'type' => 'main_tenant',
+                'name' => $this->tenant->name ?? 'Служба доставки',
+                'message' => 'Служба доставки в данный момент не принимает заказы.',
+                'closes_at' => $this->getClosingTime($mainTenantSchedule),
+            ];
+        }
+
+        // 2. Проверка партнеров в корзине
+        foreach ($basketData['partner_boxes'] as $box) {
+            $partnerId = $box['id'];
+            $partner = Tenant::query()->find($partnerId);
+
+            if (!$partner) continue;
+
+            $partnerSchedule = $partner->settings['company']['schedule'] ?? null;
+
+            if (!$this->isCurrentlyOpen($partnerSchedule)) {
+                $errors[] = [
+                    'type' => 'partner',
+                    'name' => $partner->name ?? $partner->title ?? 'Заведение',
+                    'message' => 'Это заведение сейчас закрыто и не принимает заказы.',
+                    'closes_at' => $this->getClosingTime($partnerSchedule),
+                ];
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Проверяет, открыто ли заведение прямо сейчас
+     */
+    private function isCurrentlyOpen(?array $schedule): bool
+    {
+        if (empty($schedule) || !is_array($schedule)) {
+            return true; // Если расписания нет, считаем, что работает 24/7
+        }
+
+        $now = now();
+        // Laravel dayOfWeek: 0 = Понедельник, 6 = Воскресенье.
+        // (Если ваш фронтенд сохраняет 0=Воскресенье, замените на: $now->format('w'))
+        $currentDayIndex = $now->dayOfWeek;
+
+        if (!isset($schedule[$currentDayIndex])) {
+            return true;
+        }
+
+        $daySchedule = $schedule[$currentDayIndex];
+
+        if (!empty($daySchedule['closed'])) {
+            return false;
+        }
+
+        $currentTime = $now->format('H:i');
+        $startTime = $daySchedule['start_at'] ?? '00:00';
+        $endTime = $daySchedule['end_at'] ?? '23:59';
+
+        // Обработка ночных смен (например, 22:00 до 04:00)
+        if ($startTime > $endTime) {
+            return $currentTime >= $startTime || $currentTime <= $endTime;
+        }
+
+        return $currentTime >= $startTime && $currentTime <= $endTime;
+    }
+
+    /**
+     * Получает время закрытия для сообщения пользователю
+     */
+    private function getClosingTime(?array $schedule): ?string
+    {
+        if (empty($schedule) || !is_array($schedule)) return null;
+        $currentDayIndex = now()->dayOfWeek;
+        if (isset($schedule[$currentDayIndex]) && !empty($schedule[$currentDayIndex]['end_at'])) {
+            return $schedule[$currentDayIndex]['end_at'];
+        }
+        return null;
     }
 }

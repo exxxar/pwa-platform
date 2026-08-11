@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import {defineStore} from 'pinia';
 import axios from 'axios';
 
 const BASE = '/admin/users';
@@ -13,7 +13,7 @@ export const useUsersStore = defineStore('users', {
         isDownloading: false,
         isSaving: false,
         lastError: null,
-
+        isLoadingMore: false,
         // Текущие фильтры
         filters: {
             search: '',
@@ -38,6 +38,139 @@ export const useUsersStore = defineStore('users', {
     },
 
     actions: {
+
+
+        /**
+         * 🆕 Загрузить следующую страницу и ДОБАВИТЬ к существующему списку
+         */
+        async loadMoreUsers() {
+            const currentPage = this.users_paginate_object?.current_page || 1;
+            const lastPage = this.users_paginate_object?.last_page || 1;
+
+            if (currentPage >= lastPage) {
+                console.log('[Users] Все страницы уже загружены');
+                return;
+            }
+
+            this.isLoadingMore = true;
+            try {
+                const params = {
+                    page: currentPage, // бэкенд ожидает 0-based, но мы уже инкрементировали
+                    size: 20,
+                    ...this.filters,
+                };
+
+                const response = await axios.get(`${BASE}/search`, {params});
+                const data = response.data;
+
+                if (data.data && Array.isArray(data.data)) {
+                    // 🎯 КЛЮЧЕВОЕ: append вместо replace
+                    this.users = [...this.users, ...data.data];
+
+                    this.users_paginate_object = {
+                        ...this.users_paginate_object,
+                        current_page: (data.current_page || 0) + 1,
+                        last_page: data.last_page || 1,
+                        total: data.total || this.users.length,
+                    };
+                }
+            } catch (error) {
+                console.error('[Users] Ошибка подгрузки:', error);
+                throw error;
+            } finally {
+                this.isLoadingMore = false;
+            }
+        },
+
+        async manageCashback(userId, payload) {
+            try {
+                // Предполагается, что у вас есть роут вроде: Route::post('/admin/users/{id}/cashback', ...)
+                const response = await axios.post(`/admin/users/${userId}/cashback`, payload);
+                return response.data;
+            } catch (error) {
+                console.error('Ошибка управления баллами:', error);
+                throw error;
+            }
+        },
+        /**
+         * 🆕 Начислить бонусные баллы
+         */
+        async addCashback(userId, payload) {
+            try {
+                const response = await axios.post(`${BASE}/${userId}/add-cashback`, payload);
+
+                // Обновляем пользователя в списке
+                const index = this.users.findIndex(u => u.id === userId);
+                if (index !== -1 && response.data.data) {
+                    this.users[index] = {...this.users[index], ...response.data.data};
+                }
+
+                return response.data;
+            } catch (error) {
+                console.error('[Users] Ошибка начисления:', error);
+                throw error;
+            }
+        },
+
+        /**
+         * 🆕 Создать/получить диалог с пользователем
+         */
+        async startChat(userId) {
+            try {
+                const response = await axios.post(`${BASE}/${userId}/start-chat`);
+                return response.data.dialog_id;
+            } catch (error) {
+                console.error('[Users] Ошибка создания чата:', error);
+                throw error;
+            }
+        },
+
+
+        async loadUsers(payload = {}) {
+            this.isLoading = true;
+            this.lastError = null;
+
+            try {
+                const {dataObject = {}, page = 0} = payload;
+
+                // 🎯 Объединяем переданные фильтры с текущими из state
+                const mergedFilters = {...this.filters, ...dataObject};
+
+                const params = {
+                    page: page,
+                    size: 20,
+                    ...mergedFilters,
+                };
+
+                const response = await axios.get(`${BASE}/search`, {params});
+                const data = response.data;
+
+                if (data.data) {
+                    // При новом поиске — ЗАМЕНЯЕМ список (не append)
+                    this.users = data.data;
+
+                    const {data: items, ...pagination} = data;
+                    this.users_paginate_object = {
+                        total: pagination.total || items.length,
+                        per_page: pagination.per_page || 20,
+                        current_page: (pagination.current_page || 0) + 1,
+                        last_page: pagination.last_page || 1,
+                    };
+                } else {
+                    this.users = data || [];
+                    this.users_paginate_object = null;
+                }
+
+                this.isHydrated = true;
+                return this.users;
+            } catch (error) {
+                console.error('[Users] Ошибка загрузки:', error);
+                this.lastError = error.response?.data?.message || 'Ошибка загрузки';
+                throw error;
+            } finally {
+                this.isLoading = false;
+            }
+        },
 
         /**
          * 🆕 Загрузка данных пользователя для редактирования
@@ -69,7 +202,7 @@ export const useUsersStore = defineStore('users', {
                 // Обновляем в списке
                 const index = this.users.findIndex(u => u.id === userId);
                 if (index !== -1) {
-                    this.users[index] = { ...this.users[index], ...response.data.data };
+                    this.users[index] = {...this.users[index], ...response.data.data};
                 }
 
                 // Обновляем текущего пользователя
@@ -94,11 +227,11 @@ export const useUsersStore = defineStore('users', {
 
                 const index = this.users.findIndex(u => u.id === userId);
                 if (index !== -1) {
-                    this.users[index] = { ...this.users[index], ...response.data.data };
+                    this.users[index] = {...this.users[index], ...response.data.data};
                 }
 
                 if (this.currentUser?.id === userId) {
-                    this.currentUser = { ...this.currentUser, ...response.data.data };
+                    this.currentUser = {...this.currentUser, ...response.data.data};
                 }
 
                 return response.data;
@@ -117,11 +250,11 @@ export const useUsersStore = defineStore('users', {
 
                 const index = this.users.findIndex(u => u.id === userId);
                 if (index !== -1) {
-                    this.users[index] = { ...this.users[index], ...response.data.data };
+                    this.users[index] = {...this.users[index], ...response.data.data};
                 }
 
                 if (this.currentUser?.id === userId) {
-                    this.currentUser = { ...this.currentUser, ...response.data.data };
+                    this.currentUser = {...this.currentUser, ...response.data.data};
                 }
 
                 return response.data;
@@ -136,56 +269,6 @@ export const useUsersStore = defineStore('users', {
          */
         clearCurrentUser() {
             this.currentUser = null;
-        },
-        /**
-         * 🆕 Загрузка списка пользователей
-         */
-        async loadUsers(payload = {}) {
-
-
-            this.isLoading = true;
-            this.lastError = null;
-
-            try {
-                const { dataObject = {}, page = 0 } = payload;
-
-
-                const params = {
-                    page: page,
-                    size: 20,
-                    ...dataObject,
-                };
-
-                const response = await axios.get(`${BASE}/search`, { params });
-                const data = response.data;
-
-                // Обработка пагинации
-                if (data.data) {
-                    this.users = data.data;
-
-                    // Извлекаем метаданные пагинации
-                    const { data: items, ...pagination } = data;
-                    this.users_paginate_object = {
-                        total: pagination.total || items.length,
-                        per_page: pagination.per_page || 20,
-                        current_page: (pagination.current_page || 0) + 1,
-                        last_page: pagination.last_page || 1,
-                    };
-                } else {
-                    this.users = data || [];
-                    this.users_paginate_object = null;
-                }
-
-                this.isHydrated = true;
-                return this.users;
-
-            } catch (error) {
-                console.error('[Users] Ошибка загрузки:', error);
-                this.lastError = error.response?.data?.message || 'Ошибка загрузки';
-                throw error;
-            } finally {
-                this.isLoading = false;
-            }
         },
 
         /**
@@ -253,7 +336,7 @@ export const useUsersStore = defineStore('users', {
          * 🆕 Обновить фильтры
          */
         setFilters(filters) {
-            this.filters = { ...this.filters, ...filters };
+            this.filters = {...this.filters, ...filters};
         },
 
         /**

@@ -94,7 +94,7 @@
 
 <script>
 
-import ShopMenu from "@/MobileClient/Components/Shop/Menu/ShopMenu.vue";
+import ShopMenu from "@/MobileClient/Pages/Shop/ShopMenu.vue";
 
 export default {
     name: "ShopMenuPage",

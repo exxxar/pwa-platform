@@ -5,7 +5,8 @@
             <button class="back-btn" @click="goBack">
                 <i class="fa-solid fa-arrow-left"></i>
             </button>
-            <div class="header-info">
+            <!-- 🆕 Добавлен @click="openInterlocutorInfo" -->
+            <div class="header-info" @click="openInterlocutorInfo" style="cursor: pointer;">
                 <div class="header-avatar" :style="avatarGradientStyle">
                     <img v-if="currentInterlocutor?.avatar" :src="currentInterlocutor.avatar"
                          :alt="currentInterlocutor?.name">
@@ -114,8 +115,12 @@
                                     <div class="attachment-info">
                                         <div class="attachment-name">{{ getAttachmentName(message) }}</div>
                                         <div class="attachment-meta">
-                                            <span class="attachment-size">{{ getAttachmentSizeFormatted(message) }}</span>
-                                            <span class="attachment-type">{{ getAttachmentType(message).toUpperCase() }}</span>
+                                            <span class="attachment-size">{{
+                                                    getAttachmentSizeFormatted(message)
+                                                }}</span>
+                                            <span class="attachment-type">{{
+                                                    getAttachmentType(message).toUpperCase()
+                                                }}</span>
                                         </div>
                                     </div>
                                     <button class="attachment-download-btn" type="button">
@@ -169,14 +174,14 @@
                                 <div class="message-text" v-if="message.text || message.message"
                                      v-html="message.text || message.message"></div>
                                 <div class="message-meta">
-            <span
-                v-if="!isMine(message) && getSenderName(message)"
-                class="sender-name-inline"
-                @click="openInterlocutorInfo"
-            >
-                <i class="fa-regular fa-user"></i>
-                {{ getSenderName(message) }}
-            </span>
+                                    <span
+                                        v-if="!isMine(message) && getSenderName(message)"
+                                        class="sender-name-inline"
+                                        @click.stop="openInterlocutorInfo"
+                                    >
+                                        <i class="fa-regular fa-user"></i>
+                                        {{ getSenderName(message) }}
+                                    </span>
 
                                     <span class="message-time">{{ formatMessageTime(message.created_at) }}</span>
                                     <span v-if="isMine(message)" class="message-status">
@@ -336,7 +341,6 @@
                 </div>
             </transition>
         </teleport>
-
         <!-- 🆕 МОДАЛКА ИНФОРМАЦИИ О СОБЕСЕДНИКЕ -->
         <teleport to="body">
             <transition name="fade">
@@ -350,29 +354,43 @@
                         </div>
                         <div class="modal-body">
                             <div class="interlocutor-avatar" :style="avatarGradientStyle">
-                                <img v-if="currentInterlocutor?.avatar" :src="currentInterlocutor.avatar" :alt="currentInterlocutor?.name">
+                                <img v-if="currentInterlocutor?.avatar" :src="currentInterlocutor.avatar"
+                                     :alt="currentInterlocutor?.name">
                                 <span v-else class="avatar-initials">{{ getInitials(currentInterlocutor?.name) }}</span>
                             </div>
 
                             <h4 class="interlocutor-name">{{ currentInterlocutor?.name || 'Неизвестно' }}</h4>
                             <p class="interlocutor-role">
-                                <i class="fa-solid fa-shield-halved" v-if="getSenderType() === 'admin'"></i>
-                                {{ getSenderType() === 'admin' ? 'Администратор / Поддержка' : 'Клиент' }}
+                                <i class="fa-solid fa-shield-halved" v-if="isInterlocutorAdmin"></i>
+                                {{ isInterlocutorAdmin ? 'Администратор / Поддержка' : 'Клиент' }}
                             </p>
 
                             <div class="interlocutor-details">
                                 <div class="detail-row" v-if="currentInterlocutor?.phone">
                                     <i class="fa-solid fa-phone"></i>
-                                    <span>{{ currentInterlocutor.phone }}</span>
+                                    <a :href="'tel:' + currentInterlocutor.phone"
+                                       class="detail-link">{{ currentInterlocutor.phone }}</a>
                                 </div>
                                 <div class="detail-row" v-if="currentInterlocutor?.email">
                                     <i class="fa-solid fa-envelope"></i>
-                                    <span>{{ currentInterlocutor.email }}</span>
+                                    <a :href="'mailto:' + currentInterlocutor.email"
+                                       class="detail-link">{{ currentInterlocutor.email }}</a>
                                 </div>
                                 <div class="detail-row">
                                     <i class="fa-solid fa-clock"></i>
                                     <span>{{ currentInterlocutor?.is_online ? 'В сети' : 'Был(а) недавно' }}</span>
                                 </div>
+                            </div>
+
+                            <!-- 🆕 КНОПКА РЕДАКТИРОВАНИЯ (ТОЛЬКО ДЛЯ АДМИНА) -->
+                            <div v-if="isAdmin" class="admin-action-block">
+                                <router-link
+                                    :to="{ name: 'AdminUserDetails', params: { id: currentInterlocutor?.id } }"
+                                    class="btn-edit-user"
+                                >
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                    Редактировать пользователя
+                                </router-link>
                             </div>
                         </div>
                     </div>
@@ -439,6 +457,17 @@ export default {
     computed: {
         user() {
             return window.TenantUser;
+        },
+        isAdmin() {
+            return this.user?.is_admin === true ||
+                this.user?.role === 'admin' ||
+                this.user?.role_names?.includes('super_admin');
+        },
+        // 🆕 Определение, является ли собеседник админом (для отображения в модалке)
+        isInterlocutorAdmin() {
+            // Адаптируйте эту логику под вашу структуру данных.
+            // Например, если у interlocutor есть поле role или is_admin
+            return this.currentInterlocutor?.is_admin || this.currentInterlocutor?.role === 'admin';
         },
         avatarGradientStyle() {
             if (!this.currentDialog) return {};
@@ -527,8 +556,9 @@ export default {
                 if (event.data?.type === 'OPEN_CHAT' && event.data.dialogId) {
                     this.$router.push({
                         name: 'ChatRoom',
-                        params: { id: event.data.dialogId }
-                    }).catch(() => {});
+                        params: {id: event.data.dialogId}
+                    }).catch(() => {
+                    });
                 }
             });
         }
@@ -607,49 +637,6 @@ export default {
             this.showAttachmentsModal = false;
         },
 
-        archiveCurrentDialog() {
-            this.closeDialogMenu();
-            this.showConfirm({
-                type: 'warning', icon: 'fa-solid fa-box-archive', title: 'Архивировать диалог?',
-                message: `Диалог с ${this.currentInterlocutor?.name || 'собеседником'} будет перемещен в архив.`,
-                confirmText: 'В архив',
-                callback: async () => {
-                    try {
-                        await this.archiveDialog(this.currentDialog.id);
-                        this.$notify?.({title: 'Архивировано', type: 'success'});
-                        this.goBack();
-                    } catch (error) {
-                        this.$notify?.({title: 'Ошибка', text: 'Не удалось архивировать', type: 'error'});
-                    }
-                },
-            });
-        },
-
-        clearHistory() {
-            this.closeDialogMenu();
-            this.showConfirm({
-                type: 'warning', icon: 'fa-solid fa-broom', title: 'Очистить историю?',
-                message: 'Все сообщения в этом диалоге будут удалены.',
-                confirmText: 'Очистить',
-                callback: async () => {
-                    try {
-                        // await this.clearDialogHistory(this.currentDialog.id); // TODO
-                        this.$notify?.({title: 'История очищена', type: 'success'});
-                        this.messages = [];
-                    } catch (error) {
-                        this.$notify?.({title: 'Ошибка', type: 'error'});
-                    }
-                },
-            });
-        },
-
-        // 🆕 Методы для модального окна собеседника
-        openInterlocutorInfo() {
-            this.showInterlocutorModal = true;
-        },
-        closeInterlocutorInfo() {
-            this.showInterlocutorModal = false;
-        },
 
         // 🆕 Определяем тип собеседника для отображения в модалке
         getSenderType() {
@@ -668,23 +655,7 @@ export default {
             // Если это пользователь (на случай групповых чатов в будущем)
             return message.user?.name || message.sender_name || 'Пользователь';
         },
-        deleteCurrentDialog() {
-            this.closeDialogMenu();
-            this.showConfirm({
-                type: 'danger', icon: 'fa-solid fa-trash', title: 'Удалить диалог навсегда?',
-                message: `Диалог с ${this.currentInterlocutor?.name || 'собеседником'} и вся история будут удалены безвозвратно.`,
-                confirmText: 'Удалить',
-                callback: async () => {
-                    try {
-                        await this.deleteDialogPermanently(this.currentDialog.id);
-                        this.$notify?.({title: 'Удалено', type: 'success'});
-                        this.goBack();
-                    } catch (error) {
-                        this.$notify?.({title: 'Ошибка', text: 'Не удалось удалить', type: 'error'});
-                    }
-                },
-            });
-        },
+
 
         showConfirm(options) {
             this.confirmModal = {visible: true, ...options};
@@ -964,6 +935,84 @@ export default {
         },
         getInitials(name) {
             return getInitials(name);
+        },
+
+        clearHistory() {
+            this.closeDialogMenu();
+            this.showConfirm({
+                type: 'warning',
+                icon: 'fa-solid fa-broom',
+                title: 'Очистить историю?',
+                message: 'Все сообщения в этом диалоге будут удалены безвозвратно. Это действие нельзя отменить.',
+                confirmText: 'Очистить',
+                callback: async () => {
+                    try {
+                        // TODO: Раскомментируйте и используйте реальный API вызов, когда он будет готов
+                        // await this.clearDialogHistory(this.currentDialog.id);
+
+                        this.$notify?.({title: 'Успех', text: 'История диалога очищена', type: 'success'});
+                        this.messages = []; // Мгновенная очистка локального состояния
+                    } catch (error) {
+                        console.error('Ошибка очистки истории:', error);
+                        this.$notify?.({title: 'Ошибка', text: 'Не удалось очистить историю', type: 'error'});
+                    }
+                },
+            });
+        },
+
+        // 🆕 Улучшенное архивирование
+        archiveCurrentDialog() {
+            this.closeDialogMenu();
+            this.showConfirm({
+                type: 'warning',
+                icon: 'fa-solid fa-box-archive',
+                title: 'Архивировать диалог?',
+                message: `Диалог с ${this.currentInterlocutor?.name || 'собеседником'} будет перемещен в архив и скрыт из основного списка.`,
+                confirmText: 'В архив',
+                callback: async () => {
+                    try {
+                        await this.archiveDialog(this.currentDialog.id);
+                        this.$notify?.({title: 'Успех', text: 'Диалог архивирован', type: 'success'});
+                        this.goBack(); // Возврат к списку чатов
+                    } catch (error) {
+                        console.error('Ошибка архивации:', error);
+                        this.$notify?.({title: 'Ошибка', text: 'Не удалось архивировать диалог', type: 'error'});
+                    }
+                },
+            });
+        },
+
+        // 🆕 Улучшенное удаление диалога
+        deleteCurrentDialog() {
+            this.closeDialogMenu();
+            this.showConfirm({
+                type: 'danger',
+                icon: 'fa-solid fa-trash',
+                title: 'Удалить диалог навсегда?',
+                message: `Диалог с ${this.currentInterlocutor?.name || 'собеседником'} и вся переписка будут удалены безвозвратно.`,
+                confirmText: 'Удалить',
+                callback: async () => {
+                    try {
+                        await this.deleteDialogPermanently(this.currentDialog.id);
+                        this.$notify?.({title: 'Удалено', text: 'Диалог успешно удален', type: 'success'});
+                        this.goBack(); // Возврат к списку чатов
+                    } catch (error) {
+                        console.error('Ошибка удаления:', error);
+                        this.$notify?.({title: 'Ошибка', text: 'Не удалось удалить диалог', type: 'error'});
+                    }
+                },
+            });
+        },
+
+        // 🆕 Открытие модалки собеседника
+        openInterlocutorInfo() {
+            this.showInterlocutorModal = true;
+            document.body.style.overflow = 'hidden'; // Блокируем скролл фона
+        },
+
+        closeInterlocutorInfo() {
+            this.showInterlocutorModal = false;
+            document.body.style.overflow = ''; // Возвращаем скролл
         },
     },
 };
@@ -2649,10 +2698,21 @@ $warning: #f59e0b;
         align-items: center;
         white-space: nowrap;
 
-        .status-read { color: #60a5fa; }
-        .status-delivered { color: rgba(255, 255, 255, 0.9); }
-        .status-sent { color: rgba(255, 255, 255, 0.7); }
-        .error-icon { color: $danger; }
+        .status-read {
+            color: #60a5fa;
+        }
+
+        .status-delivered {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .status-sent {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .error-icon {
+            color: $danger;
+        }
     }
 }
 
@@ -2683,7 +2743,9 @@ $warning: #f59e0b;
             font-size: 1rem;
             margin: 0;
 
-            i { color: $primary; }
+            i {
+                color: $primary;
+            }
         }
     }
 
@@ -2802,8 +2864,81 @@ $warning: #f59e0b;
 }
 
 @keyframes readPulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.25); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.25);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+// ==========================================
+// 🆕 КЛИКАБЕЛЬНОЕ ИМЯ ОТПРАВИТЕЛЯ
+// ==========================================
+.clickable-sender {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-left: -6px; // Компенсация padding для выравнивания
+
+    &:hover {
+        background: rgba($primary, 0.15);
+        text-decoration: underline;
+        text-decoration-color: rgba($primary, 0.5);
+    }
+
+    &:active {
+        transform: scale(0.98);
+    }
+}
+
+.detail-link {
+    color: $text;
+    text-decoration: none;
+    transition: color 0.2s;
+
+    &:hover {
+        color: $primary;
+        text-decoration: underline;
+    }
+}
+
+// ==========================================
+// 🆕 КНОПКА РЕДАКТИРОВАНИЯ ДЛЯ АДМИНА
+// ==========================================
+.admin-action-block {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px dashed $border;
+}
+
+.btn-edit-user {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, $primary 0%, #7c8cf5 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba($primary, 0.25);
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba($primary, 0.35);
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
 }
 </style>

@@ -60,6 +60,7 @@ class CollectionController extends Controller
     public function show(Request $request, int $id): JsonResponse
     {
 
+
         try {
             $result = $this->service->show($id, $request->partner_id);
             return response()->json(['data' => $result]);

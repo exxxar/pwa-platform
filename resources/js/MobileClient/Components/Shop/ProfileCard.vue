@@ -8,7 +8,7 @@
                     <div class="avatar-circle">
                         <img
                             v-if="avatarUrl"
-                            :src="avatarUrl"
+                            v-lazy="avatarUrl"
                             alt="Аватар"
                             class="avatar-img"
                         >
@@ -193,7 +193,7 @@
                 <div class="stats-grid">
                     <button class="stat-item" @click="goToOrders">
                         <div class="stat-icon"><i class="fa-solid fa-bag-shopping"></i></div>
-                        <div class="stat-value">{{ self?.order_count || 0 }}</div>
+                        <div class="stat-value">{{ self?.orders_count || 0 }}</div>
                         <div class="stat-label">Заказов</div>
                     </button>
                     <button class="stat-item" @click="goToFriends">
@@ -203,7 +203,7 @@
                     </button>
                     <button class="stat-item" @click="goToCashback">
                         <div class="stat-icon"><i class="fa-solid fa-coins"></i></div>
-                        <div class="stat-value">{{ self?.cashBack?.amount || 0 }}</div>
+                        <div class="stat-value">{{ self?.cashback_balance || 0 }}</div>
                         <div class="stat-label">Баллов</div>
                     </button>
                 </div>
@@ -736,6 +736,8 @@ export default {
 
             pendingLogoutSteps: [], // Например: ['login', 'password']
             securityCheckVisible: false,
+
+            pendingAction: null, // 'logout' | 'switchAccount'
         };
     },
 
@@ -896,52 +898,8 @@ export default {
             }
         },
 
-        // 🆕 Алиас для кнопки "Сменить аккаунт"
-        changeAccount() {
-            this.$router.push({ name: 'Auth' })
-        },
 
-        // 🆕 Алиас для кнопки "Выйти" (теперь тоже с проверкой!)
-        async logout() {
-            this.checkAndLogout();
-        },
 
-        // 🆕 РЕАЛЬНЫЙ выход — вызывается БЕЗ confirm, когда решение уже принято
-        async doLogout() {
-            this.isLoggingOut = true;
-
-            try {
-                await axios.post('/auth/logout');
-            } catch (error) {
-                console.error('Ошибка при выходе с сервера:', error);
-                // Даже если сервер вернул ошибку — всё равно очищаем локальные данные
-            } finally {
-                // Очистка локальных данных
-                window.TenantUser = null;
-                localStorage.removeItem('token');
-
-                // Перенаправление на страницу входа
-                window.location.href = "/auth/login";
-
-                this.isLoggingOut = false;
-            }
-        },
-
-        // 🆕 Отмена процесса выхода
-        cancelLogoutFlow() {
-            this.pendingLogoutSteps = [];
-            this.showNotification('info', 'Выход отменён', 'fa-solid fa-circle-info');
-        },
-
-        // 🆕 Пользователь выбрал "Выйти всё равно" в модалке
-        proceedToLogoutAnyway() {
-            if (this.modals.securityCheck) {
-                this.modals.securityCheck.hide();
-            }
-            this.pendingLogoutSteps = [];
-            // Сразу выходим БЕЗ дополнительного confirm
-            this.doLogout();
-        },
 
         // 🆕 Пользователь выбрал "Сохранить и выйти"
         proceedToSaveAndLogout() {
@@ -957,28 +915,7 @@ export default {
             this.executeNextStep();
         },
 
-        // 🆕 Выполняет следующий шаг из очереди
-        executeNextStep() {
-            if (this.pendingLogoutSteps.length === 0) {
-                // Все шаги выполнены — выходим БЕЗ confirm (пользователь уже согласился)
-                this.doLogout();
-                return;
-            }
 
-            const step = this.pendingLogoutSteps[0];
-
-            if (step === 'login') {
-                this.phoneForm.phone = this.self?.phone || '';
-                this.phoneError = '';
-                if (this.modals.phone) {
-                    this.modals.phone.show();
-                }
-                this.showNotification('info', 'Укажите номер телефона или Email для входа', 'fa-solid fa-phone');
-            } else if (step === 'password') {
-                this.openPasswordModal();
-                this.showNotification('info', 'Установите пароль для входа', 'fa-solid fa-lock');
-            }
-        },
 
         initModals() {
             this.$nextTick(() => {
@@ -1351,6 +1288,118 @@ export default {
                 this.phoneError = errorMsg;
             } finally {
                 this.phoneSaving = false;
+            }
+        },
+
+
+
+        // 🆕 УНИВЕРСАЛЬНАЯ ПРОВЕРКА безопасности перед любым действием
+        async checkSecurityAndProceed(action) {
+            if (!this.hasSecurityIssues) {
+                const message = action === 'logout'
+                    ? 'Вы уверены, что хотите выйти из аккаунта?'
+                    : 'Вы уверены, что хотите сменить аккаунт? Текущая сессия будет завершена.';
+
+                if (confirm(message)) {
+                    this.pendingAction = action;
+                    this.executeFinalAction();
+                }
+                return;
+            }
+
+            this.pendingAction = action;
+            if (this.modals.securityCheck) {
+                this.modals.securityCheck.show();
+            }
+        },
+
+// 🆕 Алиас для кнопки "Сменить аккаунт"
+        changeAccount() {
+            this.checkSecurityAndProceed('switchAccount');
+        },
+
+// 🆕 Алиас для кнопки "Выйти"
+        async logout() {
+            this.checkSecurityAndProceed('logout');
+        },
+
+// 🆕 ФИНАЛЬНОЕ ДЕЙСТВИЕ после всех проверок
+        executeFinalAction() {
+            if (this.pendingAction === 'switchAccount') {
+                this.doSwitchAccount();
+            } else {
+                this.doLogout();
+            }
+        },
+
+// 🆕 РЕАЛЬНЫЙ выход (для кнопки "Выйти")
+        async doLogout() {
+            this.isLoggingOut = true;
+            try {
+                await axios.post('/auth/logout');
+            } catch (error) {
+                console.error('Ошибка при выходе с сервера:', error);
+            } finally {
+                window.TenantUser = null;
+                localStorage.removeItem('token');
+                this.$router.push({ name: 'Auth' });
+                this.isLoggingOut = false;
+                this.pendingAction = null;
+            }
+        },
+
+// 🆕 СМЕНА АККАУНТА (то же самое, но семантически разделено)
+        async doSwitchAccount() {
+            this.isLoggingOut = true;
+            try {
+                await axios.post('/auth/logout');
+            } catch (error) {
+                console.error('Ошибка при выходе с сервера:', error);
+            } finally {
+                window.TenantUser = null;
+                localStorage.removeItem('token');
+                this.$router.push({ name: 'Auth' });
+                this.isLoggingOut = false;
+                this.pendingAction = null;
+            }
+        },
+
+// 🆕 Отмена процесса
+        cancelLogoutFlow() {
+            this.pendingLogoutSteps = [];
+            this.pendingAction = null;
+            this.showNotification('info', 'Действие отменено', 'fa-solid fa-circle-info');
+        },
+
+// 🆕 Пользователь выбрал "Всё равно выйти/сменить"
+        proceedToLogoutAnyway() {
+            if (this.modals.securityCheck) {
+                this.modals.securityCheck.hide();
+            }
+            this.pendingLogoutSteps = [];
+            this.executeFinalAction();
+        },
+
+// 🆕 Выполняет следующий шаг из очереди
+        executeNextStep() {
+            if (this.pendingLogoutSteps.length === 0) {
+                // Все шаги выполнены — выполняем финальное действие
+                this.executeFinalAction();
+                return;
+            }
+
+            const step = this.pendingLogoutSteps[0];
+
+            if (step === 'login') {
+                this.phoneForm.phone = this.self?.phone || '';
+                this.phoneError = '';
+                if (this.modals.phone) {
+                    this.modals.phone.show();
+                }
+                this.showNotification('info', 'Укажите номер телефона или Email для входа', 'fa-solid fa-phone');
+            } else if (step === 'password') {
+                this.openPasswordModal();
+                this.showNotification('info', 'Установите пароль для входа', 'fa-solid fa-lock');
             }
         },
     },

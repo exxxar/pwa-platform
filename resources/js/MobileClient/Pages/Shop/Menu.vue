@@ -2,7 +2,6 @@
     <div class="home-page pb-5">
 
 
-
         <!-- ===== HERO СЕКЦИЯ ===== -->
         <div class="hero-section">
             <div class="hero-background"></div>
@@ -11,11 +10,21 @@
                     <div class="greeting-text">
                         <small class="greeting-label">Добро пожаловать 👋</small>
                         <h2 class="greeting-name">{{ self?.name || 'Гость' }}</h2>
+                        <button
+                            v-if="isAdmin && self?.id"
+                            class="copy-id-btn"
+                            :class="{ 'is-copied': isCopied }"
+                            @click="copyUserId"
+                            title="Скопировать ID пользователя"
+                        >
+                            <i :class="isCopied ? 'fa-solid fa-check' : 'fa-regular fa-copy'"></i>
+                            <span class="ms-1">#{{ self.id }}</span>
+                        </button>
                     </div>
                     <div
                         @click="goTo('Profile')"
                         class="hero-avatar">
-                        <img v-if="self?.avatar" :src="self.avatar" alt="">
+                        <img v-if="self?.avatar" v-lazy="self.avatar" alt="">
                         <i v-else class="fa-solid fa-user"></i>
                     </div>
                 </div>
@@ -25,14 +34,14 @@
                     <button class="stat-pill" @click="goTo('Cashback')">
                         <i class="fa-solid fa-coins"></i>
                         <div class="stat-info">
-                            <span class="stat-value">{{ self?.cashBack?.amount || 0 }} ₽</span>
+                            <span class="stat-value">{{ self?.cashback_balance || 0 }} ₽</span>
                             <span class="stat-label">Баланс</span>
                         </div>
                     </button>
                     <button class="stat-pill" @click="goTo('Orders')">
                         <i class="fa-solid fa-bag-shopping"></i>
                         <div class="stat-info">
-                            <span class="stat-value">{{ self?.order_count || 0 }}</span>
+                            <span class="stat-value">{{ self?.orders_count || 0 }}</span>
                             <span class="stat-label">Заказов</span>
                         </div>
                     </button>
@@ -217,7 +226,7 @@
                 </Slide>
 
                 <template #addons>
-                    <Navigation />
+                    <Navigation/>
                 </template>
             </Carousel>
 
@@ -230,23 +239,57 @@
             />
             <TaplinkButton
                 class="mb-3"
-                label="Таплинк" icon="fa-regular fa-hand-pointer" />
+                label="Таплинк" icon="fa-regular fa-hand-pointer"/>
 
+            <!-- ===== АДМИНКА (только для админов) ===== -->
             <!-- ===== АДМИНКА (только для админов) ===== -->
             <template v-if="isAdmin">
 
-
-                <div class="d-flex align-items-center justify-content-between mb-3 mt-4">
+                <!-- 🆕 ШАПКА АДМИН-СЕКЦИИ С ТАБАМИ -->
+                <div class="admin-section-header mt-4 mb-3">
                     <AppDivider
                         icon="fa-solid fa-screwdriver-wrench"
-                        text="Админка"
+                        text="Админ-панель"
                         class="flex-grow-1 m-0"
                     />
+                </div>
 
+                <!-- 🆕 ТАБЫ: Базовое / Игры -->
+                <div class="admin-tabs-wrapper mb-3">
+                    <div class="admin-tabs">
+                        <button
+                            class="admin-tab"
+                            :class="{ active: adminCategory === 'basic' }"
+                            @click="setAdminCategory('basic')"
+                        >
+                            <div class="admin-tab-icon">
+                                <i class="fa-solid fa-store"></i>
+                            </div>
+                            <div class="admin-tab-text">
+                                <span class="admin-tab-title">Магазин</span>
+                                <span class="admin-tab-count">{{ basicAdminItems.length }}</span>
+                            </div>
+                        </button>
+                        <button
+                            class="admin-tab"
+                            :class="{ active: adminCategory === 'games' }"
+                            @click="setAdminCategory('games')"
+                        >
+                            <div class="admin-tab-icon games">
+                                <i class="fa-solid fa-gamepad"></i>
+                            </div>
+                            <div class="admin-tab-text">
+                                <span class="admin-tab-title">Игры</span>
+                                <span class="admin-tab-count games">{{ gamesAdminItems.length }}</span>
+                            </div>
+                            <div class="admin-tab-badge" v-if="gamesAdminItems.length > 0">
+                                <span class="badge-pulse"></span>
+                            </div>
+                        </button>
+                    </div>
 
-
-                    <!-- 🆕 Переключатель вида: Список / Сетка -->
-                    <div class="admin-view-toggle ms-2">
+                    <!-- Переключатель вида: Список / Сетка -->
+                    <div class="admin-view-toggle">
                         <button
                             class="toggle-btn"
                             :class="{ active: adminViewMode === 'list' }"
@@ -266,9 +309,21 @@
                     </div>
                 </div>
 
+                <!-- 🆕 ОПИСАНИЕ АКТИВНОЙ КАТЕГОРИИ -->
+                <transition name="tab-fade" mode="out-in">
+                    <div v-if="adminCategory === 'basic'" key="basic" class="admin-category-desc">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Управление товарами, заказами, пользователями и настройками магазина</span>
+                    </div>
+                    <div v-else key="games" class="admin-category-desc games">
+                        <i class="fa-solid fa-dice"></i>
+                        <span>Настройка игровых механик, призов и шансов выпадения</span>
+                    </div>
+                </transition>
 
+                <!-- CRM ссылка (только для базовой категории) -->
                 <a
-                    v-if="canOpenCrm"
+                    v-if="canOpenCrm && adminCategory === 'basic'"
                     :href="crmBoardUrl"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -278,41 +333,114 @@
                     <span>Открыть CRM</span>
                 </a>
 
-                <!-- ВАРИАНТ 1: СПИСОК -->
-                <div v-if="adminViewMode === 'list'" class="admin-menu-list">
-                    <button
-                        v-for="item in simpleAdminItems"
-                        :key="item.key"
-                        class="admin-menu-item"
-                        @click="goTo(item.route)"
-                    >
-                        <div class="admin-item-icon">
-                            <i :class="item.icon"></i>
-                        </div>
-                        <div class="admin-item-text">
-                            <span class="admin-item-title">{{ item.text }}</span>
-                            <span class="admin-item-desc">{{ item.desc }}</span>
-                        </div>
-                        <i class="fa-solid fa-chevron-right admin-item-arrow"></i>
-                    </button>
-                </div>
+                <!-- 🆕 КОНТЕНТ: БАЗОВОЕ АДМИН-МЕНЮ -->
+                <transition name="tab-slide" mode="out-in">
+                    <div v-if="adminCategory === 'basic'" key="basic-content">
+                        <!-- ВАРИАНТ 1: СПИСОК -->
+                        <div v-if="adminViewMode === 'list'" class="admin-menu-list">
+                            <button
+                                v-for="item in basicAdminItems"
+                                :key="item.key"
+                                class="admin-menu-item"
+                                @click="goTo(item.route)"
+                            >
+                                <div class="admin-item-icon">
+                                    <i :class="item.icon"></i>
+                                </div>
+                                <div class="admin-item-text">
+                                    <span class="admin-item-title">{{ item.text }}</span>
+                                    <span class="admin-item-desc">{{ item.desc }}</span>
+                                </div>
+                                <i class="fa-solid fa-chevron-right admin-item-arrow"></i>
+                            </button>
 
-                <!-- ВАРИАНТ 2: СЕТКА (КАРТОЧКИ) -->
-                <div v-else class="admin-menu-grid">
-                    <button
-                        v-for="item in simpleAdminItems"
-                        :key="item.key"
-                        class="admin-grid-item"
-                        @click="goTo(item.route)"
-                    >
-                        <div class="admin-grid-icon">
-                            <i :class="item.icon"></i>
+                            <div v-if="basicAdminItems.length === 0" class="admin-empty">
+                                <i class="fa-solid fa-lock"></i>
+                                <span>Нет доступных разделов</span>
+                            </div>
                         </div>
-                        <div class="admin-grid-title">{{ item.text }}</div>
-                        <div class="admin-grid-desc">{{ item.desc }}</div>
-                    </button>
-                </div>
+
+                        <!-- ВАРИАНТ 2: СЕТКА (КАРТОЧКИ) -->
+                        <div v-else class="admin-menu-grid">
+                            <button
+                                v-for="item in basicAdminItems"
+                                :key="item.key"
+                                class="admin-grid-item"
+                                @click="goTo(item.route)"
+                            >
+                                <div class="admin-grid-icon">
+                                    <i :class="item.icon"></i>
+                                </div>
+                                <div class="admin-grid-title">{{ item.text }}</div>
+                                <div class="admin-grid-desc">{{ item.desc }}</div>
+                            </button>
+
+                            <div v-if="basicAdminItems.length === 0" class="admin-empty">
+                                <i class="fa-solid fa-lock"></i>
+                                <span>Нет доступных разделов</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 🆕 КОНТЕНТ: ИГРОВОЕ АДМИН-МЕНЮ -->
+                    <div v-else key="games-content">
+                        <!-- ВАРИАНТ 1: СПИСОК -->
+                        <div v-if="adminViewMode === 'list'" class="admin-menu-list games-list">
+                            <button
+                                v-for="item in gamesAdminItems"
+                                :key="item.key"
+                                class="admin-menu-item game-item"
+                                @click="goTo(item.route)"
+                            >
+                                <div class="admin-item-icon game-icon" :style="{ background: item.gradient }">
+                                    <i :class="item.icon"></i>
+                                </div>
+                                <div class="admin-item-text">
+                                    <span class="admin-item-title">{{ item.text }}</span>
+                                    <span class="admin-item-desc">{{ item.desc }}</span>
+                                </div>
+                                <div class="game-item-badge" :style="{ color: item.accentColor }">
+                                    <i :class="item.badgeIcon"></i>
+                                </div>
+                                <i class="fa-solid fa-chevron-right admin-item-arrow"></i>
+                            </button>
+
+                            <div v-if="gamesAdminItems.length === 0" class="admin-empty">
+                                <i class="fa-solid fa-gamepad"></i>
+                                <span>Нет доступных игр</span>
+                            </div>
+                        </div>
+
+                        <!-- ВАРИАНТ 2: СЕТКА (КРАСИВЫЕ КАРТОЧКИ С ГРАДИЕНТОМ) -->
+                        <div v-else class="games-menu-grid">
+                            <button
+                                v-for="item in gamesAdminItems"
+                                :key="item.key"
+                                class="game-grid-card"
+                                :style="{ '--accent': item.accentColor, '--gradient': item.gradient }"
+                                @click="goTo(item.route)"
+                            >
+                                <div class="game-grid-bg"></div>
+                                <div class="game-grid-content">
+                                    <div class="game-grid-icon">
+                                        <i :class="item.icon"></i>
+                                    </div>
+                                    <div class="game-grid-title">{{ item.text }}</div>
+                                    <div class="game-grid-desc">{{ item.desc }}</div>
+                                </div>
+                                <div class="game-grid-shine"></div>
+                            </button>
+
+                            <div v-if="gamesAdminItems.length === 0" class="admin-empty">
+                                <i class="fa-solid fa-gamepad"></i>
+                                <span>Нет доступных игр</span>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+
             </template>
+
 
         </div>
 
@@ -372,9 +500,10 @@ import StoreStatusBanner from '@/MobileClient/Components/StoreStatusBanner.vue';
 import AppDivider from "@/MobileClient/Components/AppDivider.vue";
 
 import OrderPeriscope from "@/MobileClient/Components/Shop/OrderPeriscope.vue";
-import { usePermissions } from '@/MobileClient/Composables/usePermissions.js';
+import {usePermissions} from '@/MobileClient/Composables/usePermissions.js';
 import StoryCreateModal from '@/MobileClient/Components/Shop/Stories/StoryCreateModal.vue'; // 🆕
 import TaplinkButton from '@/MobileClient/Components/Common/TaplinkButton.vue';
+
 export default {
     name: "HomePage",
 
@@ -397,7 +526,7 @@ export default {
     setup() {
         const storiesStore = useStoriesStore();
         const basketStore = useBasketStore();
-        const { isAdmin,hasPermission } = usePermissions();
+        const {isAdmin, hasPermission} = usePermissions();
 
 
         return {
@@ -413,6 +542,7 @@ export default {
         return {
             showThemeSettings: false,
             adminViewMode: localStorage.getItem('adminViewMode') || 'list',
+            adminCategory: localStorage.getItem('adminCategory') || 'basic', // 🆕 'basic' | 'games
             disabledModal: null,
             showCreateStoryModal: false,
             carouselConfig: {
@@ -426,12 +556,269 @@ export default {
             },
             touchStartX: 0,
             touchEndX: 0,
+
+            isCopied: false,
+            copyTimeout: null,
         };
     },
 
     computed: {
+        basicAdminItems() {
+            const items = [
+                {
+                    key: 'products',
+                    route: 'AdminShop',
+                    text: 'Товары',
+                    desc: 'Управление каталогом',
+                    icon: 'fa-solid fa-box-open',
+                    permission: 'manage_products'
+                },
+                {
+                    key: 'orders',
+                    route: 'AdminOrders',
+                    text: 'Заказы',
+                    desc: 'Просмотр и обработка',
+                    icon: 'fa-solid fa-receipt',
+                    permission: 'manage_orders'
+                },
+                {
+                    key: 'clients',
+                    route: 'AdminClients',
+                    text: 'Пользователи',
+                    desc: 'База посетителей',
+                    icon: 'fa-solid fa-users',
+                    permission: 'manage_users'
+                },
+                {
+                    key: 'roles',
+                    route: 'AdminRoles',
+                    text: 'Роли и доступы',
+                    desc: 'Управление разрешениями',
+                    icon: 'fa-solid fa-user-shield',
+                    permission: 'manage_settings'
+                },
+                {
+                    key: 'partners',
+                    route: 'AdminPartners',
+                    text: 'Партнеры',
+                    desc: 'Сотрудничество и интеграции',
+                    icon: 'fa-solid fa-handshake',
+                    permission: 'manage_partners'
+                },
+                {
+                    key: 'transactions',
+                    route: 'AdminTransactions',
+                    text: 'Транзакции',
+                    desc: 'История платежей и статусы',
+                    icon: 'fa-solid fa-money-bill-transfer',
+                    permission: 'view_statistics'
+                },
+                {
+                    key: 'achievements',
+                    route: 'AdminAchievements',
+                    text: 'Достижения',
+                    desc: 'Ачивки и система наград',
+                    icon: 'fa-solid fa-trophy',
+                    permission: 'manage_achievements'
+                },
+                {
+                    key: 'mailing',
+                    route: 'AdminBroadcastsPage',
+                    text: 'Рассылки',
+                    desc: 'Уведомления и акции',
+                    icon: 'fa-solid fa-envelope',
+                    permission: 'manage_broadcasts'
+                },
+                {
+                    key: 'stories',
+                    route: 'AdminStories',
+                    text: 'Истории',
+                    desc: 'Управление сторис',
+                    icon: 'fa-solid fa-circle-play',
+                    permission: 'manage_stories'
+                },
+                {
+                    key: 'tables',
+                    route: 'AdminTablesManager',
+                    text: 'Столики',
+                    desc: 'Бронирование и схема',
+                    icon: 'fa-solid fa-chair',
+                    permission: 'manage_tables',
+                },
+                {
+                    key: 'promo',
+                    route: 'AdminPromoCodes',
+                    text: 'Промокоды',
+                    desc: 'Скидки и бонусы',
+                    icon: 'fa-solid fa-tags',
+                    permission: 'manage_promos'
+                },
+                {
+                    key: 'crm',
+                    route: 'AdminKanban',
+                    text: 'CRM',
+                    desc: 'Воронка и сделки',
+                    icon: 'fa-solid fa-address-book',
+                    permission: 'manage_crm'
+                },
+                {
+                    key: 'statistic',
+                    route: 'AdminStatistic',
+                    text: 'Статистика',
+                    desc: 'Аналитика и отчеты',
+                    icon: 'fa-solid fa-chart-line',
+                    permission: 'view_statistics'
+                },
+                {
+                    key: 'landing',
+                    route: 'AdminShopLanding',
+                    text: 'Лендинг',
+                    desc: 'Настройка посадочной страницы',
+                    icon: 'fa-solid fa-laptop-code',
+                    permission: 'manage_landing'
+                },
+                {
+                    key: 'tap_link',
+                    route: 'TapLinkAdmin',
+                    text: 'Tap-link',
+                    desc: 'Мобильная визитка',
+                    icon: 'fa-solid fa-mobile-screen',
+                    permission: 'manage_taplink'
+                },
+                {
+                    key: 'utm',
+                    route: 'LinkManagerV2',
+                    text: 'UTM-метки',
+                    desc: 'Трекинг источников',
+                    icon: 'fa-solid fa-link',
+                    permission: 'manage_utm'
+                },
+                {
+                    key: 'invoice',
+                    route: 'AdminInvoice',
+                    text: 'Счета',
+                    desc: 'Выставление счетов',
+                    icon: 'fa-solid fa-file-invoice-dollar',
+                    permission: 'manage_invoices'
+                },
+                {
+                    key: 'settings',
+                    route: 'AdminTenant',
+                    text: 'Настройки',
+                    desc: 'Конфигурация магазина',
+                    icon: 'fa-solid fa-gear',
+                    permission: 'manage_settings'
+                },
+            ];
+
+            return items.filter(item => {
+                if (item.condition && !this.settings?.[item.condition]) return false;
+                if (!this.hasPermission(item.permission)) return false;
+                return true;
+            });
+        },
+
+        // 🆕 ИГРОВОЕ АДМИН-МЕНЮ (все созданные нами игры)
+        gamesAdminItems() {
+            const items = [
+                {
+                    key: 'wheel',
+                    route: 'WheelAdmin',
+                    text: 'Колесо фортуны',
+                    desc: 'Сектора, смайлы и призы',
+                    icon: 'fa-solid fa-dharmachakra',
+                    permission: 'manage_settings',
+                    gradient: 'linear-gradient(135deg, #c0392b 0%, #e74c3c 100%)',
+                    accentColor: '#e74c3c',
+                    badgeIcon: 'fa-solid fa-star'
+                },
+                {
+                    key: 'daily_bonus',
+                    route: 'DailyBonusAdmin',
+                    text: 'Ежедневный бонус',
+                    desc: 'Серия дней и сундучки',
+                    icon: 'fa-solid fa-calendar-check',
+                    permission: 'manage_settings',
+                    gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                    accentColor: '#fa709a',
+                    badgeIcon: 'fa-solid fa-fire'
+                },
+                {
+                    key: 'card_game',
+                    route: 'CardGameAdmin',
+                    text: 'Карточная игра',
+                    desc: 'Сетка карт и призы',
+                    icon: 'fa-solid fa-layer-group',
+                    permission: 'manage_settings',
+                    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    accentColor: '#667eea',
+                    badgeIcon: 'fa-solid fa-clone'
+                },
+                {
+                    key: 'scratch_card',
+                    route: 'ScratchCardAdmin',
+                    text: 'Скретч-карта',
+                    desc: 'Стирание защитного слоя',
+                    icon: 'fa-solid fa-credit-card',
+                    permission: 'manage_settings',
+                    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    accentColor: '#f5576c',
+                    badgeIcon: 'fa-solid fa-hand-pointer'
+                },
+                {
+                    key: 'slot_machine',
+                    route: 'SlotMachineAdmin',
+                    text: 'Слот-машина',
+                    desc: 'Барабаны и комбинации',
+                    icon: 'fa-solid fa-dice',
+                    permission: 'manage_settings',
+                    gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                    accentColor: '#4facfe',
+                    badgeIcon: 'fa-solid fa-coins'
+                },
+                {
+                    key: 'quiz',
+                    route: 'QuizAdmin',
+                    text: 'Викторина',
+                    desc: 'Вопросы и ответы',
+                    icon: 'fa-solid fa-question',
+                    permission: 'manage_settings',
+                    gradient: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+                    accentColor: '#30cfd0',
+                    badgeIcon: 'fa-solid fa-brain'
+                },
+                {
+                    key: 'guess_number',
+                    route: 'GuessNumberAdmin',
+                    text: 'Угадай число',
+                    desc: '3 режима и награды',
+                    icon: 'fa-solid fa-hashtag',
+                    permission: 'manage_settings',
+                    gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                    accentColor: '#43e97b',
+                    badgeIcon: 'fa-solid fa-bullseye'
+                },
+                {
+                    key: 'treasure_hunt',
+                    route: 'TreasureHuntAdmin',
+                    text: 'Охота за сокровищами',
+                    desc: 'Карта, бустеры, уровни',
+                    icon: 'fa-solid fa-map-location-dot',
+                    permission: 'manage_settings',
+                    gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                    accentColor: '#4facfe',
+                    badgeIcon: 'fa-solid fa-gem'
+                },
+            ];
+
+            return items.filter(item => {
+                if (item.condition && !this.settings?.[item.condition]) return false;
+                if (!this.hasPermission(item.permission)) return false;
+                return true;
+            });
+        },
         canOpenCrm() {
-            console.log("settings",this.settings )
+            console.log("settings", this.settings)
             return this.settings?.kanban?.enabled && this.settings?.kanban?.board_uuid && this.settings?.kanban?.board_uuid.length > 5;
         },
         crmBoardUrl() {
@@ -527,15 +914,31 @@ export default {
             const mainMenuSettings = this.settings?.main_menu_items || {};
 
             const baseConfig = {
-                shop: { route: 'Catalog', defaultTitle: 'Магазин', defaultImg: '/images/shop/shop.png', order: 1 },
-                basket: { route: 'Cart', defaultTitle: 'Корзина', defaultImg: '/images/shop/basket.png', order: 2 },
-                profile: { route: 'Profile', defaultTitle: 'Профиль', defaultImg: '/images/shop/profile.png', order: 3 },
-                booking: { route: 'TableBooking', defaultTitle: 'Бронь столика', defaultImg: '/images/shop/tables.png', order: 4, condition: 'can_use_booking' },
-                history: { route: 'Orders', defaultTitle: 'История', defaultImg: '/images/shop/history.png', order: 5 },
-                chat: { route: 'ChatList', defaultTitle: 'Чат', defaultImg: '/images/shop/chat.png', order: 6 },
-                events: { route: 'WheelClassic', defaultTitle: 'Розыгрыши', defaultImg: '/images/shop/events.png', order: 7 },
-                about: { route: 'Contacts', defaultTitle: 'Контакты', defaultImg: '/images/shop/contacts.png', order: 8 },
-                referral: { route: 'ReferralsPage', defaultTitle: 'Реферальная программа', defaultImg: '/images/shop/referral.png', order: 9 },
+                shop: {route: 'Catalog', defaultTitle: 'Магазин', defaultImg: '/images/shop/shop.png', order: 1},
+                basket: {route: 'Cart', defaultTitle: 'Корзина', defaultImg: '/images/shop/basket.png', order: 2},
+                profile: {route: 'Profile', defaultTitle: 'Профиль', defaultImg: '/images/shop/profile.png', order: 3},
+                booking: {
+                    route: 'TableBooking',
+                    defaultTitle: 'Бронь столика',
+                    defaultImg: '/images/shop/tables.png',
+                    order: 4,
+                    condition: 'can_use_booking'
+                },
+                history: {route: 'Orders', defaultTitle: 'История', defaultImg: '/images/shop/history.png', order: 5},
+                chat: {route: 'ChatList', defaultTitle: 'Чат', defaultImg: '/images/shop/chat.png', order: 6},
+                events: {
+                    route: 'WheelClassic',
+                    defaultTitle: 'Розыгрыши',
+                    defaultImg: '/images/shop/events.png',
+                    order: 7
+                },
+                about: {route: 'Contacts', defaultTitle: 'Контакты', defaultImg: '/images/shop/contacts.png', order: 8},
+                referral: {
+                    route: 'ReferralsPage',
+                    defaultTitle: 'Реферальная программа',
+                    defaultImg: '/images/shop/referral.png',
+                    order: 9
+                },
             };
 
             return Object.entries(baseConfig)
@@ -560,11 +963,46 @@ export default {
         // 🆕 Полное, но визуально простое админское меню
         simpleAdminItems() {
             const items = [
-                { key: 'products', route: 'AdminShop', text: 'Товары', desc: 'Управление каталогом', icon: 'fa-solid fa-box-open', permission: 'manage_products' },
-                { key: 'orders', route: 'AdminOrders', text: 'Заказы', desc: 'Просмотр и обработка', icon: 'fa-solid fa-receipt', permission: 'manage_orders' },
-                { key: 'clients', route: 'AdminClients', text: 'Пользователи', desc: 'База посетителей', icon: 'fa-solid fa-users', permission: 'manage_users' },
-                { key: 'roles', route: 'AdminRoles', text: 'Роли и доступы', desc: 'Управление разрешениями', icon: 'fa-solid fa-user-shield', permission: 'manage_settings' },
-                { key: 'partners', route: 'AdminPartners', text: 'Партнеры', desc: 'Сотрудничество и интеграции', icon: 'fa-solid fa-handshake', permission: 'manage_partners' },
+                {
+                    key: 'products',
+                    route: 'AdminShop',
+                    text: 'Товары',
+                    desc: 'Управление каталогом',
+                    icon: 'fa-solid fa-box-open',
+                    permission: 'manage_products'
+                },
+                {
+                    key: 'orders',
+                    route: 'AdminOrders',
+                    text: 'Заказы',
+                    desc: 'Просмотр и обработка',
+                    icon: 'fa-solid fa-receipt',
+                    permission: 'manage_orders'
+                },
+                {
+                    key: 'clients',
+                    route: 'AdminClients',
+                    text: 'Пользователи',
+                    desc: 'База посетителей',
+                    icon: 'fa-solid fa-users',
+                    permission: 'manage_users'
+                },
+                {
+                    key: 'roles',
+                    route: 'AdminRoles',
+                    text: 'Роли и доступы',
+                    desc: 'Управление разрешениями',
+                    icon: 'fa-solid fa-user-shield',
+                    permission: 'manage_settings'
+                },
+                {
+                    key: 'partners',
+                    route: 'AdminPartners',
+                    text: 'Партнеры',
+                    desc: 'Сотрудничество и интеграции',
+                    icon: 'fa-solid fa-handshake',
+                    permission: 'manage_partners'
+                },
 
                 {
                     key: 'transactions',
@@ -584,19 +1022,102 @@ export default {
                     permission: 'manage_achievements' // Если такого права нет, можно временно использовать 'manage_settings' или 'manage_promos'
                 },
 
-                { key: 'mailing', route: 'AdminBroadcastsPage', text: 'Рассылки', desc: 'Уведомления и акции', icon: 'fa-solid fa-envelope', permission: 'manage_broadcasts' },
-                { key: 'stories', route: 'AdminStories', text: 'Истории', desc: 'Управление сторис', icon: 'fa-solid fa-circle-play', permission: 'manage_stories' },
-                { key: 'tables', route: 'AdminTablesManager', text: 'Столики', desc: 'Бронирование и схема', icon: 'fa-solid fa-chair', permission: 'manage_tables',
-                    },
-                { key: 'promo', route: 'AdminPromoCodes', text: 'Промокоды', desc: 'Скидки и бонусы', icon: 'fa-solid fa-tags', permission: 'manage_promos' },
-                { key: 'wheel', route: 'WheelAdmin', text: 'Колесо фортуны', desc: 'Розыгрыш призов', icon: 'fa-solid fa-dharmachakra', permission: 'manage_settings' },
-                { key: 'crm', route: 'AdminKanban', text: 'CRM', desc: 'Воронка и сделки', icon: 'fa-solid fa-address-book', permission: 'manage_crm' },
-                { key: 'statistic', route: 'AdminStatistic', text: 'Статистика', desc: 'Аналитика и отчеты', icon: 'fa-solid fa-chart-line', permission: 'view_statistics' },
-                { key: 'landing', route: 'AdminShopLanding', text: 'Лендинг', desc: 'Настройка посадочной страницы', icon: 'fa-solid fa-laptop-code', permission: 'manage_landing' },
-                { key: 'tap_link', route: 'TapLinkAdmin', text: 'Tap-link', desc: 'Мобильная визитка', icon: 'fa-solid fa-mobile-screen', permission: 'manage_taplink' },
-                { key: 'utm', route: 'LinkManagerV2', text: 'UTM-метки', desc: 'Трекинг источников', icon: 'fa-solid fa-link', permission: 'manage_utm' },
-                { key: 'invoice', route: 'AdminInvoice', text: 'Счета', desc: 'Выставление счетов', icon: 'fa-solid fa-file-invoice-dollar', permission: 'manage_invoices' },
-                { key: 'settings', route: 'AdminTenant', text: 'Настройки', desc: 'Конфигурация магазина', icon: 'fa-solid fa-gear', permission: 'manage_settings' },
+                {
+                    key: 'mailing',
+                    route: 'AdminBroadcastsPage',
+                    text: 'Рассылки',
+                    desc: 'Уведомления и акции',
+                    icon: 'fa-solid fa-envelope',
+                    permission: 'manage_broadcasts'
+                },
+                {
+                    key: 'stories',
+                    route: 'AdminStories',
+                    text: 'Истории',
+                    desc: 'Управление сторис',
+                    icon: 'fa-solid fa-circle-play',
+                    permission: 'manage_stories'
+                },
+                {
+                    key: 'tables',
+                    route: 'AdminTablesManager',
+                    text: 'Столики',
+                    desc: 'Бронирование и схема',
+                    icon: 'fa-solid fa-chair',
+                    permission: 'manage_tables',
+                },
+                {
+                    key: 'promo',
+                    route: 'AdminPromoCodes',
+                    text: 'Промокоды',
+                    desc: 'Скидки и бонусы',
+                    icon: 'fa-solid fa-tags',
+                    permission: 'manage_promos'
+                },
+                {
+                    key: 'wheel',
+                    route: 'WheelAdmin',
+                    text: 'Колесо фортуны',
+                    desc: 'Розыгрыш призов',
+                    icon: 'fa-solid fa-dharmachakra',
+                    permission: 'manage_settings'
+                },
+                {
+                    key: 'crm',
+                    route: 'AdminKanban',
+                    text: 'CRM',
+                    desc: 'Воронка и сделки',
+                    icon: 'fa-solid fa-address-book',
+                    permission: 'manage_crm'
+                },
+                {
+                    key: 'statistic',
+                    route: 'AdminStatistic',
+                    text: 'Статистика',
+                    desc: 'Аналитика и отчеты',
+                    icon: 'fa-solid fa-chart-line',
+                    permission: 'view_statistics'
+                },
+                {
+                    key: 'landing',
+                    route: 'AdminShopLanding',
+                    text: 'Лендинг',
+                    desc: 'Настройка посадочной страницы',
+                    icon: 'fa-solid fa-laptop-code',
+                    permission: 'manage_landing'
+                },
+                {
+                    key: 'tap_link',
+                    route: 'TapLinkAdmin',
+                    text: 'Tap-link',
+                    desc: 'Мобильная визитка',
+                    icon: 'fa-solid fa-mobile-screen',
+                    permission: 'manage_taplink'
+                },
+                {
+                    key: 'utm',
+                    route: 'LinkManagerV2',
+                    text: 'UTM-метки',
+                    desc: 'Трекинг источников',
+                    icon: 'fa-solid fa-link',
+                    permission: 'manage_utm'
+                },
+                {
+                    key: 'invoice',
+                    route: 'AdminInvoice',
+                    text: 'Счета',
+                    desc: 'Выставление счетов',
+                    icon: 'fa-solid fa-file-invoice-dollar',
+                    permission: 'manage_invoices'
+                },
+                {
+                    key: 'settings',
+                    route: 'AdminTenant',
+                    text: 'Настройки',
+                    desc: 'Конфигурация магазина',
+                    icon: 'fa-solid fa-gear',
+                    permission: 'manage_settings'
+                },
             ];
 
             // Фильтрация: должно выполняться И условие системы (condition), И право пользователя (permission)
@@ -618,9 +1139,9 @@ export default {
         // 🆕 Развлекательные кнопки
         entertainment() {
             const baseItems = [
-                { key: 'wheel_of_fortune_btn', img: 'fortune.png', text: 'Колесо фортуны', route: 'WheelClassic' },
-                { key: 'coffee_bonus_btn', img: 'coffee.png', text: 'Больше кофе', route: 'Coffee' },
-                { key: 'social_quest_btn', img: 'social-quest.png', text: 'Квесты', route: 'GamesCatalog' },
+                {key: 'wheel_of_fortune_btn', img: 'fortune.png', text: 'Колесо фортуны', route: 'WheelClassic'},
+                {key: 'coffee_bonus_btn', img: 'coffee.png', text: 'Больше кофе', route: 'Coffee'},
+                {key: 'social_quest_btn', img: 'social-quest.png', text: 'Квесты', route: 'GamesCatalog'},
             ];
 
             return this.applyMenuSettings(baseItems, {
@@ -643,8 +1164,49 @@ export default {
         if (this.disabledModal) {
             this.disabledModal.dispose();
         }
+
+        if (this.copyTimeout) {
+            clearTimeout(this.copyTimeout);
+        }
     },
     methods: {
+        setAdminCategory(category) {
+            this.adminCategory = category;
+            localStorage.setItem('adminCategory', category);
+        },
+        async copyUserId() {
+            if (!this.self?.id) return;
+
+            try {
+                await navigator.clipboard.writeText(String(this.self.id));
+
+                // Визуальная обратная связь на кнопке
+                this.isCopied = true;
+                if (this.copyTimeout) clearTimeout(this.copyTimeout);
+                this.copyTimeout = setTimeout(() => {
+                    this.isCopied = false;
+                }, 2000);
+
+                // Уведомление (если в проекте подключен плагин уведомлений)
+                if (this.$notify) {
+                    this.$notify({
+                        title: 'Успех',
+                        text: `ID пользователя #${this.self.id} скопирован`,
+                        type: 'success'
+                    });
+                }
+            } catch (err) {
+                console.error('Не удалось скопировать ID: ', err);
+                if (this.$notify) {
+                    this.$notify({
+                        title: 'Ошибка',
+                        text: 'Не удалось скопировать в буфер обмена',
+                        type: 'error'
+                    });
+                }
+            }
+        },
+
         setAdminViewMode(mode) {
             this.adminViewMode = mode;
             localStorage.setItem('adminViewMode', mode);
@@ -697,9 +1259,9 @@ export default {
                 })
                 .map(item => {
                     const iconConfig = iconsMap.get(item.key);
-                    if (!iconConfig) return { ...item };
+                    if (!iconConfig) return {...item};
 
-                    const result = { ...item };
+                    const result = {...item};
                     if (useSettingsTitle && iconConfig.title) result.text = iconConfig.title;
                     if (useSettingsImage && iconConfig.image_url) result.img = iconConfig.image_url;
 
@@ -749,7 +1311,7 @@ export default {
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 
 
 .home-page {
@@ -1026,9 +1588,8 @@ export default {
 .fortune-background {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+    background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
 }
 
 .fortune-content {
@@ -1060,8 +1621,12 @@ export default {
 }
 
 @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-6px);
+    }
 }
 
 .fortune-sparkle {
@@ -1070,13 +1635,33 @@ export default {
     animation: sparkle 2s ease-in-out infinite;
 }
 
-.sparkle-1 { top: -4px; right: -4px; animation-delay: 0s; }
-.sparkle-2 { bottom: -4px; left: -4px; animation-delay: 0.7s; }
-.sparkle-3 { top: 50%; right: -8px; animation-delay: 1.4s; }
+.sparkle-1 {
+    top: -4px;
+    right: -4px;
+    animation-delay: 0s;
+}
+
+.sparkle-2 {
+    bottom: -4px;
+    left: -4px;
+    animation-delay: 0.7s;
+}
+
+.sparkle-3 {
+    top: 50%;
+    right: -8px;
+    animation-delay: 1.4s;
+}
 
 @keyframes sparkle {
-    0%, 100% { opacity: 0; transform: scale(0.5); }
-    50% { opacity: 1; transform: scale(1); }
+    0%, 100% {
+        opacity: 0;
+        transform: scale(0.5);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .fortune-text {
@@ -1274,12 +1859,33 @@ export default {
 }
 
 @media (max-width: 576px) {
-    .greeting-name { font-size: 1.3rem; }
-    .hero-avatar { width: 48px; height: 48px; font-size: 1.3rem; }
-    .stat-pill { padding: 8px 10px; }
-    .stat-value { font-size: 0.85rem; }
-    .fortune-content { flex-wrap: wrap; }
-    .fortune-action { width: 100%; justify-content: center; margin-top: 8px; }
+    .greeting-name {
+        font-size: 1.3rem;
+    }
+
+    .hero-avatar {
+        width: 48px;
+        height: 48px;
+        font-size: 1.3rem;
+    }
+
+    .stat-pill {
+        padding: 8px 10px;
+    }
+
+    .stat-value {
+        font-size: 0.85rem;
+    }
+
+    .fortune-content {
+        flex-wrap: wrap;
+    }
+
+    .fortune-action {
+        width: 100%;
+        justify-content: center;
+        margin-top: 8px;
+    }
 }
 
 :deep(*) {
@@ -1411,14 +2017,17 @@ export default {
     .disabled-alert-btn {
         padding: 14px 16px;
     }
+
     .alert-icon-wrapper {
         width: 38px;
         height: 38px;
         font-size: 1rem;
     }
+
     .alert-title {
         font-size: 0.9rem;
     }
+
     .alert-subtitle {
         font-size: 0.75rem;
     }
@@ -1582,7 +2191,7 @@ export default {
     /* 3. Делаем сами карточки компактными и пропорциональными */
     .bonus-card {
         max-width: 380px; /* Оптимальная ширина для десктопной карточки */
-        margin: 0 auto;   /* Центрируем карточку внутри её слайда */
+        margin: 0 auto; /* Центрируем карточку внутри её слайда */
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
     }
 
@@ -1629,16 +2238,493 @@ export default {
     text-decoration: none;
     transition: all 0.2s;
     white-space: nowrap;
-    margin-bottom:16px;
+    margin-bottom: 16px;
 }
+
 .btn-crm-link:hover {
     transform: translateY(-1px);
 }
+
 .btn-crm-link i {
     font-size: 13px;
     transition: transform 0.2s;
 }
+
 .btn-crm-link:hover i {
     transform: translate(2px, -2px);
+}
+/* ==========================================
+   🆕 КНОПКА КОПИРОВАНИЯ ID ПОЛЬЗОВАТЕЛЯ
+   ========================================== */
+.copy-id-btn {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 4px 10px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: monospace; /* Делает ID похожим на код */
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 4px;
+
+    i {
+        font-size: 0.8rem;
+        transition: transform 0.2s ease;
+    }
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.4);
+        color: #fff;
+        transform: translateY(-1px);
+
+        i {
+            transform: scale(1.1);
+        }
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
+
+    /* Состояние после успешного копирования */
+    &.is-copied {
+        background: rgba(40, 167, 69, 0.25); /* Зеленый с прозрачностью */
+        border-color: rgba(40, 167, 69, 0.5);
+        color: #fff;
+
+        i {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+    }
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.5); }
+    100% { transform: scale(1); }
+}
+
+/* ==========================================
+   🆕 ШАПКА АДМИН-СЕКЦИИ
+   ========================================== */
+.admin-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ==========================================
+   🆕 ТАБЫ: БАЗОВОЕ / ИГРЫ
+   ========================================== */
+.admin-tabs-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.admin-tabs {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 14px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.admin-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--bs-secondary-color);
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+}
+
+.admin-tab:hover:not(.active) {
+    background: rgba(var(--bs-primary-rgb), 0.04);
+    color: var(--bs-body-color);
+}
+
+.admin-tab.active {
+    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.25);
+}
+
+.admin-tab-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    transition: all 0.25s ease;
+}
+
+.admin-tab-icon.games {
+    background: rgba(245, 87, 108, 0.1);
+    color: #f5576c;
+}
+
+.admin-tab.active .admin-tab-icon {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+}
+
+.admin-tab-text {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    min-width: 0;
+}
+
+.admin-tab-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.admin-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+    border-radius: 11px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    transition: all 0.25s ease;
+}
+
+.admin-tab-count.games {
+    background: rgba(245, 87, 108, 0.1);
+    color: #f5576c;
+}
+
+.admin-tab.active .admin-tab-count {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+}
+
+/* Пульсирующий индикатор для игр (показывает, что там много интересного) */
+.admin-tab-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    pointer-events: none;
+}
+
+.badge-pulse {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #10B981;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+    animation: pulseDot 2s infinite;
+}
+
+@keyframes pulseDot {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+.admin-tab.active .admin-tab-badge {
+    display: none;
+}
+
+/* ==========================================
+   🆕 ОПИСАНИЕ КАТЕГОРИИ
+   ========================================== */
+.admin-category-desc {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(var(--bs-primary-rgb), 0.04);
+    border: 1px solid rgba(var(--bs-primary-rgb), 0.1);
+    border-radius: 10px;
+    color: var(--bs-secondary-color);
+    font-size: 0.8rem;
+    margin-bottom: 16px;
+}
+
+.admin-category-desc i {
+    color: var(--bs-primary);
+    font-size: 0.9rem;
+}
+
+.admin-category-desc.games {
+    background: rgba(245, 87, 108, 0.04);
+    border-color: rgba(245, 87, 108, 0.15);
+}
+
+.admin-category-desc.games i {
+    color: #f5576c;
+}
+
+/* Анимация переключения описания */
+.tab-fade-enter-active,
+.tab-fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+.tab-fade-enter-from,
+.tab-fade-leave-to {
+    opacity: 0;
+}
+
+/* Анимация переключения контента */
+.tab-slide-enter-active {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tab-slide-leave-active {
+    transition: all 0.2s ease;
+}
+.tab-slide-enter-from {
+    opacity: 0;
+    transform: translateY(10px);
+}
+.tab-slide-leave-to {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+/* ==========================================
+   🆕 ИГРОВОЕ МЕНЮ: СПИСОК (с акцентной иконкой)
+   ========================================== */
+.admin-menu-list.games-list {
+    border-color: rgba(245, 87, 108, 0.15);
+}
+
+.admin-menu-item.game-item:hover {
+    background: rgba(245, 87, 108, 0.04);
+}
+
+.admin-item-icon.game-icon {
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.game-item-badge {
+    font-size: 1rem;
+    opacity: 0.7;
+    margin-right: 4px;
+}
+
+/* ==========================================
+   🆕 ИГРОВОЕ МЕНЮ: СЕТКА (премиум-карточки с градиентом)
+   ========================================== */
+.games-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+@media (min-width: 576px) {
+    .games-menu-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 768px) {
+    .games-menu-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.game-grid-card {
+    position: relative;
+    padding: 20px 16px;
+    border-radius: 18px;
+    cursor: pointer;
+    overflow: hidden;
+    border: none;
+    color: white;
+    text-align: left;
+    min-height: 140px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    background: var(--gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+}
+
+.game-grid-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gradient);
+    z-index: 0;
+}
+
+.game-grid-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+.game-grid-card:active {
+    transform: translateY(-2px);
+}
+
+.game-grid-bg {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.game-grid-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.game-grid-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    margin-bottom: 14px;
+    transition: transform 0.3s ease;
+}
+
+.game-grid-card:hover .game-grid-icon {
+    transform: scale(1.08) rotate(-5deg);
+}
+
+.game-grid-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    margin-bottom: 6px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.game-grid-desc {
+    font-size: 0.72rem;
+    opacity: 0.9;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Декоративный блик при наведении */
+.game-grid-shine {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.18),
+            transparent
+    );
+    transform: skewX(-20deg);
+    transition: left 0.6s ease;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.game-grid-card:hover .game-grid-shine {
+    left: 120%;
+}
+
+/* ==========================================
+   🆕 ПУСТОЕ СОСТОЯНИЕ
+   ========================================== */
+.admin-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px 20px;
+    color: var(--bs-secondary-color);
+    text-align: center;
+    grid-column: 1 / -1;
+}
+
+.admin-empty i {
+    font-size: 2rem;
+    opacity: 0.5;
+}
+
+.admin-empty span {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* ==========================================
+   АДАПТИВ ТАБОВ
+   ========================================== */
+@media (max-width: 400px) {
+    .admin-tabs-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-view-toggle {
+        align-self: flex-end;
+    }
+
+    .admin-tab {
+        padding: 8px 10px;
+    }
+
+    .admin-tab-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+
+    .admin-tab-title {
+        font-size: 0.82rem;
+    }
 }
 </style>
