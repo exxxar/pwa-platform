@@ -84,12 +84,7 @@
                             :comment="item.comment"
                             :config="item.params"
                         >
-                            <template #partner>
-                                <div class="partner-info">
-                                    <i class="fa-solid fa-store"></i>
-                                    <span>{{ tenant?.name || 'Магазин' }}</span>
-                                </div>
-                            </template>
+
                         </ProductCardSimple>
 
                         <!-- 🆕 Коллекция (подборка) -->
@@ -102,12 +97,7 @@
                             @increment="incrementCollectionItem"
                             @decrement="decrementCollectionItem"
                         >
-                            <template #partner>
-                                <div class="partner-info" v-if="item.partner">
-                                    <i class="fa-solid fa-store"></i>
-                                    <span>{{ item.partner.name }}</span>
-                                </div>
-                            </template>
+
                         </CollectionCardSimple>
                     </div>
                 </div>

@@ -54,7 +54,10 @@
                     <h6 class="product-name">
                         {{ item.name || 'Товар' }}
                     </h6>
-                    <slot name="partner"></slot>
+                    <div class="partner-info" v-if="item.tenant_name">
+                        <i class="fa-solid fa-store"></i>
+                        <span>{{ item.tenant_name || 'Магазин' }}</span>
+                    </div>
                 </div>
 
                 <!-- Цена -->

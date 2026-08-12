@@ -16,6 +16,10 @@
 
                 <div class="card-info">
                     <h4 class="card-title">{{ item.collection?.name || item.name || 'Сборка' }}</h4>
+                    <div class="partner-info" v-if="item.tenant_name">
+                        <i class="fa-solid fa-store"></i>
+                        <span>{{ item.tenant_name || 'Магазин' }}</span>
+                    </div>
                     <div class="card-count">
                         <span class="count-badge">{{ item.count }} шт.</span>
                         <span class="count-text">в корзине</span>
@@ -24,6 +28,7 @@
             </div>
 
             <div class="header-right">
+
                 <div class="card-total-price">{{ formatPrice(item.total_price) }}</div>
                 <div class="expand-indicator">
                     <span class="expand-text">Детали</span>

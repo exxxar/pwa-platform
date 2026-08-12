@@ -3,6 +3,7 @@
 namespace App\Models\Tenant;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -51,6 +52,8 @@ class Collection extends Model
         'pricing_type' => 'sum',
         'in_stop_list' => false,
     ];
+
+    protected $appends = ["tenant_name"];
 
     public function tenant(): BelongsTo
     {
@@ -113,6 +116,13 @@ class Collection extends Model
             ->groupBy($productTable . '.id')
             ->orderByRaw('MIN(collection_category_product.sort_order) ASC')
             ->orderBy($productTable . '.id');
+    }
+
+    protected function tenantName(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->tenant?->name ?? 'Неизвестное заведение'
+        );
     }
 
     public function getProductsAttribute(): SupportCollection

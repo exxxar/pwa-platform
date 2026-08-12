@@ -441,8 +441,7 @@ export default {
             isLoading,
             cartTotalCount,
             cartTotalPrice,
-            basket_items,
-            loadProductsInBasket // Возвращаем для возможного ручного обновления
+            basket_items
         } = basket;
 
         return {
@@ -452,7 +451,7 @@ export default {
             cartTotalCount,
             cartTotalPrice,
             basket_items,
-            loadProductsInBasket,
+            loadProductsInBasket: basket.loadProductsInBasket,
 
             // Методы
             startCheckoutAction: basket.startCheckout,
@@ -631,6 +630,8 @@ export default {
         };
         window.addEventListener("scroll-to-basket", this._scrollToBasketHandler);
         document.addEventListener('switch-to-cart', this._switchToCartHandler);
+
+        this.loadProductsInBasket()
     },
 
     beforeUnmount() {
@@ -640,6 +641,8 @@ export default {
     },
 
     methods: {
+
+
         goToOrderChat(){
           this.$router.push({name:'ChatList'})
         },
