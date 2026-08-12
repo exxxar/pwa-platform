@@ -136,7 +136,7 @@
                     <CartProductList
                         :form-data="deliveryForm"
                         @select-prize="selectPrize"
-                        @change-tab="changeTab"
+                        @change-tab="currentStep++"
                     >
                         <template #recommendation-list>
                             <ProductRecommendationList/>
@@ -151,7 +151,7 @@
                         v-if="settings.shop_display_type === 0"
                         v-model="deliveryForm"
                         @start-checkout="startCheckout"
-                        @change-tab="changeTab"
+                        @change-tab="currentStep++"
                     />
                     <!--                    <CheckoutNonFoodGoodsForm
                                             v-else
@@ -274,11 +274,15 @@
                                     <div class="info-grid">
                                         <div class="info-cell">
                                             <span class="info-label">Текущая сумма</span>
-                                            <span class="info-value current-amount">{{ formatPrice(error.current_amount) }}</span>
+                                            <span class="info-value current-amount">{{
+                                                    formatPrice(error.current_amount)
+                                                }}</span>
                                         </div>
                                         <div class="info-cell">
                                             <span class="info-label">Минимальная</span>
-                                            <span class="info-value required-amount">{{ formatPrice(error.min_required) }}</span>
+                                            <span class="info-value required-amount">{{
+                                                    formatPrice(error.min_required)
+                                                }}</span>
                                         </div>
                                     </div>
 
@@ -312,7 +316,7 @@
 
                     <!-- Кнопки действий -->
                     <div class="modal-footer">
-                        <button class="modal-btn primary-btn" @click="goToCatalogFromError">
+                        <button class="modal-btn primary-btn" @click="goToCatalog">
                             <i class="fa-solid fa-cart-plus"></i>
                             <span>Добавить товары</span>
                         </button>
@@ -353,7 +357,9 @@
                                         </div>
                                         <div class="partner-details">
                                             <h4 class="partner-name">{{ error.name }}</h4>
-                                            <span class="partner-badge">{{ error.type === 'main_tenant' ? 'Служба доставки' : 'Партнер' }}</span>
+                                            <span class="partner-badge">{{
+                                                    error.type === 'main_tenant' ? 'Служба доставки' : 'Партнер'
+                                                }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -366,7 +372,9 @@
 
                                     <div v-if="error.closes_at" class="reopens-info">
                                         <i class="fa-regular fa-clock"></i>
-                                        <span>Следующее открытие: сегодня в <strong>{{ error.closes_at }}</strong></span>
+                                        <span>Следующее открытие: сегодня в <strong>{{
+                                                error.closes_at
+                                            }}</strong></span>
                                     </div>
                                 </div>
 
@@ -454,6 +462,7 @@ export default {
 
     data() {
         return {
+            showScheduleError: false,
             currentStep: 0,
             sending: false,
             orderJustPlaced: false,
@@ -463,7 +472,7 @@ export default {
             autoCloseCountdown: 10,
             autoCloseTimer: null,
             countdownTimer: null,
-
+            scheduleErrors:[],
             allSteps: [
                 {
                     label: 'Корзина',
@@ -631,6 +640,9 @@ export default {
     },
 
     methods: {
+        goToOrderChat(){
+          this.$router.push({name:'ChatList'})
+        },
         formatPrice(value) {
             if (!value && value !== 0) return '0';
             return Number(value).toLocaleString('ru-RU');
@@ -710,7 +722,9 @@ export default {
                 return;
             }
         },
-
+        goToCatalog() {
+            this.$router.push({name: 'Catalog'})
+        },
         async startCheckout() {
             if (this.sending) return;
 
@@ -735,7 +749,7 @@ export default {
             this.sending = true;
 
             try {
-                const response = await this.startCheckoutAction({ deliveryForm: data });
+                const response = await this.startCheckoutAction({deliveryForm: data});
 
                 if (response?.success) {
                     this.lastOrderId = response.order_id;
@@ -770,7 +784,7 @@ export default {
 
                     // 🆕 Обработка ошибок графика работы
                     if (response?.schedule_errors?.length > 0) {
-                        this.scheduleErrors = response.schedule_errors;
+                        this.scheduleErrors = response.schedule_errors || [];
                         this.showScheduleError = true;
                         return;
                     }

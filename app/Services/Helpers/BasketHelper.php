@@ -1112,7 +1112,7 @@ trait BasketHelper
         $errors = [];
 
         // 1. Проверка основного тенанта (Служба доставки)
-        $mainTenantSchedule = $this->tenant->settings['company']['schedule'] ?? null;
+        $mainTenantSchedule = $this->tenant->settings['schedule'] ?? null;
         if (!$this->isCurrentlyOpen($mainTenantSchedule)) {
             $errors[] = [
                 'type' => 'main_tenant',
@@ -1129,7 +1129,7 @@ trait BasketHelper
 
             if (!$partner) continue;
 
-            $partnerSchedule = $partner->settings['company']['schedule'] ?? null;
+            $partnerSchedule = $partner->settings['schedule'] ?? null;
 
             if (!$this->isCurrentlyOpen($partnerSchedule)) {
                 $errors[] = [
@@ -1141,7 +1141,7 @@ trait BasketHelper
             }
         }
 
-        return $errors;
+        return !is_null($mainTenantSchedule) ? $errors : [];
     }
 
     /**
