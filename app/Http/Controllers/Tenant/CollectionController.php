@@ -33,7 +33,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -50,7 +50,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -68,7 +68,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -92,7 +92,7 @@ class CollectionController extends Controller
                 'success' => false,
                 'message' => $e->getMessage(),
                 'errors' => method_exists($e, 'errors') ? $e->errors() : [],
-            ], $e->getStatusCode() ?? 422);
+            ], $e->getCode() ?? 422);
         }
     }
 
@@ -111,7 +111,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -130,7 +130,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -149,7 +149,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -166,7 +166,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 422);
+            ], $e->getCode() ?? 422);
         }
     }
 
@@ -179,7 +179,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 422);
+            ], $e->getCode() ?? 422);
         }
     }
 
@@ -192,7 +192,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -212,7 +212,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 422);
+            ], $e->getCode() ?? 422);
         }
     }
 
@@ -225,7 +225,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -241,7 +241,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 422);
+            ], $e->getCode() ?? 422);
         }
     }
 
@@ -258,7 +258,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 
@@ -271,7 +271,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getStatusCode() ?? 500);
+            ], $e->getCode() ?? 500);
         }
     }
 }

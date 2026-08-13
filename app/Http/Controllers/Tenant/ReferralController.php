@@ -36,11 +36,11 @@ class ReferralController extends Controller
      */
     public function link(Request $request)
     {
-        $user = Auth::user(); // или $request->user() в зависимости от вашей аутентификации
+        $user = Auth::guard('tenant')->user(); // или $request->user() в зависимости от вашей аутентификации
 
         // Формируем ссылку. Замените 'domain.com' на ваш реальный домен или используйте url()
         // Предполагаем, что регистрация принимает параметр ?ref={user_id}
-        $referralLink = url('/register?ref=' . $user->id);
+        $referralLink = url('/register?ref=' . $user->referral_code ?? $user->id ?? '-');
 
         return response()->json([
             'link' => $referralLink,
