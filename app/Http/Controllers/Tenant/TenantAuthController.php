@@ -12,6 +12,7 @@ use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -319,7 +320,7 @@ class TenantAuthController extends Controller
 
         } catch (\Throwable $e) {
             // Логируем ошибку, но не прерываем загрузку
-            \Log::warning('[InitialData] Ошибка загрузки: ' . $e->getMessage());
+            Log::warning('[InitialData] Ошибка загрузки: ' . $e->getMessage().$e->getFile().$e->getLine());
         }
 
         return $data;
