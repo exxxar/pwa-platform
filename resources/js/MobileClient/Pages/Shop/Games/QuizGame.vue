@@ -54,6 +54,38 @@
                 <p>Загружаем вопросы...</p>
             </div>
 
+
+            <div v-else-if="gameState === 'idle'" class="start-section">
+                <div class="game-preview">
+                    <div class="preview-icon">
+                        <i class="fa-solid fa-question"></i>
+                    </div>
+                    <h3 class="preview-title">Готовы к викторине?</h3>
+                    <p class="preview-desc">
+                        Ответьте на вопросы и заработайте бонусы!
+                        Минимум 75% правильных ответов для победы.
+                    </p>
+                    <button
+                        class="start-btn"
+                        @click="startQuiz"
+                        :disabled="attemptsLeft <= 0 || userBalance < gameCost || isProcessing"
+                    >
+                        <i :class="isProcessing ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-play'"></i>
+                        <span>Начать (−{{ gameCost }}₽ кэшбэка)</span>
+                    </button>
+                    <p v-if="userBalance < gameCost" class="insufficient">Недостаточно кэшбэка</p>
+                </div>
+            </div>
+
+            <!-- ЭКРАН: НЕТ ПОПЫТОК -->
+            <div v-else-if="gameState === 'no_attempts'" class="error-screen">
+                <div class="error-icon">
+                    <i class="fa-solid fa-ticket"></i>
+                </div>
+                <h3>Попытки закончились</h3>
+                <p>Возвращайтесь завтра для новой игры!</p>
+            </div>
+
             <!-- ========================================== -->
             <!-- ЭКРАН ИГРЫ -->
             <!-- ========================================== -->
@@ -104,25 +136,22 @@
                 </div>
             </div>
 
-            <!-- ========================================== -->
-            <!-- ЭКРАН РЕЗУЛЬТАТОВ (НОВЫЙ) -->
-            <!-- ========================================== -->
             <div v-else-if="gameState === 'finished'" class="review-container">
                 <div class="review-header">
                     <h2 class="review-title">Результаты викторины</h2>
                     <div class="score-badge" :class="isWin ? 'win' : 'loss'">
                         <span class="score-value">{{ score }}</span>
-                        <span class="score-total">из {{ questions.length }}</span>
+                        <span class="score-total">из {{ reviewData.length }}</span>
                     </div>
                     <p class="review-subtitle">
                         {{ isWin
-                        ? 'Отличный результат! Вы набрали 75% или более.'
-                        : 'Не хватило совсем чуть-чуть. Нужно минимум 75% для приза.' }}
+                        ? `Отличный результат! ${winPercentage}% правильных ответов. Приз: +${prize} бонусов`
+                        : `Не хватило совсем чуть-чуть. ${winPercentage}% — нужно минимум 75%.` }}
                     </p>
                 </div>
 
                 <div class="questions-review-list">
-                    <div v-for="(q, qIndex) in questions" :key="q.id" class="review-question-card">
+                    <div v-for="(q, qIndex) in reviewData" :key="q.id" class="review-question-card">
                         <div class="review-q-header">
                             <span class="q-number">{{ qIndex + 1 }}</span>
                             <span class="q-text">{{ q.text }}</span>
@@ -133,15 +162,15 @@
                                 :key="ans.id"
                                 class="review-answer"
                                 :class="{
-                                    'is-user-correct': q.userSelectedAnswer === ans.id && ans.isCorrect,
-                                    'is-user-wrong': q.userSelectedAnswer === ans.id && !ans.isCorrect,
-                                    'is-missed-correct': ans.isCorrect && q.userSelectedAnswer !== ans.id
-                                }"
+                        'is-user-correct': q.user_selected_answer === ans.id && ans.is_correct,
+                        'is-user-wrong': q.user_selected_answer === ans.id && !ans.is_correct,
+                        'is-missed-correct': ans.is_correct && q.user_selected_answer !== ans.id
+                    }"
                             >
                                 <span class="ans-text">{{ ans.text }}</span>
                                 <div class="ans-status">
-                                    <i v-if="ans.isCorrect" class="fa-solid fa-check status-icon correct"></i>
-                                    <i v-else-if="q.userSelectedAnswer === ans.id" class="fa-solid fa-xmark status-icon wrong"></i>
+                                    <i v-if="ans.is_correct" class="fa-solid fa-check status-icon correct"></i>
+                                    <i v-else-if="q.user_selected_answer === ans.id" class="fa-solid fa-xmark status-icon wrong"></i>
                                 </div>
                             </div>
                         </div>
@@ -235,7 +264,15 @@
                         <div v-if="isWin" class="result-details">
                             <div class="detail-row">
                                 <i class="fa-solid fa-gift"></i>
-                                <span>Ваш приз: <strong>400 бонусов</strong></span>
+                                <span>Ваш приз: <strong>+{{ prize }} бонусов</strong></span>
+                            </div>
+                            <div class="detail-row">
+                                <i class="fa-solid fa-ticket"></i>
+                                <span>Ставка: <strong>-{{ gameCost }}</strong></span>
+                            </div>
+                            <div class="detail-row" :style="{ color: (prize - gameCost) >= 0 ? '#198754' : '#dc3545' }">
+                                <i :class="(prize - gameCost) >= 0 ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-arrow-trend-down'"></i>
+                                <span>Итого: <strong>{{ (prize - gameCost) >= 0 ? '+' : '' }}{{ prize - gameCost }}</strong></span>
                             </div>
                         </div>
 
@@ -252,28 +289,34 @@
 </template>
 
 <script>
-import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
+
 
 export default {
     name: "QuizGame",
 
-    setup() {
-        const basketStore = useBasketStore();
-        return { basketStore };
-    },
 
     data() {
         return {
             gameState: 'loading', // 'loading', 'playing', 'finished', 'error'
-            questions: [],
+            questions: [], // БЕЗ isCorrect!
             currentQuestionIndex: 0,
             score: 0,
             selectedAnswer: null,
             isAnswered: false,
+            isProcessing: false, // 🆕 Защита от race condition
 
             userBalance: 0,
             attemptsLeft: 1,
+            gameCost: 500,
 
+            // Сессия
+            sessionToken: null,
+            reviewData: [], // Результаты для экрана finished
+            winPercentage: 0,
+            isWin: false,
+            prize: 0,
+
+            // UI
             showAdmin: false,
             showResultModal: false,
         };
@@ -293,15 +336,6 @@ export default {
             if (this.questions.length === 0) return 0;
             return ((this.currentQuestionIndex) / this.questions.length) * 100;
         },
-
-        winPercentage() {
-            if (this.questions.length === 0) return 0;
-            return Math.round((this.score / this.questions.length) * 100);
-        },
-
-        isWin() {
-            return this.winPercentage >= 75;
-        },
     },
 
     async mounted() {
@@ -309,126 +343,10 @@ export default {
     },
 
     methods: {
-        async loadQuizData() {
-            this.gameState = 'loading';
-            try {
-                // TODO: Замени на реальный API запрос
-                // const response = await this.basketStore.loadQuizQuestions();
-                // this.questions = response.questions;
-                // this.attemptsLeft = response.attempts_left || 1;
-                // this.userBalance = window.TenantUser?.cashBack?.amount || 0;
-
-                // Имитация запроса с сервера
-                await new Promise(resolve => setTimeout(resolve, 800));
-
-                this.questions = [
-                    {
-                        id: 1,
-                        text: "Какой ингредиент является основой классической пиццы Маргарита?",
-                        answers: [
-                            { id: 'a', text: "Томатный соус, моцарелла и базилик", isCorrect: true },
-                            { id: 'b', text: "Грибы, ветчина и оливки", isCorrect: false },
-                            { id: 'c', text: "Ананасы и бекон", isCorrect: false },
-                            { id: 'd', text: "Только сыр и тесто", isCorrect: false }
-                        ]
-                    },
-                    {
-                        id: 2,
-                        text: "Сколько минут обычно выпекается неаполитанская пицца в дровяной печи?",
-                        answers: [
-                            { id: 'a', text: "15-20 минут", isCorrect: false },
-                            { id: 'b', text: "60-90 секунд", isCorrect: true },
-                            { id: 'c', text: "5-7 минут", isCorrect: false },
-                            { id: 'd', text: "30 минут", isCorrect: false }
-                        ]
-                    },
-                    {
-                        id: 3,
-                        text: "Какой сыр традиционно используется в пицце Четыре Сыра?",
-                        answers: [
-                            { id: 'a', text: "Только Моцарелла", isCorrect: false },
-                            { id: 'b', text: "Моцарелла, Горгонзола, Пармезан и Эмменталь", isCorrect: true },
-                            { id: 'c', text: "Чеддер и Гауда", isCorrect: false },
-                            { id: 'd', text: "Фета и Брынза", isCorrect: false }
-                        ]
-                    },
-                    {
-                        id: 4,
-                        text: "Что означает слово 'Пицца' в переводе с итальянского?",
-                        answers: [
-                            { id: 'a', text: "Плоский хлеб", isCorrect: true },
-                            { id: 'b', text: "Круглый пирог", isCorrect: false },
-                            { id: 'c', text: "Сырная лепешка", isCorrect: false },
-                            { id: 'd', text: "Быстрая еда", isCorrect: false }
-                        ]
-                    }
-                ];
-
-                this.userBalance = window.TenantUser?.cashBack?.amount || 0;
-                this.attemptsLeft = 1;
-                this.gameState = 'playing';
-
-            } catch (error) {
-                console.error('Ошибка загрузки викторины:', error);
-                this.gameState = 'error';
-            }
-        },
 
         getLetter(id) {
             const letters = { 'a': 'A', 'b': 'B', 'c': 'C', 'd': 'D' };
             return letters[id] || id;
-        },
-
-        async selectAnswer(answerId) {
-            if (this.isAnswered) return;
-
-            this.selectedAnswer = answerId;
-            this.isAnswered = true;
-
-            // СОХРАНЯЕМ ВЫБОР ПОЛЬЗОВАТЕЛЯ ДЛЯ ЭКРАНА РЕЗУЛЬТАТОВ
-            this.currentQuestion.userSelectedAnswer = answerId;
-
-            const selectedAnswerObj = this.currentQuestion.answers.find(a => a.id === answerId);
-            if (selectedAnswerObj && selectedAnswerObj.isCorrect) {
-                this.score++;
-            }
-
-            // Задержка для показа анимации
-            await new Promise(resolve => setTimeout(resolve, 1200));
-            this.nextQuestion();
-        },
-
-        nextQuestion() {
-            if (this.currentQuestionIndex < this.questions.length - 1) {
-                this.currentQuestionIndex++;
-                this.selectedAnswer = null;
-                this.isAnswered = false;
-            } else {
-                this.finishQuiz();
-            }
-        },
-
-        finishQuiz() {
-            this.gameState = 'finished';
-            this.attemptsLeft--; // Списываем попытку
-
-            // Показываем модалку с небольшой задержкой, чтобы пользователь увидел последний ответ
-            setTimeout(() => {
-                this.showResultModal = true;
-                if (this.isWin) {
-                    this.applyPrize();
-                }
-            }, 500);
-        },
-
-        async applyPrize() {
-            try {
-                // TODO: Замени на реальный API
-                // await this.basketStore.claimQuizPrize({ score: this.score });
-                this.userBalance += 400;
-            } catch (error) {
-                console.error('Ошибка начисления приза:', error);
-            }
         },
 
         closeResultModal() {
@@ -436,19 +354,239 @@ export default {
         },
 
         restartQuiz() {
-            if (this.attemptsLeft <= 0) return;
-
+            // Сброс состояния
+            this.sessionToken = null;
+            this.questions = [];
             this.currentQuestionIndex = 0;
             this.score = 0;
             this.selectedAnswer = null;
             this.isAnswered = false;
+            this.reviewData = [];
+            this.winPercentage = 0;
+            this.isWin = false;
+            this.prize = 0;
+            this.gameState = 'idle';
 
-            // Очищаем сохраненные ответы для нового раунда
-            this.questions.forEach(q => {
-                delete q.userSelectedAnswer;
-            });
+            // Перезагружаем данные
+            this.loadQuizData();
+        },
 
+
+        async loadQuizData() {
+            this.gameState = 'loading';
+            try {
+                const response = await axios.get('/quiz/state');
+
+                if (response.data?.success) {
+                    this.userBalance = response.data.balance ?? 0;
+                    this.attemptsLeft = response.data.attempts_left ?? 1;
+                    this.gameCost = response.data.game_cost ?? 500;
+
+                    // Восстановление активной сессии
+                    if (response.data.active_session && !response.data.active_session.finished) {
+                        this.restoreSession(response.data.active_session);
+                    } else {
+                        this.gameState = 'playing';
+                        // Не показываем вопросы сразу — ждём старта
+                        this.gameState = this.attemptsLeft > 0 ? 'idle' : 'no_attempts';
+                    }
+                } else {
+                    this.gameState = 'error';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки викторины:', error);
+                this.gameState = 'error';
+            }
+        },
+
+        restoreSession(session) {
+            this.sessionToken = session.token;
+            this.questions = session.questions;
+            this.score = session.score || 0;
+            this.currentQuestionIndex = Object.keys(session.user_answers || {}).length;
             this.gameState = 'playing';
+        },
+
+
+        async selectAnswer(answerId) {
+            if (this.isAnswered || this.isProcessing) return;
+
+            this.selectedAnswer = answerId;
+            this.isAnswered = true;
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/quiz/answer', {
+                    token: this.sessionToken,
+                    question_id: this.currentQuestion.id,
+                    answer_id: answerId,
+                });
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка ответа');
+                }
+
+                const data = response.data;
+
+                // Обновляем счёт
+                this.score = data.score;
+
+                // Сохраняем для экрана результатов (с правильным ответом от сервера)
+                const questionWithResult = {
+                    ...this.currentQuestion,
+                    user_selected_answer: answerId,
+                    is_correct: data.is_correct,
+                    correct_answer: data.correct_answer || answerId, // Если правильно — наш ответ правильный
+                    answers: this.currentQuestion.answers.map(a => ({
+                        ...a,
+                        isCorrect: (data.is_correct && a.id === answerId) || (!data.is_correct && a.id === data.correct_answer),
+                    })),
+                };
+
+                // Добавляем в review
+                this.reviewData[this.currentQuestionIndex] = questionWithResult;
+
+                // Ждём анимацию
+                await new Promise(resolve => setTimeout(resolve, 1200));
+
+                // Переходим к следующему вопросу или завершаем
+                if (!data.is_complete) {
+                    this.nextQuestion();
+                } else {
+                    await this.finishQuiz();
+                }
+
+            } catch (error) {
+                console.error('Ошибка ответа:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось отправить ответ',
+                    type: 'error',
+                });
+
+                // Откатываем состояние
+                this.isAnswered = false;
+                this.selectedAnswer = null;
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+        nextQuestion() {
+            if (this.currentQuestionIndex < this.questions.length - 1) {
+                this.currentQuestionIndex++;
+                this.selectedAnswer = null;
+                this.isAnswered = false;
+            }
+        },
+
+
+
+        async finishQuiz() {
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/quiz/finish', {
+                    token: this.sessionToken,
+                });
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка завершения');
+                }
+
+                const data = response.data;
+
+                // Обновляем состояние
+                this.userBalance = data.balance;
+                if (window.TenantUser) {
+                    window.TenantUser.cashback_balance = data.balance;
+                }
+
+                this.winPercentage = data.win_percentage;
+                this.isWin = data.is_win;
+                this.prize = data.prize;
+                this.score = data.score;
+
+                // Обновляем review данными с сервера
+                if (data.review) {
+                    this.reviewData = data.review.map(q => ({
+                        ...q,
+                        answers: q.answers,
+                        user_selected_answer: q.user_answer_id,
+                    }));
+                }
+
+                // Переходим на экран результатов
+                this.gameState = 'finished';
+                this.attemptsLeft--; // Локально для UI
+
+                setTimeout(() => {
+                    this.showResultModal = true;
+                }, 500);
+
+            } catch (error) {
+                console.error('Ошибка завершения:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось завершить викторину',
+                    type: 'error',
+                });
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+
+
+
+
+        async startQuiz() {
+            if (this.attemptsLeft <= 0 || this.userBalance < this.gameCost || this.isProcessing) return;
+
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/quiz/start');
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка старта');
+                }
+
+                // Обновляем баланс
+                this.userBalance = response.data.balance;
+                if (window.TenantUser) {
+                    window.TenantUser.cashback_balance = response.data.balance;
+                }
+
+                // Инициализируем игру
+                this.sessionToken = response.data.token;
+                this.questions = response.data.questions; // БЕЗ isCorrect!
+                this.currentQuestionIndex = 0;
+                this.score = 0;
+                this.selectedAnswer = null;
+                this.isAnswered = false;
+                this.reviewData = [];
+                this.gameState = 'playing';
+
+            } catch (error) {
+                console.error('Ошибка старта:', error);
+
+                if (error.response?.status === 403) {
+                    this.$notify?.({
+                        title: 'Нельзя начать',
+                        text: error.response.data?.message || 'Проверьте условия',
+                        type: 'warning',
+                    });
+                } else {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: error.response?.data?.message || 'Не удалось начать викторину',
+                        type: 'error',
+                    });
+                }
+            } finally {
+                this.isProcessing = false;
+            }
         },
 
         // ==========================================
@@ -476,18 +614,7 @@ export default {
             };
         },
 
-        adminResetAll() {
-            if (!confirm('Сбросить игру всем пользователям?')) return;
-            this.$notify?.({ title: 'Админ', text: 'Игра сброшена', type: 'success' });
-        },
-        adminAddAttempts() {
-            this.attemptsLeft++;
-            this.$notify?.({ title: 'Админ', text: 'Добавлена попытка', type: 'success' });
-        },
-        adminAddBalance() {
-            this.userBalance += 500;
-            this.$notify?.({ title: 'Админ', text: '+500 бонусов', type: 'success' });
-        },
+
     },
 };
 </script>

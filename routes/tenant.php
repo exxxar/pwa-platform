@@ -9,7 +9,6 @@ use App\Http\Controllers\PartnersController;
 use App\Http\Controllers\ProductCollectionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
-
 use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\Tenant\AchievementAdminController;
@@ -18,6 +17,7 @@ use App\Http\Controllers\Tenant\CashBackController;
 use App\Http\Controllers\Tenant\ClientsController;
 use App\Http\Controllers\Tenant\CollectionController;
 use App\Http\Controllers\Tenant\FavoriteController;
+use App\Http\Controllers\Tenant\FriendsController;
 use App\Http\Controllers\Tenant\PromoCodeController;
 use App\Http\Controllers\Tenant\RolesController;
 use App\Http\Controllers\Tenant\StatisticController;
@@ -31,7 +31,6 @@ use App\Http\Controllers\Tenant\TenantPwaController;
 use App\Http\Controllers\Tenant\TenantSocialAuthController;
 use App\Http\Controllers\Tenant\TenantTapLinkController;
 use App\Http\Controllers\Tenant\WebhookReceiverController;
-use App\Http\Controllers\Tenant\WheelController;
 use App\Http\Controllers\TenantDialogController;
 use App\Http\Controllers\TenantSettingsController;
 use App\Models\Tenant\Tenant;
@@ -41,63 +40,30 @@ use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-
 use App\Http\Controllers\Tenant\TenantPasswordController;
 use App\Http\Controllers\Tenant\TenantEmailVerificationController;
 use Inertia\Inertia;
 use Jenssegers\Agent\Agent;
 
-
-
 Route::domain('mypwa.ru')->group(function(){
     Route::view("/", "landing-2");
 });
 
-
-/*function managerRoutes() {
-    Route::get('/job', function (Request $request) {
-
-        $agent = new Agent();
-
-        if ($agent->isMobile()) {
-            return redirect()->to('/agent', 301, [], false);
-        }
-
-        return view("job-landing");
-    });
-
-    Route::get('/agent/{any?}', [TenantAuthController::class, 'handlerAgent'])
-        ->where('any', '.*');
-
-    Route::get('/sw.js', [TenantAuthController::class, 'serviceWorker']);
-
-    Route::get('/manifest.json', [TenantAuthController::class, 'manifest']);
-};*/
-
 function routes() {
 
     Route::get('/app-version', function () {
-        // Вариант 1: Читать из .env (APP_VERSION=1.2.3)
-        // Вариант 2: Читать из файла public/version.json, который генерируется CI/CD
-        // Вариант 3: Хардкод, который вы меняете при релизе
-
         $version = config('app.version', '1.0.0');
-
         return response()->json([
             'version' => $version,
-            'force_update' => false, // Можно использовать для критических багов
+            'force_update' => false,
         ]);
-    })->middleware('throttle:60,1'); // Защита от флуда
+    })->middleware('throttle:60,1');
 
     Route::get('/', function (Request $request) {
-
         $agent = new Agent();
-
         if ($agent->isMobile()) {
-            // Используем абсолютный редирект на /pwa
             return redirect('/pwa', 301);
         }
-
         $tenant = $request->tenant;
         \Illuminate\Support\Facades\Session::put("tenant", $tenant->name);
         $tenantUser = Auth::guard('tenant')->user();
@@ -106,8 +72,6 @@ function routes() {
             'tenant' => $tenant,
             'tenant_user' => $tenantUser
         ]);
-
-        //return view("landing");
     })->name("home");
 
     Route::get('/taplink', [TenantTapLinkController::class, 'index']);
@@ -125,25 +89,20 @@ function routes() {
         ->where('any', '.*');
 
     Route::get('/manifest.json', [TenantAuthController::class, 'manifest']);
-
     Route::get('/sw.js', [TenantAuthController::class, 'serviceWorker']);
-
 
     Route::post('/push/subscribe', function (Request $request) {
         $request->validate(['endpoint' => 'required', 'keys' => 'required']);
-
         $tenantUser = TenantUser::find(Auth::guard('tenant')->user()->id);
         $tenantUser->updatePushSubscription(
             $request->input('endpoint'),
             $request->input('keys.p256dh'),
             $request->input('keys.auth')
         );
-
         return response()->json(['success' => true]);
     });
 
     Route::post('/push/unsubscribe', function (Request $request) {
-
         $tenantUser = TenantUser::find(Auth::guard('tenant')->user()->id);
         $tenantUser->deletePushSubscription($request->input('endpoint'));
         return response()->json(['success' => true]);
@@ -151,22 +110,18 @@ function routes() {
 
     Route::get("/test-sub", function () {
         $tenantUser = Auth::guard('tenant')->user();
-
         $tenantUserTMP = TenantUser::find($tenantUser->id);
         $tenantUserTMP->notify(new NewOrderNotification('12345'));
-
         return "ok";
     });
 
     Route::get("/tables-qr", [ProductController::class, "generateTablesQR"]);
 
-
-
     Route::prefix('profile')->middleware(['auth:tenant'])->group(function () {
         Route::get('/', [ProfileController::class, 'index']);
-        Route::put('/', [ProfileController::class, 'update']);          // Обновление текстовых данных
+        Route::put('/', [ProfileController::class, 'update']);
         Route::put('/password', [ProfileController::class, 'updatePassword']);
-        Route::post('/avatar', [ProfileController::class, 'updateAvatar']); // Загрузка фото
+        Route::post('/avatar', [ProfileController::class, 'updateAvatar']);
     });
 
     Route::prefix('favorites')->middleware(['auth:tenant'])->group(function () {
@@ -178,17 +133,12 @@ function routes() {
         Route::delete('/clear', [FavoriteController::class, 'clear']);
     });
 
-
-
-    Route::prefix("wheel")->group(function () {
-        Route::get('/data', [WheelController::class, 'getData']);
-        Route::post('/record-attempt', [WheelController::class, 'recordAttempt']);
-        Route::post('/win', [WheelController::class, 'saveWin']);
-        Route::get('/history', [WheelController::class, 'getHistory']);
-    });
+    // ==========================================
+    // 🎮 ИГРЫ ПОДКЛЮЧАЮТСЯ ИЗ ОТДЕЛЬНОГО ФАЙЛА
+    // ==========================================
+    require base_path('routes/games.php');
 
     Route::prefix('admin')->group(function () {
-
         Route::prefix('orders')->group(function () {
             Route::get('/', [AdminOrderController::class, 'index']);
             Route::get("/export", [AdminOrderController::class, "export"]);
@@ -210,6 +160,7 @@ function routes() {
             Route::post('/{achievement}/toggle', [AchievementAdminController::class, 'toggle']);
             Route::delete('/{achievement}', [AchievementAdminController::class, 'destroy']);
         });
+
         Route::prefix('clients')->middleware(['auth:tenant'])->group(function () {
             Route::get('/{userId}', [ClientsController::class, 'show']);
             Route::get('/{userId}/messages', [ClientsController::class, 'messages']);
@@ -219,7 +170,6 @@ function routes() {
             Route::delete('/messages/{messageId}', [ClientsController::class, 'deleteMessage']);
         });
 
-        // Управление ролями
         Route::prefix('roles')->group(function () {
             Route::get('/', [RolesController::class, 'index']);
             Route::post('/', [RolesController::class, 'store']);
@@ -227,9 +177,7 @@ function routes() {
             Route::delete('/{roleId}', [RolesController::class, 'destroy']);
         });
 
-        // Получение списка всех доступных разрешений
         Route::get('/permissions', [RolesController::class, 'permissions']);
-
 
         Route::prefix('statistic')->middleware(['auth:tenant'])->group(function () {
             Route::get('/main', [StatisticController::class, 'main']);
@@ -248,32 +196,18 @@ function routes() {
 
         Route::prefix("tap-links")->group(function () {
             Route::get('/', [TenantTapLinkController::class, 'adminIndex']);
-
-            // Создать новую ссылку
             Route::post('/', [TenantTapLinkController::class, 'store']);
-
-            // Обновить существующую ссылку (включая переключатель is_active)
             Route::put('/{taplink}', [TenantTapLinkController::class, 'update']);
-
-            // Удалить ссылку
             Route::delete('/{taplink}', [TenantTapLinkController::class, 'destroy']);
-
-            // 🆕 Переместить ссылку вверх или вниз (вызывается из Vue при клике на стрелки)
             Route::post('/{taplink}/move', [TenantTapLinkController::class, 'move']);
         });
 
         Route::prefix("tenant-settings")->group(function () {
-
-            // ==========================================
-            // 🆕 ОСНОВНЫЕ НАСТРОЙКИ
-            // ==========================================
-            // Основные настройки
             Route::put('/basic', [TenantSettingsController::class, 'updateBasic']);
             Route::put('/shop', [TenantSettingsController::class, 'updateShop']);
             Route::put('/faq', [TenantSettingsController::class, 'updateFaq']);
             Route::put('/landing', [TenantSettingsController::class, 'updateLanding']);
             Route::put('/telegram', [TenantSettingsController::class, 'updateTelegram']);
-
             Route::put('/wheel', [TenantSettingsController::class, 'updateWheel']);
             Route::put('/guests', [TenantSettingsController::class, 'updateGuests']);
             Route::put('/main-menu', [TenantSettingsController::class, 'updateMainMenu']);
@@ -286,7 +220,6 @@ function routes() {
             Route::put('/crm', [TenantSettingsController::class, 'updateCrm']);
             Route::post('/main-menu/upload-icon', [TenantSettingsController::class, 'uploadMainMenuIcon']);
             Route::post('/main-menu/reset-icon', [TenantSettingsController::class, 'resetMainMenuIcon']);
-            // 🆕 PWA
             Route::get('/pwa', [TenantPwaController::class, 'getPwaSettings']);
             Route::post('/pwa', [TenantPwaController::class, 'savePwaSettings']);
             Route::put('/pwa', [TenantPwaController::class, 'savePwaSettings']);
@@ -294,17 +227,13 @@ function routes() {
             Route::post('/pwa/upload-screenshot', [TenantPwaController::class, 'uploadScreenshot']);
             Route::delete('/pwa/icon', [TenantPwaController::class, 'deleteIcon']);
             Route::delete('/pwa/screenshot', [TenantPwaController::class, 'deleteScreenshot']);
-
             Route::post('/shop/test-sbp-payment', [TenantSettingsController::class, 'testSbpPayment']);
-
-
         });
 
         Route::prefix('users')->middleware(['auth:tenant'])->group(function () {
             Route::get('/search', [UsersController::class, 'search']);
             Route::get('/download', [UsersController::class, 'download']);
             Route::get('/cashback-history', [UsersController::class, 'cashbackHistory']);
-
             Route::post('/{userId}/cashback', [UsersController::class, 'addCashback']);
             Route::post('/{userId}/add-cashback', [UsersController::class, 'manageCashback']);
             Route::post('/{userId}/start-chat', [UsersController::class, 'startChat']);
@@ -317,20 +246,13 @@ function routes() {
         Route::prefix('broadcasts')->middleware(['auth:tenant'])->group(function () {
             Route::get('/', [BroadcastController::class, 'index']);
             Route::post('/', [BroadcastController::class, 'store']);
-
-
             Route::post('/{id}/send', [BroadcastController::class, 'send']);
             Route::post('/{id}/cancel', [BroadcastController::class, 'cancel']);
             Route::post('/{id}/duplicate', [BroadcastController::class, 'duplicate']);
-
-            // Медиа
             Route::post('/{id}/media', [BroadcastController::class, 'uploadMedia']);
             Route::delete('/media/{mediaId}', [BroadcastController::class, 'deleteMedia']);
-
-            // 🆕 Пользователи для рассылок
             Route::get('/users', [BroadcastController::class, 'getUsers']);
             Route::get('/recipients-count', [BroadcastController::class, 'getRecipientsCount']);
-
             Route::get('/{id}', [BroadcastController::class, 'show']);
             Route::put('/{id}', [BroadcastController::class, 'update']);
             Route::delete('/{id}', [BroadcastController::class, 'destroy']);
@@ -362,6 +284,12 @@ function routes() {
             Route::delete('/cancel-booking/{bookingId}', "cancelBooking");
         });
 
+    Route::prefix('friends')->group(function () {
+        Route::post('/request', [FriendsController::class, 'sendRequest']);
+        Route::post('/{id}/accept', [FriendsController::class, 'acceptRequest']);
+        Route::post('/{id}/reject', [FriendsController::class, 'rejectRequest']);
+        Route::delete('/{friendId}', [FriendsController::class, 'removeFriend']);
+    });
 
     Route::prefix("addresses")
         ->controller(\App\Http\Controllers\LocationController::class)
@@ -372,14 +300,10 @@ function routes() {
             Route::post('/{id}/default', 'setDefault');
         });
 
-
     Route::prefix("dialogs")
         ->group(function () {
-
-            // 🆕 Счётчики непрочитанных
             Route::get('/unread-count', [TenantDialogController::class, 'unreadCount']);
             Route::get('/{dialogId}/unread-count', [TenantDialogController::class, 'dialogUnreadCount']);
-
             Route::get('/{dialogId}/read-statuses', [TenantDialogController::class, 'getReadStatuses']);
             Route::get('/', [TenantDialogController::class, 'index']);
             Route::get('/{dialogId}', [TenantDialogController::class, 'show']);
@@ -387,7 +311,6 @@ function routes() {
             Route::post('/{dialogId}/messages', [TenantDialogController::class, 'sendMessage']);
             Route::post('/{dialogId}/read', [TenantDialogController::class, 'markAsRead']);
             Route::post('/{dialogId}/close', [TenantDialogController::class, 'close']);
-
             Route::post('/{dialogId}/archive', [TenantDialogController::class, 'archive']);
             Route::post('/{dialogId}/restore', [TenantDialogController::class, 'restore']);
             Route::delete('/{dialogId}', [TenantDialogController::class, 'destroy']);
@@ -395,30 +318,25 @@ function routes() {
             Route::post('/archive-multiple', [TenantDialogController::class, 'archiveMultiple']);
             Route::get('/{dialogId}/attachments', [TenantDialogController::class, 'attachments']);
         });
+
     Route::prefix("basket")
         ->controller(BasketController::class)
         ->group(function () {
             Route::post('/', "loadProductsInBasket");
-            Route::post('/checkout', "checkout")
-                ->middleware(['track.order']);
-
+            Route::post('/checkout', "checkout")->middleware(['track.order']);
             Route::post("/get-delivery-price-new", [ProductController::class, "getDeliveryPriceNew"]);
             Route::post('/checkout-link', "checkoutLink");
             Route::post("/use-wheel-of-fortune-prize", "useWheelOfFortunePrize");
-            Route::post('/increment/{id}', "incrementItem")
-                ->middleware(['track.stats:products_in_cart']);
+            Route::post('/increment/{id}', "incrementItem")->middleware(['track.stats:products_in_cart']);
             Route::post('/decrement/{id}', "decrementItem");
-            Route::post('/inc-product', "incProductInBasket")
-                ->middleware(['track.stats:products_in_cart']);
+            Route::post('/inc-product', "incProductInBasket")->middleware(['track.stats:products_in_cart']);
             Route::post('/comment-product', "commentProductInBasket");
             Route::post('/dec-product', "decProductInBasket");
-            Route::post('/inc-collection', "incCollectionInBasket")
-                ->middleware(['track.stats:collections_in_cart']);
+            Route::post('/inc-collection', "incCollectionInBasket")->middleware(['track.stats:collections_in_cart']);
             Route::post('/dec-collection', "decCollectionInBasket");
             Route::post('/remove-collection', "removeCollection");
             Route::delete('/clear', "clearBasket");
             Route::delete('/remove/{id}', "removeBasketItem");
-
         });
 
     Route::prefix("achievements")
@@ -430,20 +348,17 @@ function routes() {
 
     Route::prefix("stories")
         ->group(function () {
-            Route::get("/", [StoryController::class, "index"]); // Получить список историй
-            Route::get("/{id}", [StoryController::class, "show"]); // Получить историю по ID
-            Route::post("/", [StoryController::class, "store"]); // Создать или обновить историю
-            Route::delete("/{id}", [StoryController::class, "destroy"]); // Удалить историю
+            Route::get("/", [StoryController::class, "index"]);
+            Route::get("/{id}", [StoryController::class, "show"]);
+            Route::post("/", [StoryController::class, "store"]);
+            Route::delete("/{id}", [StoryController::class, "destroy"]);
         });
 
     Route::prefix('referrals')
         ->group(function () {
-            // Рефералы
             Route::get('/tree', [ReferralController::class, 'tree']);
             Route::get('/rewards', [ReferralController::class, 'rewards']);
             Route::get('/link', [ReferralController::class, 'link']);
-
-            // Друзья
             Route::get('/friends', [ReferralController::class, 'friends']);
             Route::get('/friends/requests', [ReferralController::class, 'friendRequests']);
             Route::post('/friends/request', [ReferralController::class, 'sendFriendRequest']);
@@ -452,18 +367,17 @@ function routes() {
             Route::delete('/friends/{friendId}', [ReferralController::class, 'removeFriend']);
         });
 
-
     Route::prefix('cashback')->group(function () {
         Route::get('/', [CashBackController::class, 'index']);
         Route::get('/history', [CashBackController::class, 'history']);
         Route::get('/download', [CashBackController::class, 'downloadHistory']);
     });
+
     Route::prefix("shop")
         ->group(function () {
             Route::prefix("orders")
                 ->group(function () {
                     Route::post("/", [OrderController::class, "getOrders"]);
-
                     Route::post('/rr', [OrderController::class, 'getRandomRecentOrders']);
                     Route::post("/send-sbp-invoice", [OrderController::class, "sendSBPInvoice"]);
                     Route::post("/all", [OrderController::class, "getAllOrders"]);
@@ -472,13 +386,11 @@ function routes() {
                     Route::post("/change-order-status", [OrderController::class, "changeStatusOrder"]);
                     Route::post("/get-order-by-id", [OrderController::class, "loadOrderById"]);
                     Route::post("/add-cashback-to-order", [OrderController::class, "addCashBackToOrder"]);
-
                     Route::post("/get-delivery-price", [OrderController::class, "getDeliveryPrice"]);
                 });
 
             Route::prefix("reviews")
                 ->group(function () {
-
                     Route::post("/", [OrderController::class, "getReviews"]);
                     Route::post("/by-product-id", [OrderController::class, "getReviewsByProductId"]);
                     Route::post("/can-review-order", [OrderController::class, "canReviewOrder"]);
@@ -488,38 +400,26 @@ function routes() {
                     Route::post("/notify-user", [OrderController::class, "notifyUser"]);
                 });
 
-
-
             Route::prefix('collections')->group(function () {
-                // Публичные (для фронта)
-                Route::get('/', [CollectionController::class, 'active']);          // GET /shop/collections
-                Route::get('/{id}', [CollectionController::class, 'show']);        // GET /shop/collections/{id}
-
-                // Админские
-                Route::post('/list', [CollectionController::class, 'index']);      // POST /shop/collections/list (с пагинацией)
-                Route::post('/', [CollectionController::class, 'store']);          // POST /shop/collections (create/update)
-                Route::delete('/{id}', [CollectionController::class, 'destroy']);  // DELETE /shop/collections/{id}
-
+                Route::get('/', [CollectionController::class, 'active']);
+                Route::get('/{id}', [CollectionController::class, 'show']);
+                Route::post('/list', [CollectionController::class, 'index']);
+                Route::post('/', [CollectionController::class, 'store']);
+                Route::delete('/{id}', [CollectionController::class, 'destroy']);
                 Route::post('/{id}/toggle-active', [CollectionController::class, 'toggleActive']);
                 Route::post('/{id}/toggle-stop-list', [CollectionController::class, 'toggleStopList']);
                 Route::post('/{id}/duplicate', [CollectionController::class, 'duplicate']);
                 Route::post('/remove-all', [CollectionController::class, 'removeAll']);
-
-                // Категории внутри коллекции
                 Route::post('/{collectionId}/categories', [CollectionController::class, 'addCategory']);
                 Route::post('/categories/{categoryId}', [CollectionController::class, 'updateCategory']);
                 Route::delete('/categories/{categoryId}', [CollectionController::class, 'removeCategory']);
-
-                // Товары в категориях
                 Route::post('/categories/{categoryId}/products', [CollectionController::class, 'addProducts']);
                 Route::delete('/categories/{categoryId}/products/{productId}', [CollectionController::class, 'removeProduct']);
                 Route::post('/categories/{categoryId}/products/reorder', [CollectionController::class, 'reorderProducts']);
-           });
-
+            });
 
             Route::prefix("products")
                 ->group(function () {
-
                     Route::post("/by-category", [ProductController::class, "listByCategories"]);
                     Route::post("/more-by-category", [ProductController::class, "loadMoreProductsByCategories"]);
                     Route::post("/store-category", [ProductController::class, "storeCategory"]);
@@ -528,7 +428,6 @@ function routes() {
                     Route::post("/export-all-products", [ProductController::class, "exportAllProducts"]);
                     Route::post("/load-recommended-products", [ProductController::class, "loadRecommendedProducts"]);
                     Route::post("/by-ids", [ProductController::class, "getProductsByIds"]);
-
                     Route::post("/random", [ProductController::class, "randomProducts"]);
                     Route::post("/categories", [ProductController::class, "getCategories"]);
                     Route::post("/add-product", [ProductController::class, "saveProduct"]);
@@ -581,8 +480,7 @@ function routes() {
             Route::post('/get-offices', "getOffices");
             Route::post('/calc-tariff', "calcTariff");
             Route::post('/calc-tariff-by-code/{code}', "calcTariffByCode");
-        });;
-
+        });
 
     Route::prefix("partners")
         ->controller(PartnersController::class)
@@ -590,7 +488,6 @@ function routes() {
             Route::post("/", "index");
             Route::post("/full-partners", "fullIndex");
             Route::post("/store", "store");
-
             Route::post("/toggle-favorite", "togglePartnersInFavorites");
             Route::post("/update-settings", "updateSettings");
             Route::post("/update-active-status", "updateActiveStatus");
@@ -599,15 +496,11 @@ function routes() {
             Route::post("/update", "update");
             Route::post("/update-self", "updateSelf");
             Route::post("/remove/{partnerId}", "destroy");
-
-            // 🆕 Статистика товаров
             Route::get('/products-stats', [PartnersController::class, 'productsStats']);
-
             Route::get('/products-by-category', [PartnersController::class, 'productsByCategory']);
             Route::get('/products-by-category/more', [PartnersController::class, 'productsByCategoryMore']);
             Route::post('/change-product-status', [PartnersController::class, 'changePartnerProductStatus']);
         });
-
 
     Route::prefix("product-collections")
         ->controller(ProductCollectionController::class)
@@ -618,33 +511,15 @@ function routes() {
             Route::post("/remove/{collectionId}", "destroy");
             Route::post("/duplicate/{collectionId}", "duplicate");
         });
-
-
-};
-
-/*if (config('app.debug') ?? false) {
-    Route::domain('localhost')->group($routes);
-    Route::domain('127.0.0.1')->group($routes);
 }
-
-Route::domain('job.mypwa.ru')->group($routesManager);
-Route::domain('job.pwa-platform.test')->group($routesManager);
-
-Route::domain('{tenant}.mypwa.ru')->group($routes);
-Route::domain('{tenant}.pwa-platform.test')->group($routes);
-
-Route::domain('fastoran.com')->group($routes);
-Route::domain('fastoran.ru')->group($routes);*/
 
 Route::middleware(['tenant'])->group(function () {
     routes();
 });
 
-
 Route::get("/m", function (){
     return redirect('/pwa', 301);
 });
-
 
 Route::get('/auth/vk/redirect', [TenantSocialAuthController::class, 'redirect']);
 Route::get('/auth/vk/callback', [TenantSocialAuthController::class, 'callback']);
@@ -652,17 +527,10 @@ Route::get('/auth/vk/callback', [TenantSocialAuthController::class, 'callback'])
 Route::post('/auth/login', [TenantAuthController::class, 'login']);
 Route::post('/auth/logout', [TenantAuthController::class, 'logout']);
 
-
 Route::get('/me', [TenantAuthController::class, 'me']);
 
+Route::middleware(['tenant.access'])->group(function () {});
 
-Route::middleware(['tenant.access'])->group(function () {
-
-
-});
-
-
-// Страницы
 Route::get('/confirm-password', [TenantPasswordController::class, 'confirmPasswordPage'])
     ->middleware('tenant.access')
     ->name('tenant.password.confirm');
@@ -677,7 +545,6 @@ Route::get('/verify-email', [TenantEmailVerificationController::class, 'verifyEm
     ->middleware('tenant.access')
     ->name('tenant.verification.notice');
 
-// Действия
 Route::post('/confirm-password', [TenantPasswordController::class, 'confirmPassword'])
     ->middleware('tenant.access');
 

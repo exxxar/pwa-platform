@@ -35,14 +35,34 @@
                     <h1 class="hero-title">Карточная игра</h1>
                     <p class="hero-subtitle">Выбери карту и получи бонус!</p>
 
-                    <!-- Баланс бонусов -->
-                    <div class="hero-balance">
-                        <div class="balance-icon">
-                            <i class="fa-solid fa-coins"></i>
+                    <!-- 🎰 ДВЕ КАРТОЧКИ: БАЛАНС + СТАВКА -->
+                    <div class="hero-stats-grid">
+                        <div class="hero-stat-card balance" :class="{ 'insufficient': insufficientBalance || !hasEnoughCashback }">
+                            <div class="hero-stat-icon">
+                                <i class="fa-solid fa-coins"></i>
+                            </div>
+                            <div class="hero-stat-info">
+                                <div class="hero-stat-value">
+                                    {{ Math.round(userBalance) }}₽
+                                </div>
+                                <div class="hero-stat-label">Кэшбэк</div>
+                            </div>
+                            <div class="hero-stat-hint" v-if="!hasEnoughCashback">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                Мало
+                            </div>
                         </div>
-                        <div class="balance-info">
-                            <div class="balance-value">{{ userBalance }}</div>
-                            <div class="balance-label">Ваши бонусы</div>
+
+                        <div class="hero-stat-card cost">
+                            <div class="hero-stat-icon">
+                                <i class="fa-solid fa-ticket"></i>
+                            </div>
+                            <div class="hero-stat-info">
+                                <div class="hero-stat-value">
+                                    {{ spinCost }}₽
+                                </div>
+                                <div class="hero-stat-label">Ставка</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -170,6 +190,26 @@
                     </div>
                 </div>
 
+                <!-- 🆕 ПРЕДУПРЕЖДЕНИЕ О НЕХВАТКЕ КЭШБЭКА -->
+                <transition name="slide-down">
+                    <div v-if="!hasEnoughCashback" class="cashback-warning">
+                        <div class="warning-icon">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <div class="warning-content">
+                            <div class="warning-title">Недостаточно кэшбэка</div>
+                            <div class="warning-text">
+                                Для игры нужно <strong>{{ spinCost }}₽</strong>.
+                                Ваш баланс: <strong>{{ Math.round(userBalance) }}₽</strong>
+                            </div>
+                            <div class="warning-hint">
+                                <i class="fa-solid fa-lightbulb"></i>
+                                Делайте заказы или приглашайте друзей для пополнения кэшбэка
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+
                 <!-- ========================================== -->
                 <!-- КНОПКА "ИГРАТЬ ЕЩЁ" -->
                 <!-- ========================================== -->
@@ -208,8 +248,13 @@
                             <h3 class="result-title">{{ selectedPrize?.title }}</h3>
                             <p class="result-description">{{ selectedPrize?.description }}</p>
                             <div class="result-value">
-                                <span class="value-label">Вам начислено</span>
-                                <span class="value-amount">+{{ selectedPrize?.value }} бонусов</span>
+                                <span class="value-label">Чистый результат</span>
+                                <span class="value-amount" :class="netProfitClass">
+                                    {{ netProfitText }} бонусов
+                                </span>
+                                                            <span class="value-details">
+                                    Приз: +{{ selectedPrize?.value }} • Ставка: -{{ spinCost }}
+                                </span>
                             </div>
                             <button class="result-btn" @click="closeResultModal">
                                 <i class="fa-solid fa-check"></i>
@@ -278,44 +323,50 @@ export default {
 
     data() {
         return {
-            // Настройки игры (загружаются с бэкенда)
+            isProcessing: false,
             gameSettings: {
                 can_play: true,
                 interval: 1,
                 attempts_per_period: 1,
                 grid_columns: 4,
                 grid_rows: 3,
+                spin_cost: 100,  // 🎰 СТАВКА
                 rules: '',
                 win_message: '',
-                rarity_chances: {
-                    common: 70,
-                    rare: 20,
-                    epic: 8,
-                    legendary: 2
-                },
+                rarity_chances: { common: 70, rare: 20, epic: 8, legendary: 2 },
                 prizes: []
             },
 
-            // Состояние игры
             gameAvailable: false,
             attemptsLeft: 0,
             userBalance: 0,
             gameFinished: false,
             lastPlayDate: null,
 
-            // UI состояния
+            // 🎰 КЭШБЭК
+            insufficientBalance: false,
+
             showRules: false,
             showResultModal: false,
             showPrizesModal: false,
             selectedPrize: null,
 
-            // Данные
             cards: [],
             allPrizes: [],
         };
     },
 
     computed: {
+
+        netProfitClass() {
+            const profit = (this.selectedPrize?.value || 0) - this.spinCost;
+            return profit >= 0 ? 'profit-positive' : 'profit-negative';
+        },
+
+        netProfitText() {
+            const profit = (this.selectedPrize?.value || 0) - this.spinCost;
+            return profit >= 0 ? `+${profit}` : `${profit}`;
+        },
         totalCards() {
             return this.gameSettings.grid_columns * this.gameSettings.grid_rows;
         },
@@ -348,9 +399,13 @@ export default {
             return 'Следующая игра скоро';
         },
 
-        isAdmin() {
-            const user = window.TenantUser;
-            return user?.role === 'admin' || user?.is_admin === true;
+
+        hasEnoughCashback() {
+            return this.userBalance >= this.spinCost;
+        },
+
+        spinCost() {
+            return this.gameSettings.spin_cost || 500;
         },
     },
 
@@ -367,7 +422,7 @@ export default {
         // Загрузка настроек игры с бэкенда
         async loadGameSettings() {
             try {
-                const response = await axios.get('/api/card-game/settings');
+                const response = await axios.get('/card-game/settings');
 
                 if (response.data && response.data.card_game) {
                     this.gameSettings = { ...this.gameSettings, ...response.data.card_game };
@@ -386,35 +441,18 @@ export default {
         // Загрузка состояния игры пользователя
         async loadUserGameState() {
             try {
-                const response = await axios.get('/api/card-game/state');
+                const response = await axios.get('/card-game/state');
 
-                if (response.data) {
+                if (response.data?.success !== false) {
                     this.attemptsLeft = response.data.attempts_left ?? this.gameSettings.attempts_per_period;
-                    this.userBalance = response.data.balance ?? (window.TenantUser?.cashBack?.amount || 0);
+                    this.userBalance = response.data.balance ?? (window.TenantUser?.cashback_balance || 0);
                     this.lastPlayDate = response.data.last_play_date || null;
                     this.gameFinished = response.data.game_finished || false;
-
-                    // Проверка сброса попыток на основе интервала
-                    if (this.lastPlayDate) {
-                        const lastPlay = new Date(this.lastPlayDate);
-                        const now = new Date();
-                        const intervalDays = this.gameSettings.interval;
-
-                        const nextPlay = new Date(lastPlay);
-                        nextPlay.setDate(nextPlay.getDate() + intervalDays);
-
-                        if (nextPlay <= now) {
-                            // Интервал прошёл — сбрасываем попытки
-                            this.attemptsLeft = this.gameSettings.attempts_per_period;
-                            this.gameFinished = false;
-                            this.lastPlayDate = null;
-                        }
-                    }
                 }
             } catch (error) {
                 console.error('Ошибка загрузки состояния игры:', error);
                 this.attemptsLeft = this.gameSettings.attempts_per_period;
-                this.userBalance = window.TenantUser?.cashBack?.amount || 0;
+                this.userBalance = window.TenantUser?.cashback_balance || 0;
             }
         },
 
@@ -432,6 +470,9 @@ export default {
         initGame() {
             this.gameFinished = false;
             this.selectedPrize = null;
+            this.showResultModal = false;  // 🆕 Закрываем модалку результата
+            this.showPrizesModal = false;  // 🆕 Закрываем модалку призов
+            this.isProcessing = false;     // 🆕 Сбрасываем блокировку
 
             this.cards = Array.from({ length: this.totalCards }, (_, i) => ({
                 id: i + 1,
@@ -441,10 +482,21 @@ export default {
             }));
         },
 
+        resetGame() {
+            this.initGame();
+
+            // 🆕 Скроллим вверх для лучшего UX
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+
         // Выбор карты
         async selectCard(index) {
+            // 🛡️ БЛОКИРОВКА: уже играем или игра окончена
+            if (this.isProcessing) return;
             if (this.gameFinished) return;
             if (this.cards[index].flipped) return;
+
+            // 🎰 ПРОВЕРКА ПОПЫТОК
             if (this.attemptsLeft <= 0) {
                 this.$notify?.({
                     title: 'Игра',
@@ -454,101 +506,104 @@ export default {
                 return;
             }
 
+            // 🎰 ПРОВЕРКА КЭШБЭКА
+            if (!this.hasEnoughCashback) {
+                this.insufficientBalance = true;
+                this.$notify?.({
+                    title: '💰 Недостаточно кэшбэка',
+                    text: `Для игры нужно ${this.spinCost}₽. Ваш баланс: ${Math.round(this.userBalance)}₽`,
+                    type: 'warning',
+                });
+                setTimeout(() => { this.insufficientBalance = false; }, 3000);
+                return;
+            }
+
             const card = this.cards[index];
-            card.flipped = true;
-            card.selected = true;
+
+            // 🔒 БЛОКИРУЕМ дальнейшие клики
+            this.isProcessing = true;
 
             try {
-                // Запрос приза с бэкенда
-                const response = await axios.post('/api/card-game/play', {
+                const response = await axios.post('/card-game/play', {
                     card_id: card.id
                 });
 
-                const prize = response.data?.prize || this.getRandomPrizeFromSettings();
-                card.prize = prize;
+                if (!response.data.success) {
+                    throw new Error(response.data.message || 'Ошибка игры');
+                }
 
-                // Начисляем бонус
-                await this.creditBonus(prize.value);
+                const prize = response.data.prize;
+
+                // 💰 ОБНОВЛЯЕМ БАЛАНС И ПОПЫТКИ (с сервера — единый источник правды)
+                if (response.data.balance !== undefined) {
+                    this.userBalance = response.data.balance;
+                    if (window.TenantUser) {
+                        window.TenantUser.cashback_balance = response.data.balance;
+                    }
+                }
+
+                if (response.data.attempts_left !== undefined) {
+                    this.attemptsLeft = response.data.attempts_left;
+                }
+
+                // 🎴 ТЕПЕРЕЬ переворачиваем карту (когда приз уже известен)
+                card.prize = prize;
+                card.flipped = true;
+                card.selected = true;
 
                 this.selectedPrize = prize;
-                this.gameFinished = true;
-                this.attemptsLeft--;
+                this.gameFinished = this.attemptsLeft <= 0;
                 this.lastPlayDate = new Date().toISOString();
 
-                // Показываем модалку результата с задержкой
+                // 💬 Уведомление о результате
+                const netProfit = response.data.net_profit ?? (prize.value - this.spinCost);
+                const profitText = netProfit >= 0 ? `+${netProfit}` : `${netProfit}`;
+
+                this.$notify?.({
+                    title: netProfit >= 0 ? '🎉 Победа!' : '🎴 Игра завершена',
+                    text: `${prize.title}: ${profitText} бонусов (ставка: ${this.spinCost}₽)`,
+                    type: netProfit >= 0 ? 'success' : 'info',
+                });
+
+                // 🎊 Показываем модалку результата с задержкой (для анимации переворота)
                 setTimeout(() => {
                     this.showResultModal = true;
                 }, 1000);
 
             } catch (error) {
-                console.error('Ошибка получения приза:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: error.response?.data?.message || 'Не удалось получить приз',
-                    type: 'error',
-                });
-                card.flipped = false;
-                card.selected = false;
-            }
-        },
+                console.error('Ошибка игры:', error);
 
-        // Получение случайного приза с учётом редкости из настроек
-        getRandomPrizeFromSettings() {
-            const chances = this.gameSettings.rarity_chances || {};
-            const rand = Math.random() * 100;
-            let targetRarity;
+                // ❌ Карта НЕ переворачивается — остаётся рубашкой вверх
+                if (error.response?.status === 403) {
+                    this.insufficientBalance = true;
 
-            let cumulative = 0;
-            cumulative += (chances.common || 0);
-            if (rand < cumulative) {
-                targetRarity = 'common';
-            } else {
-                cumulative += (chances.rare || 0);
-                if (rand < cumulative) {
-                    targetRarity = 'rare';
-                } else {
-                    cumulative += (chances.epic || 0);
-                    if (rand < cumulative) {
-                        targetRarity = 'epic';
-                    } else {
-                        targetRarity = 'legendary';
+                    if (error.response.data?.balance !== undefined) {
+                        this.userBalance = error.response.data.balance;
                     }
+
+                    this.$notify?.({
+                        title: '💰 ' + (error.response.data?.message || 'Невозможно сыграть'),
+                        text: error.response.data?.shortage
+                            ? `Не хватает: ${error.response.data.shortage}₽`
+                            : 'Проверьте баланс или попробуйте позже',
+                        type: 'warning',
+                    });
+
+                    setTimeout(() => { this.insufficientBalance = false; }, 3000);
+                } else {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: error.response?.data?.message || 'Не удалось сыграть',
+                        type: 'error',
+                    });
                 }
-            }
-
-            const pool = this.allPrizes.filter(p => p.rarity === targetRarity);
-
-            if (pool.length === 0) {
-                // Fallback: если нет призов нужной редкости, берём любой
-                return this.allPrizes[Math.floor(Math.random() * this.allPrizes.length)];
-            }
-
-            return pool[Math.floor(Math.random() * pool.length)];
-        },
-
-        // Начисление бонуса
-        async creditBonus(amount) {
-            try {
-                this.userBalance += amount;
-
-                const winMessage = this.gameSettings.win_message
-                    ? this.gameSettings.win_message.replace('{prize}', `${amount} бонусов`)
-                    : `Вам начислено ${amount} бонусов`;
-
-                this.$notify?.({
-                    title: 'Поздравляем!',
-                    text: winMessage,
-                    type: 'success',
-                });
-            } catch (error) {
-                console.error('Ошибка начисления бонуса:', error);
+            } finally {
+                // 🔓 РАЗБЛОКИРОВКА (всегда, даже при ошибке)
+                this.isProcessing = false;
             }
         },
 
-        // Сброс игры
-        resetGame() {
-            this.initGame();
-        },
+
 
         // Закрытие модалки результата
         closeResultModal() {
@@ -749,45 +804,6 @@ export default {
     margin: 0 0 20px 0;
 }
 
-.hero-balance {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 20px;
-    background: rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 16px;
-}
-
-.balance-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #ffd700 0%, #ff9800 100%);
-    color: #1a1a1a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-}
-
-.balance-info {
-    text-align: left;
-}
-
-.balance-value {
-    font-size: 1.3rem;
-    font-weight: 800;
-    line-height: 1;
-}
-
-.balance-label {
-    font-size: 0.7rem;
-    opacity: 0.9;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
 
 /* ==========================================
    КОНТЕНТ
@@ -1642,5 +1658,203 @@ export default {
     .result-title {
         font-size: 1.3rem;
     }
+}
+
+/* ==========================================
+   🎰 СЕТКА СТАТИСТИКИ В HERO
+   ========================================== */
+.hero-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 360px;
+    margin: 0 auto;
+}
+
+.hero-stat-card {
+    padding: 14px 12px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.hero-stat-card.balance {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 152, 0, 0.15) 100%);
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.hero-stat-card.cost {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.hero-stat-card.balance.insufficient {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.25) 0%, rgba(200, 35, 51, 0.15) 100%);
+    border-color: rgba(220, 53, 69, 0.5);
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+.hero-stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: white;
+}
+
+.hero-stat-info {
+    text-align: center;
+}
+
+.hero-stat-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: white;
+    margin-bottom: 2px;
+}
+
+.hero-stat-label {
+    font-size: 0.7rem;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.hero-stat-hint {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 6px;
+    background: rgba(220, 53, 69, 0.9);
+    border-radius: 8px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* ==========================================
+   ⚠️ ПРЕДУПРЕЖДЕНИЕ О НЕХВАТКЕ КЭШБЭКА
+   ========================================== */
+.cashback-warning {
+    margin-top: 16px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.08) 0%, rgba(255, 152, 0, 0.05) 100%);
+    border: 1.5px solid rgba(220, 53, 69, 0.3);
+    border-radius: 16px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.warning-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.warning-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.warning-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #dc3545;
+    margin-bottom: 4px;
+}
+
+.warning-text {
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.warning-text strong {
+    color: var(--bs-primary);
+}
+
+.warning-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    padding: 8px 10px;
+    background: rgba(255, 193, 7, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid #ffc107;
+}
+
+.warning-hint i {
+    color: #ffc107;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* ==========================================
+   💰 ЧИСТЫЙ РЕЗУЛЬТАТ В МОДАЛКЕ
+   ========================================== */
+.value-amount.profit-positive {
+    color: #198754;
+}
+
+.value-amount.profit-negative {
+    color: #dc3545;
+}
+
+.value-details {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    margin-top: 4px;
+}
+
+/* Адаптив */
+@media (max-width: 400px) {
+    .hero-stats-grid {
+        gap: 8px;
+    }
+    .hero-stat-card {
+        padding: 10px 8px;
+    }
+    .hero-stat-value {
+        font-size: 1rem;
+    }
+}
+
+.game-card.is-disabled {
+    cursor: not-allowed;
+    pointer-events: none; /* 🆕 Полный блок кликов */
+    opacity: 0.85;
 }
 </style>

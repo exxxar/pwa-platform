@@ -1,6 +1,6 @@
 import { defineAsyncComponent } from 'vue';
 
-const Menu = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Menu.vue'));
+const Menu = defineAsyncComponent(() => import('../../Pages/Shop/Menu.vue'));
 const Catalog = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Catalog.vue'));
 const ShopMenuPage = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/ShopMenu.vue'));
 const Contacts = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Contacts.vue'));
@@ -9,7 +9,7 @@ const AboutDeveloper = defineAsyncComponent(() => import('@/MobileClient/Pages/A
 const TapLink = defineAsyncComponent(() => import('@/MobileClient/Pages/TapLink.vue'));
 const ReferralsPage = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/ReferralsPage.vue'));
 const TableBooking = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Bookings.vue'));
-const WheelClassic = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Wheel.vue'));
+const WheelClassic = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Games/WheelGame.vue'));
 const Coffee = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Coffee.vue'));
 const PartnersPage = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/PartnersPage.vue'));
 

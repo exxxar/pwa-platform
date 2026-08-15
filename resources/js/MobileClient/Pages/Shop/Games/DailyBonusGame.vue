@@ -33,7 +33,9 @@
                         <div class="hero-sparkle sparkle-2">🎁</div>
                     </div>
                     <h1 class="hero-title">{{ gameSettings.title || 'Ежедневный бонус' }}</h1>
-                    <p class="hero-subtitle">{{ gameSettings.subtitle || 'Заходи каждый день и открывай сундучки!' }}</p>
+                    <p class="hero-subtitle">{{
+                            gameSettings.subtitle || 'Заходи каждый день и открывай сундучки!'
+                        }}</p>
 
                     <div class="hero-stats">
                         <div class="stat-block">
@@ -141,7 +143,8 @@
                                 <div class="chest-base">
                                     <div class="chest-glow" v-if="canOpenToday || todayOpened"></div>
                                     <div class="chest-sparkles" v-if="todayOpened">
-                                        <span v-for="i in 8" :key="i" class="sparkle" :style="chestSparkleStyle(i)"></span>
+                                        <span v-for="i in 8" :key="i" class="sparkle"
+                                              :style="chestSparkleStyle(i)"></span>
                                     </div>
                                 </div>
                             </div>
@@ -181,14 +184,14 @@
                         </div>
                     </div>
 
-                    <!-- Кнопка обналичивания -->
                     <button
                         v-if="todayOpened && todayPrize && todayPrize.type !== 'bonus' && !todayPrize.claimed"
                         class="claim-btn"
+                        :disabled="isClaiming"
                         @click="claimPrize"
                     >
-                        <i class="fa-solid fa-gift"></i>
-                        <span>Забрать приз сейчас</span>
+                        <i :class="isClaiming ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-gift'"></i>
+                        <span>{{ isClaiming ? 'Обналичиваем...' : 'Забрать приз сейчас' }}</span>
                     </button>
 
                     <div v-if="todayOpened && todayPrize?.claimed" class="claimed-badge">
@@ -229,8 +232,8 @@
                             }"
                         >
                             <div class="history-date">
-                                <div class="date-day">{{ formatDate(prize.date).day }}</div>
-                                <div class="date-month">{{ formatDate(prize.date).month }}</div>
+                                <div class="date-day">{{ prize.date ? formatDate(prize.date).day : '—' }}</div>
+                                <div class="date-month">{{ prize.date ? formatDate(prize.date).month : '—' }}</div>
                             </div>
                             <div class="history-icon" :style="{ background: getTypeGradient(prize.type) }">
                                 <i :class="prize.icon"></i>
@@ -273,7 +276,8 @@
                             <span v-for="i in 50" :key="i" class="confetti-piece" :style="confettiStyle(i)"></span>
                         </div>
                         <div class="prize-content">
-                            <div class="prize-rarity-badge" :style="{ background: getTypeColor(todayPrize.type) + '20', color: getTypeColor(todayPrize.type), border: `1px solid ${getTypeColor(todayPrize.type)}40` }">
+                            <div class="prize-rarity-badge"
+                                 :style="{ background: getTypeColor(todayPrize.type) + '20', color: getTypeColor(todayPrize.type), border: `1px solid ${getTypeColor(todayPrize.type)}40` }">
                                 {{ prizeTypeText(todayPrize.type) }}
                             </div>
                             <div class="prize-icon-wrapper">
@@ -343,31 +347,13 @@ export default {
 
             // История
             prizeHistory: [],
+
+            isClaiming: false,
         };
     },
 
     computed: {
-        canOpenToday() {
-            if (this.todayOpened) return false;
 
-            const today = this.getTodayString();
-            if (this.lastOpenDate === today) return false;
-
-            // Проверяем, не пропустил ли день
-            if (this.lastOpenDate) {
-                const lastDate = new Date(this.lastOpenDate);
-                const todayDate = new Date(today);
-                const diffDays = Math.floor((todayDate - lastDate) / (1000 * 60 * 60 * 24));
-
-                if (diffDays > this.gameSettings.streak_reset_days) {
-                    // Пропустил больше дней, чем разрешено — серия сбрасывается
-                    this.currentStreak = 0;
-                    this.saveState();
-                }
-            }
-
-            return true;
-        },
 
         currentDayReward() {
             const dayIndex = Math.min(this.currentStreak, this.gameSettings.streak_days - 1);
@@ -392,6 +378,15 @@ export default {
     },
 
     methods: {
+
+        canOpenToday() {
+            if (this.todayOpened) return false;
+
+            const today = this.getTodayString();
+            if (this.lastOpenDate === today) return false;
+
+            return true;
+        },
         // ==========================================
         // ЗАГРУЗКА ДАННЫХ
         // ==========================================
@@ -400,7 +395,7 @@ export default {
                 const response = await axios.get('/api/daily-bonus/settings');
 
                 if (response.data && response.data.daily_bonus) {
-                    this.gameSettings = { ...this.gameSettings, ...response.data.daily_bonus };
+                    this.gameSettings = {...this.gameSettings, ...response.data.daily_bonus};
                 }
 
                 this.gameAvailable = this.gameSettings.can_play;
@@ -410,37 +405,51 @@ export default {
                 this.gameSettings.rewards = this.getDefaultRewards();
             }
         },
-
         async loadUserState() {
             try {
-                const response = await axios.get('/api/daily-bonus/state');
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const response = await axios.get('/daily-bonus/state', {
+                    params: {timezone}
+                });
 
-                if (response.data) {
+                if (response.data?.success) {
                     this.currentStreak = response.data.current_streak || 0;
                     this.bestStreak = response.data.best_streak || 0;
                     this.lastOpenDate = response.data.last_open_date || null;
-                    this.prizeHistory = response.data.prize_history || [];
+                    this.todayOpened = response.data.today_opened || false;
+
+                    // 🆕 Нормализуем историю — гарантируем наличие date и id
+                    this.prizeHistory = (response.data.prize_history || []).map((prize, index) => ({
+                        ...prize,
+                        id: prize.id || `fallback_${index}_${Date.now()}`,
+                        date: prize.date || prize.opened_at?.split('T')[0] || this.getTodayString(),
+                    }));
+
+                    // Восстанавливаем pending_prize (если есть неоткрытый)
+                    if (response.data.pending_prize) {
+                        this.todayPrize = {
+                            ...response.data.pending_prize,
+                            date: response.data.pending_prize.date || this.getTodayString(),
+                        };
+                        this.todayOpened = true;
+                    }
                 }
             } catch (error) {
                 console.error('Ошибка загрузки состояния:', error);
-                this.currentStreak = 0;
-                this.bestStreak = 0;
-                this.prizeHistory = [];
             }
         },
-
         getDefaultRewards() {
             return [
-                { type: 'bonus', min: 5, max: 15, icon: 'fa-solid fa-coins', title: 'Бонусы' },
-                { type: 'bonus', min: 15, max: 30, icon: 'fa-solid fa-coins', title: 'Бонусы' },
-                { type: 'discount', min: 5, max: 15, icon: 'fa-solid fa-percent', title: 'Скидка на заказ' },
-                { type: 'bonus', min: 30, max: 70, icon: 'fa-solid fa-gem', title: 'Бонусы' },
-                { type: 'bonus', min: 70, max: 150, icon: 'fa-solid fa-gem', title: 'Бонусы' },
-                { type: 'product', products: ['Пицца Маргарита'], icon: 'fa-solid fa-gift', title: 'Ценный приз' },
+                {type: 'bonus', min: 5, max: 15, icon: 'fa-solid fa-coins', title: 'Бонусы'},
+                {type: 'bonus', min: 15, max: 30, icon: 'fa-solid fa-coins', title: 'Бонусы'},
+                {type: 'discount', min: 5, max: 15, icon: 'fa-solid fa-percent', title: 'Скидка на заказ'},
+                {type: 'bonus', min: 30, max: 70, icon: 'fa-solid fa-gem', title: 'Бонусы'},
+                {type: 'bonus', min: 70, max: 150, icon: 'fa-solid fa-gem', title: 'Бонусы'},
+                {type: 'product', products: ['Пицца Маргарита'], icon: 'fa-solid fa-gift', title: 'Ценный приз'},
                 {
                     type: 'jackpot',
                     options: [
-                        { type: 'bonus', value: 500, icon: 'fa-solid fa-crown', title: 'ДЖЕКПОТ! 500 бонусов' }
+                        {type: 'bonus', value: 500, icon: 'fa-solid fa-crown', title: 'ДЖЕКПОТ! 500 бонусов'}
                     ],
                     icon: 'fa-solid fa-crown',
                     title: 'ДЖЕКПОТ'
@@ -456,21 +465,11 @@ export default {
             return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         },
 
-        saveState() {
-            const state = {
-                current_streak: this.currentStreak,
-                best_streak: this.bestStreak,
-                last_open_date: this.lastOpenDate,
-                prize_history: this.prizeHistory,
-            };
-
-            // TODO: Отправка на бэкенд
-            // axios.post('/api/daily-bonus/save-state', state);
-        },
 
         checkTodayStatus() {
             const today = this.getTodayString();
 
+            // Ищем сегодняшний приз в истории
             const todayPrize = this.prizeHistory.find(p => p.date === today);
             if (todayPrize) {
                 this.todayOpened = true;
@@ -479,14 +478,15 @@ export default {
 
             // Проверяем просроченные призы
             this.prizeHistory.forEach(prize => {
+                // 🆕 Пропускаем призы без валидной даты
+                if (!prize.date) return;
+
                 if (prize.type !== 'bonus' && !prize.claimed && !prize.expired) {
                     if (prize.date < today) {
                         prize.expired = true;
                     }
                 }
             });
-
-            this.saveState();
         },
 
         getRewardForDay(day) {
@@ -494,37 +494,58 @@ export default {
         },
 
         async openChest() {
+            // 🛡️ Защита от множественных кликов
             if (!this.canOpenToday || this.isOpening) return;
 
             this.isOpening = true;
 
-            await new Promise(resolve => setTimeout(resolve, 800));
-
             try {
-                const response = await axios.post('/api/daily-bonus/open', {
-                    streak_day: this.currentStreak + 1
+                // Ждём анимацию
+                await new Promise(resolve => setTimeout(resolve, 800));
+
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const response = await axios.post('/daily-bonus/open', {
+                    streak_day: this.currentStreak + 1,
+                    timezone: timezone,
                 });
 
-                const prize = response.data?.prize || this.generatePrize();
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка открытия');
+                }
+
+                const prize = response.data.prize;
+
+                // Обновляем локальное состояние
                 this.todayPrize = prize;
                 this.todayOpened = true;
+                this.currentStreak = response.data.current_streak;
+                this.bestStreak = response.data.best_streak;
+                this.lastOpenDate = response.data.server_date;
 
-                this.currentStreak++;
-                if (this.currentStreak > this.bestStreak) {
-                    this.bestStreak = this.currentStreak;
+                // Бонусы уже начислены на сервере - обновляем глобальный баланс
+                if (prize.type === 'bonus' && response.data.balance !== undefined) {
+                    if (window.TenantUser) {
+                        window.TenantUser.cashback_balance = response.data.balance;
+                    }
                 }
-                this.lastOpenDate = this.getTodayString();
 
-                const historyItem = {
-                    id: Date.now(),
-                    date: this.getTodayString(),
+                // Добавляем в историю (локально, для отображения)
+                this.prizeHistory.unshift({
                     ...prize,
-                    claimed: prize.type === 'bonus',
+                    date: prize.date || this.getTodayString(), // 🆕 Гарантия даты
                     expired: false,
-                };
-                this.prizeHistory.unshift(historyItem);
+                });
 
-                this.saveState();
+                // Ограничиваем локальную историю
+                if (this.prizeHistory.length > 30) {
+                    this.prizeHistory = this.prizeHistory.slice(0, 30);
+                }
+
+                this.$notify?.({
+                    title: prize.type === 'bonus' ? '🎉 Бонусы начислены!' : '🎁 Приз получен!',
+                    text: prize.title,
+                    type: 'success',
+                });
 
                 setTimeout(() => {
                     this.isOpening = false;
@@ -533,74 +554,66 @@ export default {
 
             } catch (error) {
                 console.error('Ошибка открытия сундука:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: error.response?.data?.message || 'Не удалось открыть сундучок',
-                    type: 'error'
-                });
+
+                // Если 403 — сундук уже открыт
+                if (error.response?.status === 403) {
+                    this.todayOpened = true;
+                    this.$notify?.({
+                        title: 'Уже открыто',
+                        text: error.response.data?.message || 'Сундучок уже открыт сегодня',
+                        type: 'warning',
+                    });
+                } else {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: error.response?.data?.message || 'Не удалось открыть сундучок',
+                        type: 'error',
+                    });
+                }
+
                 this.isOpening = false;
             }
         },
 
-        generatePrize() {
-            const reward = this.currentDayReward;
-            if (!reward) return { type: 'bonus', value: 10, icon: 'fa-solid fa-coins', title: '10 бонусов' };
-
-            const prize = {
-                type: reward.type,
-                icon: reward.icon,
-            };
-
-            if (reward.type === 'bonus') {
-                prize.value = Math.floor(Math.random() * (reward.max - reward.min + 1)) + reward.min;
-                prize.title = `${prize.value} бонусов`;
-            } else if (reward.type === 'discount') {
-                prize.value = Math.floor(Math.random() * (reward.max - reward.min + 1)) + reward.min;
-                prize.title = `Скидка ${prize.value}%`;
-            } else if (reward.type === 'product') {
-                const product = reward.products[Math.floor(Math.random() * reward.products.length)];
-                prize.productName = product;
-                prize.title = product;
-            } else if (reward.type === 'jackpot') {
-                const option = reward.options[Math.floor(Math.random() * reward.options.length)];
-                prize.type = option.type;
-                prize.value = option.value;
-                prize.icon = option.icon;
-                prize.title = option.title;
-            }
-
-            return prize;
-        },
 
         async claimPrize() {
-            if (!this.todayPrize || this.todayPrize.claimed) return;
+            if (!this.todayPrize || this.todayPrize.claimed || this.isClaiming) return;
+
+            this.isClaiming = true;
 
             try {
-                await axios.post('/api/daily-bonus/claim', {
-                    prize_id: this.todayPrize.id
+                const response = await axios.post('/daily-bonus/claim', {
+                    prize_id: this.todayPrize.id,  // ID пришёл с сервера!
                 });
 
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка обналичивания');
+                }
+
+                // Обновляем локальный приз
                 this.todayPrize.claimed = true;
 
-                const historyItem = this.prizeHistory.find(p => p.date === this.getTodayString());
+                // Обновляем в истории
+                const historyItem = this.prizeHistory.find(p => p.id === this.todayPrize.id);
                 if (historyItem) {
                     historyItem.claimed = true;
                 }
 
-                this.saveState();
-
                 this.$notify?.({
                     title: 'Приз обналичен!',
-                    text: `${this.todayPrize.title} добавлен в ваш заказ`,
+                    text: `${this.todayPrize.title} добавлен`,
                     type: 'success',
                 });
+
             } catch (error) {
                 console.error('Ошибка обналичивания:', error);
                 this.$notify?.({
                     title: 'Ошибка',
                     text: error.response?.data?.message || 'Не удалось обналичить приз',
-                    type: 'error'
+                    type: 'error',
                 });
+            } finally {
+                this.isClaiming = false;
             }
         },
 
@@ -655,14 +668,25 @@ export default {
         },
 
         formatDate(dateString) {
-            const date = new Date(dateString);
             const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+            // Если даты нет — возвращаем заглушку
+            if (!dateString) {
+                return {day: '—', month: '—'};
+            }
+
+            const date = new Date(dateString);
+
+            // Проверяем валидность даты
+            if (isNaN(date.getTime())) {
+                return {day: '—', month: '—'};
+            }
+
             return {
                 day: date.getDate(),
-                month: months[date.getMonth()],
+                month: months[date.getMonth()] || '—',
             };
         },
-
         prizeTypeText(type) {
             const texts = {
                 bonus: 'Бонусы',
@@ -781,9 +805,8 @@ export default {
 .hero-background {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(255, 215, 0, 0.15) 0%, transparent 50%);
+    background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 215, 0, 0.15) 0%, transparent 50%);
 }
 
 .hero-particles {
@@ -802,13 +825,26 @@ export default {
 }
 
 @keyframes particleFloat {
-    0% { transform: translateY(0) rotate(0deg); opacity: 0; }
-    10% { opacity: 1; }
-    90% { opacity: 1; }
-    100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    90% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100vh) rotate(360deg);
+        opacity: 0;
+    }
 }
 
-.hero-content { position: relative; z-index: 1; }
+.hero-content {
+    position: relative;
+    z-index: 1;
+}
 
 .hero-icon-wrapper {
     position: relative;
@@ -837,12 +873,27 @@ export default {
     animation: sparkle 2s ease-in-out infinite;
 }
 
-.sparkle-1 { top: -10px; right: -10px; animation-delay: 0s; }
-.sparkle-2 { bottom: -10px; left: -10px; animation-delay: 0.7s; }
+.sparkle-1 {
+    top: -10px;
+    right: -10px;
+    animation-delay: 0s;
+}
+
+.sparkle-2 {
+    bottom: -10px;
+    left: -10px;
+    animation-delay: 0.7s;
+}
 
 @keyframes sparkle {
-    0%, 100% { opacity: 0; transform: scale(0.5); }
-    50% { opacity: 1; transform: scale(1.2); }
+    0%, 100% {
+        opacity: 0;
+        transform: scale(0.5);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
 }
 
 .hero-title {
@@ -869,7 +920,11 @@ export default {
     border-radius: 16px;
 }
 
-.stat-block { display: flex; align-items: center; gap: 10px; }
+.stat-block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 
 .stat-icon {
     width: 36px;
@@ -888,7 +943,9 @@ export default {
     color: white;
 }
 
-.stat-info { text-align: left; }
+.stat-info {
+    text-align: left;
+}
 
 .stat-value {
     font-size: 1.3rem;
@@ -912,7 +969,9 @@ export default {
 /* ==========================================
    КОНТЕНТ
    ========================================== */
-.game-content { padding: 20px 16px; }
+.game-content {
+    padding: 20px 16px;
+}
 
 /* ==========================================
    ПРАВИЛА
@@ -1083,8 +1142,12 @@ export default {
 }
 
 @keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
 }
 
 .day-reward {
@@ -1127,9 +1190,15 @@ export default {
 }
 
 @keyframes chestShake {
-    0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(-3deg); }
-    75% { transform: rotate(3deg); }
+    0%, 100% {
+        transform: rotate(0deg);
+    }
+    25% {
+        transform: rotate(-3deg);
+    }
+    75% {
+        transform: rotate(3deg);
+    }
 }
 
 .chest-body {
@@ -1195,8 +1264,12 @@ export default {
 }
 
 @keyframes glow {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+    0%, 100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
 }
 
 .chest-sparkles {
@@ -1218,8 +1291,14 @@ export default {
 }
 
 @keyframes sparkleFloat {
-    0% { opacity: 1; transform: translate(0, 0) scale(1); }
-    100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(0); }
+    0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(var(--x), var(--y)) scale(0);
+    }
 }
 
 .chest-prize-reveal {
@@ -1267,7 +1346,9 @@ export default {
     flex-shrink: 0;
 }
 
-.prize-info { text-align: left; }
+.prize-info {
+    text-align: left;
+}
 
 .prize-title {
     font-weight: 700;
@@ -1296,9 +1377,15 @@ export default {
 }
 
 @keyframes handWave {
-    0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(-15deg); }
-    75% { transform: rotate(15deg); }
+    0%, 100% {
+        transform: rotate(0deg);
+    }
+    25% {
+        transform: rotate(-15deg);
+    }
+    75% {
+        transform: rotate(15deg);
+    }
 }
 
 .already-opened i {
@@ -1330,7 +1417,9 @@ export default {
     flex-shrink: 0;
 }
 
-.timer-info { flex: 1; }
+.timer-info {
+    flex: 1;
+}
 
 .timer-label {
     font-size: 0.8rem;
@@ -1502,7 +1591,10 @@ export default {
     flex-shrink: 0;
 }
 
-.history-info { flex: 1; min-width: 0; }
+.history-info {
+    flex: 1;
+    min-width: 0;
+}
 
 .history-title {
     font-weight: 700;
@@ -1582,11 +1674,20 @@ export default {
 }
 
 @keyframes modalSlideUp {
-    from { opacity: 0; transform: translateY(30px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
-.prize-modal { position: relative; overflow: visible; }
+.prize-modal {
+    position: relative;
+    overflow: visible;
+}
 
 .prize-confetti {
     position: absolute;
@@ -1604,8 +1705,14 @@ export default {
 }
 
 @keyframes confettiFall {
-    0% { transform: translateY(-50px) rotate(0deg); opacity: 1; }
-    100% { transform: translateY(600px) rotate(720deg); opacity: 0; }
+    0% {
+        transform: translateY(-50px) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(600px) rotate(720deg);
+        opacity: 0;
+    }
 }
 
 .prize-content {
@@ -1647,9 +1754,15 @@ export default {
 }
 
 @keyframes prizeIconPop {
-    0% { transform: scale(0) rotate(-180deg); }
-    70% { transform: scale(1.1) rotate(10deg); }
-    100% { transform: scale(1) rotate(0deg); }
+    0% {
+        transform: scale(0) rotate(-180deg);
+    }
+    70% {
+        transform: scale(1.1) rotate(10deg);
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+    }
 }
 
 .prize-glow {
@@ -1661,8 +1774,14 @@ export default {
 }
 
 @keyframes glowPulse {
-    0%, 100% { transform: scale(1); opacity: 0.5; }
-    50% { transform: scale(1.2); opacity: 0.8; }
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.8;
+    }
 }
 
 .prize-title-large {
@@ -1720,28 +1839,84 @@ export default {
     box-shadow: 0 8px 24px rgba(250, 112, 154, 0.4);
 }
 
-.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.3s ease; }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+.modal-fade-enter-active, .modal-fade-leave-active {
+    transition: opacity 0.3s ease;
+}
 
-.slide-down-enter-active, .slide-down-leave-active { transition: all 0.3s ease; overflow: hidden; }
-.slide-down-enter-from, .slide-down-leave-to { opacity: 0; max-height: 0; }
-.slide-down-enter-to, .slide-down-leave-from { opacity: 1; max-height: 500px; }
+.modal-fade-enter-from, .modal-fade-leave-to {
+    opacity: 0;
+}
+
+.slide-down-enter-active, .slide-down-leave-active {
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.slide-down-enter-from, .slide-down-leave-to {
+    opacity: 0;
+    max-height: 0;
+}
+
+.slide-down-enter-to, .slide-down-leave-from {
+    opacity: 1;
+    max-height: 500px;
+}
 
 @media (max-width: 576px) {
-    .hero-title { font-size: 1.5rem; }
-    .hero-icon { width: 64px; height: 64px; font-size: 1.8rem; }
-    .hero-stats { gap: 12px; padding: 10px 16px; }
-    .stat-value { font-size: 1.1rem; }
+    .hero-title {
+        font-size: 1.5rem;
+    }
 
-    .chest-body { width: 150px; height: 130px; }
-    .chest-lid { height: 65px; }
-    .chest-base { height: 75px; }
+    .hero-icon {
+        width: 64px;
+        height: 64px;
+        font-size: 1.8rem;
+    }
 
-    .day-circle { width: 30px; height: 30px; font-size: 0.75rem; }
-    .day-reward { font-size: 0.85rem; }
+    .hero-stats {
+        gap: 12px;
+        padding: 10px 16px;
+    }
 
-    .prize-icon-large { width: 100px; height: 100px; font-size: 2.5rem; }
-    .prize-title-large { font-size: 1.3rem; }
-    .prize-value-large { font-size: 1.1rem; }
+    .stat-value {
+        font-size: 1.1rem;
+    }
+
+    .chest-body {
+        width: 150px;
+        height: 130px;
+    }
+
+    .chest-lid {
+        height: 65px;
+    }
+
+    .chest-base {
+        height: 75px;
+    }
+
+    .day-circle {
+        width: 30px;
+        height: 30px;
+        font-size: 0.75rem;
+    }
+
+    .day-reward {
+        font-size: 0.85rem;
+    }
+
+    .prize-icon-large {
+        width: 100px;
+        height: 100px;
+        font-size: 2.5rem;
+    }
+
+    .prize-title-large {
+        font-size: 1.3rem;
+    }
+
+    .prize-value-large {
+        font-size: 1.1rem;
+    }
 }
 </style>

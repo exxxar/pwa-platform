@@ -169,7 +169,7 @@ export default {
 
             // Статистика (можно брать из store/API)
             totalPrizesWon: 3,
-            totalBonusEarned: 450,
+
 
             // Список всех игр
             games: [
@@ -314,6 +314,12 @@ export default {
             return this.games.filter(g => g.available).length;
         },
 
+        tenantUser(){
+          return window.TenantUser
+        },
+        totalBonusEarned(){
+          return this.tenantUser.cashback_balance ?? 0;
+        },
         filters() {
             return [
                 {

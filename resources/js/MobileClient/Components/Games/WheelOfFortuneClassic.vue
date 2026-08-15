@@ -29,16 +29,46 @@
                     <h1 class="hero-title">Колесо Фортуны</h1>
                     <p class="hero-subtitle">Испытай удачу и выиграй призы!</p>
 
-                    <div v-if="action" class="hero-attempts">
-                        <div class="attempts-info">
-                            <span class="attempts-current">{{ action.current_attempts || 0 }}</span>
-                            <span class="attempts-divider">/</span>
-                            <span class="attempts-max">{{ action.max_attempts || 1 }}</span>
+                    <div class="hero-stats-grid">
+
+                        <!-- 🎰 Баланс кэшбэка -->
+                        <div class="hero-stat-card cashback" :class="{ 'insufficient': insufficientBalance || !hasEnoughCashback }">
+                            <div class="hero-stat-icon">
+                                <i class="fa-solid fa-coins"></i>
+                            </div>
+                            <div class="hero-stat-info">
+                                <div class="hero-stat-value">
+                                    {{ formatPrice(cashbackBalance) }}
+                                </div>
+                                <div class="hero-stat-label">Кэшбэк</div>
+                            </div>
+                            <div class="hero-stat-hint" v-if="!hasEnoughCashback">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                Мало
+                            </div>
                         </div>
-                        <div class="attempts-label">{{ canPlay ? 'попыток осталось' : 'попыток использовано' }}</div>
-                        <div class="attempts-bar">
-                            <div class="attempts-fill" :class="{ 'is-empty': !canPlay }" :style="{ width: attemptsPercent + '%' }"></div>
+
+                        <!-- 🎟️ Попытки -->
+                        <div class="hero-stat-card attempts" v-if="action">
+                            <div class="hero-stat-icon">
+                                <i class="fa-solid fa-ticket"></i>
+                            </div>
+                            <div class="hero-stat-info">
+                                <div class="hero-stat-value">
+                                    <span class="current">{{ action.current_attempts || 0 }}</span>
+                                    <span class="divider">/</span>
+                                    <span class="max">{{ action.max_attempts || 1 }}</span>
+                                </div>
+                                <div class="hero-stat-label">{{ canPlay ? 'попыток осталось' : 'использовано' }}</div>
+                            </div>
                         </div>
+
+                    </div>
+
+                    <!-- 💰 Стоимость вращения -->
+                    <div class="spin-cost-badge">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Стоимость вращения: <strong>{{ formatPrice(spinCost) }}</strong> кэшбэка</span>
                     </div>
                 </div>
             </div>
@@ -126,7 +156,7 @@
                                     <WheelOfFortuneShopVariant
                                         ref="wheel"
                                         :model-value="items"
-                                        :can-play="canPlay"
+                                        :can-play="canPlay && hasEnoughCashback"
                                         :interval="1"
                                         @win="handleWheelWin"
                                         @request-spin="handleSpinRequest"
@@ -138,6 +168,26 @@
                                 </div>
 
                             </div>
+
+                            <!-- 🆕 ПРЕДУПРЕЖДЕНИЕ О НЕХВАТКЕ КЭШБЭКА -->
+                            <transition name="slide-down">
+                                <div v-if="!hasEnoughCashback" class="cashback-warning">
+                                    <div class="warning-icon">
+                                        <i class="fa-solid fa-triangle-exclamation"></i>
+                                    </div>
+                                    <div class="warning-content">
+                                        <div class="warning-title">Недостаточно кэшбэка</div>
+                                        <div class="warning-text">
+                                            Для игры нужно <strong>{{ formatPrice(spinCost) }}</strong>.
+                                            Ваш баланс: <strong>{{ formatPrice(cashbackBalance) }}</strong>
+                                        </div>
+                                        <div class="warning-hint">
+                                            <i class="fa-solid fa-lightbulb"></i>
+                                            Делайте заказы или приглашайте друзей, чтобы пополнить кэшбэк
+                                        </div>
+                                    </div>
+                                </div>
+                            </transition>
                         </div>
 
                         <!-- Результат выигрыша -->
@@ -265,6 +315,10 @@ export default {
 
     data() {
         return {
+            // 🎰 КЭШБЭК (КРИТИЧЕСКИ ВАЖНО!)
+            cashbackBalance: window.TenantUser?.cashback_balance ?? 0,
+            spinCost: 1000,
+            insufficientBalance: false,
 
             userWheelWins: [],
 
@@ -282,12 +336,11 @@ export default {
             wheelDataLoaded: false,
             loadError: false,
             winForm: { win: null },
-            gift: 1, // 🆕 Должно быть числом (индекс), а не 0
+            gift: 1,
 
             logo: { src: '/wheel-center.png', width: 120, height: 120 },
             smiles: ['💙', '💜', '💚', '💰', '👑', '🍩', '⚽', '🦖', '🌺', '🌷', '🐾', '⏳', '💊', '💡', '🚀', '⭐', '💎', '☘', '🏆', '🎁'],
 
-            // 🛡️ КРИТИЧЕСКИ ВАЖНО: Инициализируем дефолтными данными, чтобы массив НИКОГДА не был пустым при маунте
             items: [
                 { id: 1, value: "🎁", bgColor: "#c0392b", color: "#ffffff", description: 'Секретный приз', mark: 'в заведении' },
                 { id: 2, value: "☕", bgColor: "#ffffff", color: "#c0392b", description: 'Бесплатный кофе', mark: 'в заведении' },
@@ -297,22 +350,36 @@ export default {
     },
 
     computed: {
+        // 🎰 Достаточно ли кэшбэка
+        hasEnoughCashback() {
+            return this.cashbackBalance >= this.spinCost;
+        },
 
-        // 🆕 Надежное вычисление истории (берет из action.data, который приходит с сервера)
+        // 🎰 Можно ли играть (есть кэшбэк И попытки)
+        canPlayOverall() {
+            return this.hasEnoughCashback && this.canPlay;
+        },
+
         displayHistory() {
             const history = this.action?.data || this.userWheelWins || [];
             return [...history].sort((a, b) => {
                 return new Date(b.won_at || b.played_at || 0) - new Date(a.won_at || a.played_at || 0);
             });
         },
-        self() { return window.TenantUser || null; },
+
+        self() {
+            return window.TenantUser || null;
+        },
+
         sortedActionData() {
             if (!this.action?.data?.length) return [];
             return [...this.action.data].sort((a, b) => new Date(b.played_at) - new Date(a.played_at));
         },
+
         canPlay() {
             return this.action ? this.action.current_attempts < this.action.max_attempts : false;
         },
+
         attemptsPercent() {
             if (!this.action) return 0;
             return ((this.action.current_attempts || 0) / (this.action.max_attempts || 1)) * 100;
@@ -321,8 +388,7 @@ export default {
 
     async mounted() {
         try {
-            await this.prepareUserData(); // Теперь этот метод делает всё: и настройки, и попытки
-
+            await this.prepareUserData();
             this.step = this.beforeScript ? 0 : 1;
             this.wheelDataLoaded = true;
         } catch (error) {
@@ -331,51 +397,91 @@ export default {
         }
     },
 
-
     methods: {
-        // 🛡️ ОБРАБОТКА ЗАПРОСА НА ВРАЩЕНИЕ (Перехватывает клик по кнопке из дочернего компонента)
+        // 🎰 ОБРАБОТКА ЗАПРОСА НА ВРАЩЕНИЕ
         async handleSpinRequest() {
-            if (!this.canPlay || this.items.length < 3) return;
+            // ПРОВЕРКА 1: Достаточно ли кэшбэка
+            if (!this.hasEnoughCashback) {
+                this.insufficientBalance = true;
+
+                this.$notify?.({
+                    title: '💰 Недостаточно кэшбэка',
+                    text: `Для вращения нужно ${this.spinCost}₽ кэшбэка. Ваш баланс: ${this.formatPrice(this.cashbackBalance)}`,
+                    type: 'warning'
+                });
+
+                setTimeout(() => {
+                    this.insufficientBalance = false;
+                }, 3000);
+
+                return;
+            }
+
+            // ПРОВЕРКА 2: Минимум 3 сектора
+            if (this.items.length < 3) {
+                console.warn('[Wheel] Колесо не настроено');
+                return;
+            }
 
             try {
-                console.log('[Wheel] Отправляем запрос на фиксацию попытки...');
+                console.log('[Wheel] Отправляем запрос на вращение за кэшбэк...');
 
-                // 1. Фиксируем попытку на сервере
                 const response = await axios.post('/wheel/record-attempt');
                 console.log('[Wheel] Ответ record-attempt:', response.data);
 
                 if (!response.data.success) {
                     this.$notify?.({
                         title: 'Внимание',
-                        text: response.data.message || 'Попытки закончились',
+                        text: response.data.message || 'Не удалось начать игру',
                         type: 'warning'
                     });
                     await this.prepareUserData();
                     return;
                 }
 
-                // 2. Сервер разрешил! Обновляем локальные данные
+                // ОБНОВЛЯЕМ ЛОКАЛЬНЫЙ БАЛАНС КЭШБЭКА
+                if (response.data.balance !== undefined) {
+                    this.cashbackBalance = response.data.balance;
+                    if (window.TenantUser) {
+                        window.TenantUser.cashback_balance = response.data.balance;
+                    }
+                }
+
+                // Обновляем данные с сервера
                 await this.prepareUserData();
 
-                // 3. Даём команду дочернему компоненту НАЧАТЬ ВРАЩЕНИЕ
+                // Даём команду дочернему компоненту НАЧАТЬ ВРАЩЕНИЕ
                 this.$nextTick(() => {
                     if (this.$refs.wheel && typeof this.$refs.wheel.startActualSpin === 'function') {
                         this.$refs.wheel.startActualSpin();
                     } else {
-                        console.warn("[Wheel] Метод startActualSpin не найден в дочернем компоненте");
+                        console.warn("[Wheel] Метод startActualSpin не найден");
                     }
                 });
 
             } catch (error) {
-                console.error('[Wheel] Ошибка фиксации попытки:', error);
+                console.error('[Wheel] Ошибка вращения:', error);
 
                 if (error.response?.status === 403) {
+                    this.insufficientBalance = true;
+
+                    if (error.response.data?.balance !== undefined) {
+                        this.cashbackBalance = error.response.data.balance;
+                        if (window.TenantUser) {
+                            window.TenantUser.cashback_balance = error.response.data.balance;
+                        }
+                    }
+
                     this.$notify?.({
-                        title: 'Внимание',
-                        text: error.response.data?.message || 'Попытки на сегодня закончились',
+                        title: '💰 Недостаточно кэшбэка',
+                        text: error.response.data?.message || 'Пополните кэшбэк, чтобы играть',
                         type: 'warning'
                     });
-                    await this.prepareUserData();
+
+                    setTimeout(() => {
+                        this.insufficientBalance = false;
+                    }, 3000);
+
                 } else {
                     this.$notify?.({
                         title: 'Ошибка',
@@ -385,72 +491,11 @@ export default {
                 }
             }
         },
-        // 🛡️ БЕЗОПАСНЫЙ ЗАПУСК КОЛЕСА С ПРОВЕРКОЙ НА СЕРВЕРЕ
-        async launchWheel() {
-            if (!this.canPlay || this.items.length < 3) {
-                console.warn('[Wheel] Попытки закончились или колесо не настроено', {
-                    canPlay: this.canPlay,
-                    itemsLength: this.items.length,
-                    action: this.action
-                });
-                return;
-            }
 
-            try {
-                console.log('[Wheel] Отправляем запрос на фиксацию попытки...');
-
-                // 1. Фиксируем попытку на сервере
-                const response = await axios.post('/wheel/record-attempt');
-                console.log('[Wheel] Ответ record-attempt:', response.data);
-
-                if (!response.data.success) {
-                    this.$notify?.({
-                        title: 'Внимание',
-                        text: response.data.message || 'Попытки закончились',
-                        type: 'warning'
-                    });
-                    await this.prepareUserData(); // Обновляем данные
-                    return;
-                }
-
-                // 2. 🆕 КРИТИЧЕСКИ ВАЖНО: Обновляем данные с сервера (теперь без кэша)
-                await this.prepareUserData();
-
-                // 3. Запускаем анимацию
-                this.started = true;
-                this.$nextTick(() => {
-                    if (this.$refs.wheel && typeof this.$refs.wheel.launchWheel === 'function') {
-                        this.$refs.wheel.launchWheel();
-                    } else {
-                        console.warn("[Wheel] Реф колеса не найден");
-                        this.started = false;
-                    }
-                });
-
-            } catch (error) {
-                console.error('[Wheel] Ошибка фиксации попытки:', error);
-
-                if (error.response?.status === 403) {
-                    this.$notify?.({
-                        title: 'Внимание',
-                        text: error.response.data?.message || 'Попытки на сегодня закончились',
-                        type: 'warning'
-                    });
-                    await this.prepareUserData();
-                    return;
-                }
-
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось запустить колесо. Попробуйте позже.',
-                    type: 'error'
-                });
-            }
-        },
-        // 🆕 Метод для ручного закрытия окна выигрыша
         closeWinPopup() {
             this.winForm.win = null;
         },
+
         async loadUserHistory() {
             try {
                 const response = await axios.get('/wheel/history');
@@ -463,7 +508,9 @@ export default {
             }
         },
 
-        reloadPage() { window.location.reload(); },
+        reloadPage() {
+            window.location.reload();
+        },
 
         particleStyle(i) {
             return {
@@ -496,32 +543,31 @@ export default {
             return array;
         },
 
-        // 🛡️ БЕЗОПАСНЫЙ ЗАПУСК КОЛЕСА С ПРОВЕРКОЙ НА СЕРВЕРЕ
         async prepareUserData() {
             try {
-                // 🆕 Добавляем уникальный timestamp, чтобы браузер НЕ кэшировал этот GET-запрос
                 const response = await axios.get('/wheel/data?t=' + Date.now());
 
                 console.log('[Wheel] Данные с сервера:', response.data);
-                console.log('[Wheel] current_attempts:', response.data.action?.current_attempts);
-                console.log('[Wheel] max_attempts:', response.data.action?.max_attempts);
 
                 this.scriptData = response.data;
                 this.rules = response.data.rules || null;
                 this.beforeScript = response.data.before_script || null;
                 this.afterScript = response.data.after_script || null;
 
-                // 🆕 Явное создание НОВОГО объекта для гарантированной реактивности Vue 2/3
                 this.action = {
                     current_attempts: response.data.action?.current_attempts ?? 0,
                     max_attempts: response.data.action?.max_attempts ?? 1,
                     data: response.data.action?.data || []
                 };
 
-                this.userWheelWins = this.action.data;
+                // ОБНОВЛЯЕМ КЭШБЭК
+                if (response.data.cashback_balance !== undefined) {
+                    this.cashbackBalance = response.data.cashback_balance;
+                } else if (window.TenantUser?.cashback_balance !== undefined) {
+                    this.cashbackBalance = window.TenantUser.cashback_balance;
+                }
 
-                console.log('[Wheel] Локальный action после обновления:', this.action);
-                console.log('[Wheel] canPlay будет:', this.canPlay);
+                this.userWheelWins = this.action.data;
 
                 if (response.data.items && response.data.items.length >= 3) {
                     this.items = response.data.items.map((item, index) => ({
@@ -541,18 +587,15 @@ export default {
             }
         },
 
-        // 🆕 Обработка выигрыша, пришедшего от дочернего компонента
         handleWheelWin(winData) {
             this.winForm.win = winData.win;
-            this.started = false; // Разблокируем состояние кнопки
+            this.started = false;
 
-            // Если выпал приз (а не "Попробуй еще"), сохраняем его в профиль
-            // (Вы можете добавить условие, если у вас есть сектор "Пусто" с id = 0 или null)
             if (this.winForm.win && this.winForm.win.id > 0) {
                 if (this.afterScript) {
-                    this.step = 2; // Переходим к форме после игры
+                    this.step = 2;
                 } else {
-                    this.submit(); // Сразу сохраняем на сервер
+                    this.submit();
                 }
             } else {
                 this.$notify?.({
@@ -560,8 +603,16 @@ export default {
                     text: 'В этот раз не повезло. Попробуйте в следующий раз!',
                     type: 'info'
                 });
-                this.winForm.win = null; // Сбрасываем, чтобы не показывать окно выигрыша
+                this.winForm.win = null;
             }
+        },
+
+        formatPrice(price) {
+            return new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: 'RUB',
+                minimumFractionDigits: 0,
+            }).format(price || 0);
         },
 
         formCallback(e) {
@@ -573,7 +624,6 @@ export default {
                 this.submit();
             }
         },
-
 
         async submit() {
             if (!this.winForm.win) return;
@@ -597,10 +647,6 @@ export default {
                         type: 'success'
                     });
 
-                    // 🛑 УДАЛИТЕ ЭТУ СТРОКУ: this.winForm.win = null;
-                    // Пусть окно висит, пока пользователь не нажмет "Забрать"
-
-                    // Обновляем счетчик попыток и историю
                     await this.prepareUserData();
                 }
             } catch (error) {
@@ -625,40 +671,9 @@ export default {
             }
         },
 
-
-
         selectPrize(index) {
             this.selectedPrize = this.items[index];
         },
-
-        // 🛡️ БЕЗОПАСНАЯ ЗАГРУЗКА ДАННЫХ
-        async loadServiceData() {
-            const tenantSettings = window.Tenant?.settings || {};
-            const wheelSettings = tenantSettings.wheel || {};
-
-            this.scriptData = wheelSettings;
-            this.rules = wheelSettings.rules || null;
-            this.beforeScript = wheelSettings.before_script || null;
-            this.afterScript = wheelSettings.after_script || null;
-
-            // 🆕 Проверяем, есть ли валидные данные от админа
-            if (wheelSettings.items && Array.isArray(wheelSettings.items) && wheelSettings.items.length >= 3) {
-                const wheels = this.shuffle(wheelSettings.items);
-
-                this.items = wheels.map((item, index) => ({
-                    id: item.id || index + 1,
-                    value: item.value || this.smiles[Math.floor(Math.random() * this.smiles.length)],
-                    bgColor: item.bgColor || (index % 2 === 0 ? '#c0392b' : '#ffffff'),
-                    color: item.color || '#ffffff',
-                    description: item.description || `Приз #${index + 1}`,
-                    mark: item.mark || 'в заведении'
-                }));
-            } else {
-                console.warn("Настройки колеса не найдены или некорректны. Используются значения по умолчанию.");
-                // Мы НЕ перезаписываем this.items, оставляем те 3 дефолтных, что объявлены в data()
-            }
-        },
-
 
         formatDate(dateString) {
             if (!dateString) return '';
@@ -681,6 +696,7 @@ export default {
     },
 };
 </script>
+
 
 
 
@@ -1774,5 +1790,227 @@ export default {
 
 .btn-claim-prize:active {
     transform: translateY(0);
+}
+
+/* ==========================================
+   🎰 СЕТКА СТАТИСТИКИ В HERO
+   ========================================== */
+.hero-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 400px;
+    margin: 0 auto 16px;
+}
+
+.hero-stat-card {
+    padding: 14px 12px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.hero-stat-card.cashback {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 152, 0, 0.15) 100%);
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.hero-stat-card.cashback.insufficient {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.25) 0%, rgba(200, 35, 51, 0.15) 100%);
+    border-color: rgba(220, 53, 69, 0.5);
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+.hero-stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: white;
+}
+
+.hero-stat-info {
+    text-align: center;
+}
+
+.hero-stat-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: white;
+    margin-bottom: 2px;
+}
+
+.hero-stat-value .divider {
+    font-size: 0.9rem;
+    opacity: 0.6;
+    margin: 0 2px;
+}
+
+.hero-stat-value .max {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.hero-stat-label {
+    font-size: 0.7rem;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.hero-stat-hint {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 6px;
+    background: rgba(220, 53, 69, 0.9);
+    border-radius: 8px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* ==========================================
+   💰 БЕЙДЖ СТОИМОСТИ
+   ========================================== */
+.spin-cost-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 20px;
+    color: white;
+    font-size: 0.85rem;
+    margin: 0 auto;
+}
+
+.spin-cost-badge i {
+    color: #ffd700;
+}
+
+.spin-cost-badge strong {
+    color: #ffd700;
+    font-weight: 800;
+}
+
+/* ==========================================
+   ⚠️ ПРЕДУПРЕЖДЕНИЕ О НЕХВАТКЕ КЭШБЭКА
+   ========================================== */
+.cashback-warning {
+    margin-top: 16px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.08) 0%, rgba(255, 152, 0, 0.05) 100%);
+    border: 1.5px solid rgba(220, 53, 69, 0.3);
+    border-radius: 16px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.warning-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.warning-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.warning-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #dc3545;
+    margin-bottom: 4px;
+}
+
+.warning-text {
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.warning-text strong {
+    color: var(--bs-primary);
+}
+
+.warning-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    padding: 8px 10px;
+    background: rgba(255, 193, 7, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid #ffc107;
+}
+
+.warning-hint i {
+    color: #ffc107;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* ==========================================
+   АДАПТИВ
+   ========================================== */
+@media (max-width: 400px) {
+    .hero-stats-grid {
+        gap: 8px;
+    }
+
+    .hero-stat-card {
+        padding: 10px 8px;
+    }
+
+    .hero-stat-value {
+        font-size: 1rem;
+    }
+
+    .cashback-warning {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .warning-icon {
+        width: 38px;
+        height: 38px;
+        font-size: 1rem;
+    }
 }
 </style>

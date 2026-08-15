@@ -26,8 +26,8 @@
                             <i class="fa-solid fa-coins"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-value">{{ userBalance }}</div>
-                            <div class="stat-label">Ваши бонусы</div>
+                            <div class="stat-value">{{ Math.round(userBalance) }}₽</div>
+                            <div class="stat-label">Кэшбэк</div>
                         </div>
                     </div>
                     <div class="stat-divider"></div>
@@ -36,7 +36,7 @@
                             <i class="fa-solid fa-ticket"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-value">{{ moveCost }}</div>
+                            <div class="stat-value">{{ moveCost }}₽</div>
                             <div class="stat-label">Цена спина</div>
                         </div>
                     </div>
@@ -167,11 +167,33 @@
                     <span v-else class="spinning-text">УДАЧИ...</span>
                 </button>
 
+
+                <!-- После кнопки SPIN -->
+                <transition name="slide-down">
+                    <div v-if="!hasEnoughCashback && !isSpinning" class="cashback-warning">
+                        <div class="warning-icon">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <div class="warning-content">
+                            <div class="warning-title">Недостаточно кэшбэка</div>
+                            <div class="warning-text">
+                                Для спина нужно <strong>{{ moveCost }}₽</strong>.
+                                Ваш баланс: <strong>{{ Math.round(userBalance) }}₽</strong>
+                            </div>
+                            <div class="warning-hint">
+                                <i class="fa-solid fa-lightbulb"></i>
+                                Делайте заказы для пополнения кэшбэка
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+
                 <div v-if="!canPlay && !gameFinished" class="no-balance-hint">
                     <i class="fa-solid fa-circle-exclamation"></i>
                     <span>Недостаточно бонусов для спина</span>
                 </div>
             </div>
+
 
             <!-- ========================================== -->
             <!-- КНОПКА "ИГРАТЬ ЕЩЁ" -->
@@ -252,7 +274,15 @@
                         <div class="result-details">
                             <div class="detail-row">
                                 <i class="fa-solid fa-coins"></i>
-                                <span>Вам начислено <strong>+{{ winAmount }} бонусов</strong></span>
+                                <span>Выигрыш: <strong>+{{ winAmount }} бонусов</strong></span>
+                            </div>
+                            <div class="detail-row">
+                                <i class="fa-solid fa-ticket"></i>
+                                <span>Ставка: <strong>-{{ moveCost }}</strong></span>
+                            </div>
+                            <div class="detail-row" :style="{ color: netProfit >= 0 ? '#198754' : '#dc3545' }">
+                                <i :class="netProfit >= 0 ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-arrow-trend-down'"></i>
+                                <span>Итого: <strong>{{ netProfit >= 0 ? '+' : '' }}{{ netProfit }}</strong></span>
                             </div>
                         </div>
 
@@ -269,29 +299,37 @@
 </template>
 
 <script>
-import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
+
 
 export default {
     name: "SlotMachineGame",
 
-    setup() {
-        const basketStore = useBasketStore();
-        return { basketStore };
-    },
+
 
     data() {
         return {
-            attemptsLeft: 1,
+            // 🎰 Настройки
+            gameSettings: {
+                can_play: true,
+                interval: 1,
+                attempts_per_period: 1,
+                spin_cost: 1000,  // ✅ ИСПРАВЛЕНО: ставка 1000
+                symbols: [],
+            },
+
+            // Состояние
+            attemptsLeft: 0,
             userBalance: 0,
-            moveCost: 40,
             gameFinished: false,
             isSpinning: false,
+            isProcessing: false, // 🆕 Защита от race condition
 
+            // UI
             showRules: false,
             showAdmin: false,
             showResultModal: false,
 
-            // Состояние барабанов
+            // Барабаны
             reel1Spinning: false,
             reel2Spinning: false,
             reel3Spinning: false,
@@ -303,22 +341,27 @@ export default {
             reel2Symbols: ['🍒', '🍋', '🍊', '🔔', '💎', '7️⃣'],
             reel3Symbols: ['🍒', '🍋', '🍊', '🔔', '💎', '7️⃣'],
 
+            // Таймеры для очистки (защита от утечек)
+            animationTimers: [],
+
             // Результат
             winTier: 'common',
             winAmount: 0,
+            netProfit: 0,
             resultTitle: '',
             resultDescription: '',
             resultIcon: 'fa-solid fa-gift',
 
-            // Символы и их вероятности (вес)
-            symbols: [
-                { icon: '🍒', weight: 40, prize: 20 },
-                { icon: '🍋', weight: 25, prize: 30 },
-                { icon: '🍊', weight: 15, prize: 50 },
-                { icon: '🔔', weight: 10, prize: 150 },
-                { icon: '💎', weight: 7, prize: 300 },
-                { icon: '7️⃣', weight: 3, prize: 700 },
-            ]
+            // История
+            spinHistory: [],
+
+            // Статистика
+            stats: {
+                total_spins: 0,
+                total_won: 0,
+                total_spent: 0,
+                biggest_win: 0,
+            },
         };
     },
 
@@ -328,8 +371,21 @@ export default {
             return user?.role === 'admin' || user?.is_admin === true;
         },
 
+        // 🎰 Стоимость спина из настроек
+        moveCost() {
+            return this.gameSettings.spin_cost || 1000;
+        },
+
+        // 🎰 Достаточно ли кэшбэка
+        hasEnoughCashback() {
+            return this.userBalance >= this.moveCost;
+        },
+
         canPlay() {
-            return this.userBalance >= this.moveCost && this.attemptsLeft > 0 && !this.gameFinished;
+            return this.hasEnoughCashback
+                && this.attemptsLeft > 0
+                && !this.gameFinished
+                && !this.isProcessing;
         },
 
         winTierText() {
@@ -342,11 +398,16 @@ export default {
                 loss: 'Попробуйте ещё раз'
             };
             return texts[this.winTier] || 'Выигрыш';
-        }
+        },
     },
 
     async mounted() {
         await this.loadGameData();
+    },
+    beforeUnmount() {
+        // Очищаем все таймеры анимации
+        this.animationTimers.forEach(t => clearInterval(t));
+        this.animationTimers = [];
     },
 
     methods: {
@@ -355,63 +416,196 @@ export default {
         // ==========================================
         async loadGameData() {
             try {
-                // TODO: Замени на реальный API
-                // const response = await this.basketStore.loadSlotGameData();
-                // this.attemptsLeft = response.attempts_left || 1;
-                // this.userBalance = response.user_balance || 0;
-                // this.moveCost = response.move_cost || 40;
+                const [settingsRes, stateRes] = await Promise.all([
+                    axios.get('/slot-machine/settings'),
+                    axios.get('/slot-machine/state'),
+                ]);
 
-                await new Promise(resolve => setTimeout(resolve, 300));
-                this.attemptsLeft = 1;
-                this.userBalance = window.TenantUser?.cashBack?.amount || 0;
-                this.moveCost = 40;
+                // Настройки
+                if (settingsRes.data?.success && settingsRes.data.slot_machine) {
+                    this.gameSettings = { ...this.gameSettings, ...settingsRes.data.slot_machine };
+                }
+
+                // Состояние
+                if (stateRes.data?.success) {
+                    this.attemptsLeft = stateRes.data.attempts_left ?? 1;
+                    this.userBalance = stateRes.data.balance ?? (window.TenantUser?.cashback_balance || 0);
+                    this.gameFinished = stateRes.data.game_finished || false;
+                    this.spinHistory = stateRes.data.history || [];
+                    this.stats = stateRes.data.stats || this.stats;
+                }
             } catch (error) {
                 console.error('Ошибка загрузки данных игры:', error);
+                this.userBalance = window.TenantUser?.cashback_balance || 0;
             }
         },
 
-        getRandomSymbol() {
-            const totalWeight = this.symbols.reduce((sum, s) => sum + s.weight, 0);
-            let random = Math.random() * totalWeight;
-
-            for (const symbol of this.symbols) {
-                if (random < symbol.weight) {
-                    return symbol.icon;
-                }
-                random -= symbol.weight;
-            }
-            return this.symbols[0].icon;
-        },
 
         async spin() {
-            if (!this.canPlay || this.isSpinning) return;
+            // 🛡️ Защита от множественных кликов
+            if (!this.canPlay || this.isProcessing) return;
 
+            // Локальные проверки
+            if (!this.hasEnoughCashback) {
+                this.$notify?.({
+                    title: '💰 Недостаточно кэшбэка',
+                    text: `Для спина нужно ${this.moveCost}₽. Ваш баланс: ${Math.round(this.userBalance)}₽`,
+                    type: 'warning',
+                });
+                return;
+            }
+
+            if (this.attemptsLeft <= 0) {
+                this.$notify?.({
+                    title: 'Игра',
+                    text: 'Попытки закончились',
+                    type: 'warning',
+                });
+                return;
+            }
+
+            this.isProcessing = true;
             this.isSpinning = true;
-            this.gameFinished = true; // Блокируем повторный клик до конца анимации
 
-            // Списываем средства
-            this.userBalance -= this.moveCost;
+            try {
+                // 1. Отправляем запрос на сервер (списание + генерация результата)
+                const response = await axios.post('/slot-machine/spin');
 
-            // Определяем результат ЗАРАНЕЕ (как на сервере)
-            const final1 = this.getRandomSymbol();
-            const final2 = this.getRandomSymbol();
-            const final3 = this.getRandomSymbol();
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка спина');
+                }
 
-            // Запускаем анимацию барабанов
-            this.startReelAnimation(1, final1, 1000);
-            this.startReelAnimation(2, final2, 2000);
-            this.startReelAnimation(3, final3, 3000);
+                const { reels, win_tier, win_amount, combination, net_profit, balance, attempts_left } = response.data;
 
-            // Ждём окончания всех анимаций
-            await new Promise(resolve => setTimeout(resolve, 3200));
+                // 2. Запускаем анимацию с финальными символами из ответа
+                await this.animateReels(reels);
 
-            this.evaluateWin(final1, final2, final3);
-            this.isSpinning = false;
-            this.attemptsLeft--;
+                // 3. Обновляем локальное состояние из ответа сервера
+                if (balance !== undefined) {
+                    this.userBalance = balance;
+                    if (window.TenantUser) {
+                        window.TenantUser.cashback_balance = balance;
+                    }
+                }
 
-            setTimeout(() => {
-                this.showResultModal = true;
-            }, 300);
+                if (attempts_left !== undefined) {
+                    this.attemptsLeft = attempts_left;
+                }
+
+                // 4. Показываем результат
+                this.evaluateWinLocally(reels[0], reels[1], reels[2], win_tier, win_amount, combination);
+                this.netProfit = net_profit;
+
+                this.gameFinished = this.attemptsLeft <= 0;
+
+                // 5. Показываем модалку
+                setTimeout(() => {
+                    this.showResultModal = true;
+                }, 300);
+
+            } catch (error) {
+                console.error('Ошибка спина:', error);
+
+                if (error.response?.status === 403) {
+                    // Недостаточно кэшбэка или попытки кончились
+                    if (error.response.data?.balance !== undefined) {
+                        this.userBalance = error.response.data.balance;
+                        if (window.TenantUser) {
+                            window.TenantUser.cashback_balance = error.response.data.balance;
+                        }
+                    }
+
+                    this.$notify?.({
+                        title: '💰 ' + (error.response.data?.message || 'Невозможно сыграть'),
+                        text: error.response.data?.shortage
+                            ? `Не хватает: ${error.response.data.shortage}₽`
+                            : 'Проверьте баланс или попробуйте позже',
+                        type: 'warning',
+                    });
+                } else {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: error.response?.data?.message || 'Не удалось выполнить спин',
+                        type: 'error',
+                    });
+                }
+            } finally {
+                // 🔓 Разблокировка ВСЕГДА (даже при ошибке)
+                this.isSpinning = false;
+                this.isProcessing = false;
+            }
+        },
+
+        async animateReels(finalReels) {
+            // Очищаем предыдущие таймеры
+            this.animationTimers.forEach(t => clearInterval(t));
+            this.animationTimers = [];
+
+            const animateReel = (reelNum, finalSymbol, duration) => {
+                const reelKey = `reel${reelNum}`;
+                this[`${reelKey}Spinning`] = true;
+
+                // Быстрая смена символов
+                const symbols = this.gameSettings.symbols?.length
+                    ? this.gameSettings.symbols.map(s => s.icon)
+                    : ['🍒', '🍋', '🍊', '🔔', '💎', '7️⃣'];
+
+                const interval = setInterval(() => {
+                    const randomSym = symbols[Math.floor(Math.random() * symbols.length)];
+                    this[`${reelKey}Symbols`] = [randomSym, randomSym, randomSym, randomSym, randomSym];
+                }, 50);
+
+                this.animationTimers.push(interval);
+
+                return new Promise(resolve => {
+                    setTimeout(() => {
+                        clearInterval(interval);
+                        this[`${reelKey}Spinning`] = false;
+                        // Показываем финальный символ из ответа сервера
+                        this[`${reelKey}Symbols`] = ['🍒', finalSymbol, '🍋', '🔔', '💎'];
+                        resolve();
+                    }, duration);
+                });
+            };
+
+            // Каскадная остановка барабанов
+            await Promise.all([
+                animateReel(1, finalReels[0], 1000),
+                animateReel(2, finalReels[1], 1800),
+                animateReel(3, finalReels[2], 2600),
+            ]);
+        },
+
+// Локальная визуализация результата (данные уже с сервера!)
+        evaluateWinLocally(s1, s2, s3, winTier, winAmount, combination) {
+            this.winTier = winTier;
+            this.winAmount = winAmount;
+
+            if (winTier === 'legendary') {
+                this.resultTitle = '🎉 ДЖЕКПОТ!';
+                this.resultDescription = combination;
+                this.resultIcon = 'fa-solid fa-crown';
+            } else if (winTier === 'epic') {
+                this.resultTitle = 'Эпический выигрыш!';
+                this.resultDescription = combination;
+                this.resultIcon = 'fa-solid fa-gem';
+            } else if (winTier === 'rare') {
+                this.resultTitle = 'Редкий выигрыш!';
+                this.resultDescription = combination;
+                this.resultIcon = 'fa-solid fa-bell';
+            } else if (winTier === 'common') {
+                this.resultTitle = 'Хороший выигрыш!';
+                this.resultDescription = combination;
+                this.resultIcon = 'fa-solid fa-star';
+            } else if (winTier === 'consolation') {
+                this.resultTitle = 'Утешительный приз';
+                this.resultDescription = combination;
+                this.resultIcon = 'fa-solid fa-hand-holding-heart';
+            } else {
+                this.resultTitle = 'Не повезло';
+                this.resultDescription = 'В следующий раз обязательно повезёт!';
+                this.resultIcon = 'fa-solid fa-face-sad-tear';
+            }
         },
 
         startReelAnimation(reelNum, finalSymbol, duration) {
@@ -1056,5 +1250,68 @@ export default {
 
     .result-icon { width: 80px; height: 80px; font-size: 2rem; }
     .result-title { font-size: 1.3rem; }
+}
+
+.cashback-warning {
+    margin-top: 16px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.08) 0%, rgba(255, 152, 0, 0.05) 100%);
+    border: 1.5px solid rgba(220, 53, 69, 0.3);
+    border-radius: 16px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 360px;
+}
+
+.warning-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.warning-content { flex: 1; min-width: 0; }
+
+.warning-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #dc3545;
+    margin-bottom: 4px;
+}
+
+.warning-text {
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.warning-text strong { color: var(--bs-primary); }
+
+.warning-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    padding: 8px 10px;
+    background: rgba(255, 193, 7, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid #ffc107;
+}
+
+.warning-hint i {
+    color: #ffc107;
+    margin-top: 2px;
+    flex-shrink: 0;
 }
 </style>

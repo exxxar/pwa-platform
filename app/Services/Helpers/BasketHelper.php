@@ -19,171 +19,6 @@ use Illuminate\Support\Str;
 trait BasketHelper
 {
 
-    /**
-     * 🎯 ОТПРАВКА УВЕДОМЛЕНИЯ О НОВОМ ЗАКАЗЕ В TELEGRAM КАНАЛ
-     */
-    /**
-     * 🎯 ОТПРАВКА УВЕДОМЛЕНИЯ О НОВОМ ЗАКАЗЕ В TELEGRAM КАНАЛ
-     */
-    private function sendTelegramNotification(Order $order, array $context, array $basketData): void
-    {
-        // 1. Получаем настройки Telegram из настроек тенанта
-        $tgSettings = $this->tenant->settings['telegram'] ?? [];
-        $token = $tgSettings['token'] ?? null;
-        $channelId = $tgSettings['channel_id'] ?? null;
-
-        // Если настройки не заполнены, тихо выходим, не ломая процесс оформления
-        if (!$token || !$channelId) {
-            return;
-        }
-
-        // 2. Получаем умный адрес (из БД или из формы)
-        $addr = $this->getResolvedAddress();
-        $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
-        $addressText = $context['need_pickup'] ? 'Не требуется' : $addr['address'];
-
-        $persons = $context["persons"] ?? 1;
-
-        $money = $context["money"] ?? 'Не указано';
-        $info = $context["info"] ?? 'Не указано';
-
-        $cash = self::PAYMENT_TYPES[$context["payment_type"] ?? 0] ?? 'Не указан';
-
-        $phone = preg_replace('/[^\d+]/', '', $order->receiver_phone);
-        $baseUrl = request()->getSchemeAndHttpHost() ?? 'не указано';
-
-        $message = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";
-        $message .= "📅 " . now("+3:00")->format('d.m.Y H:i') . "\n\n";
-        $message .= "👤 <b>Клиент:</b> {$order->receiver_name}\n";
-        $message .= "📞 <b>Телефон:</b> {$phone}\n";
-        $message .= "📦 <b>Способ получения:</b> {$orderType}\n";
-        $message .= "💳 <b>Тип оплаты:</b> {$cash}\n";
-        $message .= "💵 <b>Сдачи с:</b> {$money}\n";
-        $message .= "🙍🏻‍♂️ <b>Число людей:</b> {$persons}\n";
-        $message .= "🌐 <b>Источник:</b> {$baseUrl}\n";
-        $message .= "🛈 <b>Доп. инфа:</b> {$info}\n";
-
-        if (!$context['need_pickup']) {
-            $message .= "📍 <b>Адрес:</b> {$addressText}\n";
-            if (!empty($addr['entrance_number'])) $message .= "🚪 Подъезд: {$addr['entrance_number']}\n";
-            if (!empty($addr['floor_number'])) $message .= "🏢 Этаж: {$addr['floor_number']}\n";
-            if (!empty($addr['flat_number'])) $message .= "🏠 Кв/Офис: {$addr['flat_number']}\n";
-        }
-
-        // 🆕 3. Формируем состав заказа с группировкой по заведениям, суммой и доставкой для каждого
-        $message .= "\n🛒 <b>Состав заказа:</b>\n";
-
-        foreach ($basketData['partner_boxes'] as $box) {
-            $message .= "\n🏪 <b>{$box['name']}:</b>\n";
-
-            // Товары конкретного заведения
-            // Товары конкретного заведения
-            foreach ($box['products'] as $product) {
-                $priceFormatted = number_format($product['price'], 0, '.', ' ');
-                $message .= "  • {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
-
-                // 🆕 Если это коллекция, выводим её состав с красивым отступом
-                if (!empty($product['details'])) {
-                    $message .= $product['details'] . "\n";
-                }
-            }
-
-            // 🆕 Сумма по этому заведению
-            $boxSubtotal = number_format($box['summary_price'], 0, '.', ' ');
-            $message .= "  └─ <b>Итого по заведению:</b> {$boxSubtotal} ₽\n";
-
-            // 🆕 Доставка по этому заведению (только если это не самовывоз и доставка > 0)
-            if (!$context['need_pickup'] && ($box['delivery_price'] ?? 0) > 0) {
-                $boxDelivery = number_format($box['delivery_price'], 0, '.', ' ');
-                $distText = ($box['distance'] > 0) ? " ({$box['distance']} км)" : "";
-                $message .= "  └─ <b>Доставка:</b> {$boxDelivery} ₽{$distText}\n";
-            }
-        }
-
-        // 4. Общий итог по всему заказу
-        $totalToPay = $order->summary_price + $order->delivery_price;
-        $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
-        $message .= "💰 <b>ВСЕГО К ОПЛАТЕ:</b> " . number_format($totalToPay, 0, '.', ' ') . " ₽\n";
-
-        if ($order->delivery_price > 0 && !$context['need_pickup']) {
-            $message .= "🚚 <b>Общая доставка:</b> " . number_format($order->delivery_price, 0, '.', ' ') . " ₽";
-            if ($context['distance'] > 0) {
-                $message .= " ({$context['distance']} км)";
-            }
-            $message .= "\n";
-        }
-
-        if (!empty($this->data['info'])) {
-            $message .= "\n📝 <b>Комментарий:</b> {$this->data['info']}\n";
-        }
-
-        // 7. 🆕 Ссылки: на диалог и профиль клиента
-        $baseUrl = request()->getSchemeAndHttpHost();
-        if ($baseUrl) {
-            // Новый формат ссылки на чат: /pwa#/chat/:dialogId
-            $chatUrl = "{$baseUrl}/pwa#/chat/{$order->dialog_id}";
-            $message .= "🔗 <a href=\"{$chatUrl}\">Открыть чат</a>\n";
-
-            $client = TenantUser::query()
-                ->where("id", $order->tenant_user_id)
-                ->first();
-
-            $clientInfo = $client ? $client->getTelegramInfo() : [
-                'name' => 'Неизвестный клиент',
-                'phone' => 'Не указан',
-                'id' => $order->tenant_user_id,
-            ];
-
-            if (!empty($clientInfo['profile_url'])) {
-                $message .= "👤 <a href=\"{$clientInfo['profile_url']}\">Профиль клиента</a>\n";
-            }
-        }
-
-        // 5. Формируем payload для Telegram API
-        $payload = [
-            'chat_id' => $channelId,
-            'text' => $message,
-            'parse_mode' => 'HTML',
-            'disable_web_page_preview' => true,
-        ];
-
-        // Если в настройках указан ID темы (треда) в канале/группе
-        if (!empty($tgSettings['thread_id'])) {
-            $payload['message_thread_id'] = (int) $tgSettings['thread_id'];
-        }
-
-
-
-        // 6. Отправляем запрос через cURL (или Http фасад, если вы его уже заменили)
-        $this->sendTelegramCurlRequest($token, $payload);
-    }
-
-    /**
-     * Вспомогательный метод для отправки запроса в Telegram API через cURL
-     */
-    private function sendTelegramCurlRequest(string $token, array $payload): bool
-    {
-        $ch = curl_init();
-        $url = "https://api.telegram.org/bot{$token}/sendMessage";
-
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($payload));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Таймаут 10 секунд, чтобы не вешать оформление заказа
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            Log::warning('[Telegram Notification] Ошибка отправки. HTTP: ' . $httpCode . ' | Error: ' . $curlError . ' | Response: ' . $response);
-            return false;
-        }
-
-        return true;
-    }
 
     /**
      * 🆕 Получает данные адреса: сначала из БД по location_id, иначе из данных формы
@@ -225,13 +60,13 @@ trait BasketHelper
     protected function safeInt($value): ?int
     {
         if (is_null($value) || $value === '' || $value === false) return null;
-        return is_numeric($value) ? (int) $value : null;
+        return is_numeric($value) ? (int)$value : null;
     }
 
     protected function safeFloat($value): ?float
     {
         if (is_null($value) || $value === '' || $value === false) return null;
-        return is_numeric($value) ? (float) $value : null;
+        return is_numeric($value) ? (float)$value : null;
     }
 
     private function fsPrepareDisabilities(): string
@@ -462,7 +297,6 @@ trait BasketHelper
     }
 
 
-
     private function sendPaidReceiptToChannel($order, $message): void
     {
         $uploadedPhoto = $this->uploadedImage ?? null;
@@ -580,12 +414,14 @@ trait BasketHelper
     {
         try {
             $context = $this->prepareCheckoutContext();
+
             $basketData = $this->processBasketAndCalculateTotals($context);
 
             // 🎯 НОВАЯ ВАЛИДАЦИЯ: Проверка минимальных сумм заказа
             $minOrderErrors = $this->validateMinimumOrderAmounts($basketData);
 
             $scheduleErrors = $this->validateSchedule($basketData);
+
             if (!empty($scheduleErrors)) {
                 return [
                     'success' => false,
@@ -644,6 +480,7 @@ trait BasketHelper
             ];
         } catch (\Throwable $e) {
             Log::error('[Checkout] Критическая ошибка: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
             return ['success' => false, 'message' => 'Ошибка при оформлении заказа. Попробуйте позже.'];
         }
     }
@@ -692,17 +529,25 @@ trait BasketHelper
 
     private function processBasketAndCalculateTotals(array $context): array
     {
-        $basket = Basket::query()->where("tenant_id", $this->tenant->id)
+        $basket = Basket::query()
+            ->with(["collection", "product"])
+            ->where("tenant_id", $this->tenant->id)
             ->where("tenant_user_id", $this->tenantUser->id)->whereNull("ordered_at")->get();
 
         $isPartnersActive = $this->tenant->settings["partners"]["is_active"] ?? false;
         $isPartnersDisplaySelf = $this->tenant->settings["partners"]["display_self"] ?? false;
 
-        $summaryPrice = 0; $summaryCount = 0; $summaryDiscount = 0;
-        $tmpOrderProductInfo = []; $partnerProductBox = []; $processedProductIds = [];
+        $summaryPrice = 0;
+        $summaryCount = 0;
+        $summaryDiscount = 0;
+        $tmpOrderProductInfo = [];
+        $partnerProductBox = [];
+        $processedProductIds = [];
+
 
         foreach ($basket as $item) {
-            $productTenantId = $item->product?->tenant_id ?? $this->tenant->id;
+            $productTenantId = $item->product?->tenant_id ?? $item->collection?->tenant_id ?? $this->tenant->id;
+
             if ($isPartnersActive && !$isPartnersDisplaySelf && $productTenantId == $this->tenant->id) continue;
 
             $partner = Tenant::query()->find($productTenantId) ?? $this->tenant;
@@ -721,9 +566,11 @@ trait BasketHelper
                 ];
             }
 
-            $price = 0; $extraCharge = $partnerProductBox[$uuid]["extra_charge"]; $isWeightProduct = false;
+            $price = 0;
+            $extraCharge = $partnerProductBox[$uuid]["extra_charge"];
+            $isWeightProduct = false;
 
-            if ($item->product) {
+            if (!is_null($item->product ?? null)) {
                 $isWeightProduct = $item->product->is_weight_product ?? false;
                 $currentPrice = $item->params["discount_price"] ?? $item->product->price ?? 0;
                 $unitOfMeasure = "ед.";
@@ -737,13 +584,28 @@ trait BasketHelper
                     $price = ($currentPrice * (1 + $extraCharge / 100)) * $item->count;
                 }
 
-                $comment = $item->comment ? "\n<em>({$item->comment})</em>" : "";
-                $partnerProductBox[$uuid]["message"] .= sprintf("💎%s x%s %s=%s руб.%s\n", $item->product->name, $item->count, $unitOfMeasure, $price, $comment);
+                // 🎯 ИСПРАВЛЕНО: Экранируем имя товара и комментарий для безопасного HTML в Telegram
+                $safeProductNameForMsg = e($item->product->name);
+                $safeComment = $item->comment ? "\n<em>(" . e($item->comment) . ")</em>" : "";
+
+                $partnerProductBox[$uuid]["message"] .= sprintf(
+                    "💎%s x%s %s=%s руб.%s\n",
+                    $safeProductNameForMsg,
+                    $item->count,
+                    $unitOfMeasure,
+                    $price,
+                    $safeComment
+                );
+
+                $safeProductName = e($item->product->name);
 
                 $tmpOrderProductInfo[] = [
-                    "id"=>$item->product->id,
-                    "name" => $item->product->name, "count" => $item->count, "price" => $this->safeFloat($price),
-                    'external_source' => $item->product->external_source ?? null, 'external_id' => $item->product->external_id ?? null,
+                    "id" => $item->product->id,
+                    "name" => $safeProductName,
+                    "count" => $item->count,
+                    "price" => $this->safeFloat($price),
+                    'external_source' => $item->product->external_source ?? null,
+                    'external_id' => $item->product->external_id ?? null,
                 ];
 
                 if (!in_array($item->product->id, $processedProductIds)) {
@@ -752,26 +614,29 @@ trait BasketHelper
                 }
             }
 
-            if ($item->collection) {
+            if (!is_null($item->collection ?? null)) {
                 $params = is_array($item->params) ? (object)$item->params : $item->params;
                 $collectionPrice = 0;
                 $collectionItemsText = "";
 
-                // Собираем товары, входящие в эту конкретную коллекцию
+                // 🎯 ИСПРАВЛЕНО: Экранируем название самой коллекции
+                $safeCollectionName = e($item->collection->name);
+
                 foreach (($item->collection->products ?? []) as $product) {
                     if (!in_array($product->id, $params->ids ?? [])) continue;
 
                     $itemPrice = ($product->price ?? 0) * (1 + $extraCharge / 100);
                     $collectionPrice += $itemPrice;
-                    $collectionItemsText .= "    ├─ {$product->name}\n";
+
+                    $safeName = e($product->name);
+                    $collectionItemsText .= "    ├─ {$safeName}\n";
                 }
 
                 $totalCollectionPrice = $collectionPrice * $item->count;
 
-                // 🎯 1. Для PDF и CRM (детализированная запись)
                 $tmpOrderProductInfo[] = [
-                    "id" => "collection_" . $item->collection->id, // Уникальный ID, чтобы не конфликтовал с обычными товарами
-                    "name" => "📦 Коллекция: {$item->collection->name}",
+                    "id" => "collection_" . $item->collection->id,
+                    "name" => "📦 Коллекция: {$safeCollectionName}",
                     "count" => $item->count,
                     "price" => $this->safeFloat($totalCollectionPrice),
                     'external_source' => 'collection',
@@ -779,18 +644,17 @@ trait BasketHelper
                     'collection_details' => rtrim($collectionItemsText, "\n")
                 ];
 
-                // 🎯 2. Для Telegram (группированная запись для красивого вывода)
                 $partnerProductBox[$uuid]["products"][] = [
-                    'name' => "📦 Коллекция: {$item->collection->name}",
+                    'name' => "📦 Коллекция: {$safeCollectionName}",
                     'count' => $item->count,
                     'price' => $this->safeFloat($totalCollectionPrice),
-                    'details' => rtrim($collectionItemsText, "\n") // Передаем список товаров внутрь
+                    'details' => rtrim($collectionItemsText, "\n")
                 ];
 
-                // 🎯 3. Формируем текст сообщения для этого партнера
                 $partnerProductBox[$uuid]["message"] .= sprintf(
                     "💎 %s x%s = %s руб.\n%s\n",
-                    "Коллекция `{$item->collection->name}`",
+                    // 🎯 ИСПРАВЛЕНО: Используем HTML-тег <code> вместо обратных кавычек для моноширинного шрифта
+                    "Коллекция <code>{$safeCollectionName}</code>",
                     $item->count,
                     number_format($totalCollectionPrice, 0, '.', ' '),
                     $collectionItemsText
@@ -806,9 +670,13 @@ trait BasketHelper
             $partnerProductBox[$uuid]["summary_price"] += $price;
             $partnerProductBox[$uuid]["summary_discount"] += $discountToAdd;
 
-            $summaryCount += $countToAdd; $summaryPrice += $price; $summaryDiscount += $discountToAdd;
+            $summaryCount += $countToAdd;
+            $summaryPrice += $price;
+            $summaryDiscount += $discountToAdd;
 
-            $item->ordered_at = env("APP_DEBUG") ? null : Carbon::now("+3:00");
+            // 🎯 ИСПРАВЛЕНО: Жестко ставим время заказа, чтобы корзина гарантированно очищалась
+            // (Убрали зависимость от APP_DEBUG)
+            $item->ordered_at = Carbon::now("+3:00");
             $item->saveQuietly();
         }
 
@@ -833,7 +701,7 @@ trait BasketHelper
                 "from" => $this->tenant->name ?? 'Магазин',
                 "products" => $basketData['product_info']
             ],
-            'product_count' => (int) $basketData['summary_count'],
+            'product_count' => (int)$basketData['summary_count'],
             'summary_price' => $basketData['final_price'],
             'delivery_price' => $context['delivery_price'],
             'delivery_range' => $context['distance'],
@@ -849,9 +717,98 @@ trait BasketHelper
         ]);
     }
 
-    // 🎯 МЕТОД initializeOrderDialog УДАЛЕН. Эту работу теперь выполняет OrderObserver.
+    /**
+     * 🎯 Формирует красивое сообщение для Telegram канала о новом заказе
+     */
+    private function buildTelegramOrderNotification(Order $order, array $context, array $basketData): string
+    {
+        $addr = $this->getResolvedAddress();
+        $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
+        $addressText = $context['need_pickup'] ? 'Не требуется' : $addr['address'];
 
-    // 🎯 ЕДИНЫЙ КОНТУР УВЕДОМЛЕНИЙ ЧЕРЕЗ MESSAGE SERVICE
+        $persons = $context["persons"] ?? 1;
+        $money   = $context["money"]   ?? 'Не указано';
+        $info    = $context["info"]    ?? 'Не указано';
+        $cash    = self::PAYMENT_TYPES[$context["payment_type"] ?? 0] ?? 'Не указан';
+
+        $phone   = preg_replace('/[^\d+]/', '', $order->receiver_phone);
+        $baseUrl = request()->getSchemeAndHttpHost() ?? 'не указано';
+
+        $message  = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";
+        $message .= "📅 " . now("+3:00")->format('d.m.Y H:i') . "\n\n";
+        $message .= "👤 <b>Клиент:</b> {$order->receiver_name}\n";
+        $message .= "📞 <b>Телефон:</b> {$phone}\n";
+        $message .= "📦 <b>Способ получения:</b> {$orderType}\n";
+        $message .= "💳 <b>Тип оплаты:</b> {$cash}\n";
+        $message .= "💵 <b>Сдачи с:</b> {$money}\n";
+        $message .= "🙍🏻‍♂️ <b>Число людей:</b> {$persons}\n";
+        $message .= "🌐 <b>Источник:</b> {$baseUrl}\n";
+
+        if (!$context['need_pickup']) {
+            $message .= "📍 <b>Адрес:</b> {$addressText}\n";
+            if (!empty($addr['entrance_number'])) $message .= "🚪 Подъезд: {$addr['entrance_number']}\n";
+            if (!empty($addr['floor_number']))    $message .= "🏢 Этаж: {$addr['floor_number']}\n";
+            if (!empty($addr['flat_number']))     $message .= "🏠 Кв/Офис: {$addr['flat_number']}\n";
+        }
+
+        $message .= "\n🛒 <b>Состав заказа:</b>\n";
+
+        foreach ($basketData['partner_boxes'] as $box) {
+            $message .= "\n🏪 <b>{$box['name']}:</b>\n";
+
+            foreach ($box['products'] as $product) {
+                $priceFormatted = number_format($product['price'], 0, '.', ' ');
+                $message .= "  • {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
+                if (!empty($product['details'])) {
+                    $message .= $product['details'] . "\n";
+                }
+            }
+
+            $boxSubtotal = number_format($box['summary_price'], 0, '.', ' ');
+            $message .= "  └─ <b>Итого по заведению:</b> {$boxSubtotal} ₽\n";
+
+            if (!$context['need_pickup'] && ($box['delivery_price'] ?? 0) > 0) {
+                $boxDelivery = number_format($box['delivery_price'], 0, '.', ' ');
+                $distText    = ($box['distance'] > 0) ? " ({$box['distance']} км)" : "";
+                $message .= "  └─ <b>Доставка:</b> {$boxDelivery} ₽{$distText}\n";
+            }
+        }
+
+        $totalToPay = $order->summary_price + $order->delivery_price;
+        $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "💰 <b>ВСЕГО К ОПЛАТЕ:</b> " . number_format($totalToPay, 0, '.', ' ') . " ₽\n";
+
+        if ($order->delivery_price > 0 && !$context['need_pickup']) {
+            $message .= "🚚 <b>Общая доставка:</b> " . number_format($order->delivery_price, 0, '.', ' ') . " ₽";
+            if ($context['distance'] > 0) $message .= " ({$context['distance']} км)";
+            $message .= "\n";
+        }
+
+        if (!empty($this->data['info'])) {
+            $message .= "\n📝 <b>Комментарий:</b> {$this->data['info']}\n";
+        }
+
+        // Ссылки
+        $baseUrl = request()->getSchemeAndHttpHost();
+        if ($baseUrl) {
+            $chatUrl = "{$baseUrl}/pwa#/chat/{$order->dialog_id}";
+            $message .= "🔗 <a href=\"{$chatUrl}\">Открыть чат</a>\n";
+
+            $client     = TenantUser::query()->where("id", $order->tenant_user_id)->first();
+            $clientInfo = $client ? $client->getTelegramInfo() : [
+                'name'  => 'Неизвестный клиент',
+                'phone' => 'Не указан',
+                'id'    => $order->tenant_user_id,
+            ];
+
+            if (!empty($clientInfo['profile_url'])) {
+                $message .= "👤 <a href=\"{$clientInfo['profile_url']}\">Профиль клиента</a>\n";
+            }
+        }
+
+        return $message;
+    }
+
     private function notifyStakeholders(Order $order, array $context, array $basketData): ?string
     {
         $kanbanTaskId = null;
@@ -865,83 +822,132 @@ trait BasketHelper
             $tenantInBox = Tenant::query()->find($box['id']);
             if ($tenantInBox) {
                 $this->fsPrepareFrontPad($order, $basketData['product_info'], $tenantInBox->id);
-                if (!empty($tenantInBox->iiko?->api_login)) Log::info('IIKO order created for order #' . $order->id);
+                if (!empty($tenantInBox->iiko?->api_login)) {
+                    Log::info('IIKO order created for order #' . $order->id);
+                }
             }
         }
 
-        // 2. Подготовка сообщений
-        $clientMessage = $this->buildClientMessage($order, $basketData['partner_boxes'], $basketData['summary_price'], $basketData['cashback'], $basketData['summary_count'], $basketData['summary_discount'], $context['delivery_price'], $context['distance'], $context['need_pickup']);
-        $crmMessage = $this->buildCrmMessage($order, $basketData['partner_boxes'], $basketData['summary_price'], $basketData['cashback'], $basketData['summary_count'], $basketData['summary_discount'], $context['delivery_price'], $context['distance'], $context['need_pickup']);
-        $partnerMessages = $this->buildPartnerMessages($order, $basketData['partner_boxes'], $basketData['cashback'], $context['need_pickup']);
+        // 2. 🎯 Формируем ВСЕ тексты заранее
+        $clientMessage   = $this->buildClientMessage(
+            $order,
+            $basketData['partner_boxes'],
+            $basketData['summary_price'],
+            $basketData['cashback'],
+            $basketData['summary_count'],
+            $basketData['summary_discount'],
+            $context['delivery_price'],
+            $context['distance'],
+            $context['need_pickup']
+        );
 
-        // 3. Отправка КЛИЕНТУ через MessageService
-        if ($dialog) {
-            MessageService::call()->sendMessage([
-                'message' => $clientMessage,
-                'dialog_id' => $dialog->id,
-                'meta' => [
-                    'order_id' => $order->id,
-                    'payment_status' => $paymentStatusText,
-                    'is_system' => false,
-                ],
-                'recipients' => ['client' => true],
+        $crmMessage = $this->buildCrmMessage(
+            $order,
+            $basketData['partner_boxes'],
+            $basketData['summary_price'],
+            $basketData['cashback'],
+            $basketData['summary_count'],
+            $basketData['summary_discount'],
+            $context['delivery_price'],
+            $context['distance'],
+            $context['need_pickup']
+        );
+
+        $partnerMessages = $this->buildPartnerMessages(
+            $order,
+            $basketData['partner_boxes'],
+            $basketData['cashback'],
+            $context['need_pickup']
+        );
+
+        $telegramMessage = $this->buildTelegramOrderNotification($order, $context, $basketData);
+
+        // 3. 🎯 Kanban-данные (общие для CRM)
+        $kanbanCustomData = [
+            'tenant_id'       => $this->tenant->id,
+            'tenant_name'     => $this->tenant->name ?? $this->tenant->title,
+            'tenant_user_id'  => $this->tenantUser->id,
+            'last_order_id'   => $order->id,
+            'last_order_date' => now()->toIso8601String(),
+            'product_details' => [[
+                'from'     => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин',
+                'products' => $basketData['product_info'],
+            ]],
+            'product_count'   => $basketData['summary_count'],
+            'delivery_price'  => $context['delivery_price'],
+            'delivery_note'   => $this->fsPrepareDeliveryNote(),
+            'payment_type'    => $context['payment_type'],
+            'payment_status'  => $paymentStatusText,
+            'summary_price'   => $basketData['final_price'],
+        ];
+
+        // 4. 🚀 ОДНИМ ВЫЗОВОМ: Клиент + CRM + Telegram-канал уведомлений
+        //    MessageService сам разберётся, куда что доставлять
+        $crmResult = MessageService::call()->sendMessage([
+            // Клиенту — в диалог
+            'message'   => $clientMessage,
+            'dialog_id' => $dialog?->id,
+
+            // Для CRM / Telegram — заголовок
+            'title'     => "Заказ #{$order->id} — {$context['customer_name']}",
+
+            // Метаданные
+            'meta'      => [
+                'order_id'           => $order->id,
+                'payment_status'     => $paymentStatusText,
+                'is_system'          => false,
+
+                // CRM-specific
+                'customer_name'      => $context['customer_name'],
+                'customer_phone'     => $context['customer_phone'],
+                'summary_price'      => $basketData['final_price'],
+                'need_pickup'        => $context['need_pickup'],
+                'delivery_note'      => $this->fsPrepareDeliveryNote(),
+                'kanban_board_uuid'  => $context['kanban_board_uuid'],
+                'kanban_thread'      => $context['kanban_thread'],
+                'kanban_custom_data' => $kanbanCustomData,
+                'kanban_payload'     => array_merge($kanbanCustomData, [
+                    'source' => 'foodshop',
+                    'type'   => 'new_order',
+                ]),
+            ],
+
+            // 🎯 Главное: говорим сервису, куда отправлять
+            'recipients' => [
+                'client'   => true,                       // → запись в TenantMessage
+                'crm'      => (bool) $context['kanban_enabled'], // → Kanban
+                'telegram' => true,                       // → Telegram channel 🎯
+            ],
+        ]);
+
+        // 5. Сохраняем ID задачи Kanban в заказ
+        if (!empty($crmResult['crm']['task_id'])) {
+            $kanbanTaskId = $crmResult['crm']['task_id'];
+            $order->updateQuietly([
+                'meta' => array_merge($order->meta ?? [], [
+                    'kanban_task_id'    => $kanbanTaskId,
+                    'kanban_message_id' => $crmResult['crm']['message_id'] ?? null,
+                    'kanban_board_uuid' => $context['kanban_board_uuid'],
+                ]),
             ]);
         }
 
-        // 4. Отправка в CRM (Kanban) через MessageService
-        if ($context['kanban_enabled']) {
-            $kanbanCustomData = [
-                'tenant_id' => $this->tenant->id, 'tenant_name' => $this->tenant->name ?? $this->tenant->title,
-                'tenant_user_id' => $this->tenantUser->id, 'last_order_id' => $order->id,
-                'last_order_date' => now()->toIso8601String(),
-                'product_details' => [['from' => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин', 'products' => $basketData['product_info']]],
-                'product_count' => $basketData['summary_count'], 'delivery_price' => $context['delivery_price'],
-                'delivery_note' => $this->fsPrepareDeliveryNote(), 'payment_type' => $context['payment_type'],
-                'payment_status' => $paymentStatusText, 'summary_price' => $basketData['final_price'],
-            ];
-
-            $crmResult = MessageService::call()->sendMessage([
-                'message' => $crmMessage,
-                'title' => "Заказ #{$order->id} — {$context['customer_name']}",
-                'meta' => [
-                    'order_id' => $order->id, 'customer_name' => $context['customer_name'],
-                    'customer_phone' => $context['customer_phone'], 'summary_price' => $basketData['final_price'],
-                    'need_pickup' => $context['need_pickup'], 'delivery_note' => $this->fsPrepareDeliveryNote(),
-                    'kanban_board_uuid' => $context['kanban_board_uuid'], 'kanban_thread' => $context['kanban_thread'],
-                    'kanban_custom_data' => $kanbanCustomData,
-                    'kanban_payload' => array_merge($kanbanCustomData, ['source' => 'foodshop', 'type' => 'new_order']),
-                ],
-                'recipients' => ['crm' => true],
-            ]);
-
-            if (!empty($crmResult['crm']['task_id'])) {
-                $kanbanTaskId = $crmResult['crm']['task_id'];
-                $order->updateQuietly([ // 🎯 updateQuietly, чтобы не триггерить Observer на обновлении, если это не нужно
-                    'meta' => array_merge($order->meta ?? [], [
-                        'kanban_task_id' => $kanbanTaskId,
-                        'kanban_message_id' => $crmResult['crm']['message_id'],
-                        'kanban_board_uuid' => $context['kanban_board_uuid'],
-                    ]),
-                ]);
-            }
-        }
-
-        // 5. Отправка ПАРТНЁРАМ через MessageService (цикл, т.к. у каждого свой thread_id)
+        // 6. 📣 Партнёрам — отдельными вызовами (у каждого свой thread_id)
         foreach ($partnerMessages as $partnerData) {
             MessageService::call()->sendMessage([
-                'message' => $partnerData['message'],
+                'message'   => $partnerData['message'],
                 'thread_id' => $partnerData['thread'],
-                'title' => "Заказ #{$order->id} — {$partnerData['name']}",
-                'meta' => [
-                    'order_id' => $order->id, 'partner_id' => $partnerData['id'] ?? null,
-                    'partner_name' => $partnerData['name'] ?? null, 'type' => 'partner_order', 'is_system' => true,
+                'title'     => "Заказ #{$order->id} — {$partnerData['name']}",
+                'meta'      => [
+                    'order_id'     => $order->id,
+                    'partner_id'   => $partnerData['id'] ?? null,
+                    'partner_name' => $partnerData['name'] ?? null,
+                    'type'         => 'partner_order',
+                    'is_system'    => true,
                 ],
-                'recipients' => ['partners' => true],
+                'recipients' => ['partners' => true], // → в Telegram thread партнёра
             ]);
         }
-
-        // 🎯 НОВЫЙ ВЫЗОВ: Отправка уведомления в Telegram канал
-        $this->sendTelegramNotification($order, $context, $basketData);
 
         return $kanbanTaskId;
     }
@@ -1029,7 +1035,7 @@ trait BasketHelper
 
     private function getPaymentStatusText(int $paymentType): string
     {
-        return match($paymentType) {
+        return match ($paymentType) {
             0 => 'Оплачено онлайн (Карта)',
             1, 2, 3 => 'Оплата курьеру / При получении',
             4 => 'Ожидает оплаты по счету СБП',

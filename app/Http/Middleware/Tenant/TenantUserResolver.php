@@ -6,35 +6,41 @@ use App\Models\Tenant\TenantDialog;
 use App\Models\Tenant\TenantMessage;
 use App\Models\Tenant\TenantRole;
 use App\Models\Tenant\TenantUser;
+use App\Services\ReferralService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class TenantUserResolver
 {
+    public function __construct(
+        private ReferralService $referralService
+    ) {}
+
     public function handle(Request $request, Closure $next): Response
     {
         $tenant = $request->tenant;
 
-        // ==========================================
-        // 🛡️ ЗАЩИТА: Если тенант не определен (системный домен)
-        // ==========================================
         if (!$tenant) {
             return $next($request);
         }
 
         $tempUser = Auth::guard('tenant')->user();
 
+
+
         if (!is_null($tempUser)) {
+            // 🆕 Даже для авторизованных пользователей сохраняем реферальный код в сессию (для аналитики)
+            $this->handleReferralCodeForExistingUser($request);
             return $next($request);
         }
 
         $uuid = $request->session()->get('user_uuid');
         $header = $request->header('X-Integration-Auth');
 
-        // Явная инициализация, чтобы избежать ошибки Undefined variable в PHP 8+
         $parsedTenantId = null;
         $parsedUuid = null;
 
@@ -42,12 +48,15 @@ class TenantUserResolver
             $decoded = base64_decode($header);
             if (str_contains($decoded, ':')) {
                 [$parsedTenantId, $parsedUuid] = explode(':', $decoded, 2);
-                // Если uuid пришел в заголовке и его нет в сессии, используем его
                 if ($parsedUuid && !$uuid) {
                     $uuid = $parsedUuid;
                 }
             }
         }
+
+        // 🆕 1. Получаем реферальный код из query params или сессии
+        $referralCode = $request->get('ref') ?? $request->session()->get('referral_code');
+
 
         $user = null;
 
@@ -59,77 +68,152 @@ class TenantUserResolver
         }
 
         if (!$user) {
-            $role = TenantRole::firstOrCreate([
-                'tenant_id' => $tenant->id,
-                'name' => 'guest',
-            ]);
-
-            // 🆕 1. Получаем дефолтные значения из конфига
-            $defaultIdentities = config('guests.default_identities', []);
-            $defaultWelcomeMessage = config('guests.default_welcome_message', 'Добро пожаловать!');
-
-            // 🆕 2. Получаем кастомные настройки тенанта (если они есть)
-            $settings = $tenant->settings ?? [];
-            $guestSettings = $settings['guests'] ?? [];
-
-            // Если в БД задан непустой массив, используем его. Иначе берем из конфига.
-            $identities = $guestSettings['identities'] ?? null;
-            if (!is_array($identities) || count($identities) === 0) {
-                $identities = $defaultIdentities;
-            }
-
-            // 🆕 3. Выбираем случайное имя и формируем полное имя
-            // Защита от пустого массива идентичностей
-            if (empty($identities)) {
-                $identities = ['Неизвестный'];
-            }
-            $randomIdentity = $identities[array_rand($identities)];
-            $guestName = 'Гость • ' . $randomIdentity;
-
-            $user = TenantUser::query()->create([
-                'tenant_id' => $tenant->id,
-                'name'      => $guestName,
-                'uuid'      => (string) Str::uuid(),
-            ]);
-
-            $dialog = TenantDialog::query()->create([
-                'tenant_id'      => $tenant->id,
-                'tenant_user_id' => $user->id,
-                'type'           => "system",
-                'title'          => "Сообщение от администрации"
-            ]);
-
-            // 🆕 4. Формируем приветствие (кастомное из БД или дефолтное из конфига)
-            $animalName = str_replace('Гость • ', '', $guestName);
-            $welcomeTemplate = $guestSettings['welcome_message'] ?? $defaultWelcomeMessage;
-
-            $welcomeMessage = str_replace('{name}', $animalName, $welcomeTemplate);
-
-            TenantMessage::query()->create([
-                'tenant_id' => $tenant->id,
-                'dialog_id' => $dialog->id,
-                'message'   => $welcomeMessage
-            ]);
-
-            $user->roles()->syncWithoutDetaching([
-                $role->id => [
-                    'tenant_id' => $user->tenant_id,
-                ]
-            ]);
-
-            $request->session()->put('user_uuid', $user->uuid);
+            $user = $this->createGuestUser($tenant, $referralCode);
+        } else {
+            // 🆕 2. Пользователь существует — проверяем, можно ли его привязать к рефереру
+            $this->tryLinkExistingUserToReferrer($user, $referralCode);
         }
 
-        // ==========================================
-        // 🚀 НАСТРОЙКА ДЛИТЕЛЬНОЙ СЕССИИ (ИЗМЕНЕНИЯ ЗДЕСЬ)
-        // ==========================================
+        // 🆕 3. Сохраняем реферальный код в сессию для будущих действий
+        if ($referralCode && !$request->session()->has('referral_code')) {
+            $request->session()->put('referral_code', $referralCode);
+        }
 
-        // 1. Принудительно устанавливаем время жизни сессии в 30 дней (43200 минут).
         config(['session.lifetime' => 43200]);
-
-        // 2. Авторизуем пользователя с флагом "true" (Remember Me).
         Auth::guard('tenant')->login($user, true);
 
         return $next($request);
+    }
+
+    /**
+     * 🆕 Создание гостевого пользователя с реферальным кодом
+     */
+    private function createGuestUser($tenant, ?string $referralCode): TenantUser
+    {
+        $role = TenantRole::firstOrCreate([
+            'tenant_id' => $tenant->id,
+            'name' => 'guest',
+        ]);
+
+        $defaultIdentities = config('guests.default_identities', []);
+        $defaultWelcomeMessage = config('guests.default_welcome_message', 'Добро пожаловать!');
+
+        $settings = $tenant->settings ?? [];
+        $guestSettings = $settings['guests'] ?? [];
+
+        $identities = $guestSettings['identities'] ?? null;
+        if (!is_array($identities) || count($identities) === 0) {
+            $identities = $defaultIdentities;
+        }
+
+        if (empty($identities)) {
+            $identities = ['Неизвестный'];
+        }
+        $randomIdentity = $identities[array_rand($identities)];
+        $guestName = 'Гость • ' . $randomIdentity;
+
+        // 🆕 ВАЖНО: Генерируем реферальный код для гостя!
+        $referralCodeForUser = TenantUser::generateReferralCode();
+
+        $user = TenantUser::query()->create([
+            'tenant_id' => $tenant->id,
+            'name' => $guestName,
+            'uuid' => (string) Str::uuid(),
+            'referral_code' => $referralCodeForUser, // 🆕 Сохраняем сгенерированный код
+            'is_active' => true,
+
+            'referrals_count' => 0,
+            'total_referral_earnings' => 0,
+        ]);
+
+        // Создаём системный диалог
+        $dialog = TenantDialog::query()->create([
+            'tenant_id' => $tenant->id,
+            'tenant_user_id' => $user->id,
+            'type' => "system",
+            'title' => "Сообщение от администрации"
+        ]);
+
+        $animalName = str_replace('Гость • ', '', $guestName);
+        $welcomeTemplate = $guestSettings['welcome_message'] ?? $defaultWelcomeMessage;
+        $welcomeMessage = str_replace('{name}', $animalName, $welcomeTemplate);
+
+        TenantMessage::query()->create([
+            'tenant_id' => $tenant->id,
+            'dialog_id' => $dialog->id,
+            'message' => $welcomeMessage
+        ]);
+
+        $user->roles()->syncWithoutDetaching([
+            $role->id => [
+                'tenant_id' => $user->tenant_id,
+            ]
+        ]);
+
+        request()->session()->put('user_uuid', $user->uuid);
+
+        // 🆕 4. Если есть реферальный код — привязываем гостя к рефереру
+        if ($referralCode) {
+            $success = $this->referralService->registerReferral($user, $referralCode);
+
+            if ($success) {
+                Log::info("✅ Гость привязан к рефереру", [
+                    'guest_id' => $user->id,
+                    'referral_code' => $referralCode,
+                    'guest_referral_code' => $referralCodeForUser
+                ]);
+            }
+        }
+
+        return $user;
+    }
+
+    /**
+     * 🆕 Попытка привязать существующего пользователя к рефереру
+     * (только если у него ещё нет referrer)
+     */
+    private function tryLinkExistingUserToReferrer(TenantUser $user, ?string $referralCode): void
+    {
+        if (!$referralCode) {
+            return;
+        }
+
+        // Если у пользователя уже есть реферер — не меняем
+        if ($user->referred_by) {
+            Log::debug("⚠️ Пользователь уже имеет реферера", [
+                'user_id' => $user->id,
+                'existing_referrer_id' => $user->referred_by,
+                'attempted_referral_code' => $referralCode
+            ]);
+            return;
+        }
+
+        // Пытаемся привязать
+        $success = $this->referralService->registerReferral($user, $referralCode);
+
+        if ($success) {
+            Log::info("✅ Существующий пользователь привязан к рефереру", [
+                'user_id' => $user->id,
+                'referral_code' => $referralCode
+            ]);
+        }
+    }
+
+    /**
+     * 🆕 Обработка реферального кода для уже авторизованных пользователей
+     * (сохраняем в сессию для аналитики)
+     */
+    private function handleReferralCodeForExistingUser(Request $request): void
+    {
+        $referralCode = $request->query('ref');
+
+        if ($referralCode && !$request->session()->has('referral_code')) {
+            $request->session()->put('referral_code', $referralCode);
+
+            Log::debug("💾 Реферальный код сохранён в сессию для авторизованного пользователя", [
+                'user_id' => Auth::guard('tenant')->id(),
+                'referral_code' => $referralCode
+            ]);
+        }
     }
 }

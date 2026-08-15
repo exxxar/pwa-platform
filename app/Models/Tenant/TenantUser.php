@@ -39,7 +39,7 @@ class TenantUser extends Authenticatable
         'referrals_count',
         'friends_count',
         'total_referral_earnings',
-        'cashback',
+
 
         'is_active',
         'is_vip',
@@ -50,7 +50,7 @@ class TenantUser extends Authenticatable
     protected $casts = [
         'birthday' => 'date',
         'blocked_at' => 'datetime',
-        'cashback' => 'float',
+
         'total_referral_earnings' => 'float',
         'meta' => 'array',
 

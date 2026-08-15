@@ -95,4 +95,9 @@ class Order extends Model
         return $this->belongsTo(TenantDialog::class, 'dialog_id');
     }
 
+    public function referralRewards(): HasMany
+    {
+        return $this->hasMany(ReferralReward::class, 'order_id');
+    }
+
 }

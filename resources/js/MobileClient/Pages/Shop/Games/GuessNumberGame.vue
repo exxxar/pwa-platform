@@ -26,8 +26,8 @@
                             <i class="fa-solid fa-coins"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-value">{{ balance }}</div>
-                            <div class="stat-label">Баланс</div>
+                            <div class="stat-value">{{ Math.round(balance) }}₽</div>
+                            <div class="stat-label">Кэшбэк</div>
                         </div>
                     </div>
                     <div class="stat-divider"></div>
@@ -58,7 +58,7 @@
                     >
                         <i class="fa-solid fa-dice"></i>
                         <span>Классика</span>
-                        <small>10 бонусов</small>
+                        <small>1-100 · 10 попыток</small>
                     </button>
                     <button
                         class="mode-tab"
@@ -67,7 +67,7 @@
                     >
                         <i class="fa-solid fa-crown"></i>
                         <span>Джекпот</span>
-                        <small>50 бонусов</small>
+                        <small>1-1000 · 15 попыток</small>
                     </button>
                     <button
                         class="mode-tab"
@@ -76,7 +76,7 @@
                     >
                         <i class="fa-solid fa-fire"></i>
                         <span>Вызов</span>
-                        <small>3 попытки</small>
+                        <small>1-100 · 3 попытки</small>
                     </button>
                 </div>
             </div>
@@ -109,10 +109,10 @@
                     <button
                         class="start-btn"
                         @click="startGame"
-                        :disabled="balance < modeCost"
+                        :disabled="balance < gameCost || isProcessing"
                     >
-                        <i class="fa-solid fa-play"></i>
-                        <span>Начать игру (−{{ modeCost }} бонусов)</span>
+                        <i :class="isProcessing ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-play'"></i>
+                        <span>Начать игру (−{{ gameCost }}₽ кэшбэка)</span>
                     </button>
                     <p v-if="balance < modeCost" class="insufficient">Недостаточно бонусов</p>
                 </div>
@@ -398,71 +398,36 @@ export default {
 
     data() {
         return {
-            // Состояние
-            balance: 500,
-            wins: 0,
-            currentStreak: 0,
-            bestStreak: 0,
+            // Состояние с сервера
+            balance: 0,
+            gameCost: 100,
+            stats: { wins: 0, current_streak: 0, best_streak: 0 },
             gamesHistory: [],
+            modes: {},
 
             // Режимы
             gameMode: 'classic',
 
-            // Игра
+            // Активная игра
+            activeGame: null,
+            gameToken: null,
             gameStarted: false,
             gameOver: false,
             gameWon: false,
-            secretNumber: null,
+
+            // Игровое состояние
             currentGuess: null,
             attempts: 0,
-            guesses: [],
+            maxAttempts: 10,
             rangeMin: 1,
             rangeMax: 100,
+            guesses: [],
+            secretNumber: null, // Раскрывается ТОЛЬКО в конце игры!
             currentReward: 0,
 
             // UI
-            showAdmin: false,
+            isProcessing: false,
             showResultModal: false,
-
-            // Настройки режимов
-            modes: {
-                classic: {
-                    cost: 10,
-                    min: 1,
-                    max: 100,
-                    maxAttempts: 10,
-                    rewards: [
-                        { attempts: '1 попытка', value: 500 },
-                        { attempts: '2-3 попытки', value: 200 },
-                        { attempts: '4-5 попыток', value: 100 },
-                        { attempts: '6-7 попыток', value: 50 },
-                        { attempts: '8+ попыток', value: 20 },
-                    ],
-                },
-                jackpot: {
-                    cost: 50,
-                    min: 1,
-                    max: 1000,
-                    maxAttempts: 15,
-                    rewards: [
-                        { attempts: '1-3 попытки', value: 5000 },
-                        { attempts: '4-7 попыток', value: 2000 },
-                        { attempts: '8-12 попыток', value: 500 },
-                        { attempts: '13+ попыток', value: 100 },
-                    ],
-                },
-                challenge: {
-                    cost: 30,
-                    min: 1,
-                    max: 100,
-                    maxAttempts: 3,
-                    rewards: [
-                        { attempts: '1 попытка', value: 1000 },
-                        { attempts: '2 попытки', value: 500 },
-                        { attempts: '3 попытки', value: 300 },
-                    ],
-                },
-            },
 
             modeIcons: {
                 classic: 'fa-solid fa-dice',
@@ -485,15 +450,11 @@ export default {
         },
 
         modeConfig() {
-            return this.modes[this.gameMode];
+            return this.modes[this.gameMode] || this.modes.classic || {};
         },
 
         modeCost() {
-            return this.modeConfig.cost;
-        },
-
-        maxAttempts() {
-            return this.modeConfig.maxAttempts;
+            return this.gameCost;
         },
 
         modeIcon() {
@@ -505,24 +466,27 @@ export default {
         },
 
         modeDesc() {
-            const descs = {
-                classic: 'Угадай число от 1 до 100. Чем меньше попыток — тем больше приз!',
-                jackpot: 'Число от 1 до 1000. Высокие ставки — высокие выигрыши!',
-                challenge: 'Только 3 попытки, чтобы угадать число. Награда за мастерство!',
-            };
-            return descs[this.gameMode];
+            return this.modeConfig.desc || '';
         },
 
         modeRewards() {
-            return this.modeConfig.rewards;
+            return this.modeConfig.rewards || [];
+        },
+
+        currentStreak() {
+            return this.stats.current_streak || 0;
+        },
+
+        wins() {
+            return this.stats.wins || 0;
         },
 
         temperature() {
             if (this.guesses.length === 0) return 0;
             const lastGuess = this.guesses[this.guesses.length - 1];
-            if (!lastGuess || lastGuess.distance === null) return 0;
+            if (!lastGuess || lastGuess.distance_num === null) return 0;
             const maxDist = this.rangeMax - this.rangeMin;
-            const percent = Math.max(0, 100 - (lastGuess.distanceNum / maxDist) * 100);
+            const percent = Math.max(0, 100 - (lastGuess.distance_num / maxDist) * 100);
             return Math.min(100, percent);
         },
 
@@ -546,7 +510,8 @@ export default {
                 && this.currentGuess >= this.rangeMin
                 && this.currentGuess <= this.rangeMax
                 && !this.gameOver
-                && this.attempts < this.maxAttempts;
+                && this.attempts < this.maxAttempts
+                && !this.isProcessing;
         },
     },
 
@@ -555,23 +520,40 @@ export default {
     },
 
     methods: {
-        // ==========================================
-        // СОСТОЯНИЕ
-        // ==========================================
         async loadState() {
             try {
-                const saved = localStorage.getItem('guessNumberState');
-                if (saved) {
-                    const state = JSON.parse(saved);
-                    this.balance = state.balance ?? 500;
-                    this.wins = state.wins ?? 0;
-                    this.currentStreak = state.currentStreak ?? 0;
-                    this.bestStreak = state.bestStreak ?? 0;
-                    this.gamesHistory = state.gamesHistory ?? [];
+                const response = await axios.get('/guess-number/state');
+
+                if (response.data?.success) {
+                    this.balance = response.data.balance ?? 0;
+                    this.gameCost = response.data.game_cost ?? 100;
+                    this.modes = response.data.modes || {};
+                    this.stats = response.data.stats || this.stats;
+                    this.gamesHistory = response.data.history || [];
+
+                    // Восстановление активной игры
+                    if (response.data.active_game) {
+                        this.restoreActiveGame(response.data.active_game);
+                    }
                 }
             } catch (error) {
-                console.error('Ошибка загрузки:', error);
+                console.error('Ошибка загрузки состояния:', error);
             }
+        },
+
+        restoreActiveGame(activeGame) {
+            this.activeGame = activeGame;
+            this.gameToken = activeGame.token;
+            this.gameMode = activeGame.mode;
+            this.rangeMin = activeGame.min;
+            this.rangeMax = activeGame.max;
+            this.maxAttempts = activeGame.max_attempts;
+            this.attempts = activeGame.attempts;
+            this.guesses = activeGame.guesses || [];
+            this.gameStarted = true;
+            this.gameOver = activeGame.finished;
+            this.gameWon = activeGame.won;
+            this.currentReward = activeGame.reward || 0;
         },
 
         saveState() {
@@ -593,110 +575,121 @@ export default {
             this.gameMode = mode;
         },
 
-        startGame() {
-            if (this.balance < this.modeCost) {
-                this.$notify?.({ title: 'Ошибка', text: 'Недостаточно бонусов', type: 'error' });
+        async startGame() {
+            if (this.balance < this.gameCost || this.isProcessing) {
+                this.$notify?.({ title: 'Ошибка', text: 'Недостаточно кэшбэка', type: 'error' });
                 return;
             }
 
-            this.balance -= this.modeCost;
-            this.rangeMin = this.modeConfig.min;
-            this.rangeMax = this.modeConfig.max;
-            this.secretNumber = Math.floor(Math.random() * (this.rangeMax - this.rangeMin + 1)) + this.rangeMin;
-            this.currentGuess = null;
-            this.attempts = 0;
-            this.guesses = [];
-            this.gameStarted = true;
-            this.gameOver = false;
-            this.gameWon = false;
+            this.isProcessing = true;
 
-            this.saveState();
+            try {
+                const response = await axios.post('/guess-number/start', {
+                    mode: this.gameMode,
+                });
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка старта');
+                }
+
+                // Обновляем баланс
+                this.balance = response.data.balance;
+                if (window.TenantUser) {
+                    window.TenantUser.cashback_balance = response.data.balance;
+                }
+
+                // Инициализируем игру
+                this.gameToken = response.data.token;
+                const config = response.data.mode_config;
+                this.rangeMin = config.min;
+                this.rangeMax = config.max;
+                this.maxAttempts = config.max_attempts;
+                this.currentGuess = null;
+                this.attempts = 0;
+                this.guesses = [];
+                this.gameStarted = true;
+                this.gameOver = false;
+                this.gameWon = false;
+                this.secretNumber = null; // НЕ знаем число!
+                this.currentReward = 0;
+
+            } catch (error) {
+                console.error('Ошибка старта:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось начать игру',
+                    type: 'error',
+                });
+            } finally {
+                this.isProcessing = false;
+            }
         },
 
-        makeGuess() {
+        async makeGuess() {
             if (!this.canGuess) return;
 
             const guess = this.currentGuess;
-            this.attempts++;
-            const distance = Math.abs(guess - this.secretNumber);
+            this.isProcessing = true;
 
-            let hint, icon, text, distanceText = null;
-
-            if (guess === this.secretNumber) {
-                // ПОБЕДА!
-                this.gameWon = true;
-                this.gameOver = true;
-                this.currentReward = this.calculateReward();
-                this.balance += this.currentReward;
-                this.wins++;
-                this.currentStreak++;
-                if (this.currentStreak > this.bestStreak) {
-                    this.bestStreak = this.currentStreak;
-                }
-
-                this.guesses.push({
-                    value: guess,
-                    hint: 'correct',
-                    icon: 'fa-solid fa-bullseye',
-                    text: 'В яблочко!',
-                    distance: null,
-                    distanceNum: 0,
+            try {
+                const response = await axios.post('/guess-number/guess', {
+                    token: this.gameToken,
+                    number: guess,
                 });
 
-                this.addGameToHistory(true, this.currentReward);
-                this.saveState();
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка попытки');
+                }
 
-                setTimeout(() => {
-                    this.showResultModal = true;
-                }, 500);
-                return;
+                const data = response.data;
+
+                // Добавляем попытку в историю (из ответа сервера)
+                this.guesses.push({
+                    value: data.guess.value,
+                    hint: data.guess.hint,
+                    icon: data.guess.icon,
+                    text: data.guess.text,
+                    distance: data.guess.distance,
+                    distance_num: data.guess.distance_num,
+                });
+
+                // Обновляем состояние
+                this.attempts = data.attempts;
+                this.maxAttempts = data.max_attempts;
+                this.balance = data.balance;
+                this.stats = data.stats;
+
+                if (window.TenantUser) {
+                    window.TenantUser.cashback_balance = data.balance;
+                }
+
+                // Игра окончена?
+                if (data.game_over) {
+                    this.gameOver = true;
+                    this.gameWon = data.game_won;
+                    this.currentReward = data.reward || 0;
+                    this.secretNumber = data.secret_number; // Теперь сервер раскрыл число
+
+                    // Обновляем локальную историю
+                    await this.loadState();
+
+                    setTimeout(() => {
+                        this.showResultModal = true;
+                    }, 500);
+                }
+
+                this.currentGuess = null;
+
+            } catch (error) {
+                console.error('Ошибка попытки:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось сделать попытку',
+                    type: 'error',
+                });
+            } finally {
+                this.isProcessing = false;
             }
-
-            // Определяем подсказку
-            if (guess < this.secretNumber) {
-                hint = 'higher';
-                icon = 'fa-solid fa-arrow-up';
-                text = 'Загаданное число больше';
-            } else {
-                hint = 'lower';
-                icon = 'fa-solid fa-arrow-down';
-                text = 'Загаданное число меньше';
-            }
-
-            // Температура
-            const maxDist = this.rangeMax - this.rangeMin;
-            if (distance <= maxDist * 0.1) {
-                distanceText = '🔥 Очень горячо!';
-            } else if (distance <= maxDist * 0.25) {
-                distanceText = '🔥 Горячо';
-            } else if (distance <= maxDist * 0.5) {
-                distanceText = '😐 Тепло';
-            } else {
-                distanceText = '❄️ Холодно';
-            }
-
-            this.guesses.push({
-                value: guess,
-                hint,
-                icon,
-                text,
-                distance: distanceText,
-                distanceNum: distance,
-            });
-
-            // Проверка лимита попыток
-            if (this.attempts >= this.maxAttempts) {
-                this.gameOver = true;
-                this.currentStreak = 0;
-                this.addGameToHistory(false, 0);
-                this.saveState();
-
-                setTimeout(() => {
-                    this.showResultModal = true;
-                }, 500);
-            }
-
-            this.currentGuess = null;
         },
 
         calculateReward() {
@@ -728,13 +721,43 @@ export default {
             return base;
         },
 
-        giveUp() {
-            if (!confirm('Сдаться? Игра будет проиграна.')) return;
-            this.gameOver = true;
-            this.currentStreak = 0;
-            this.addGameToHistory(false, 0);
-            this.saveState();
-            this.showResultModal = true;
+        async giveUp() {
+            if (!confirm('Сдаться? Игра будет проиграна.') || this.isProcessing) return;
+
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/guess-number/give-up', {
+                    token: this.gameToken,
+                });
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка');
+                }
+
+                this.secretNumber = response.data.secret_number;
+                this.balance = response.data.balance;
+                this.stats = response.data.stats;
+                this.gameOver = true;
+                this.gameWon = false;
+
+                if (window.TenantUser) {
+                    window.TenantUser.cashback_balance = response.data.balance;
+                }
+
+                await this.loadState();
+                this.showResultModal = true;
+
+            } catch (error) {
+                console.error('Ошибка сдачи:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось сдаться',
+                    type: 'error',
+                });
+            } finally {
+                this.isProcessing = false;
+            }
         },
 
         resetGame() {
@@ -742,7 +765,30 @@ export default {
             this.gameOver = false;
             this.gameWon = false;
             this.currentGuess = null;
+            this.gameToken = null;
+            this.activeGame = null;
+            this.secretNumber = null;
+            this.currentReward = 0;
         },
+
+        closeResultModal() {
+            this.showResultModal = false;
+            if (this.gameOver) {
+                this.resetGame();
+            }
+        },
+
+        isNumberImpossible(n) {
+            for (const g of this.guesses) {
+                if (g.hint === 'higher' && n <= g.value) return true;
+                if (g.hint === 'lower' && n >= g.value) return true;
+            }
+            return false;
+        },
+
+
+
+
 
         addGameToHistory(won, reward) {
             const now = new Date();
@@ -760,21 +806,7 @@ export default {
             if (this.gamesHistory.length > 20) this.gamesHistory.pop();
         },
 
-        isNumberImpossible(n) {
-            // Простая логика: исключаем на основе истории
-            for (const g of this.guesses) {
-                if (g.hint === 'higher' && n <= g.value) return true;
-                if (g.hint === 'lower' && n >= g.value) return true;
-            }
-            return false;
-        },
 
-        closeResultModal() {
-            this.showResultModal = false;
-            if (this.gameOver) {
-                this.resetGame();
-            }
-        },
 
         // ==========================================
         // UI

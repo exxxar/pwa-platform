@@ -63,7 +63,7 @@ class CollectionController extends Controller
 
         try {
             $result = $this->service->show($id, $request->partner_id);
-            return response()->json(['data' => $result]);
+            return response()->json(['data' => $result], 200);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
@@ -86,7 +86,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $result,
-            ]);
+            ], 200);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
@@ -106,7 +106,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $result,
-            ]);
+            ], 200);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,

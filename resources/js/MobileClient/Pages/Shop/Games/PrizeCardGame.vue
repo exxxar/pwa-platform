@@ -20,25 +20,29 @@
                 <h1 class="hero-title">Карточная игра</h1>
                 <p class="hero-subtitle">Выбери карту и получи приз!</p>
 
-                <!-- Баланс и цена хода -->
-                <div class="hero-stats">
-                    <div class="stat-block">
-                        <div class="stat-icon">
+                <!-- 🎰 ОДИН БЛОК СТАТИСТИКИ (внутри hero-content) -->
+                <div class="hero-stats-grid">
+                    <div class="hero-stat-card balance" :class="{ 'insufficient': !hasEnoughCashback }">
+                        <div class="hero-stat-icon">
                             <i class="fa-solid fa-coins"></i>
                         </div>
-                        <div class="stat-info">
-                            <div class="stat-value">{{ userBalance }}</div>
-                            <div class="stat-label">Ваши бонусы</div>
+                        <div class="hero-stat-info">
+                            <div class="hero-stat-value">{{ Math.round(userBalance) }}₽</div>
+                            <div class="hero-stat-label">Кэшбэк</div>
+                        </div>
+                        <div class="hero-stat-hint" v-if="!hasEnoughCashback">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            Мало
                         </div>
                     </div>
-                    <div class="stat-divider"></div>
-                    <div class="stat-block">
-                        <div class="stat-icon cost-icon">
+
+                    <div class="hero-stat-card cost">
+                        <div class="hero-stat-icon cost-icon">
                             <i class="fa-solid fa-ticket"></i>
                         </div>
-                        <div class="stat-info">
-                            <div class="stat-value">{{ moveCost }}</div>
-                            <div class="stat-label">Цена хода</div>
+                        <div class="hero-stat-info">
+                            <div class="hero-stat-value">{{ moveCost }}₽</div>
+                            <div class="hero-stat-label">Ставка</div>
                         </div>
                     </div>
                 </div>
@@ -86,6 +90,26 @@
                     </div>
                 </transition>
             </div>
+
+            <!-- 🆕 ПРЕДУПРЕЖДЕНИЕ О НЕХВАТКЕ КЭШБЭКА -->
+            <transition name="slide-down">
+                <div v-if="!hasEnoughCashback && !gameFinished" class="cashback-warning">
+                    <div class="warning-icon">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div class="warning-content">
+                        <div class="warning-title">Недостаточно кэшбэка</div>
+                        <div class="warning-text">
+                            Для игры нужно <strong>{{ moveCost }}₽</strong>.
+                            Ваш баланс: <strong>{{ Math.round(userBalance) }}₽</strong>
+                        </div>
+                        <div class="warning-hint">
+                            <i class="fa-solid fa-lightbulb"></i>
+                            Делайте заказы для пополнения кэшбэка
+                        </div>
+                    </div>
+                </div>
+            </transition>
 
             <!-- ========================================== -->
             <!-- СТАТУС ИГРЫ -->
@@ -181,45 +205,6 @@
                 </button>
             </div>
 
-            <!-- ========================================== -->
-            <!-- АДМИН-ПАНЕЛЬ -->
-            <!-- ========================================== -->
-            <div v-if="isAdmin" class="admin-section">
-                <button class="admin-toggle" @click="showAdmin = !showAdmin">
-                    <div class="admin-toggle-content">
-                        <div class="admin-icon">
-                            <i class="fa-solid fa-screwdriver-wrench"></i>
-                        </div>
-                        <div class="admin-info">
-                            <span class="admin-title">Панель администратора</span>
-                            <span class="admin-hint">Управление игрой</span>
-                        </div>
-                    </div>
-                    <i class="fa-solid fa-chevron-down admin-arrow" :class="{ 'rotated': showAdmin }"></i>
-                </button>
-                <transition name="slide-down">
-                    <div v-if="showAdmin" class="admin-content">
-                        <div class="admin-grid">
-                            <button class="admin-btn" @click="adminResetAll">
-                                <i class="fa-solid fa-trash-can"></i>
-                                <span>Сбросить всем</span>
-                            </button>
-                            <button class="admin-btn" @click="adminAddAttempts">
-                                <i class="fa-solid fa-plus"></i>
-                                <span>+1 попытка</span>
-                            </button>
-                            <button class="admin-btn" @click="adminShowStats">
-                                <i class="fa-solid fa-chart-simple"></i>
-                                <span>Статистика</span>
-                            </button>
-                            <button class="admin-btn" @click="adminEditPrizes">
-                                <i class="fa-solid fa-pen"></i>
-                                <span>Редакт. призы</span>
-                            </button>
-                        </div>
-                    </div>
-                </transition>
-            </div>
 
         </div>
 
@@ -248,7 +233,6 @@
                         <h3 class="result-title">{{ selectedPrize?.title }}</h3>
                         <p class="result-description">{{ selectedPrize?.description }}</p>
 
-                        <!-- Детали приза -->
                         <div class="result-details">
                             <div class="detail-row" v-if="selectedPrize?.type === 'bonus'">
                                 <i class="fa-solid fa-coins"></i>
@@ -269,6 +253,15 @@
                             <div class="detail-row" v-else-if="selectedPrize?.type === 'order_discount'">
                                 <i class="fa-solid fa-receipt"></i>
                                 <span>Скидка <strong>{{ selectedPrize.value }}%</strong> на заказ от {{ formatPrice(selectedPrize.minOrderAmount) }}</span>
+                            </div>
+
+                            <div class="detail-row">
+                                <i class="fa-solid fa-ticket"></i>
+                                <span>Ставка: <strong>-{{ moveCost }}</strong></span>
+                            </div>
+                            <div class="detail-row" :style="{ color: lastNetProfit >= 0 ? '#198754' : '#dc3545' }">
+                                <i :class="lastNetProfit >= 0 ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-arrow-trend-down'"></i>
+                                <span>Итого: <strong>{{ lastNetProfit >= 0 ? '+' : '' }}{{ lastNetProfit }}</strong></span>
                             </div>
                         </div>
 
@@ -333,28 +326,32 @@
 </template>
 
 <script>
-import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
+
 
 export default {
     name: "PrizeCardGame",
-
-    setup() {
-        const basketStore = useBasketStore();
-        return { basketStore };
-    },
-
     data() {
         return {
-            // Настройки игры
-            gridColumns: 4,
-            gridRows: 3,
-            attemptsLeft: 1,
+            // Настройки
+            gameSettings: {
+                can_play: true,
+                interval: 1,
+                attempts_per_period: 1,
+                spin_cost: 500,
+                grid_columns: 4,
+                grid_rows: 3,
+                rules: '',
+                prizes: [],
+                rarity_chances: {},
+            },
+
+            // Состояние
+            attemptsLeft: 0,
             userBalance: 0,
-            moveCost: 50, // Цена хода в бонусах (настраивается из админки)
             gameFinished: false,
             isProcessing: false,
-
-            // UI состояния
+            lastNetProfit: 0,
+            // UI
             showRules: false,
             showAdmin: false,
             showResultModal: false,
@@ -364,43 +361,40 @@ export default {
             // Данные
             cards: [],
             allPrizes: [],
-
-            // Призы с системой редкости и разными типами
-            defaultPrizes: [
-                // Обычные (70% шанс)
-                { id: 1, type: 'bonus', title: '10 бонусов', description: 'Небольшой бонус к вашему балансу', icon: 'fa-solid fa-coins', value: 10, rarity: 'common' },
-                { id: 2, type: 'bonus', title: '20 бонусов', description: 'Приятное пополнение баланса', icon: 'fa-solid fa-coins', value: 20, rarity: 'common' },
-                { id: 3, type: 'delivery_discount', title: 'Скидка 50₽ на доставку', description: 'Скидка на следующую доставку', icon: 'fa-solid fa-truck', value: 50, isPercent: false, rarity: 'common' },
-
-                // Редкие (20% шанс)
-                { id: 4, type: 'bonus', title: '50 бонусов', description: 'Хороший бонус на ваш счёт', icon: 'fa-solid fa-coins', value: 50, rarity: 'rare' },
-                { id: 5, type: 'product_discount', title: 'Скидка 15% на пиццу', description: 'Скидка на любую пиццу', icon: 'fa-solid fa-percent', value: 15, productId: 101, productName: 'пиццу', rarity: 'rare' },
-                { id: 6, type: 'delivery_discount', title: 'Бесплатная доставка', description: 'Следующая доставка за наш счёт', icon: 'fa-solid fa-truck-fast', value: 100, isPercent: true, rarity: 'rare' },
-
-                // Эпические (8% шанс)
-                { id: 7, type: 'bonus', title: '150 бонусов', description: 'Отличный бонус для избранных', icon: 'fa-solid fa-gem', value: 150, rarity: 'epic' },
-                { id: 8, type: 'product', title: 'Пицца Маргарита', description: 'Бесплатная пицца Маргарита', icon: 'fa-solid fa-pizza-slice', productId: 102, productName: 'Пицца Маргарита', rarity: 'epic' },
-                { id: 9, type: 'order_discount', title: 'Скидка 20% на заказ', description: 'Скидка на заказ от 1500₽', icon: 'fa-solid fa-receipt', value: 20, minOrderAmount: 1500, rarity: 'epic' },
-
-                // Легендарные (2% шанс)
-                { id: 10, type: 'product', title: 'Сет "Праздничный"', description: 'Большой праздничный сет бесплатно', icon: 'fa-solid fa-gift', productId: 201, productName: 'Сет "Праздничный"', rarity: 'legendary' },
-                { id: 11, type: 'order_discount', title: 'Скидка 50% на заказ', description: 'Огромная скидка на заказ от 3000₽', icon: 'fa-solid fa-crown', value: 50, minOrderAmount: 3000, rarity: 'legendary' },
-            ],
         };
     },
 
     computed: {
-        totalCards() {
-            return this.gridColumns * this.gridRows;
-        },
-
         isAdmin() {
             const user = window.TenantUser;
             return user?.role === 'admin' || user?.is_admin === true;
         },
 
+        gridColumns() {
+            return this.gameSettings.grid_columns || 4;
+        },
+
+        gridRows() {
+            return this.gameSettings.grid_rows || 3;
+        },
+
+        totalCards() {
+            return this.gridColumns * this.gridRows;
+        },
+
+        moveCost() {
+            return this.gameSettings.spin_cost || 500;
+        },
+
+        hasEnoughCashback() {
+            return this.userBalance >= this.moveCost;
+        },
+
         canPlay() {
-            return this.userBalance >= this.moveCost && this.attemptsLeft > 0 && !this.gameFinished;
+            return this.hasEnoughCashback
+                && this.attemptsLeft > 0
+                && !this.gameFinished
+                && !this.isProcessing;
         },
     },
 
@@ -410,7 +404,41 @@ export default {
     },
 
     methods: {
-        // Стиль для частиц в hero
+        async loadGameData() {
+            try {
+                const [settingsRes, stateRes] = await Promise.all([
+                    axios.get('/prize-card/settings'),
+                    axios.get('/prize-card/state'),
+                ]);
+
+                if (settingsRes.data?.success && settingsRes.data.prize_card) {
+                    this.gameSettings = { ...this.gameSettings, ...settingsRes.data.prize_card };
+                    this.allPrizes = this.gameSettings.prizes || [];
+                } else {
+                    this.allPrizes = this.getDefaultPrizes();
+                }
+
+                if (stateRes.data?.success) {
+                    this.attemptsLeft = stateRes.data.attempts_left ?? 1;
+                    this.userBalance = stateRes.data.balance ?? (window.TenantUser?.cashback_balance || 0);
+                    this.gameFinished = stateRes.data.game_finished || false;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки данных игры:', error);
+                this.allPrizes = this.getDefaultPrizes();
+                this.userBalance = window.TenantUser?.cashback_balance || 0;
+            }
+        },
+
+        getDefaultPrizes() {
+            return [
+                { id: 1, type: 'bonus', title: '50 бонусов', icon: 'fa-solid fa-coins', value: 50, rarity: 'common' },
+                { id: 5, type: 'bonus', title: '350 бонусов', icon: 'fa-solid fa-gem', value: 350, rarity: 'rare' },
+                { id: 9, type: 'bonus', title: '1000 бонусов', icon: 'fa-solid fa-gem', value: 1000, rarity: 'epic' },
+                { id: 15, type: 'bonus', title: '5000 бонусов', icon: 'fa-solid fa-trophy', value: 5000, rarity: 'legendary' },
+            ];
+        },
+
         particleStyle(i) {
             const size = Math.random() * 6 + 3;
             const left = Math.random() * 100;
@@ -425,7 +453,6 @@ export default {
             };
         },
 
-        // Стиль для конфетти
         confettiStyle(i) {
             const colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#ff9ff3', '#54a0ff', '#5f27cd'];
             const color = colors[Math.floor(Math.random() * colors.length)];
@@ -442,7 +469,132 @@ export default {
             };
         },
 
-        // Текст редкости
+        initGame() {
+            this.gameFinished = false;
+            this.selectedPrize = null;
+            this.lastNetProfit = 0;
+
+            this.cards = Array.from({ length: this.totalCards }, (_, i) => ({
+                id: i + 1,
+                flipped: false,
+                selected: false,
+                prize: null,
+            }));
+        },
+
+        async selectCard(index) {
+            if (this.gameFinished || this.isProcessing) return;
+            if (this.cards[index].flipped) return;
+
+            if (!this.hasEnoughCashback) {
+                this.$notify?.({
+                    title: '💰 Недостаточно кэшбэка',
+                    text: `Для хода нужно ${this.moveCost}₽. Ваш баланс: ${Math.round(this.userBalance)}₽`,
+                    type: 'warning',
+                });
+                return;
+            }
+
+            if (this.attemptsLeft <= 0) {
+                this.$notify?.({
+                    title: 'Игра',
+                    text: 'Попытки закончились',
+                    type: 'warning',
+                });
+                return;
+            }
+
+            const card = this.cards[index];
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/prize-card/play');
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка игры');
+                }
+
+                const prize = response.data.prize;
+
+                if (response.data.balance !== undefined) {
+                    this.userBalance = response.data.balance;
+                    if (window.TenantUser) {
+                        window.TenantUser.cashback_balance = response.data.balance;
+                    }
+                }
+
+                if (response.data.attempts_left !== undefined) {
+                    this.attemptsLeft = response.data.attempts_left;
+                }
+
+                // 🎴 Переворачиваем карту ТОЛЬКО после успешного ответа
+                card.prize = prize;
+                card.flipped = true;
+                card.selected = true;
+
+                this.selectedPrize = prize;
+                this.gameFinished = this.attemptsLeft <= 0;
+
+                // 💾 Сохраняем net profit для модалки
+                const netProfit = response.data.net_profit ?? 0;
+                this.lastNetProfit = netProfit;
+
+                const profitText = netProfit >= 0 ? `+${netProfit}` : `${netProfit}`;
+
+                this.$notify?.({
+                    title: netProfit >= 0 ? '🎉 Победа!' : '🎴 Приз получен',
+                    text: `${prize.title}: ${profitText} (ставка: ${this.moveCost}₽)`,
+                    type: netProfit >= 0 ? 'success' : 'info',
+                });
+
+                setTimeout(() => {
+                    this.showResultModal = true;
+                }, 1000);
+
+            } catch (error) {
+                console.error('Ошибка игры:', error);
+
+                if (error.response?.status === 403) {
+                    if (error.response.data?.balance !== undefined) {
+                        this.userBalance = error.response.data.balance;
+                        if (window.TenantUser) {
+                            window.TenantUser.cashback_balance = error.response.data.balance;
+                        }
+                    }
+
+                    this.$notify?.({
+                        title: '💰 ' + (error.response.data?.message || 'Невозможно сыграть'),
+                        text: error.response.data?.shortage
+                            ? `Не хватает: ${error.response.data.shortage}₽`
+                            : 'Проверьте баланс или попробуйте позже',
+                        type: 'warning',
+                    });
+                } else {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: error.response?.data?.message || 'Не удалось получить приз',
+                        type: 'error',
+                    });
+                }
+            } finally {
+                // 🔓 Разблокировка ВСЕГДА (даже при ошибке)
+                this.isProcessing = false;
+            }
+        },
+
+        resetGame() {
+            this.initGame();
+            this.loadGameData();  // Перезагружаем состояние с сервера
+        },
+
+        closeResultModal() {
+            this.showResultModal = false;
+        },
+
+        openPrizesModal() {
+            this.showPrizesModal = true;
+        },
+
         rarityText(rarity) {
             const texts = {
                 common: 'Обычный',
@@ -453,7 +605,6 @@ export default {
             return texts[rarity] || 'Обычный';
         },
 
-        // Форматирование значения приза
         formatPrizeValue(prize) {
             if (!prize) return '';
 
@@ -473,231 +624,12 @@ export default {
             }
         },
 
-        // Форматирование цены
         formatPrice(price) {
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
                 currency: 'RUB',
                 minimumFractionDigits: 0,
             }).format(price || 0);
-        },
-
-        // Загрузка данных игры с бэка
-        async loadGameData() {
-            try {
-                // TODO: Замени на реальный API
-                // const response = await this.basketStore.loadCardGameData();
-                // this.allPrizes = response.prizes || this.defaultPrizes;
-                // this.attemptsLeft = response.attempts_left || 1;
-                // this.userBalance = response.user_balance || 0;
-                // this.moveCost = response.move_cost || 50;
-
-                // Имитация запроса
-                await new Promise(resolve => setTimeout(resolve, 500));
-                this.allPrizes = this.defaultPrizes;
-                this.attemptsLeft = 1;
-                this.userBalance = window.TenantUser?.cashBack?.amount || 0;
-                this.moveCost = 50; // Из админки
-            } catch (error) {
-                console.error('Ошибка загрузки данных игры:', error);
-                this.allPrizes = this.defaultPrizes;
-            }
-        },
-
-        // Инициализация игры
-        initGame() {
-            this.gameFinished = false;
-            this.selectedPrize = null;
-
-            this.cards = Array.from({ length: this.totalCards }, (_, i) => ({
-                id: i + 1,
-                flipped: false,
-                selected: false,
-                prize: null,
-            }));
-        },
-
-        // Выбор карты
-        async selectCard(index) {
-            if (this.gameFinished || this.isProcessing) return;
-            if (this.cards[index].flipped) return;
-
-            if (!this.canPlay) {
-                if (this.userBalance < this.moveCost) {
-                    this.$notify?.({
-                        title: 'Недостаточно бонусов',
-                        text: `Для хода нужно ${this.moveCost} бонусов`,
-                        type: 'warning',
-                    });
-                } else if (this.attemptsLeft <= 0) {
-                    this.$notify?.({
-                        title: 'Игра',
-                        text: 'Попытки закончились',
-                        type: 'warning',
-                    });
-                }
-                return;
-            }
-
-            this.isProcessing = true;
-            const card = this.cards[index];
-
-            try {
-                // Списываем бонусы за ход
-                await this.chargeMoveCost();
-
-                // Переворачиваем карту
-                card.flipped = true;
-                card.selected = true;
-
-                // Запрос приза с бэка
-                // TODO: Замени на реальный API
-                // const response = await this.basketStore.claimCardPrize({ cardId: card.id });
-                // const prize = response.prize;
-
-                // Имитация запроса с системой редкости
-                await new Promise(resolve => setTimeout(resolve, 800));
-                const prize = this.getRandomPrize();
-                card.prize = prize;
-
-                // Применяем приз
-                await this.applyPrize(prize);
-
-                this.selectedPrize = prize;
-                this.gameFinished = true;
-                this.attemptsLeft--;
-
-                // Показываем модалку результата
-                setTimeout(() => {
-                    this.showResultModal = true;
-                }, 1000);
-
-            } catch (error) {
-                console.error('Ошибка получения приза:', error);
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Не удалось получить приз',
-                    type: 'error',
-                });
-                card.flipped = false;
-                card.selected = false;
-            } finally {
-                this.isProcessing = false;
-            }
-        },
-
-        // Списываем бонусы за ход
-        async chargeMoveCost() {
-            // TODO: Замени на реальный API
-            // await this.basketStore.chargeBonus({ amount: this.moveCost });
-
-            this.userBalance -= this.moveCost;
-
-            this.$notify?.({
-                title: 'Ход оплачен',
-                text: `Списано ${this.moveCost} бонусов`,
-                type: 'info',
-            });
-        },
-
-        // Применяем приз
-        async applyPrize(prize) {
-            // TODO: Замени на реальный API для каждого типа приза
-            // await this.basketStore.applyPrize({ prize });
-
-            switch (prize.type) {
-                case 'bonus':
-                    this.userBalance += prize.value;
-                    this.$notify?.({
-                        title: 'Поздравляем!',
-                        text: `Вам начислено ${prize.value} бонусов`,
-                        type: 'success',
-                    });
-                    break;
-                case 'product':
-                    this.$notify?.({
-                        title: 'Поздравляем!',
-                        text: `Вы выиграли ${prize.productName}`,
-                        type: 'success',
-                    });
-                    break;
-                case 'product_discount':
-                case 'delivery_discount':
-                case 'order_discount':
-                    this.$notify?.({
-                        title: 'Поздравляем!',
-                        text: `Вы выиграли скидку!`,
-                        type: 'success',
-                    });
-                    break;
-            }
-        },
-
-        // Получение случайного приза с учётом редкости
-        getRandomPrize() {
-            const rand = Math.random() * 100;
-            let targetRarity;
-
-            if (rand < 2) targetRarity = 'legendary';
-            else if (rand < 10) targetRarity = 'epic';
-            else if (rand < 30) targetRarity = 'rare';
-            else targetRarity = 'common';
-
-            const pool = this.allPrizes.filter(p => p.rarity === targetRarity);
-            return pool[Math.floor(Math.random() * pool.length)];
-        },
-
-        // Сброс игры
-        resetGame() {
-            this.initGame();
-        },
-
-        // Закрытие модалки результата
-        closeResultModal() {
-            this.showResultModal = false;
-        },
-
-        // Открытие модалки призов
-        openPrizesModal() {
-            this.showPrizesModal = true;
-        },
-
-        // ==========================================
-        // АДМИН-ФУНКЦИИ
-        // ==========================================
-        adminResetAll() {
-            if (!confirm('Сбросить игру всем пользователям?')) return;
-            this.$notify?.({
-                title: 'Админ',
-                text: 'Игра сброшена для всех',
-                type: 'success',
-            });
-        },
-
-        adminAddAttempts() {
-            this.attemptsLeft++;
-            this.gameFinished = false;
-            this.$notify?.({
-                title: 'Админ',
-                text: 'Добавлена 1 попытка',
-                type: 'success',
-            });
-        },
-
-        adminShowStats() {
-            this.$notify?.({
-                title: 'Статистика',
-                text: 'Функция в разработке',
-                type: 'info',
-            });
-        },
-
-        adminEditPrizes() {
-            this.$notify?.({
-                title: 'Редактор',
-                text: 'Функция в разработке',
-                type: 'info',
-            });
         },
     },
 };
@@ -806,77 +738,18 @@ export default {
     margin: 0 0 20px 0;
 }
 
-/* Статистика в hero */
-.hero-stats {
-    display: inline-flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
-    background: rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 16px;
-}
-
-.stat-block {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.stat-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #ffd700 0%, #ff9800 100%);
-    color: #1a1a1a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-}
-
-.stat-icon.cost-icon {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-    color: white;
-}
-
-.stat-info {
-    text-align: left;
-}
-
-.stat-value {
-    font-size: 1.2rem;
-    font-weight: 800;
-    line-height: 1;
-}
-
-.stat-label {
-    font-size: 0.65rem;
-    opacity: 0.9;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stat-divider {
-    width: 1px;
-    height: 30px;
-    background: rgba(255, 255, 255, 0.3);
-}
-
 /* КОНТЕНТ */
 .game-content {
     padding: 20px 16px;
 }
 
 /* ПРАВИЛА */
-.rules-section,
-.admin-section {
+.rules-section{
     margin-bottom: 20px;
 }
 
 .rules-toggle,
-.admin-toggle {
+{
     width: 100%;
     display: flex;
     align-items: center;
@@ -889,20 +762,17 @@ export default {
     transition: all 0.2s ease;
 }
 
-.rules-toggle:hover,
-.admin-toggle:hover {
+.rules-toggle:hover{
     border-color: var(--bs-primary);
 }
 
-.rules-toggle-content,
-.admin-toggle-content {
+.rules-toggle-content{
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-.rules-icon,
-.admin-icon {
+.rules-icon {
     width: 40px;
     height: 40px;
     border-radius: 10px;
@@ -918,44 +788,34 @@ export default {
     color: #667eea;
 }
 
-.admin-icon {
-    background: linear-gradient(135deg, #2c3e50 0%, #4a6278 100%);
-    color: white;
-}
 
-.rules-info,
-.admin-info {
+.rules-info {
     display: flex;
     flex-direction: column;
     text-align: left;
 }
 
-.rules-title,
-.admin-title {
+.rules-title{
     font-weight: 700;
     font-size: 0.95rem;
     color: var(--bs-body-color);
 }
 
-.rules-hint,
-.admin-hint {
+.rules-hint {
     font-size: 0.75rem;
     color: var(--bs-secondary-color);
 }
 
-.rules-arrow,
-.admin-arrow {
+.rules-arrow {
     color: var(--bs-secondary-color);
     transition: transform 0.3s ease;
 }
 
-.rules-arrow.rotated,
-.admin-arrow.rotated {
+.rules-arrow.rotated {
     transform: rotate(180deg);
 }
 
-.rules-content,
-.admin-content {
+.rules-content{
     margin-top: 12px;
     padding: 16px;
     background: var(--bs-body-bg);
@@ -1360,41 +1220,6 @@ export default {
     cursor: not-allowed;
 }
 
-/* АДМИН-ПАНЕЛЬ */
-.admin-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-}
-
-.admin-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding: 14px 10px;
-    background: var(--bs-body-bg);
-    border: 1px solid var(--bs-border-color);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: var(--bs-body-color);
-}
-
-.admin-btn:hover {
-    border-color: var(--bs-primary);
-    background: rgba(var(--bs-primary-rgb), 0.05);
-}
-
-.admin-btn i {
-    font-size: 1.2rem;
-    color: var(--bs-primary);
-}
-
-.admin-btn span {
-    font-size: 0.8rem;
-    font-weight: 600;
-}
 
 /* МОДАЛКА РЕЗУЛЬТАТА */
 .modal-overlay {
@@ -1842,5 +1667,165 @@ export default {
     .result-title {
         font-size: 1.3rem;
     }
+}
+
+/* ==========================================
+   🎰 СЕТКА СТАТИСТИКИ В HERO
+   ========================================== */
+.hero-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 360px;
+    margin: 0 auto;
+}
+
+.hero-stat-card {
+    padding: 14px 12px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.hero-stat-card.balance {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 152, 0, 0.15) 100%);
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.hero-stat-card.cost {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.hero-stat-card.balance.insufficient {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.25) 0%, rgba(200, 35, 51, 0.15) 100%);
+    border-color: rgba(220, 53, 69, 0.5);
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+.hero-stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffd700 0%, #ff9800 100%);
+    color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.hero-stat-icon.cost-icon {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    color: white;
+}
+
+.hero-stat-info { text-align: center; }
+
+.hero-stat-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: white;
+    margin-bottom: 2px;
+}
+
+.hero-stat-label {
+    font-size: 0.7rem;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.hero-stat-hint {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 6px;
+    background: rgba(220, 53, 69, 0.9);
+    border-radius: 8px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* ==========================================
+   ⚠️ ПРЕДУПРЕЖДЕНИЕ О НЕХВАТКЕ КЭШБЭКА
+   ========================================== */
+.cashback-warning {
+    margin-top: 16px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.08) 0%, rgba(255, 152, 0, 0.05) 100%);
+    border: 1.5px solid rgba(220, 53, 69, 0.3);
+    border-radius: 16px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.warning-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.warning-content { flex: 1; min-width: 0; }
+
+.warning-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #dc3545;
+    margin-bottom: 4px;
+}
+
+.warning-text {
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.warning-text strong { color: var(--bs-primary); }
+
+.warning-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    padding: 8px 10px;
+    background: rgba(255, 193, 7, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid #ffc107;
+}
+
+.warning-hint i {
+    color: #ffc107;
+    margin-top: 2px;
+    flex-shrink: 0;
 }
 </style>

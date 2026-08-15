@@ -1,7 +1,6 @@
 <template>
     <div class="scratch-game-page">
 
-        <!-- HERO СЕКЦИЯ -->
         <div class="game-hero">
             <div class="hero-background"></div>
             <div class="hero-particles">
@@ -18,30 +17,38 @@
                 <h1 class="hero-title">Скретч-карта</h1>
                 <p class="hero-subtitle">Сотри защитный слой и узнай свой приз!</p>
 
-                <div class="hero-stats">
-                    <div class="stat-block">
-                        <div class="stat-icon">
+                <!-- 🎰 СЕТКА: БАЛАНС + СТАВКА -->
+                <div class="hero-stats-grid">
+                    <div class="hero-stat-card balance" :class="{ 'insufficient': !hasEnoughCashback }">
+                        <div class="hero-stat-icon">
                             <i class="fa-solid fa-coins"></i>
                         </div>
-                        <div class="stat-info">
-                            <div class="stat-value">{{ userBalance }}</div>
-                            <div class="stat-label">Ваши бонусы</div>
+                        <div class="hero-stat-info">
+                            <div class="hero-stat-value">
+                                {{ Math.round(userBalance) }}₽
+                            </div>
+                            <div class="hero-stat-label">Кэшбэк</div>
+                        </div>
+                        <div class="hero-stat-hint" v-if="!hasEnoughCashback">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            Мало
                         </div>
                     </div>
-                    <div class="stat-divider"></div>
-                    <div class="stat-block">
-                        <div class="stat-icon cost-icon">
+
+                    <div class="hero-stat-card cost">
+                        <div class="hero-stat-icon cost-icon">
                             <i class="fa-solid fa-ticket"></i>
                         </div>
-                        <div class="stat-info">
-                            <div class="stat-value">{{ moveCost }}</div>
-                            <div class="stat-label">Цена хода</div>
+                        <div class="hero-stat-info">
+                            <div class="hero-stat-value">
+                                {{ moveCost }}₽
+                            </div>
+                            <div class="hero-stat-label">Ставка</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
         <div class="game-content">
 
             <!-- ПРАВИЛА ИГРЫ -->
@@ -169,6 +176,26 @@
                     <span>Проведите пальцем или мышкой по серебристому полю</span>
                 </div>
             </div>
+
+            <!-- 🆕 ПРЕДУПРЕЖДЕНИЕ О НЕХВАТКЕ КЭШБЭКА -->
+            <transition name="slide-down">
+                <div v-if="!hasEnoughCashback && !isRevealed" class="cashback-warning">
+                    <div class="warning-icon">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div class="warning-content">
+                        <div class="warning-title">Недостаточно кэшбэка</div>
+                        <div class="warning-text">
+                            Для игры нужно <strong>{{ moveCost }}₽</strong>.
+                            Ваш баланс: <strong>{{ Math.round(userBalance) }}₽</strong>
+                        </div>
+                        <div class="warning-hint">
+                            <i class="fa-solid fa-lightbulb"></i>
+                            Делайте заказы или приглашайте друзей для пополнения кэшбэка
+                        </div>
+                    </div>
+                </div>
+            </transition>
 
             <!-- КНОПКА "ИГРАТЬ ЕЩЁ" -->
             <div v-if="gameFinished" class="play-again-section">
@@ -325,57 +352,56 @@
 </template>
 
 <script>
-import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
 
 export default {
     name: "ScratchCardGame",
 
-    setup() {
-        const basketStore = useBasketStore();
-        return { basketStore };
-    },
-
     data() {
         return {
-            attemptsLeft: 1,
+
+            scratchCheckTimeout: null,
+            // 🎰 Настройки
+            gameSettings: {
+                can_play: true,
+                interval: 1,
+                attempts_per_period: 1,
+                spin_cost: 500,
+                reveal_threshold: 55,
+                rules: '',
+                prizes: [],
+            },
+
+            // Состояние игры
+            attemptsLeft: 0,
             userBalance: 0,
-            moveCost: 30,
             gameFinished: false,
             isProcessing: false,
 
+            // 🎴 Текущая игра
+            currentGameToken: null,
+            currentPrize: null,
+
+            // Скретч
             isScratching: false,
             scratchProgress: 0,
             isRevealed: false,
-            revealThreshold: 55,
             brushSize: 30,
+            gameStarted: false, // 🆕 Начата ли текущая игра (ставка списана)
 
+            // UI
             showRules: false,
             showAdmin: false,
             showResultModal: false,
             showPrizesModal: false,
             selectedPrize: null,
 
+            // Canvas
             canvas: null,
             ctx: null,
             canvasWidth: 0,
             canvasHeight: 0,
 
             allPrizes: [],
-
-            defaultPrizes: [
-                { id: 1, type: 'bonus', title: '10 бонусов', description: 'Небольшой бонус к вашему балансу', icon: 'fa-solid fa-coins', value: 10, rarity: 'common' },
-                { id: 2, type: 'bonus', title: '25 бонусов', description: 'Приятное пополнение баланса', icon: 'fa-solid fa-coins', value: 25, rarity: 'common' },
-                { id: 3, type: 'delivery_discount', title: 'Скидка 50₽ на доставку', description: 'Скидка на следующую доставку', icon: 'fa-solid fa-truck', value: 50, isPercent: false, rarity: 'common' },
-                { id: 4, type: 'bonus', title: '15 бонусов', description: 'Маленький бонус', icon: 'fa-solid fa-coins', value: 15, rarity: 'common' },
-                { id: 5, type: 'bonus', title: '75 бонусов', description: 'Хороший бонус на ваш счёт', icon: 'fa-solid fa-gem', value: 75, rarity: 'rare' },
-                { id: 6, type: 'product_discount', title: 'Скидка 15% на пиццу', description: 'Скидка на любую пиццу', icon: 'fa-solid fa-percent', value: 15, productId: 101, productName: 'пиццу', rarity: 'rare' },
-                { id: 7, type: 'delivery_discount', title: 'Бесплатная доставка', description: 'Следующая доставка за наш счёт', icon: 'fa-solid fa-truck-fast', value: 100, isPercent: true, rarity: 'rare' },
-                { id: 8, type: 'bonus', title: '200 бонусов', description: 'Отличный бонус!', icon: 'fa-solid fa-gem', value: 200, rarity: 'epic' },
-                { id: 9, type: 'product', title: 'Пицца Маргарита', description: 'Бесплатная пицца Маргарита', icon: 'fa-solid fa-pizza-slice', productId: 102, productName: 'Пицца Маргарита', rarity: 'epic' },
-                { id: 10, type: 'order_discount', title: 'Скидка 20% на заказ', description: 'Скидка на заказ от 1500₽', icon: 'fa-solid fa-receipt', value: 20, minOrderAmount: 1500, rarity: 'epic' },
-                { id: 11, type: 'product', title: 'Сет "Праздничный"', description: 'Большой праздничный сет бесплатно', icon: 'fa-solid fa-gift', productId: 201, productName: 'Сет "Праздничный"', rarity: 'legendary' },
-                { id: 12, type: 'order_discount', title: 'Скидка 50% на заказ', description: 'Огромная скидка на заказ от 3000₽', icon: 'fa-solid fa-crown', value: 50, minOrderAmount: 3000, rarity: 'legendary' },
-            ],
         };
     },
 
@@ -385,16 +411,26 @@ export default {
             return user?.role === 'admin' || user?.is_admin === true;
         },
 
+        // 🎰 Достаточно ли кэшбэка
+        hasEnoughCashback() {
+            return this.userBalance >= this.moveCost;
+        },
+
+        // 🎰 Стоимость хода
+        moveCost() {
+            return this.gameSettings.spin_cost || 500;
+        },
+
         canPlay() {
-            return this.userBalance >= this.moveCost && this.attemptsLeft > 0 && !this.gameFinished;
+            return this.userBalance >= this.moveCost
+                && this.attemptsLeft > 0
+                && !this.gameFinished;
         },
     },
 
     async mounted() {
         await this.loadGameData();
 
-        // Генерируем приз СРАЗУ, до инициализации canvas
-        this.selectedPrize = this.getRandomPrize();
 
         // Ждём, пока приз отрендерится, затем инициализируем canvas
         await this.$nextTick();
@@ -405,6 +441,10 @@ export default {
 
     beforeUnmount() {
         window.removeEventListener('resize', this.handleResize);
+
+        if (this.scratchCheckTimeout) {
+            clearTimeout(this.scratchCheckTimeout);
+        }
     },
 
     methods: {
@@ -428,6 +468,8 @@ export default {
             const ctx = this.ctx;
             const w = this.canvasWidth;
             const h = this.canvasHeight;
+
+            ctx.globalCompositeOperation = 'source-over';
 
             // Серебристый градиент
             const gradient = ctx.createLinearGradient(0, 0, w, h);
@@ -491,13 +533,88 @@ export default {
             };
         },
 
-        startScratch(event) {
+        async startScratch(event) {
             if (this.gameFinished || this.isRevealed || this.isProcessing) return;
 
-            if (this.scratchProgress === 0 && !this.isProcessing) {
-                this.chargeMoveCost();
+            // 🆕 Если игра ещё не начата — начинаем (списываем ставку)
+            if (!this.gameStarted) {
+                // Локальная проверка баланса
+                if (!this.hasEnoughCashback) {
+                    this.$notify?.({
+                        title: '💰 Недостаточно кэшбэка',
+                        text: `Для игры нужно ${this.moveCost}₽. Ваш баланс: ${Math.round(this.userBalance)}₽`,
+                        type: 'warning',
+                    });
+                    return;
+                }
+
+                if (this.attemptsLeft <= 0) {
+                    this.$notify?.({
+                        title: 'Игра',
+                        text: 'Попытки закончились',
+                        type: 'warning',
+                    });
+                    return;
+                }
+
+                this.isProcessing = true;
+
+                try {
+                    const response = await axios.post('/scratch-card/start');
+
+                    if (!response.data.success) {
+                        throw new Error(response.data.message || 'Ошибка старта');
+                    }
+
+                    // 💾 Сохраняем токен и приз
+                    this.currentGameToken = response.data.token;
+                    this.currentPrize = response.data.prize;
+                    this.selectedPrize = response.data.prize;
+
+                    // 💰 Обновляем баланс и попытки
+                    if (response.data.balance !== undefined) {
+                        this.userBalance = response.data.balance;
+                        if (window.TenantUser) {
+                            window.TenantUser.cashback_balance = response.data.balance;
+                        }
+                    }
+                    if (response.data.attempts_left !== undefined) {
+                        this.attemptsLeft = response.data.attempts_left;
+                    }
+
+                    this.gameStarted = true;
+
+                } catch (error) {
+                    console.error('Ошибка старта игры:', error);
+
+                    if (error.response?.status === 403) {
+                        if (error.response.data?.balance !== undefined) {
+                            this.userBalance = error.response.data.balance;
+                        }
+
+                        this.$notify?.({
+                            title: '💰 ' + (error.response.data?.message || 'Невозможно сыграть'),
+                            text: error.response.data?.shortage
+                                ? `Не хватает: ${error.response.data.shortage}₽`
+                                : 'Проверьте баланс или попробуйте позже',
+                            type: 'warning',
+                        });
+                    } else {
+                        this.$notify?.({
+                            title: 'Ошибка',
+                            text: error.response?.data?.message || 'Не удалось начать игру',
+                            type: 'error',
+                        });
+                    }
+
+                    this.isProcessing = false;
+                    return; // Не даём стирать карту
+                }
+
+                this.isProcessing = false;
             }
 
+            // Теперь можно стирать
             this.isScratching = true;
             const pos = this.getEventPosition(event);
             this.scratchAt(pos.x, pos.y);
@@ -530,9 +647,14 @@ export default {
 
             ctx.globalCompositeOperation = 'source-over';
 
-            this.checkScratchProgress();
+            // ✅ Debounce: не чаще раза в 100ms
+            if (this.scratchCheckTimeout) {
+                clearTimeout(this.scratchCheckTimeout);
+            }
+            this.scratchCheckTimeout = setTimeout(() => {
+                this.checkScratchProgress();
+            }, 100);
         },
-
         checkScratchProgress() {
             if (Math.random() > 0.15) return;
 
@@ -556,13 +678,18 @@ export default {
 
             this.scratchProgress = (transparentPixels / totalPixels) * 100;
 
-            if (this.scratchProgress >= this.revealThreshold && !this.isRevealed) {
+            // ✅ ИСПРАВЛЕНО: берём из gameSettings
+            const threshold = this.gameSettings.reveal_threshold || 55;
+            if (this.scratchProgress >= threshold && !this.isRevealed) {
                 this.revealPrize();
             }
         },
 
         async revealPrize() {
+            if (this.isRevealed) return;
+
             this.isRevealed = true;
+            this.isProcessing = true;
 
             const fadeOut = () => {
                 return new Promise(resolve => {
@@ -583,80 +710,118 @@ export default {
 
             await fadeOut();
 
+            // 🆕 ПОДТВЕРЖДЕНИЕ ПРИЗА НА СЕРВЕРЕ
+            if (this.currentGameToken) {
+                try {
+                    const response = await axios.post('/scratch-card/confirm', {
+                        token: this.currentGameToken,
+                    });
+
+                    if (response.data.success) {
+                        // Обновляем баланс после начисления
+                        if (response.data.balance !== undefined) {
+                            this.userBalance = response.data.balance;
+                            if (window.TenantUser) {
+                                window.TenantUser.cashback_balance = response.data.balance;
+                            }
+                        }
+
+                        // Показываем уведомление
+                        const prize = this.currentPrize;
+                        const netProfit = (prize.type === 'bonus' ? prize.value : 0) - this.moveCost;
+                        const profitText = netProfit >= 0 ? `+${netProfit}` : `${netProfit}`;
+
+                        this.$notify?.({
+                            title: netProfit >= 0 ? '🎉 Победа!' : '🎴 Приз получен',
+                            text: `${prize.title}: ${profitText} бонусов (ставка: ${this.moveCost}₽)`,
+                            type: netProfit >= 0 ? 'success' : 'info',
+                        });
+                    }
+                } catch (error) {
+                    console.error('Ошибка подтверждения приза:', error);
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: 'Не удалось подтвердить приз. Свяжитесь с поддержкой.',
+                        type: 'error',
+                    });
+                }
+            }
+
             setTimeout(() => {
                 this.showResultModal = true;
-                this.gameFinished = true;
-                this.attemptsLeft--;
+                this.gameFinished = this.attemptsLeft <= 0;
+                this.isProcessing = false;
             }, 300);
         },
 
         async loadGameData() {
             try {
-                await new Promise(resolve => setTimeout(resolve, 300));
-                this.allPrizes = this.defaultPrizes;
-                this.attemptsLeft = 1;
-                this.userBalance = window.TenantUser?.cashBack?.amount || 0;
-                this.moveCost = 30;
+                const [settingsRes, stateRes] = await Promise.all([
+                    axios.get('/scratch-card/settings'),
+                    axios.get('/scratch-card/state'),
+                ]);
+
+                if (settingsRes.data?.success && settingsRes.data.scratch_card) {
+                    this.gameSettings = { ...this.gameSettings, ...settingsRes.data.scratch_card };
+                    this.allPrizes = this.gameSettings.prizes || [];
+                } else {
+                    this.allPrizes = this.getDefaultPrizes();
+                }
+
+                if (stateRes.data?.success) {
+                    this.attemptsLeft = stateRes.data.attempts_left ?? this.gameSettings.attempts_per_period;
+                    this.userBalance = stateRes.data.balance ?? (window.TenantUser?.cashback_balance || 0);
+                    this.gameFinished = stateRes.data.game_finished || false;
+
+                    // 🆕 Проверяем наличие незавершённой игры на сервере
+                    // (если backend возвращает pending_game_token)
+                    if (stateRes.data.pending_game_token) {
+                        this.currentGameToken = stateRes.data.pending_game_token;
+                        this.currentPrize = stateRes.data.pending_prize;
+                        this.selectedPrize = stateRes.data.pending_prize;
+                        this.gameStarted = true;
+
+                        this.$notify?.({
+                            title: '🎴 Незавершённая игра',
+                            text: 'У вас есть начатая карта — сотрите её, чтобы получить приз!',
+                            type: 'info',
+                        });
+                    }
+                }
             } catch (error) {
                 console.error('Ошибка загрузки данных игры:', error);
-                this.allPrizes = this.defaultPrizes;
+                this.allPrizes = this.getDefaultPrizes();
+                this.userBalance = window.TenantUser?.cashback_balance || 0;
             }
         },
 
-        async chargeMoveCost() {
-            if (this.userBalance < this.moveCost) {
-                this.$notify?.({
-                    title: 'Недостаточно бонусов',
-                    text: `Для хода нужно ${this.moveCost} бонусов`,
-                    type: 'warning',
-                });
-                return false;
-            }
-
-            this.isProcessing = true;
-
-            try {
-                this.userBalance -= this.moveCost;
-                await this.applyPrize(this.selectedPrize);
-                this.isProcessing = false;
-                return true;
-            } catch (error) {
-                console.error('Ошибка списания бонусов:', error);
-                this.isProcessing = false;
-                return false;
-            }
+        getDefaultPrizes() {
+            return [
+                { id: 1, type: 'bonus', title: '50 бонусов', icon: 'fa-solid fa-coins', value: 50, rarity: 'common' },
+                { id: 2, type: 'bonus', title: '100 бонусов', icon: 'fa-solid fa-coins', value: 100, rarity: 'common' },
+                { id: 3, type: 'bonus', title: '350 бонусов', icon: 'fa-solid fa-gem', value: 350, rarity: 'rare' },
+                { id: 4, type: 'bonus', title: '1000 бонусов', icon: 'fa-solid fa-gem', value: 1000, rarity: 'epic' },
+                { id: 5, type: 'bonus', title: '5000 бонусов', icon: 'fa-solid fa-trophy', value: 5000, rarity: 'legendary' },
+            ];
         },
 
-        async applyPrize(prize) {
-            switch (prize.type) {
-                case 'bonus':
-                    this.userBalance += prize.value;
-                    break;
-            }
-        },
 
-        getRandomPrize() {
-            const rand = Math.random() * 100;
-            let targetRarity;
 
-            if (rand < 3) targetRarity = 'legendary';
-            else if (rand < 15) targetRarity = 'epic';
-            else if (rand < 40) targetRarity = 'rare';
-            else targetRarity = 'common';
 
-            const pool = this.allPrizes.filter(p => p.rarity === targetRarity);
-            return pool[Math.floor(Math.random() * pool.length)];
-        },
+
 
         async startNewGame() {
-            if (this.attemptsLeft <= 0 || this.userBalance < this.moveCost) return;
+            if (this.attemptsLeft <= 0 || !this.hasEnoughCashback) return;
 
+            // Сброс состояния
             this.isRevealed = false;
             this.scratchProgress = 0;
             this.gameFinished = false;
-
-            // Генерируем новый приз
-            this.selectedPrize = this.getRandomPrize();
+            this.gameStarted = false;
+            this.currentGameToken = null;
+            this.currentPrize = null;
+            this.selectedPrize = null;
+            this.showResultModal = false;
 
             await this.$nextTick();
             this.initCanvas();
@@ -848,56 +1013,6 @@ export default {
     margin: 0 0 20px 0;
 }
 
-.hero-stats {
-    display: inline-flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
-    background: rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 16px;
-}
-
-.stat-block { display: flex; align-items: center; gap: 10px; }
-
-.stat-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #ffd700 0%, #ff9800 100%);
-    color: #1a1a1a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-}
-
-.stat-icon.cost-icon {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-    color: white;
-}
-
-.stat-info { text-align: left; }
-
-.stat-value {
-    font-size: 1.2rem;
-    font-weight: 800;
-    line-height: 1;
-}
-
-.stat-label {
-    font-size: 0.65rem;
-    opacity: 0.9;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stat-divider {
-    width: 1px;
-    height: 30px;
-    background: rgba(255, 255, 255, 0.3);
-}
 
 .game-content { padding: 20px 16px; }
 
@@ -1598,8 +1713,7 @@ export default {
 @media (max-width: 576px) {
     .hero-title { font-size: 1.5rem; }
     .hero-icon { width: 64px; height: 64px; font-size: 1.8rem; }
-    .hero-stats { gap: 12px; padding: 10px 16px; }
-    .stat-value { font-size: 1rem; }
+
 
     .scratch-card-wrapper { height: 200px; }
     .reveal-icon { width: 60px; height: 60px; font-size: 1.5rem; }
@@ -1608,5 +1722,181 @@ export default {
 
     .result-icon { width: 80px; height: 80px; font-size: 2rem; }
     .result-title { font-size: 1.3rem; }
+}
+
+/* ==========================================
+   🎰 СЕТКА СТАТИСТИКИ В HERO
+   ========================================== */
+.hero-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 360px;
+    margin: 0 auto;
+}
+
+.hero-stat-card {
+    padding: 14px 12px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.hero-stat-card.balance {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 152, 0, 0.15) 100%);
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.hero-stat-card.cost {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.hero-stat-card.balance.insufficient {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.25) 0%, rgba(200, 35, 51, 0.15) 100%);
+    border-color: rgba(220, 53, 69, 0.5);
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+.hero-stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffd700 0%, #ff9800 100%);
+    color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.hero-stat-icon.cost-icon {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    color: white;
+}
+
+.hero-stat-info { text-align: center; }
+
+.hero-stat-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: white;
+    margin-bottom: 2px;
+}
+
+.hero-stat-label {
+    font-size: 0.7rem;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.hero-stat-hint {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 6px;
+    background: rgba(220, 53, 69, 0.9);
+    border-radius: 8px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* ==========================================
+   ⚠️ ПРЕДУПРЕЖДЕНИЕ О НЕХВАТКЕ КЭШБЭКА
+   ========================================== */
+.cashback-warning {
+    margin-top: 16px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.08) 0%, rgba(255, 152, 0, 0.05) 100%);
+    border: 1.5px solid rgba(220, 53, 69, 0.3);
+    border-radius: 16px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.warning-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.warning-content { flex: 1; min-width: 0; }
+
+.warning-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #dc3545;
+    margin-bottom: 4px;
+}
+
+.warning-text {
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.warning-text strong { color: var(--bs-primary); }
+
+.warning-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    padding: 8px 10px;
+    background: rgba(255, 193, 7, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid #ffc107;
+}
+
+.warning-hint i {
+    color: #ffc107;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* Адаптив */
+@media (max-width: 400px) {
+    .hero-stats-grid {
+        gap: 8px;
+    }
+    .hero-stat-card {
+        padding: 10px 8px;
+    }
+    .hero-stat-value {
+        font-size: 1rem;
+    }
 }
 </style>

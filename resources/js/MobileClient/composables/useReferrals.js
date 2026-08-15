@@ -10,8 +10,7 @@ export function useReferrals() {
         // --- Состояние (State) ---
         referralTree,
         rewardsHistory,
-        referralLink,
-        referralCode,
+
         friends,
         incomingRequests,
         isLoading,
@@ -29,8 +28,8 @@ export function useReferrals() {
         // Состояние (Refs)
         referralTree,
         rewardsHistory,
-        referralLink,
-        referralCode,
+
+
         friends,
         incomingRequests,
         isLoading,

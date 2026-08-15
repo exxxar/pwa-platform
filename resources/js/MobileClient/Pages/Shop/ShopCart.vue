@@ -208,7 +208,7 @@
                 <div class="footer-content">
                     <div class="footer-summary">
                         <span class="summary-label">К оплате:</span>
-                        <span class="summary-value">{{ formatPrice(totalToPay) }}</span>
+                        <span class="summary-value">{{ formatPrice(totalToPay) }} ₽</span>
                     </div>
 
                     <button
@@ -276,13 +276,13 @@
                                             <span class="info-label">Текущая сумма</span>
                                             <span class="info-value current-amount">{{
                                                     formatPrice(error.current_amount)
-                                                }}</span>
+                                                }} ₽</span>
                                         </div>
                                         <div class="info-cell">
                                             <span class="info-label">Минимальная</span>
                                             <span class="info-value required-amount">{{
                                                     formatPrice(error.min_required)
-                                                }}</span>
+                                                }} ₽</span>
                                         </div>
                                     </div>
 

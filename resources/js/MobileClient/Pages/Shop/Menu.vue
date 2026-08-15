@@ -126,6 +126,78 @@
                 </transition>
             </div>
 
+            <!-- 🆕 ========================================== -->
+            <!-- 🎁 ЕЖЕДНЕВНЫЙ БОНУС (Premium Card)           -->
+            <!-- ========================================== -->
+            <button
+                v-if="dailyBonusState.available"
+                class="daily-bonus-card"
+                :class="{ 'is-claimed': dailyBonusState.already_claimed }"
+                @click="goToDailyBonus"
+            >
+                <!-- Фоновые декоративные элементы -->
+                <div class="db-background"></div>
+                <div class="db-shine"></div>
+
+                <!-- Летающие монетки (только если не получен) -->
+                <div v-if="!dailyBonusState.already_claimed" class="db-particles">
+                    <span class="db-coin coin-1">💰</span>
+                    <span class="db-coin coin-2">✨</span>
+                    <span class="db-coin coin-3">💎</span>
+                    <span class="db-coin coin-4">⭐</span>
+                    <span class="db-coin coin-5">🎁</span>
+                    <span class="db-coin coin-6">💰</span>
+                </div>
+
+                <!-- Контент -->
+                <div class="db-content">
+                    <!-- Иконка сундучка -->
+                    <div class="db-icon-wrapper">
+                        <div class="db-icon" :class="{ 'claimed': dailyBonusState.already_claimed }">
+                            <i :class="dailyBonusState.already_claimed ? 'fa-solid fa-box-open' : 'fa-solid fa-gift'"></i>
+                        </div>
+                        <div v-if="!dailyBonusState.already_claimed" class="db-glow"></div>
+                        <div v-if="!dailyBonusState.already_claimed" class="db-pulse"></div>
+                    </div>
+
+                    <!-- Текстовая информация -->
+                    <div class="db-text">
+                        <div class="db-label">
+                            <i class="fa-solid fa-calendar-check"></i>
+                            Ежедневный бонус
+                        </div>
+                        <div class="db-title" v-if="!dailyBonusState.already_claimed">
+                            Забери свой подарок!
+                        </div>
+                        <div class="db-title claimed" v-else>
+                            Бонус уже получен
+                        </div>
+                        <div class="db-streak" v-if="dailyBonusState.current_streak > 0">
+                            <i class="fa-solid fa-fire"></i>
+                            <span>Серия: <strong>{{
+                                    dailyBonusState.current_streak
+                                }}</strong> {{ pluralizeDays(dailyBonusState.current_streak) }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Кнопка действия -->
+                    <div class="db-action" :class="{ 'claimed': dailyBonusState.already_claimed }">
+                        <span v-if="!dailyBonusState.already_claimed">
+                            <i class="fa-solid fa-hand-pointer"></i>
+                            Забрать
+                        </span>
+                                    <span v-else class="db-timer">
+                            <i class="fa-regular fa-clock"></i>
+                            {{ timeUntilNext }}
+                        </span>
+                        <i class="fa-solid fa-arrow-right db-arrow"></i>
+                    </div>
+                </div>
+
+                <!-- Дополнительный блеск снизу (для активного состояния) -->
+                <div v-if="!dailyBonusState.already_claimed" class="db-bottom-shine"></div>
+            </button>
+
             <!-- ===== СЕКЦИЯ: СЕРВИСЫ ===== -->
             <div class="section-header">
                 <div class="section-icon">
@@ -500,7 +572,7 @@ import StoreStatusBanner from '@/MobileClient/Components/StoreStatusBanner.vue';
 import AppDivider from "@/MobileClient/Components/AppDivider.vue";
 
 import OrderPeriscope from "@/MobileClient/Components/Shop/OrderPeriscope.vue";
-import {usePermissions} from '@/MobileClient/Composables/usePermissions.js';
+import {usePermissions} from '@/MobileClient/composables/usePermissions.js';
 import StoryCreateModal from '@/MobileClient/Components/Shop/Stories/StoryCreateModal.vue'; // 🆕
 import TaplinkButton from '@/MobileClient/Components/Common/TaplinkButton.vue';
 
@@ -559,6 +631,16 @@ export default {
 
             isCopied: false,
             copyTimeout: null,
+
+            dailyBonusState: {
+                available: false,
+                current_streak: 0,
+                already_claimed: false,
+                server_date: null,
+            },
+
+            timeUntilNext: '',
+            timerInterval: null,
         };
     },
 
@@ -1157,19 +1239,83 @@ export default {
         this.loadStories();
         this.loadScriptData();
         this.initDisabledModal();
+        this.loadDailyBonusState();
     },
 
     beforeUnmount() {
-        // 🆕 Очистка экземпляра модалки при уничтожении компонента
         if (this.disabledModal) {
             this.disabledModal.dispose();
         }
-
         if (this.copyTimeout) {
             clearTimeout(this.copyTimeout);
         }
+        // 🆕 Очистка таймера
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+        }
     },
     methods: {
+        async loadDailyBonusState() {
+            try {
+                const response = await axios.get('/daily-bonus/state');
+
+                if (response.data?.success) {
+                    this.dailyBonusState = {
+                        available: true,
+                        current_streak: response.data.current_streak || 0,
+                        already_claimed: response.data.today_opened || false,
+                        server_date: response.data.server_date,
+                    };
+
+                    // Если уже получен — запускаем таймер
+                    if (this.dailyBonusState.already_claimed) {
+                        this.startNextDayTimer();
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки состояния ежедневного бонуса:', error);
+                // Показываем кнопку по умолчанию для привлечения внимания
+                this.dailyBonusState.available = true;
+            }
+        },
+
+        startNextDayTimer() {
+            this.updateTimeUntilNext();
+            this.timerInterval = setInterval(() => {
+                this.updateTimeUntilNext();
+            }, 1000);
+        },
+
+        updateTimeUntilNext() {
+            const now = new Date();
+            const endOfDay = new Date(now);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            const diff = endOfDay - now;
+            if (diff <= 0) {
+                this.timeUntilNext = 'Обновляется...';
+                // Перезагружаем состояние — возможно уже новый день
+                this.loadDailyBonusState();
+                return;
+            }
+
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+            this.timeUntilNext = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        },
+
+        pluralizeDays(n) {
+            const abs = Math.abs(n) % 100;
+            const n1 = abs % 10;
+            if (abs > 10 && abs < 20) return 'дней';
+            if (n1 > 1 && n1 < 5) return 'дня';
+            if (n1 === 1) return 'день';
+            return 'дней';
+        },
+        goToDailyBonus() {
+            this.goTo('DailyBonusGame'); // Или ваш роут
+        },
         setAdminCategory(category) {
             this.adminCategory = category;
             localStorage.setItem('adminCategory', category);
@@ -1329,9 +1475,9 @@ export default {
     position: absolute;
     inset: 0;
     background: linear-gradient(
-        135deg,
-        var(--bs-primary) 0%,
-        var(--bs-primary-hover, var(--bs-primary)) 100%
+            135deg,
+            var(--bs-primary) 0%,
+            var(--bs-primary-hover, var(--bs-primary)) 100%
     );
     opacity: 0.95;
 }
@@ -1930,10 +2076,10 @@ export default {
     width: 100%;
     height: 100%;
     background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.15),
-        transparent
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.15),
+            transparent
     );
     transform: translateX(-100%);
     transition: transform 0.6s ease;
@@ -2253,6 +2399,7 @@ export default {
 .btn-crm-link:hover i {
     transform: translate(2px, -2px);
 }
+
 /* ==========================================
    🆕 КНОПКА КОПИРОВАНИЯ ID ПОЛЬЗОВАТЕЛЯ
    ========================================== */
@@ -2304,8 +2451,12 @@ export default {
 }
 
 @keyframes popIn {
-    0% { transform: scale(0.5); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(0.5);
+    }
+    100% {
+        transform: scale(1);
+    }
 }
 
 /* ==========================================
@@ -2501,6 +2652,7 @@ export default {
 .tab-fade-leave-active {
     transition: opacity 0.2s ease;
 }
+
 .tab-fade-enter-from,
 .tab-fade-leave-to {
     opacity: 0;
@@ -2510,13 +2662,16 @@ export default {
 .tab-slide-enter-active {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .tab-slide-leave-active {
     transition: all 0.2s ease;
 }
+
 .tab-slide-enter-from {
     opacity: 0;
     transform: translateY(10px);
 }
+
 .tab-slide-leave-to {
     opacity: 0;
     transform: translateY(-10px);
@@ -2600,9 +2755,8 @@ export default {
 .game-grid-bg {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+    background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
     z-index: 1;
     pointer-events: none;
 }
@@ -2725,6 +2879,461 @@ export default {
 
     .admin-tab-title {
         font-size: 0.82rem;
+    }
+}
+
+/* ==========================================
+   🎁 ЕЖЕДНЕВНЫЙ БОНУС (Premium Gold Card)
+   ========================================== */
+.daily-bonus-card {
+    position: relative;
+    width: 100%;
+    padding: 20px;
+    margin-bottom: 24px;
+    border-radius: 20px;
+    overflow: hidden;
+    cursor: pointer;
+    border: none;
+    text-align: left;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Золотой градиент */
+    background: linear-gradient(
+            135deg,
+            #ffd700 0%,
+            #ffb800 25%,
+            #ff9500 50%,
+            #ff7e00 75%,
+            #ff6b00 100%
+    );
+
+    box-shadow:
+        0 8px 24px rgba(255, 165, 0, 0.35),
+        0 2px 8px rgba(255, 140, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+
+    color: #4a2c00;
+
+    &:hover {
+        transform: translateY(-3px);
+        box-shadow:
+            0 12px 32px rgba(255, 165, 0, 0.45),
+            0 4px 12px rgba(255, 140, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    &:active {
+        transform: translateY(-1px);
+    }
+
+    /* Состояние "уже получен" */
+    &.is-claimed {
+        background: linear-gradient(
+                135deg,
+                #8b7355 0%,
+                #a88a5a 50%,
+                #c9a961 100%
+        );
+        box-shadow:
+            0 4px 16px rgba(139, 115, 85, 0.25),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        color: #3a2c1a;
+
+        &:hover {
+            box-shadow:
+                0 8px 24px rgba(139, 115, 85, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+    }
+}
+
+/* Фоновые декоративные элементы */
+.db-background {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.3) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(255, 200, 0, 0.4) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
+    pointer-events: none;
+
+    .is-claimed & {
+        opacity: 0.5;
+    }
+}
+
+/* Пробегающий блик */
+.db-shine {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.4),
+            transparent
+    );
+    transform: skewX(-20deg);
+    animation: dbShine 3s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 5;
+
+    .is-claimed & {
+        animation: none;
+        opacity: 0;
+    }
+}
+
+@keyframes dbShine {
+    0% {
+        left: -100%;
+    }
+    50%, 100% {
+        left: 150%;
+    }
+}
+
+/* Летающие частицы (монетки, звёздочки) */
+.db-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.db-coin {
+    position: absolute;
+    font-size: 1.2rem;
+    opacity: 0.7;
+    animation: dbFloat 4s ease-in-out infinite;
+
+    &.coin-1 {
+        top: 15%;
+        left: 10%;
+        animation-delay: 0s;
+    }
+
+    &.coin-2 {
+        top: 20%;
+        right: 15%;
+        animation-delay: 0.5s;
+        font-size: 1rem;
+    }
+
+    &.coin-3 {
+        top: 60%;
+        left: 8%;
+        animation-delay: 1s;
+        font-size: 1.1rem;
+    }
+
+    &.coin-4 {
+        bottom: 25%;
+        right: 12%;
+        animation-delay: 1.5s;
+        font-size: 0.9rem;
+    }
+
+    &.coin-5 {
+        top: 40%;
+        left: 50%;
+        animation-delay: 2s;
+        font-size: 1.3rem;
+        opacity: 0.5;
+    }
+
+    &.coin-6 {
+        bottom: 15%;
+        left: 30%;
+        animation-delay: 2.5s;
+        font-size: 1rem;
+    }
+}
+
+@keyframes dbFloat {
+    0%, 100% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0.7;
+    }
+    25% {
+        transform: translate(8px, -12px) rotate(10deg);
+        opacity: 0.9;
+    }
+    50% {
+        transform: translate(-5px, -20px) rotate(-5deg);
+        opacity: 0.6;
+    }
+    75% {
+        transform: translate(10px, -10px) rotate(8deg);
+        opacity: 0.8;
+    }
+}
+
+/* Контент карточки */
+.db-content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Иконка сундучка */
+.db-icon-wrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.db-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #fff5d6 0%, #ffe8a8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: #b8860b;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+        0 6px 16px rgba(184, 134, 11, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    animation: dbIconFloat 3s ease-in-out infinite;
+
+    &.claimed {
+        background: linear-gradient(135deg, #f5f0e6 0%, #e8dcc0 100%);
+        color: #8b7355;
+        animation: none;
+        box-shadow:
+            0 4px 12px rgba(139, 115, 85, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+}
+
+@keyframes dbIconFloat {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-6px) rotate(-3deg);
+    }
+}
+
+/* Пульсирующее свечение вокруг иконки */
+.db-glow {
+    position: absolute;
+    inset: -8px;
+    border-radius: 22px;
+    background: radial-gradient(circle, rgba(255, 215, 0, 0.5) 0%, transparent 70%);
+    animation: dbGlowPulse 2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes dbGlowPulse {
+    0%, 100% {
+        opacity: 0.4;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.1);
+    }
+}
+
+/* Волны-пульсации */
+.db-pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    border: 2px solid rgba(255, 215, 0, 0.8);
+    animation: dbPulse 2s ease-out infinite;
+    pointer-events: none;
+}
+
+@keyframes dbPulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* Текстовый блок */
+.db-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.db-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+
+    i {
+        font-size: 0.7rem;
+    }
+}
+
+.db-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #3a1f00;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+
+    &.claimed {
+        color: #4a3820;
+        font-weight: 700;
+        font-size: 1rem;
+    }
+}
+
+.db-streak {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #7a3f00;
+    margin-top: 2px;
+
+    i {
+        color: #ff4500;
+        animation: streakFire 1.5s ease-in-out infinite;
+    }
+
+    strong {
+        font-weight: 800;
+        color: #3a1f00;
+    }
+}
+
+@keyframes streakFire {
+    0%, 100% {
+        transform: scale(1) translateY(0);
+    }
+    50% {
+        transform: scale(1.2) translateY(-2px);
+    }
+}
+
+/* Кнопка действия */
+.db-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #4a2c00 0%, #7a4500 100%);
+    color: #ffd700;
+    border-radius: 14px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    box-shadow:
+        0 4px 12px rgba(74, 44, 0, 0.3),
+        inset 0 1px 0 rgba(255, 215, 0, 0.2);
+    transition: all 0.2s ease;
+
+    i:first-child {
+        font-size: 0.9rem;
+    }
+
+    .db-arrow {
+        transition: transform 0.2s ease;
+    }
+
+    &:hover .db-arrow {
+        transform: translateX(3px);
+    }
+
+    &.claimed {
+        background: linear-gradient(135deg, #5a4a30 0%, #6a5538 100%);
+        color: #d4b870;
+        font-size: 0.8rem;
+    }
+
+    .db-timer {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+.daily-bonus-card:hover .db-action:not(.claimed) {
+    background: linear-gradient(135deg, #5a3400 0%, #8a5200 100%);
+    box-shadow:
+        0 6px 16px rgba(74, 44, 0, 0.4),
+        inset 0 1px 0 rgba(255, 215, 0, 0.3);
+}
+
+/* Нижний декоративный блик */
+.db-bottom-shine {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40%;
+    background: linear-gradient(
+            to top,
+            rgba(255, 255, 255, 0.15),
+            transparent
+    );
+    pointer-events: none;
+    border-radius: 0 0 20px 20px;
+}
+
+/* ==========================================
+   🎁 АДАПТИВ ДЛЯ МАЛЕНЬКИХ ЭКРАНОВ
+   ========================================== */
+@media (max-width: 400px) {
+    .daily-bonus-card {
+        padding: 16px;
+    }
+
+    .db-icon {
+        width: 56px;
+        height: 56px;
+        font-size: 1.5rem;
+    }
+
+    .db-title {
+        font-size: 1rem;
+    }
+
+    .db-action {
+        padding: 8px 12px;
+        font-size: 0.78rem;
+    }
+
+    .db-coin {
+        font-size: 0.9rem;
+        opacity: 0.5;
+    }
+}
+
+@media (max-width: 350px) {
+    .db-content {
+        flex-wrap: wrap;
+    }
+
+    .db-action {
+        width: 100%;
+        justify-content: center;
+        margin-top: 8px;
     }
 }
 </style>

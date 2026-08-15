@@ -98,23 +98,25 @@ class Collection extends Model
 
         $productTable = (new Product())->getTable();
 
+        // 🎯 1. Создаем подзапрос.
+        // ИСПРАВЛЕНО: Явно указываем таблицу (collection_category_product) для sort_order и product_id,
+        // так как поле sort_order присутствует и в collection_category_product, и в collection_categories.
+        $sortedProductsSubquery = \DB::table('collection_category_product')
+            ->select(
+                'collection_category_product.product_id',
+                \DB::raw('MIN(collection_category_product.sort_order) as min_sort_order')
+            )
+            ->join('collection_categories', 'collection_categories.id', '=', 'collection_category_product.collection_category_id')
+            ->where('collection_categories.collection_id', $this->getKey())
+            ->groupBy('collection_category_product.product_id');
+
+        // 🎯 2. Основной запрос. Выбираем products.* и джойним подзапрос.
         return Product::query()
             ->select($productTable . '.*')
-            ->join(
-                'collection_category_product',
-                $productTable . '.id',
-                '=',
-                'collection_category_product.product_id'
-            )
-            ->join(
-                'collection_categories',
-                'collection_categories.id',
-                '=',
-                'collection_category_product.collection_category_id'
-            )
-            ->where('collection_categories.collection_id', $this->getKey())
-            ->groupBy($productTable . '.id')
-            ->orderByRaw('MIN(collection_category_product.sort_order) ASC')
+            ->joinSub($sortedProductsSubquery, 'sorted_products', function ($join) use ($productTable) {
+                $join->on('sorted_products.product_id', '=', $productTable . '.id');
+            })
+            ->orderBy('sorted_products.min_sort_order')
             ->orderBy($productTable . '.id');
     }
 

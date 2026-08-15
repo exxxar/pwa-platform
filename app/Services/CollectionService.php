@@ -126,6 +126,10 @@ class CollectionService
             throw new HttpException(404, 'Коллекция не найдена');
         }
 
+        if (!$collection->is_active) {
+            throw new HttpException(403, 'Коллекция недоступна');
+        }
+
         return new CollectionResource($collection);
     }
 

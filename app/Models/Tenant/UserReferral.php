@@ -55,4 +55,22 @@ class UserReferral extends Model
     {
         return $query->where('referrer_id', $referrerId);
     }
+
+    /**
+     * 🆕 Scope для быстрой проверки дубликатов
+     */
+    public function scopeForReferred($query, int $referredId)
+    {
+        return $query->where('referred_id', $referredId);
+    }
+
+    /**
+     * 🆕 Получить всю цепочку рефералов для пользователя (все уровни)
+     */
+    public function scopeFullChain($query, int $userId)
+    {
+        return $query->where('referred_id', $userId)
+            ->where('is_active', true)
+            ->orderBy('level');
+    }
 }

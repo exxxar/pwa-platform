@@ -26,8 +26,8 @@
                             <i class="fa-solid fa-coins"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-value">{{ balance }}</div>
-                            <div class="stat-label">Баланс</div>
+                            <div class="stat-value">{{ Math.round(balance) }}₽</div>
+                            <div class="stat-label">Кэшбэк</div>
                         </div>
                     </div>
                     <div class="stat-divider"></div>
@@ -36,7 +36,7 @@
                             <i class="fa-solid fa-gem"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-value">{{ treasuresFound }}</div>
+                            <div class="stat-value">{{ totalTreasures }}</div>
                             <div class="stat-label">Сокровищ</div>
                         </div>
                     </div>
@@ -108,10 +108,10 @@
                     <button
                         class="start-btn"
                         @click="startGame"
-                        :disabled="balance < currentLevelConfig.cost"
+                        :disabled="balance < gameCost || isProcessing"
                     >
-                        <i class="fa-solid fa-play"></i>
-                        <span>Начать (−{{ currentLevelConfig.cost }} бонусов)</span>
+                        <i :class="isProcessing ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-play'"></i>
+                        <span>Начать (−{{ gameCost }}₽ кэшбэка)</span>
                     </button>
                 </div>
             </div>
@@ -411,99 +411,48 @@
 </template>
 
 <script>
-import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
+
 
 export default {
     name: "TreasureHuntGame",
 
-    setup() {
-        const basketStore = useBasketStore();
-        return { basketStore };
-    },
+
 
     data() {
         return {
-            balance: 500,
-            treasuresFound: 0,
+            // Состояние с сервера
+            balance: 0,
+            gameCost: 100,
+            boosterCosts: { radar: 30, shield: 50, compass: 20 },
+            totalTreasures: 0,
             gamesHistory: [],
             unlockedLevels: [1],
+            levels: [],
 
+            // Активная игра
+            activeGame: null, // Данные из sanitizeActiveGame
             currentLevel: 1,
             gameStarted: false,
             gameOver: false,
             gameWon: false,
+            gameToken: null,
 
-            map: [],
+            // Состояние раунда
+            map: [], // Массив клеток с флагами revealed, type и т.д.
             moves: 0,
             foundThisRound: 0,
             earnedThisRound: 0,
+            shieldActive: false,
 
+            // Бустеры
             activeBooster: null,
+            isProcessing: false,
+
+            // UI
             lastPrize: null,
             lastPrizeTimeout: null,
-
             showAdmin: false,
             showResultModal: false,
-
-            levels: [
-                {
-                    id: 1,
-                    name: 'Остров',
-                    icon: 'fa-solid fa-umbrella-beach',
-                    size: 4,
-                    treasures: 3,
-                    traps: 2,
-                    hints: 2,
-                    cost: 30,
-                    unlocked: true,
-                    desc: 'Небольшой остров с сокровищами. Идеально для начинающих!',
-                    rewards: [
-                        { emoji: '💰', name: 'Обычное', min: 30, max: 80, tier: 'common', weight: 70 },
-                        { emoji: '💎', name: 'Редкое', min: 150, max: 250, tier: 'rare', weight: 25 },
-                        { emoji: '👑', name: 'Легендарное', min: 400, max: 600, tier: 'legendary', weight: 5 },
-                    ],
-                },
-                {
-                    id: 2,
-                    name: 'Пещера',
-                    icon: 'fa-solid fa-mountain',
-                    size: 5,
-                    treasures: 5,
-                    traps: 4,
-                    hints: 3,
-                    cost: 60,
-                    unlocked: false,
-                    desc: 'Тёмная пещера с большими сокровищами, но и больше ловушек!',
-                    rewards: [
-                        { emoji: '💰', name: 'Обычное', min: 50, max: 150, tier: 'common', weight: 60 },
-                        { emoji: '💎', name: 'Редкое', min: 250, max: 450, tier: 'rare', weight: 30 },
-                        { emoji: '👑', name: 'Легендарное', min: 700, max: 1200, tier: 'legendary', weight: 10 },
-                    ],
-                },
-                {
-                    id: 3,
-                    name: 'Храм',
-                    icon: 'fa-solid fa-landmark',
-                    size: 6,
-                    treasures: 8,
-                    traps: 6,
-                    hints: 4,
-                    cost: 120,
-                    unlocked: false,
-                    desc: 'Древний храм с несметными богатствами. Только для опытных!',
-                    rewards: [
-                        { emoji: '💰', name: 'Обычное', min: 100, max: 300, tier: 'common', weight: 50 },
-                        { emoji: '💎', name: 'Редкое', min: 400, max: 800, tier: 'rare', weight: 35 },
-                        { emoji: '👑', name: 'Легендарное', min: 1000, max: 1500, tier: 'legendary', weight: 15 },
-                    ],
-                },
-            ],
-
-            levelNames: {
-                1: 'Остров',
-                2: 'Пещера',
-                3: 'Храм',
-            },
         };
     },
 
@@ -514,13 +463,22 @@ export default {
         },
 
         currentLevelConfig() {
-            return this.levels.find(l => l.id === this.currentLevel);
+            return this.levels.find(l => l.id === this.currentLevel) || this.levels[0] || {};
+        },
+
+        levelNames() {
+            const names = {};
+            this.levels.forEach(l => { names[l.id] = l.name; });
+            return names;
+        },
+
+        canPlay() {
+            return this.balance >= this.gameCost && !this.gameStarted && !this.isProcessing;
         },
     },
 
     async mounted() {
         await this.loadState();
-        this.updateLevelUnlock();
     },
 
     beforeUnmount() {
@@ -535,29 +493,53 @@ export default {
         // ==========================================
         async loadState() {
             try {
-                const saved = localStorage.getItem('treasureHuntState');
-                if (saved) {
-                    const state = JSON.parse(saved);
-                    this.balance = state.balance ?? 500;
-                    this.treasuresFound = state.treasuresFound ?? 0;
-                    this.gamesHistory = state.gamesHistory ?? [];
-                    this.unlockedLevels = state.unlockedLevels ?? [1];
+                const response = await axios.get('/treasure-hunt/state');
+
+                if (response.data?.success) {
+                    this.balance = response.data.balance ?? 0;
+                    this.gameCost = response.data.game_cost ?? 100;
+                    this.boosterCosts = response.data.booster_costs ?? this.boosterCosts;
+                    this.totalTreasures = response.data.total_treasures ?? 0;
+                    this.gamesHistory = response.data.history ?? [];
+                    this.unlockedLevels = response.data.unlocked_levels ?? [1];
+                    this.levels = response.data.levels ?? [];
+
+                    // Восстановление активной игры
+                    if (response.data.active_game) {
+                        this.restoreActiveGame(response.data.active_game);
+                    }
                 }
             } catch (error) {
-                console.error('Ошибка загрузки:', error);
+                console.error('Ошибка загрузки состояния:', error);
+                // Fallback — загружаем только уровни
+                this.levels = [
+                    { id: 1, name: 'Остров', size: 4, treasures: 3, traps: 2, unlocked: true },
+                ];
             }
-            this.updateLevelUnlock();
         },
 
-        saveState() {
-            const state = {
-                balance: this.balance,
-                treasuresFound: this.treasuresFound,
-                gamesHistory: this.gamesHistory,
-                unlockedLevels: this.unlockedLevels,
-            };
-            localStorage.setItem('treasureHuntState', JSON.stringify(state));
+        restoreActiveGame(activeGame) {
+            this.activeGame = activeGame;
+            this.gameToken = activeGame.token;
+            this.currentLevel = activeGame.level;
+            this.gameStarted = true;
+            this.moves = activeGame.moves;
+            this.foundThisRound = activeGame.found_this_round;
+            this.earnedThisRound = activeGame.earned_this_round;
+            this.shieldActive = activeGame.shield_active;
+            this.gameOver = activeGame.finished;
+            this.gameWon = activeGame.won;
+
+            // Восстанавливаем карту
+            this.map = activeGame.cells.map(cell => ({
+                ...cell,
+                protected: false,
+                radarTarget: false,
+                shaking: false,
+            }));
         },
+
+
 
         updateLevelUnlock() {
             this.levels.forEach(level => {
@@ -578,270 +560,418 @@ export default {
             this.currentLevel = id;
         },
 
-        startGame() {
-            if (this.balance < this.currentLevelConfig.cost) {
-                this.$notify?.({ title: 'Ошибка', text: 'Недостаточно бонусов', type: 'error' });
-                return;
-            }
-
-            this.balance -= this.currentLevelConfig.cost;
-            this.generateMap();
-            this.gameStarted = true;
-            this.gameOver = false;
-            this.gameWon = false;
-            this.moves = 0;
-            this.foundThisRound = 0;
-            this.earnedThisRound = 0;
-            this.activeBooster = null;
-            this.saveState();
-        },
-
-        generateMap() {
-            const { size, treasures, traps, hints } = this.currentLevelConfig;
-            const total = size * size;
-            const map = Array.from({ length: total }, () => ({
-                type: 'empty',
-                revealed: false,
-                protected: false,
-                radarTarget: false,
-                shaking: false,
-                tier: null,
-                emoji: null,
-                value: 0,
-                name: '',
-            }));
-
-            // Размещаем сокровища
-            this.placeRandom(map, 'treasure', treasures, true);
-            // Размещаем ловушки
-            this.placeRandom(map, 'trap', traps, false);
-            // Размещаем подсказки
-            this.placeRandom(map, 'hint', hints, false);
-
-            this.map = map;
-        },
-
-        placeRandom(map, type, count, isTreasure = false) {
-            let placed = 0;
-            const indices = [...Array(map.length).keys()].sort(() => Math.random() - 0.5);
-
-            for (const i of indices) {
-                if (placed >= count) break;
-                if (map[i].type === 'empty') {
-                    map[i].type = type;
-                    if (isTreasure) {
-                        const reward = this.pickRandomReward();
-                        map[i].tier = reward.tier;
-                        map[i].emoji = reward.emoji;
-                        map[i].name = reward.name;
-                        map[i].value = Math.floor(Math.random() * (reward.max - reward.min + 1)) + reward.min;
-                    }
-                    placed++;
-                }
-            }
-        },
-
-        pickRandomReward() {
-            const rewards = this.currentLevelConfig.rewards;
-            const totalWeight = rewards.reduce((sum, r) => sum + r.weight, 0);
-            let rand = Math.random() * totalWeight;
-
-            for (const r of rewards) {
-                if (rand < r.weight) return r;
-                rand -= r.weight;
-            }
-            return rewards[0];
-        },
-
-        revealCell(index) {
-            if (this.gameOver) return;
-            const cell = this.map[index];
-            if (cell.revealed) return;
-
-            if (this.activeBooster === 'compass') {
-                this.activateCompass(index);
-                return;
-            }
-
-            this.moves++;
-            cell.revealed = true;
-
-            if (cell.type === 'treasure') {
-                this.foundThisRound++;
-                this.earnedThisRound += cell.value;
-                this.treasuresFound++;
-                this.showPrizePopup(cell);
-
-                // Проверка полной победы
-                if (this.foundThisRound >= this.currentLevelConfig.treasures) {
-                    this.gameWon = true;
-                    this.gameOver = true;
-                    this.unlockNextLevel();
-                    this.addGameToHistory(true);
-                    this.balance += this.earnedThisRound;
-                    this.saveState();
-                    setTimeout(() => { this.showResultModal = true; }, 600);
-                    return;
-                }
-            } else if (cell.type === 'trap') {
-                if (cell.protected) {
-                    // Щит сработал
-                    cell.protected = false;
-                    this.$notify?.({ title: 'Щит!', text: 'Ловушка обезврежена', type: 'success' });
-                } else {
-                    this.gameOver = true;
-                    this.gameWon = false;
-                    // Забираем половину выигрыша
-                    const half = Math.floor(this.earnedThisRound / 2);
-                    this.balance += half;
-                    this.earnedThisRound = half;
-                    this.addGameToHistory(false);
-                    this.saveState();
-                    setTimeout(() => { this.showResultModal = true; }, 600);
-                    return;
-                }
-            } else if (cell.type === 'hint') {
-                this.showHint(index);
-            }
-
-            this.saveState();
-        },
-
-        showHint(index) {
-            const size = this.currentLevelConfig.size;
-            const row = Math.floor(index / size);
-            const col = index % size;
-
-            // Находим ближайшее сокровище
-            let nearest = null;
-            let minDist = Infinity;
-
-            this.map.forEach((cell, i) => {
-                if (cell.type === 'treasure' && !cell.revealed) {
-                    const r = Math.floor(i / size);
-                    const c = i % size;
-                    const dist = Math.abs(r - row) + Math.abs(c - col);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        nearest = { r, c, dist };
-                    }
-                }
-            });
-
-            if (nearest) {
-                let direction = '';
-                if (nearest.r < row) direction += '↑';
-                if (nearest.r > row) direction += '↓';
-                if (nearest.c < col) direction += '←';
-                if (nearest.c > col) direction += '→';
-
-                this.$notify?.({
-                    title: 'Подсказка!',
-                    text: `Сокровище ${direction} (${nearest.dist} шагов)`,
-                    type: 'info',
-                    duration: 3000,
-                });
-            }
-        },
-
-        giveUp() {
-            if (this.earnedThisRound === 0) {
-                if (!confirm('Уйти без выигрыша?')) return;
-            } else {
-                if (!confirm(`Забрать ${this.earnedThisRound} бонусов и закончить игру?`)) return;
-            }
-
-            this.balance += this.earnedThisRound;
-            this.gameOver = true;
-            this.gameWon = this.foundThisRound >= this.currentLevelConfig.treasures;
-            this.addGameToHistory(this.gameWon);
-            this.unlockNextLevel();
-            this.saveState();
-            this.showResultModal = true;
-        },
-
-        unlockNextLevel() {
-            const nextId = this.currentLevel + 1;
-            if (nextId <= 3 && !this.unlockedLevels.includes(nextId)) {
-                this.unlockedLevels.push(nextId);
-                this.$notify?.({
-                    title: 'Новый уровень!',
-                    text: `Открыт уровень: ${this.levelNames[nextId]}`,
-                    type: 'success',
-                    duration: 4000,
-                });
-            }
-        },
-
         resetGame() {
             this.gameStarted = false;
             this.gameOver = false;
             this.gameWon = false;
             this.map = [];
             this.activeBooster = null;
+            this.activeGame = null;
+            this.gameToken = null;
+            this.shieldActive = false;
         },
 
-        addGameToHistory(won) {
-            const now = new Date();
-            const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            this.gamesHistory.unshift({
-                id: Date.now(),
-                date: dateStr,
-                level: this.currentLevel,
-                treasures: this.foundThisRound,
-                moves: this.moves,
-                won,
-                earned: this.earnedThisRound,
-                cost: this.currentLevelConfig.cost,
-            });
-            if (this.gamesHistory.length > 20) this.gamesHistory.pop();
+        closeResultModal() {
+            this.showResultModal = false;
+            this.resetGame();
         },
+
+        showPrizePopup(cell) {
+            this.lastPrize = {
+                emoji: cell.emoji,
+                name: cell.name,
+                value: cell.value,
+                tier: cell.tier,
+            };
+            if (this.lastPrizeTimeout) clearTimeout(this.lastPrizeTimeout);
+            this.lastPrizeTimeout = setTimeout(() => {
+                this.lastPrize = null;
+            }, 2500);
+        },
+
+        async startGame() {
+            if (this.balance < this.gameCost || this.isProcessing) return;
+
+            const level = this.currentLevel;
+            const levelConfig = this.levels.find(l => l.id === level);
+
+            if (!levelConfig || !levelConfig.unlocked) {
+                this.$notify?.({ title: 'Заблокировано', text: 'Этот уровень ещё не открыт', type: 'warning' });
+                return;
+            }
+
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/treasure-hunt/start', { level });
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка старта');
+                }
+
+                // Обновляем баланс
+                this.balance = response.data.balance;
+                if (window.TenantUser) {
+                    window.TenantUser.cashback_balance = response.data.balance;
+                }
+
+                // Инициализируем игру
+                this.gameToken = response.data.token;
+                this.gameStarted = true;
+                this.gameOver = false;
+                this.gameWon = false;
+                this.moves = 0;
+                this.foundThisRound = 0;
+                this.earnedThisRound = 0;
+                this.activeBooster = null;
+                this.shieldActive = false;
+
+                // Создаём пустую карту (сервер знает расположение, мы — нет)
+                const mapSize = response.data.map_size;
+                this.map = Array.from({ length: mapSize }, (_, i) => ({
+                    index: i,
+                    type: 'empty',
+                    revealed: false,
+                    protected: false,
+                    radarTarget: false,
+                    shaking: false,
+                    tier: null,
+                    emoji: null,
+                    value: 0,
+                    name: '',
+                }));
+
+            } catch (error) {
+                console.error('Ошибка старта:', error);
+
+                if (error.response?.status === 403) {
+                    this.$notify?.({
+                        title: 'Нельзя начать',
+                        text: error.response.data?.message || 'Проверьте условия',
+                        type: 'warning',
+                    });
+                } else {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: error.response?.data?.message || 'Не удалось начать игру',
+                        type: 'error',
+                    });
+                }
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+
+
+
+
+        async revealCell(index) {
+            if (this.gameOver || this.isProcessing) return;
+
+            const cell = this.map[index];
+            if (!cell || cell.revealed) return;
+
+            // Компас — особый режим
+            if (this.activeBooster === 'compass') {
+                await this.useCompass(index);
+                return;
+            }
+
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/treasure-hunt/reveal', {
+                    token: this.gameToken,
+                    cell_index: index,
+                });
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка хода');
+                }
+
+                const data = response.data;
+
+                // Обновляем клетку
+                cell.revealed = true;
+                cell.type = data.cell.type;
+                cell.tier = data.cell.tier;
+                cell.emoji = data.cell.emoji;
+                cell.name = data.cell.name;
+                cell.value = data.cell.value;
+
+                // Обновляем состояние
+                this.moves = data.moves;
+                this.foundThisRound = data.found_this_round;
+                this.earnedThisRound = data.earned_this_round;
+                this.balance = data.balance;
+
+                if (window.TenantUser) {
+                    window.TenantUser.cashback_balance = data.balance;
+                }
+
+                // Обрабатываем результат
+                if (data.cell.type === 'treasure') {
+                    this.showPrizePopup(data.cell);
+                } else if (data.cell.type === 'hint') {
+                    // Получаем подсказку
+                    await this.fetchHint(index);
+                } else if (data.cell.type === 'trap') {
+                    if (data.shield_used) {
+                        cell.type = 'shield_blocked';
+                        this.$notify?.({ title: 'Щит!', text: 'Ловушка обезврежена', type: 'success' });
+                    }
+                }
+
+                // Щит использован
+                if (data.shield_used || data.cell.type === 'trap') {
+                    this.shieldActive = false;
+                }
+
+                // Игра окончена?
+                if (data.game_over) {
+                    this.gameOver = true;
+                    this.gameWon = data.game_won;
+
+                    // Обновляем историю
+                    await this.loadState();
+
+                    setTimeout(() => {
+                        this.showResultModal = true;
+                    }, 600);
+
+                    // Уведомление о новом уровне
+                    if (data.level_unlocked) {
+                        const levelName = this.levels.find(l => l.id === data.level_unlocked)?.name || '';
+                        setTimeout(() => {
+                            this.$notify?.({
+                                title: '🎉 Новый уровень!',
+                                text: `Открыт уровень: ${levelName}`,
+                                type: 'success',
+                                duration: 4000,
+                            });
+                        }, 1500);
+                    }
+                }
+
+            } catch (error) {
+                console.error('Ошибка открытия клетки:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось открыть клетку',
+                    type: 'error',
+                });
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+        async fetchHint(index) {
+            try {
+                const response = await axios.post('/treasure-hunt/hint', {
+                    token: this.gameToken,
+                    cell_index: index,
+                });
+
+                if (response.data?.success) {
+                    const direction = response.data.direction || '?';
+                    const distance = response.data.distance || 0;
+                    this.$notify?.({
+                        title: '🧭 Подсказка!',
+                        text: `Сокровище ${direction} (${distance} шагов)`,
+                        type: 'info',
+                        duration: 3000,
+                    });
+                }
+            } catch (e) {
+                console.error('Ошибка подсказки:', e);
+            }
+        },
+
+
+        async giveUp() {
+            if (this.isProcessing) return;
+
+            const confirmMsg = this.earnedThisRound > 0
+                ? `Забрать ${this.earnedThisRound} бонусов и закончить игру?`
+                : 'Уйти без выигрыша?';
+
+            if (!confirm(confirmMsg)) return;
+
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/treasure-hunt/give-up', {
+                    token: this.gameToken,
+                });
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Ошибка');
+                }
+
+                this.balance = response.data.balance;
+                if (window.TenantUser) {
+                    window.TenantUser.cashback_balance = response.data.balance;
+                }
+
+                this.earnedThisRound = response.data.earned;
+                this.gameOver = true;
+                this.gameWon = false;
+
+                await this.loadState();
+                this.showResultModal = true;
+
+            } catch (error) {
+                console.error('Ошибка сдачи:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось завершить',
+                    type: 'error',
+                });
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+
 
         // ==========================================
         // БУСТЕРЫ
         // ==========================================
-        useBooster(type) {
-            if (!this.gameStarted || this.gameOver) return;
+        async useBooster(type) {
+            if (!this.gameStarted || this.gameOver || this.isProcessing) return;
 
-            const costs = { radar: 30, shield: 50, compass: 20 };
-            const cost = costs[type];
+            const cost = this.boosterCosts[type] || 0;
 
             if (this.balance < cost) {
-                this.$notify?.({ title: 'Ошибка', text: 'Недостаточно бонусов', type: 'error' });
+                this.$notify?.({ title: 'Ошибка', text: `Нужно ${cost}₽ кэшбэка`, type: 'error' });
                 return;
             }
 
-            if (type === 'radar') {
-                // Подсвечиваем одну клетку с сокровищем
-                const treasures = this.map
-                    .map((c, i) => ({ cell: c, i }))
-                    .filter(x => x.cell.type === 'treasure' && !x.cell.revealed);
-                if (treasures.length === 0) {
-                    this.$notify?.({ title: 'Радар', text: 'Сокровищ больше нет', type: 'info' });
-                    return;
+            // Щит и компас — просто активируем режим, оплата при использовании
+            if (type === 'shield') {
+                this.isProcessing = true;
+                try {
+                    const response = await axios.post('/treasure-hunt/booster', {
+                        token: this.gameToken,
+                        booster: 'shield',
+                    });
+
+                    if (response.data?.success) {
+                        this.shieldActive = true;
+                        this.balance = response.data.balance;
+                        if (window.TenantUser) {
+                            window.TenantUser.cashback_balance = response.data.balance;
+                        }
+                        this.$notify?.({
+                            title: '🛡️ Щит активен',
+                            text: 'Следующая клетка защищена от ловушки',
+                            type: 'info',
+                        });
+                    }
+                } catch (error) {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: error.response?.data?.message || 'Не удалось активировать щит',
+                        type: 'error',
+                    });
+                } finally {
+                    this.isProcessing = false;
                 }
-                const target = treasures[Math.floor(Math.random() * treasures.length)];
-                target.cell.radarTarget = true;
-                setTimeout(() => {
-                    if (target.cell) target.cell.radarTarget = false;
-                }, 3000);
-                this.balance -= cost;
-                this.$notify?.({ title: 'Радар', text: 'Сокровище обнаружено!', type: 'success' });
-                this.saveState();
-            } else if (type === 'shield') {
-                this.activeBooster = 'shield';
-                this.$notify?.({
-                    title: 'Щит активен',
-                    text: 'Следующая клетка защищена от ловушки',
-                    type: 'info',
-                });
-            } else if (type === 'compass') {
+                return;
+            }
+
+            if (type === 'compass') {
+                // Просто активируем режим — оплата будет при клике на клетку
                 this.activeBooster = 'compass';
                 this.$notify?.({
-                    title: 'Компас',
+                    title: '🧭 Компас',
                     text: 'Нажмите на клетку, чтобы узнать расстояние',
                     type: 'info',
                 });
+                return;
+            }
+
+            // Радар — моментальное использование
+            if (type === 'radar') {
+                this.isProcessing = true;
+                try {
+                    const response = await axios.post('/treasure-hunt/booster', {
+                        token: this.gameToken,
+                        booster: 'radar',
+                    });
+
+                    if (response.data?.success) {
+                        this.balance = response.data.balance;
+                        if (window.TenantUser) {
+                            window.TenantUser.cashback_balance = response.data.balance;
+                        }
+
+                        const targetIndex = response.data.radar_target;
+                        if (targetIndex !== undefined && this.map[targetIndex]) {
+                            this.map[targetIndex].radarTarget = true;
+                            setTimeout(() => {
+                                if (this.map[targetIndex]) {
+                                    this.map[targetIndex].radarTarget = false;
+                                }
+                            }, 3000);
+                        }
+
+                        this.$notify?.({ title: '📡 Радар', text: 'Сокровище обнаружено!', type: 'success' });
+                    }
+                } catch (error) {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: error.response?.data?.message || 'Не удалось использовать радар',
+                        type: 'error',
+                    });
+                } finally {
+                    this.isProcessing = false;
+                }
+            }
+        },
+
+        async useCompass(index) {
+            if (this.balance < this.boosterCosts.compass) {
+                this.$notify?.({ title: 'Ошибка', text: `Нужно ${this.boosterCosts.compass}₽`, type: 'error' });
+                this.activeBooster = null;
+                return;
+            }
+
+            this.isProcessing = true;
+
+            try {
+                const response = await axios.post('/treasure-hunt/booster', {
+                    token: this.gameToken,
+                    booster: 'compass',
+                    cell_index: index,
+                });
+
+                if (response.data?.success) {
+                    this.balance = response.data.balance;
+                    if (window.TenantUser) {
+                        window.TenantUser.cashback_balance = response.data.balance;
+                    }
+
+                    const distance = response.data.distance ?? 0;
+                    this.$notify?.({
+                        title: '🧭 Компас',
+                        text: `Ближайшее сокровище: ${distance} шагов`,
+                        type: 'info',
+                        duration: 3000,
+                    });
+                }
+
+                this.activeBooster = null;
+            } catch (error) {
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Ошибка компаса',
+                    type: 'error',
+                });
+                this.activeBooster = null;
+            } finally {
+                this.isProcessing = false;
             }
         },
 
@@ -879,26 +1009,9 @@ export default {
                 duration: 3000,
             });
             this.activeBooster = null;
-            this.saveState();
+
         },
 
-        showPrizePopup(cell) {
-            this.lastPrize = {
-                emoji: cell.emoji,
-                name: cell.name,
-                value: cell.value,
-                tier: cell.tier,
-            };
-            if (this.lastPrizeTimeout) clearTimeout(this.lastPrizeTimeout);
-            this.lastPrizeTimeout = setTimeout(() => {
-                this.lastPrize = null;
-            }, 2500);
-        },
-
-        closeResultModal() {
-            this.showResultModal = false;
-            this.resetGame();
-        },
 
         // ==========================================
         // UI
@@ -938,33 +1051,7 @@ export default {
             };
         },
 
-        // ==========================================
-        // АДМИН
-        // ==========================================
-        adminAddBalance(amount) {
-            this.balance += amount;
-            this.saveState();
-            this.$notify?.({ title: 'Админ', text: `+${amount} бонусов`, type: 'success' });
-        },
 
-        adminRevealAll() {
-            if (!this.gameStarted) return;
-            this.map.forEach(cell => { cell.revealed = true; });
-        },
-
-        adminUnlockLevels() {
-            this.unlockedLevels = [1, 2, 3];
-            this.updateLevelUnlock();
-            this.saveState();
-            this.$notify?.({ title: 'Админ', text: 'Все уровни открыты', type: 'success' });
-        },
-
-        adminClearHistory() {
-            if (!confirm('Очистить историю?')) return;
-            this.gamesHistory = [];
-            this.saveState();
-            this.$notify?.({ title: 'Админ', text: 'История очищена', type: 'success' });
-        },
     },
 };
 </script>

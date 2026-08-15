@@ -18,10 +18,11 @@ import {createApp, h} from 'vue';
 import {createInertiaApp} from '@inertiajs/vue3';
 import {resolvePageComponent} from 'laravel-vite-plugin/inertia-helpers';
 import {ZiggyVue} from '../../../vendor/tightenco/ziggy/dist';
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia' // 👈 Добавляем setActivePinia
 import router from './router'
 import { registerSW } from '@/MobileClient/sw/register.js'
 import ProductInfo from './Modules/products.js'
+import './plugins/axiosQueue.js'
 
 import VueLazyLoad from 'vue3-lazyload'
 
@@ -87,12 +88,16 @@ createInertiaApp({
         app.config.globalProperties.$productInfo = ProductInfo
         app.config.globalProperties.$preloader = Preloader
 
+        const pinia = createPinia();
+        setActivePinia(pinia);
+
         return app
             .use(NotificationPlugin, {
                 position: 'top-right', // top-right, top-left, bottom-right, bottom-left, top-center, bottom-center
             })
             .use(plugin)
-            .use(createPinia())
+            .use(pinia)
+
             .use(router)
             .use(ZiggyVue)
             .use(Vue3TouchEvents)

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Facades\MessageService;
 use App\Models\Tenant\TenantDialog;
 use App\Models\Tenant\TenantMessage;
 use App\Models\Tenant\TenantUser;
@@ -229,15 +230,14 @@ class TenantDialogController extends Controller
 
         // 7. Отправляем уведомление в Telegram
         try {
-            $this->sendChatMessageToTelegram(
-                $tenant,
-                $dialog,
-                $message,
-                $senderName,
-                $textContent,
-                $attachmentInfo,
-                $isClientSender
+            $telegramMessage = $this->buildChatTelegramMessage(
+                $tenant, $dialog, $senderName, $textContent, $attachmentInfo, $isClientSender
             );
+
+            MessageService::call()->sendMessage([
+                'message'    => $telegramMessage,
+                'recipients' => ['telegram' => true],
+            ]);
         } catch (\Throwable $e) {
             Log::warning('[Telegram Chat Notification] Ошибка отправки: ' . $e->getMessage());
         }
@@ -248,53 +248,32 @@ class TenantDialogController extends Controller
         ], 201);
     }
 
-
-    private function sendChatMessageToTelegram(
-        $tenant,
-        $dialog,
-        $message,
-        $senderName,
-        $textContent,
-        $attachmentInfo,
-        $isClientSender
-    ): void {
-        // 1. Настройки Telegram
-        $tgSettings = $tenant->settings['telegram'] ?? [];
-        $token = $tgSettings['token'] ?? null;
-        $chatId = $tgSettings['support_chat_id'] ?? $tgSettings['channel_id'] ?? null;
-
-        if (!$token || !$chatId) {
-            return;
-        }
-
-        // 2. 🆕 Получаем информацию о клиенте через метод модели
-        $client = $dialog->user;
+    private function buildChatTelegramMessage(
+        $tenant, $dialog, $senderName, $textContent, $attachmentInfo, $isClientSender
+    ): string {
+        $client     = $dialog->user;
         $clientInfo = $client ? $client->getTelegramInfo() : [
-            'name' => 'Неизвестный клиент',
+            'name'  => 'Неизвестный клиент',
             'phone' => 'Не указан',
-            'id' => $dialog->tenant_user_id,
+            'id'    => $dialog->tenant_user_id,
         ];
 
-        $clientName = e($clientInfo['name']);
+        $clientName  = e($clientInfo['name']);
         $clientPhone = e($clientInfo['phone']);
-        $isVip = !empty($clientInfo['is_vip']);
-        $isBlocked = !empty($clientInfo['is_blocked']);
+        $isVip       = !empty($clientInfo['is_vip']);
+        $isBlocked   = !empty($clientInfo['is_blocked']);
 
-        // 3. Формируем сообщение
         $icon = $isClientSender ? '👤' : '🛡️';
         $role = $isClientSender ? 'Клиент' : 'Администратор';
 
-        $msg = "{$icon} <b>Новое сообщение в чате</b>\n";
+        $msg  = "{$icon} <b>Новое сообщение в чате</b>\n";
         $msg .= "━━━━━━━━━━━━━━━━━━━━━━\n";
         $msg .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
-
         $msg .= "👤 <b>Отправитель:</b> " . e($senderName) . "\n";
         $msg .= "🎭 <b>Роль:</b> {$role}\n";
         $msg .= "💬 <b>Диалог #:</b> {$dialog->id}\n\n";
-
-        // 4. 🆕 Блок с информацией о клиенте (из модели)
         $msg .= "📱 <b>Клиент:</b> {$clientName}";
-        if ($isVip) $msg .= " ⭐️ <b>VIP</b>";
+        if ($isVip)     $msg .= " ⭐️ <b>VIP</b>";
         if ($isBlocked) $msg .= " 🚫 <b>Заблокирован</b>";
         $msg .= "\n";
         $msg .= "📞 <b>Телефон:</b> <code>{$clientPhone}</code>\n";
@@ -309,57 +288,36 @@ class TenantDialogController extends Controller
 
         $msg .= "\n";
 
-        // 5. Текст сообщения
         if (!empty($textContent)) {
-            $msg .= "💬 <b>Сообщение:</b>\n";
-            $msg .= "<i>" . e($textContent) . "</i>\n\n";
+            $msg .= "💬 <b>Сообщение:</b>\n<i>" . e($textContent) . "</i>\n\n";
         }
 
-        // 6. 🆕 Вложение — с кликабельной ссылкой на файл
         if ($attachmentInfo) {
             $typeEmoji = $this->getAttachmentEmoji($attachmentInfo['type']);
-            $sizeKb = round($attachmentInfo['size'] / 1024, 1);
+            $sizeKb    = round($attachmentInfo['size'] / 1024, 1);
 
             $msg .= "📎 <b>Вложение:</b>\n";
-
-            // Если есть URL — делаем кликабельную ссылку
             if (!empty($attachmentInfo['url'])) {
                 $msg .= "  {$typeEmoji} <a href=\"{$attachmentInfo['url']}\">" . e($attachmentInfo['name']) . "</a>\n";
             } else {
                 $msg .= "  {$typeEmoji} " . e($attachmentInfo['name']) . "\n";
             }
-
             $msg .= "  • Тип: {$attachmentInfo['type']}\n";
             $msg .= "  • Размер: {$sizeKb} KB\n\n";
         }
 
-        // 7. 🆕 Ссылки: на диалог и профиль клиента
         $baseUrl = request()->getSchemeAndHttpHost();
         if ($baseUrl) {
-            // Новый формат ссылки на чат: /pwa#/chat/:dialogId
             $chatUrl = "{$baseUrl}/pwa#/chat/{$dialog->id}";
             $msg .= "🔗 <a href=\"{$chatUrl}\">Открыть чат</a>\n";
-
             if (!empty($clientInfo['profile_url'])) {
                 $msg .= "👤 <a href=\"{$clientInfo['profile_url']}\">Профиль клиента</a>\n";
             }
         }
 
-        // 8. Payload
-        $payload = [
-            'chat_id' => $chatId,
-            'text' => $msg,
-            'parse_mode' => 'HTML',
-            'disable_web_page_preview' => true,
-        ];
-
-        if (!empty($tgSettings['thread_id'])) {
-            $payload['message_thread_id'] = (int) $tgSettings['thread_id'];
-        }
-
-        // 9. Отправка
-        $this->sendTelegramCurlRequest($token, $payload);
+        return $msg;
     }
+
 
     /**
      * Эмодзи для типа вложения
@@ -376,33 +334,6 @@ class TenantDialogController extends Controller
             'zip' => '🗜',
             default => '📎',
         };
-    }
-
-    /**
-     * Вспомогательный метод для отправки запроса в Telegram API через cURL
-     */
-    private function sendTelegramCurlRequest(string $token, array $payload): bool
-    {
-        $ch = curl_init();
-        $url = "https://api.telegram.org/bot{$token}/sendMessage";
-
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($payload));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Уменьшаем таймаут для чатов
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            Log::warning('[Telegram Notification] Ошибка отправки. HTTP: ' . $httpCode . ' | Error: ' . $curlError . ' | Response: ' . $response);
-            return false;
-        }
-
-        return true;
     }
 
 

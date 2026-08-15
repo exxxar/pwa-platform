@@ -3,6 +3,16 @@
 
 
         <Head :title="pageTitle" />
+
+        <!-- ========================================== -->
+        <!-- OFFLINE BANNER (Баннер отсутствия сети) -->
+        <!-- ========================================== -->
+        <transition name="slide-down">
+            <div v-if="queue.isOffline" class="offline-banner">
+                <i class="fa-solid fa-wifi-slash"></i>
+                <span>Нет подключения к интернету. Данные сохраняются локально.</span>
+            </div>
+        </transition>
         <!-- ========================================== -->
         <!-- MODERN HEADER -->
         <!-- ========================================== -->
@@ -26,6 +36,8 @@
                     <i class="fa-solid fa-chevron-down brand-arrow"></i>
                 </div>
 
+
+
                 <!-- 3. Кэшбэк (Премиальный бейдж) -->
                 <a
                     v-if="loadedCashback"
@@ -40,6 +52,24 @@
 
             </div>
         </header>
+
+        <!-- ========================================== -->
+        <!-- 🆕 QUEUE PILL (Вынесен под хедер, по центру) -->
+        <!-- ========================================== -->
+        <transition name="fade-scale">
+            <div v-if="queue.hasTasks" class="queue-pill-wrapper">
+                <button
+                    class="queue-pill"
+                    @click="openQueueModal"
+                    title="Очередь отправки"
+                >
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span class="queue-count">{{ queue.tasksCount }}</span>
+                    <span class="queue-text">в очереди</span>
+                    <i v-if="queue.isProcessing" class="fa-solid fa-spinner fa-spin ms-1"></i>
+                </button>
+            </div>
+        </transition>
 
         <!-- LOADER -->
         <Preloader
@@ -104,6 +134,56 @@
                                 <i class="fa-solid fa-pen-to-square"></i> редактировать
                             </button>
                         </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 🆕 QUEUE MODAL (Модалка очереди) -->
+        <!-- ========================================== -->
+        <div class="modal fade" id="queue-modal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content modern-modal">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold">
+                            <i class="fa-solid fa-inbox text-primary me-2"></i> Очередь отправки
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div v-if="!queue.hasTasks" class="text-center text-muted py-4">
+                            <i class="fa-solid fa-check-circle fa-3x mb-3 text-success opacity-50"></i>
+                            <p class="mb-0">Очередь пуста. Все данные синхронизированы.</p>
+                        </div>
+
+                        <ul v-else class="list-group list-group-flush queue-list">
+                            <li v-for="task in queue.tasks" :key="task.id" class="list-group-item queue-item d-flex align-items-start gap-3 px-0">
+                                <div class="queue-icon" :class="`type-${task.type}`">
+                                    <i :class="getTaskIcon(task.type)"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold small">{{ task.title }}</div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">
+                                        {{ formatTaskDate(task.timestamp) }}
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger border-0" @click="queue.removeTask(task.id)" title="Удалить">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="modal-footer border-0 pt-0" v-if="queue.hasTasks">
+                        <button class="btn btn-link text-danger" @click="queue.clearQueue()">
+                            Очистить всё
+                        </button>
+                        <button class="btn btn-primary" @click="retryQueue" :disabled="queue.isProcessing || queue.isOffline">
+                            <i class="fa-solid fa-rotate-right me-1" :class="{'fa-spin': queue.isProcessing}"></i>
+                            {{ queue.isOffline ? 'Нет сети' : 'Отправить всё' }}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -224,6 +304,7 @@ import {useBasket} from "@/MobileClient/composables/useBasket";
 import {useChat} from "@/MobileClient/composables/useChat";
 import { getThemeScheme } from '@/MobileClient/constants/themeSchemes.js';
 import ShopInfoModal from "@/MobileClient/Components/Shop/ShopInfoModal.vue";
+import {useQueueStore} from "@/MobileClient/stores/useQueueStore";
 
 export default {
     name: "AppLayout",
@@ -244,11 +325,13 @@ export default {
         const favorites = useFavorites();
         const basket = useBasket();
         const chat = useChat();
+        const queue = useQueueStore(); // 🆕
 
-        return { favorites, basket, chat };
+        return { favorites, basket, chat, queue };
     },
     data() {
         return {
+            queueModalInstance: null,
             loadedCashback: false,
             cashback: 0,
             themeObserver: null,
@@ -346,6 +429,10 @@ export default {
         this.$router.beforeEach((to, from, next) => {
             this.isLoading = true;
             next();
+        });
+
+        this.$nextTick(() => {
+            this.initQueueModal();
         });
 
         this.$router.afterEach(() => {
@@ -574,6 +661,46 @@ export default {
                 behavior: 'smooth'
             });
         },
+
+        initQueueModal() {
+            const el = document.getElementById('queue-modal');
+            if (el && typeof bootstrap !== 'undefined') {
+                this.queueModalInstance = bootstrap.Modal.getOrCreateInstance(el);
+            }
+        },
+
+        openQueueModal() {
+            // 🛡️ Защита: если инстанс не создался в mounted — создадим сейчас
+            if (!this.queueModalInstance) {
+                const el = document.getElementById('queue-modal');
+                if (el && typeof bootstrap !== 'undefined') {
+                    this.queueModalInstance = bootstrap.Modal.getOrCreateInstance(el);
+                }
+            }
+
+            if (this.queueModalInstance) {
+                this.queueModalInstance.show();
+            } else {
+                console.error('Не удалось инициализировать модалку очереди');
+            }
+        },
+
+        retryQueue() {
+            this.queue.processQueue();
+        },
+
+        getTaskIcon(type) {
+            switch(type) {
+                case 'order': return 'fa-solid fa-cart-shopping';
+                case 'message': return 'fa-solid fa-comment-dots';
+                case 'feedback': return 'fa-solid fa-star';
+                default: return 'fa-solid fa-paper-plane';
+            }
+        },
+
+        formatTaskDate(isoString) {
+            return new Date(isoString).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        }
     },
 };
 </script>
@@ -1067,4 +1194,188 @@ export default {
         }
     }
 }
+
+/* ==========================================
+   📡 OFFLINE BANNER
+   ========================================== */
+.offline-banner {
+    position: sticky;
+    top: 0;
+    z-index: 1030; /* Выше хедера */
+    background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    text-align: center;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.offline-banner i {
+    font-size: 1rem;
+}
+
+/* Анимация появления */
+.slide-down-enter-active, .slide-down-leave-active {
+    transition: all 0.3s ease;
+}
+.slide-down-enter-from, .slide-down-leave-to {
+    transform: translateY(-100%);
+    opacity: 0;
+}
+
+/* ==========================================
+   ⏳ QUEUE PILL (Под хедером, по центру, плавающий)
+   ========================================== */
+.queue-pill-wrapper {
+    position: sticky;
+    top: 90px; /* Отступ под хедером (зависит от высоты хедера) */
+    z-index: 1015; /* Ниже хедера (1020), но выше контента */
+    display: flex;
+    justify-content: center;
+    padding: 8px 16px 0;
+    pointer-events: none; /* Пропускаем клики мимо кнопки */
+    margin-bottom: -36px; /* Подтягиваем следующий контент вверх */
+}
+
+.queue-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+    color: #000;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 99px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow:
+        0 4px 16px rgba(255, 152, 0, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: pulse-warning 2s infinite, float 3s ease-in-out infinite;
+    pointer-events: auto; /* Возвращаем кликабельность самой кнопке */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.queue-pill:hover {
+    transform: translateY(-3px) scale(1.03);
+    box-shadow:
+        0 8px 24px rgba(255, 152, 0, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.queue-pill:active {
+    transform: translateY(-1px) scale(0.98);
+}
+
+.queue-count {
+    background: rgba(0, 0, 0, 0.15);
+    color: #000;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    min-width: 22px;
+    text-align: center;
+}
+
+.queue-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Анимация плавания (как будто висит в воздухе) */
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+/* Анимация пульсации (привлекает внимание) */
+@keyframes pulse-warning {
+    0% {
+        box-shadow:
+            0 0 0 0 rgba(255, 152, 0, 0.7),
+            0 4px 16px rgba(255, 152, 0, 0.4);
+    }
+    70% {
+        box-shadow:
+            0 0 0 12px rgba(255, 152, 0, 0),
+            0 4px 16px rgba(255, 152, 0, 0.4);
+    }
+    100% {
+        box-shadow:
+            0 0 0 0 rgba(255, 152, 0, 0),
+            0 4px 16px rgba(255, 152, 0, 0.4);
+    }
+}
+
+/* Адаптив для iOS с плавающим хедером */
+@supports (-webkit-touch-callout: none) {
+    .queue-pill-wrapper {
+        top: 72px; /* Чуть ниже из-за увеличенного хедера на iPhone */
+    }
+}
+
+/* На десктопе с более компактным хедером */
+@media (min-width: 992px) {
+    .queue-pill-wrapper {
+        top: 52px;
+    }
+}
+
+.fade-scale-enter-active, .fade-scale-leave-active {
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fade-scale-enter-from, .fade-scale-leave-to {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.85);
+}
+.fade-scale-enter-to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+/* ==========================================
+   📋 QUEUE MODAL STYLES
+   ========================================== */
+.modern-modal {
+    border-radius: 20px;
+    border: none;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+}
+
+.queue-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.queue-item {
+    border-bottom: 1px solid var(--bs-border-color-translucent, rgba(0,0,0,0.05)) !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+}
+
+.queue-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.queue-icon.type-order { background: rgba(var(--bs-primary-rgb), 0.1); color: var(--bs-primary); }
+.queue-icon.type-message { background: rgba(var(--bs-success-rgb), 0.1); color: var(--bs-success); }
+.queue-icon.type-feedback { background: rgba(var(--bs-warning-rgb), 0.1); color: var(--bs-warning); }
+.queue-icon.type-request { background: rgba(var(--bs-secondary-rgb), 0.1); color: var(--bs-secondary); }
 </style>

@@ -86,21 +86,23 @@ class BasketService
 
         // 🆕 Делаем ОДИН запрос к БД, чтобы получить цены всех нужных товаров
         $productsPriceMap = [];
+        $productsNameMap = [];
         if (!empty($allCollectionProductIds)) {
             $products = Product::whereIn('id', $allCollectionProductIds)
-                ->select('id', 'price')
+                ->select('id', 'price','name')
                 ->get();
 
             foreach ($products as $product) {
                 // 🛡️ Ключ массива обязательно строка, чтобы совпадать с JSON декодированием
                 $productsPriceMap[(string)$product->id] = (float)($product->price ?? 0);
+                $productsNameMap[(string)$product->id] = $product->name ?? '-';
             }
 
 
         }
 
         // 2. Форматируем данные для фронтенда
-        $formattedItems = $basketItems->map(function ($item) use ($tenant, $productsPriceMap) {
+        $formattedItems = $basketItems->map(function ($item) use ($tenant, $productsPriceMap, $productsNameMap) {
             // Безопасно получаем params
             $params = is_array($item->params) ? $item->params : (json_decode($item->params, true) ?? []);
             $extraCharge = (float)($params['extra_charge'] ?? 0);
@@ -161,6 +163,7 @@ class BasketService
                     'image' => $collection->image ?? null,
                     'tenant_name' => $collection->tenant_name ?? null,
                     'selected_product_ids' => $selectedProductIds,
+                    'selected_products_names' => array_values($productsNameMap),
                     'price' => $collectionPrice,
                     'final_price' => $finalCollectionPrice,
                     'total_price' => $finalCollectionPrice * $item->count,

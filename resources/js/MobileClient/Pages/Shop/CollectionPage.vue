@@ -40,7 +40,7 @@
         </div>
 
         <!-- ВКЛАДКИ И УПРАВЛЕНИЕ -->
-        <div class="page-tabs-wrapper">
+        <div class="page-tabs-wrapper" v-if="cartVariants.length > 0">
             <div class="page-tabs">
                 <button
                     class="tab-btn"
@@ -48,7 +48,7 @@
                     @click="randomizeAndSwitch"
                     title="Случайно выбрать по 1 товару из каждой категории"
                 >
-                    <i class="fa-solid fa-shuffle"></i>
+                    <i class="fa-solid fa-folder-tree"></i>
                     <span>Коллекции</span>
                 </button>
                 <button
@@ -210,15 +210,15 @@
                 <div v-else class="variants-list">
                     <div v-for="(variant, index) in cartVariants" :key="variant.id" class="variant-card">
                         <div class="variant-header">
-                            <span class="variant-number">Вариант #{{ index + 1 }}</span>
+                            <span class="variant-number">Вариант #{{ index + 1 }} {{variant.name}}</span>
                             <button class="remove-btn" @click="removeVariant(index)" aria-label="Удалить вариант">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
                         </div>
                         <div class="variant-products">
-                            <div v-for="(item, idx) in variant.selected_products" :key="idx" class="variant-product-item">
-                                <span class="vp-name">{{ item.name }}</span>
-                                <span class="vp-price">{{ formatPrice(item.price) }}</span>
+                            <div v-for="(item, idx) in variant.selected_products_names" :key="idx" class="variant-product-item">
+                                <span class="vp-name fst-italic">{{ item }}</span>
+<!--                                <span class="vp-price">{{ formatPrice(item.price) }}</span>-->
                             </div>
                         </div>
                         <div class="variant-total">
