@@ -588,21 +588,31 @@ class UsersController extends Controller
             'description' => 'nullable|string|max:255',
         ]);
 
+        $amount = (float) $validated['amount'];
+        $description = $validated['description'] ?? 'Ручное начисление администратором';
+        $balanceBefore = (float) $user->cashback_balance;
+
         try {
             // 🆕 Делегируем логику сервису. Он сам обновит баланс, создаст историю и начислит реферальные бонусы.
             CashBackService::call()->addCashBack(
-                amount: (float) $validated['amount'],
-                description: $validated['description'] ?? 'Ручное начисление администратором',
+                amount: $amount,
+                description: $description,
                 user: $user,
                 orderId: null,
                 percent: null,
                 withLevels: true // Оставляем true, чтобы сработала реферальная система, если она настроена
             );
 
+            $user->refresh();
+            $balanceAfter = (float) $user->cashback_balance;
+
+            // 🆕 Оповещаем пользователя о начислении
+            $this->notifyUserAboutCashback($user, 'credit', $amount, $description, $balanceBefore, $balanceAfter);
+
             return response()->json([
                 'success' => true,
-                'data' => $user->fresh()->load('cashbacks'),
-                'message' => "Успешно начислено {$validated['amount']} баллов",
+                'data' => $user->load('cashbacks'),
+                'message' => "Успешно начислено {$amount} баллов",
             ]);
 
         } catch (\Exception $e) {
