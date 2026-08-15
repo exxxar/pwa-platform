@@ -250,8 +250,14 @@ export default {
         const router = useRouter();
         const basket = useBasket();
         const { selectedPartner } = useProducts();
-        const partnerId = route.params.partnerId || route.query.partnerId;
+        const partnerId = route.params.partnerId ||
+            route.query.partnerId ||
+            selectedPartner.value.tenant_partner_id || null;
 
+        console.log("0partnerId",  selectedPartner)
+        console.log("1partnerId",  selectedPartner.value.tenant_partner_id)
+        console.log("2partnerId",  route.query.partnerId )
+        console.log("3partnerId",  route.params.partnerId )
         return {
             route,
             router,
