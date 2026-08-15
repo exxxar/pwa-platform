@@ -239,6 +239,7 @@ import ProductCard from '@/MobileClient/Components/Shop/ProductCard.vue';
 import CollectionProductItem from '@/MobileClient/Components/Shop/Collections/CollectionProductItem.vue';
 import { useBasket } from '@/MobileClient/Composables/useBasket.js';
 import { useProducts } from '@/MobileClient/composables/useProducts';
+import { computed } from 'vue';
 
 export default {
     name: 'CollectionPage',
@@ -250,7 +251,6 @@ export default {
         const basket = useBasket();
         const { selectedPartner } = useProducts();
 
-        // 🛡️ Безопасное получение partnerId через computed
         const partnerId = computed(() => {
             if (route.params.partnerId) return route.params.partnerId;
             if (route.query.partnerId) return route.query.partnerId;
