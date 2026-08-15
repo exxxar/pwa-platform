@@ -200,7 +200,7 @@ trait BasketHelper
         $deliveryPrice = $this->data["delivery_price"] ?? 0;
         $currentDate = Carbon::now("+3:00")->format("Y-m-d H:i:s");
         $number = Str::uuid()->toString();
-        $tenantTitle = $this->tenant->title ?? $this->tenant->bot_domain ?? 'CashMan';
+        $tenantTitle = $this->tenant->name ?? $this->tenant->uuid ?? 'CashMan';
 
         $paymentInfo = sprintf(
             $this->tenant->settings["payment_info"] ?? "Оплатите заказ по реквизитам, указав номер %s",
@@ -425,7 +425,7 @@ trait BasketHelper
             if ($currentAmount < $minPrice) {
                 $errors[] = [
                     'partner_id' => $partnerId,
-                    'partner_name' => $partner->name ?? $partner->title ?? 'Заведение',
+                    'partner_name' => $partner->title ?? 'Заведение',
                     'partner_slug' => $partner->slug ?? '',
                     'min_required' => $minPrice,
                     'current_amount' => $currentAmount,
@@ -761,9 +761,11 @@ trait BasketHelper
         $phone = $this->cleanPhone($order->receiver_phone);
         $baseUrl = request()->getSchemeAndHttpHost() ?? 'не указано';
 
+        $clientName = $order->receiver_name ?? 'Клиент';
+
         $message  = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";
         $message .= "📅 " . now("+3:00")->format('d.m.Y H:i') . "\n\n";
-        $message .= "👤 <b>Клиент:</b> {$order->receiver_name}\n";
+        $message .= "👤 <b>Клиент:</b> {$clientName}\n";
         $message .= "📞 <b>Телефон:</b> {$phone}\n";
         $message .= "📦 <b>Способ получения:</b> {$orderType}\n";
         $message .= "💳 <b>Тип оплаты:</b> {$cash}\n";
@@ -891,13 +893,13 @@ trait BasketHelper
 
         // 3. 🎯 Kanban-данные (общие для CRM)
         $kanbanCustomData = [
-            'tenant_id'       => $this->tenant->id,
-            'tenant_name'     => $this->tenant->name ?? $this->tenant->title,
+            'tenant_id'       => $this->tenant?->id,
+            'tenant_name'     => $this->tenant?->name ?? $this->tenant?->uuid,
             'tenant_user_id'  => $this->tenantUser->id,
             'last_order_id'   => $order->id,
             'last_order_date' => now()->toIso8601String(),
             'product_details' => [[
-                'from'     => $this->tenant->title ?? $this->tenant->bot_domain ?? 'Магазин',
+                'from'     => $this->tenant?->name ?? $this->tenant->uuid ?? 'Магазин',
                 'products' => $basketData['product_info'],
             ]],
             'product_count'   => $basketData['summary_count'],

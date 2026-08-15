@@ -1,5 +1,5 @@
 <template>
-    <div v-if="settings.coffee?.enabled" class="coffee-page pb-5">
+    <div v-if="settings?.coffee?.enabled" class="coffee-page pb-5">
 
         <!-- ===== HERO СЕКЦИЯ ===== -->
         <div class="coffee-hero">
@@ -35,9 +35,11 @@
                         type="button"
                         @click="InitCoffee"
                         class="start-btn"
+                        :disabled="loading"
                     >
-                        <i class="fa-solid fa-play me-2"></i>
-                        Начать собирать
+                        <i v-if="loading" class="fa-solid fa-spinner fa-spin me-2"></i>
+                        <i v-else class="fa-solid fa-play me-2"></i>
+                        {{ loading ? 'Загрузка...' : 'Начать собирать' }}
                     </button>
                 </div>
             </div>
@@ -62,7 +64,7 @@
                             v-for="(cup, index) in cups"
                             :key="'coffee-cup-' + index"
                             class="cup-wrapper"
-                            :class="{ 'filled': cup.filled, 'clickable': !cup.filled }"
+                            :class="{ 'filled': cup.filled, 'clickable': !cup.filled && !loading }"
                             @click="onCupClick(cup)"
                         >
                             <div class="cup-icon">
@@ -75,8 +77,8 @@
                         <!-- Кнопка обновления -->
                         <div
                             class="cup-wrapper refresh-wrapper"
-                            :class="{ 'disabled': spent_time > 0 }"
-                            @click="spent_time === 0 && refreshCoffee()"
+                            :class="{ 'disabled': spent_time > 0 || loading }"
+                            @click="spent_time === 0 && !loading && refreshCoffee()"
                         >
                             <div class="cup-icon refresh-icon">
                                 <span v-if="spent_time > 0" class="refresh-timer">{{ spent_time }}</span>
@@ -154,6 +156,25 @@
                     </transition>
                 </div>
 
+                <!-- ===== АДМИНСКАЯ КНОПКА СКАНЕРА ===== -->
+                <div v-if="isAdmin" class="section-block mt-4">
+                    <button
+                        class="scanner-btn"
+                        @click="goToScanner"
+                    >
+                        <div class="scanner-btn-content">
+                            <div class="scanner-icon">
+                                <i class="fa-solid fa-qrcode"></i>
+                            </div>
+                            <div class="scanner-info">
+                                <div class="scanner-title">Сканер кофейных карт</div>
+                                <div class="scanner-subtitle">Отмечайте чашки и выдавайте кофе</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right scanner-arrow"></i>
+                        </div>
+                    </button>
+                </div>
+
             </template>
 
         </div>
@@ -183,6 +204,7 @@
                             type="button"
                             class="btn-close"
                             data-bs-dismiss="modal"
+                            @click="closeQrModal"
                         ></button>
                     </div>
                     <div class="modal-body text-center">
@@ -193,6 +215,10 @@
                             <i class="fa-solid fa-info-circle me-1"></i>
                             Отсканируйте QR-код для {{ qrModalType === 'exchange' ? 'получения' : 'отметки' }}
                         </p>
+                        <div class="qr-timer" v-if="qrExpiresIn > 0">
+                            <i class="fa-solid fa-clock me-1"></i>
+                            Действителен ещё: {{ qrExpiresIn }} сек.
+                        </div>
                     </div>
                 </div>
             </div>
@@ -202,18 +228,33 @@
 </template>
 
 <script>
+
+import {usePermissions} from '@/MobileClient/composables/usePermissions.js';
+
 export default {
     name: "CoffeeProgress",
 
+    setup() {
+        const {isAdmin, hasPermission} = usePermissions();
+        return {
+            isAdmin,
+            hasPermission
+        };
+    },
+
     data() {
         return {
+            loading: false,
             spent_time: 0,
-            intervalId: null,
+            spentIntervalId: null,
             showRules: false,
             selectedCupIndex: null,
             coffee: null,
             qrModalType: 'mark', // 'mark' или 'exchange'
             qrModal: null,
+            qrExpiresIn: 300, // 5 минут
+            qrTimerInterval: null,
+            pollIntervalId: null,
         };
     },
 
@@ -253,8 +294,17 @@ export default {
             if (this.selectedCupIndex === null && this.qrModalType !== 'exchange') return null;
 
             const data = this.qrModalType === 'exchange'
-                ? `exchange:${this.self?.id}:${Date.now()}`
-                : `mark:${this.self?.id}:${this.selectedCupIndex}`;
+                ? JSON.stringify({
+                    action: 'exchange',
+                    user_id: this.self?.id,
+                    timestamp: Math.floor(Date.now() / 1000),
+                })
+                : JSON.stringify({
+                    action: 'mark',
+                    user_id: this.self?.id,
+                    cup_index: this.selectedCupIndex,
+                    timestamp: Math.floor(Date.now() / 1000),
+                });
 
             return `https://api.qrserver.com/v1/create-qr-code/?size=450x450&qzone=2&data=${encodeURIComponent(data)}`;
         },
@@ -264,7 +314,7 @@ export default {
         self: {
             handler(newValue) {
                 if (newValue) {
-                    this.coffee = newValue.config?.coffee || null;
+                    this.coffee = newValue.meta?.coffee || null;
                 }
             },
             deep: true,
@@ -279,89 +329,238 @@ export default {
             }
         });
 
-        window.addEventListener("trigger-spent-timer", (event) => {
-            this.spent_time = event.detail;
-        });
+        // Слушаем событие обновления таймера
+        window.addEventListener("trigger-spent-timer", this.handleSpentTimer);
     },
 
     beforeUnmount() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId);
-        }
+        this.clearAllIntervals();
+        window.removeEventListener("trigger-spent-timer", this.handleSpentTimer);
+
         if (this.qrModal) {
             this.qrModal.dispose();
         }
     },
 
     methods: {
-        refreshCoffee() {
+        handleSpentTimer(event) {
+            this.spent_time = event.detail;
+        },
+
+        clearAllIntervals() {
+            if (this.spentIntervalId) {
+                clearInterval(this.spentIntervalId);
+                this.spentIntervalId = null;
+            }
+            if (this.qrTimerInterval) {
+                clearInterval(this.qrTimerInterval);
+                this.qrTimerInterval = null;
+            }
+            if (this.pollIntervalId) {
+                clearInterval(this.pollIntervalId);
+                this.pollIntervalId = null;
+            }
+        },
+
+        async refreshCoffee() {
             this.startSpentTimer(10);
-            this.$notify?.({
-                title: "Кофе",
-                text: "Обновляем данные...",
-                type: "info",
-            });
-            this.InitCoffee();
+
+            try {
+                const response = await axios.get('/coffee/progress');
+                if (response.data.success) {
+                    this.coffee = response.data.coffee;
+
+                    // Обновляем глобальный объект
+                    if (window.TenantUser) {
+                        if (!window.TenantUser.meta) window.TenantUser.meta = {};
+                        window.TenantUser.meta.coffee = this.coffee;
+                    }
+
+                    this.$notify?.({
+                        title: "Кофе",
+                        text: "Данные обновлены",
+                        type: "success",
+                    });
+                }
+            } catch (error) {
+                this.$notify?.({
+                    title: "Ошибка",
+                    text: error.response?.data?.error || 'Не удалось обновить данные',
+                    type: "error",
+                });
+            }
         },
 
         startSpentTimer(seconds) {
             this.spent_time = seconds;
-            const interval = setInterval(() => {
+
+            if (this.spentIntervalId) {
+                clearInterval(this.spentIntervalId);
+            }
+
+            this.spentIntervalId = setInterval(() => {
                 if (this.spent_time > 0) {
                     this.spent_time--;
                 } else {
-                    clearInterval(interval);
+                    clearInterval(this.spentIntervalId);
+                    this.spentIntervalId = null;
                 }
             }, 1000);
         },
 
-        InitCoffee() {
-            // TODO: Замени на реальный API или Pinia action
-            // return axios.post('/api/coffee/init').then(resp => {
-            //     this.coffee = resp.data || { count: 0 };
-            // });
+        async InitCoffee() {
+            if (this.loading) return;
 
-            // Имитация запроса
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    this.coffee = this.coffee || { count: 0 };
-                    resolve(this.coffee);
-                }, 500);
-            });
+            this.loading = true;
+
+            try {
+                const response = await axios.post('/coffee/init');
+
+                if (response.data.success) {
+                    this.coffee = response.data.coffee;
+
+                    // Обновляем глобальный объект
+                    if (window.TenantUser) {
+                        if (!window.TenantUser.meta) window.TenantUser.meta = {};
+                        window.TenantUser.meta.coffee = this.coffee;
+                    }
+
+                    this.$notify?.({
+                        title: "Кофейная карта",
+                        text: "Карта успешно создана!",
+                        type: "success",
+                    });
+                }
+            } catch (error) {
+                this.$notify?.({
+                    title: "Ошибка",
+                    text: error.response?.data?.error || 'Не удалось инициализировать карту',
+                    type: "error",
+                });
+            } finally {
+                this.loading = false;
+            }
         },
 
-        waitForAccept() {
-            let waitIterationCount = 10;
-            const currentCount = this.coffee.count;
+        startPolling() {
+            const currentCount = this.coffee?.count || 0;
+            let waitIterationCount = 60; // 5 минут (60 * 5 сек)
 
-            this.intervalId = setInterval(() => {
-                this.InitCoffee().then(() => {
-                    waitIterationCount--;
-                    if (currentCount !== this.coffee.count || waitIterationCount <= 0) {
-                        clearInterval(this.intervalId);
-                        this.intervalId = null;
+            if (this.pollIntervalId) {
+                clearInterval(this.pollIntervalId);
+            }
+
+            this.pollIntervalId = setInterval(async () => {
+                waitIterationCount--;
+
+                try {
+                    const response = await axios.get('/coffee/progress');
+
+                    if (response.data.success) {
+                        const newCoffee = response.data.coffee;
+
+                        if (currentCount !== newCoffee.count) {
+                            this.coffee = newCoffee;
+
+                            // Обновляем глобальный объект
+                            if (window.TenantUser) {
+                                if (!window.TenantUser.meta) window.TenantUser.meta = {};
+                                window.TenantUser.meta.coffee = this.coffee;
+                            }
+
+                            this.$notify?.({
+                                title: "Чашка отмечена!",
+                                text: `Прогресс: ${this.coffee.count}/${this.maxCups}`,
+                                type: "success",
+                            });
+
+                            // Если достигли максимума - закрываем модалку
+                            if (this.coffee.count >= this.maxCups) {
+                                this.closeQrModal();
+                            }
+
+                            this.stopPolling();
+                            return;
+                        }
                     }
-                });
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+
+                if (waitIterationCount <= 0) {
+                    this.stopPolling();
+                }
             }, 5000);
         },
 
+        stopPolling() {
+            if (this.pollIntervalId) {
+                clearInterval(this.pollIntervalId);
+                this.pollIntervalId = null;
+            }
+        },
+
+        startQrTimer() {
+            this.qrExpiresIn = 300; // 5 минут
+
+            if (this.qrTimerInterval) {
+                clearInterval(this.qrTimerInterval);
+            }
+
+            this.qrTimerInterval = setInterval(() => {
+                if (this.qrExpiresIn > 0) {
+                    this.qrExpiresIn--;
+                } else {
+                    clearInterval(this.qrTimerInterval);
+                    this.qrTimerInterval = null;
+                    this.$notify?.({
+                        title: "QR-код истёк",
+                        text: "Пожалуйста, закройте модалку и откройте заново",
+                        type: "warning",
+                    });
+                }
+            }, 1000);
+        },
+
         onCupClick(cup) {
-            if (cup.filled) return;
+            if (cup.filled || this.loading) return;
 
             this.selectedCupIndex = cup.index;
             this.qrModalType = 'mark';
             this.qrModal?.show();
-            this.waitForAccept();
+            this.startQrTimer();
+            this.startPolling();
         },
 
         openExchangeModal() {
+            if (this.loading) return;
+
             this.selectedCupIndex = null;
             this.qrModalType = 'exchange';
             this.qrModal?.show();
+            this.startQrTimer();
+            this.startPolling();
+        },
+
+        closeQrModal() {
+            this.qrModal?.hide();
+            this.stopPolling();
+
+            if (this.qrTimerInterval) {
+                clearInterval(this.qrTimerInterval);
+                this.qrTimerInterval = null;
+            }
+
+            this.selectedCupIndex = null;
+            this.qrExpiresIn = 300;
         },
 
         toggleRules() {
             this.showRules = !this.showRules;
+        },
+
+        goToScanner() {
+            this.$router.push({ name: 'CoffeeScanner' });
         },
     },
 };
@@ -527,9 +726,14 @@ export default {
     box-shadow: 0 4px 16px rgba(111, 78, 55, 0.3);
 }
 
-.start-btn:hover {
+.start-btn:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(111, 78, 55, 0.4);
+}
+
+.start-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 /* ==========================================
@@ -959,6 +1163,89 @@ export default {
     white-space: pre-line;
 }
 
+/* ==========================================
+   АДМИНСКАЯ КНОПКА СКАНЕРА
+   ========================================== */
+.scanner-btn {
+    width: 100%;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 16px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.scanner-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(102, 126, 234, 0.4);
+}
+
+.scanner-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.6s ease;
+}
+
+.scanner-btn:hover::before {
+    left: 100%;
+}
+
+.scanner-btn-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    z-index: 1;
+}
+
+.scanner-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.scanner-info {
+    flex: 1;
+    text-align: left;
+}
+
+.scanner-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.scanner-subtitle {
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
+.scanner-arrow {
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+}
+
+.scanner-btn:hover .scanner-arrow {
+    transform: translateX(4px);
+}
+
 /* Анимация раскрытия */
 .slide-down-enter-active,
 .slide-down-leave-active {
@@ -1026,9 +1313,26 @@ export default {
 }
 
 .qr-hint {
-    margin: 0;
+    margin: 0 0 12px 0;
     font-size: 0.9rem;
     color: var(--bs-secondary-color);
+}
+
+.qr-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    border-radius: 20px;
+    font-size: 0.85rem;
+    color: #856404;
+    font-weight: 600;
+}
+
+.qr-timer i {
+    color: #ffc107;
 }
 
 /* ==========================================

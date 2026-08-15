@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminOrderController;
+
 use App\Http\Controllers\BasketController;
 use App\Http\Controllers\BitrixController;
 use App\Http\Controllers\CdekController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Tenant\AchievementAdminController;
 use App\Http\Controllers\Tenant\AchievementController;
 use App\Http\Controllers\Tenant\CashBackController;
 use App\Http\Controllers\Tenant\ClientsController;
+use App\Http\Controllers\Tenant\CoffeeController;
 use App\Http\Controllers\Tenant\CollectionController;
 use App\Http\Controllers\Tenant\FavoriteController;
 use App\Http\Controllers\Tenant\FeedbackController;
@@ -319,6 +321,22 @@ function routes() {
             Route::post('/archive-multiple', [TenantDialogController::class, 'archiveMultiple']);
             Route::get('/{dialogId}/attachments', [TenantDialogController::class, 'attachments']);
         });
+
+    // Coffee Card API
+    Route::prefix('coffee')->group(function () {
+        // Клиентские маршруты
+        Route::post('/init', [CoffeeController::class, 'init']);
+        Route::get('/progress', [CoffeeController::class, 'getProgress']);
+
+        // Админские маршруты
+        Route::middleware('admin')->group(function () {
+            Route::post('/mark', [CoffeeController::class, 'mark']);
+            Route::post('/exchange', [CoffeeController::class, 'exchange']);
+            Route::post('/reset', [CoffeeController::class, 'reset']);
+        });
+
+
+    });
 
     Route::prefix('feedback')->group(function () {
         Route::post('/', [FeedbackController::class, 'submit']);
