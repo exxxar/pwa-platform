@@ -30,19 +30,15 @@ class TenantUserResolver
 
         $tempUser = Auth::guard('tenant')->user();
 
-
-
         if (!is_null($tempUser)) {
-            // 🆕 Даже для авторизованных пользователей сохраняем реферальный код в сессию (для аналитики)
+            // ✅ Обеспечиваем наличие кода и для уже авторизованных
+            $this->ensureUserHasReferralCode($tempUser);
             $this->handleReferralCodeForExistingUser($request);
             return $next($request);
         }
 
         $uuid = $request->session()->get('user_uuid');
         $header = $request->header('X-Integration-Auth');
-
-        $parsedTenantId = null;
-        $parsedUuid = null;
 
         if ($header) {
             $decoded = base64_decode($header);
@@ -54,61 +50,64 @@ class TenantUserResolver
             }
         }
 
-        // 🆕 1. Получаем реферальный код из query params или сессии
         $referralCode = $request->get('ref') ?? $request->session()->get('referral_code');
-
 
         $user = null;
 
         if ($uuid) {
+            // ✅ Ищем только в рамках текущего тенанта
             $user = TenantUser::query()
                 ->with(["roles"])
+                ->where('tenant_id', $tenant->id)
                 ->where('uuid', $uuid)
                 ->first();
         }
 
         if (!$user) {
-            $user = $this->createGuestUser($tenant, $referralCode);
+            try {
+                $user = $this->createGuestUser($tenant, $referralCode, $request);
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Защита от race condition
+                if (str_contains($e->getMessage(), 'Duplicate') && $uuid) {
+                    $user = TenantUser::query()
+                        ->with(["roles"])
+                        ->where('tenant_id', $tenant->id)
+                        ->where('uuid', $uuid)
+                        ->first();
+                }
+                if (!$user) {
+                    throw $e;
+                }
+            }
         } else {
-            // 🆕 Обеспечиваем наличие реферального кода у существующего пользователя
             $this->ensureUserHasReferralCode($user);
-
-            // 🆕 2. Пользователь существует — проверяем, можно ли его привязать к рефереру
             $this->tryLinkExistingUserToReferrer($user, $referralCode);
         }
 
-        // 🆕 3. Сохраняем реферальный код в сессию для будущих действий
         if ($referralCode && !$request->session()->has('referral_code')) {
             $request->session()->put('referral_code', $referralCode);
         }
 
-        config(['session.lifetime' => 43200]);
         Auth::guard('tenant')->login($user, true);
 
         return $next($request);
     }
 
-    /**
-     * 🆕 Обеспечивает наличие реферального кода у пользователя
-     * Если кода нет — генерирует и сохраняет
-     */
     private function ensureUserHasReferralCode(TenantUser $user): void
     {
         if (empty($user->referral_code)) {
             $referralCode = TenantUser::generateReferralCode();
             $user->referral_code = $referralCode;
-            $user->save();
+            $user->saveQuietly(); // ✅ Без триггеров
 
-            Log::info("🎫 Сгенерирован реферальный код для существующего пользователя", [
+            Log::info("🎫 Сгенерирован реферальный код", [
                 'user_id' => $user->id,
                 'referral_code' => $referralCode
             ]);
         }
     }
-    /**
-     * 🆕 Создание гостевого пользователя с реферальным кодом
-     */
-    private function createGuestUser($tenant, ?string $referralCode): TenantUser
+
+    private function createGuestUser($tenant, ?string $referralCode, Request $request): TenantUser
     {
         $role = TenantRole::firstOrCreate([
             'tenant_id' => $tenant->id,
@@ -132,21 +131,18 @@ class TenantUserResolver
         $randomIdentity = $identities[array_rand($identities)];
         $guestName = 'Гость • ' . $randomIdentity;
 
-        // 🆕 ВАЖНО: Генерируем реферальный код для гостя!
         $referralCodeForUser = TenantUser::generateReferralCode();
 
         $user = TenantUser::query()->create([
             'tenant_id' => $tenant->id,
             'name' => $guestName,
             'uuid' => (string) Str::uuid(),
-            'referral_code' => $referralCodeForUser, // 🆕 Сохраняем сгенерированный код
+            'referral_code' => $referralCodeForUser,
             'is_active' => true,
-
             'referrals_count' => 0,
             'total_referral_earnings' => 0,
         ]);
 
-        // Создаём системный диалог
         $dialog = TenantDialog::query()->create([
             'tenant_id' => $tenant->id,
             'tenant_user_id' => $user->id,
@@ -170,9 +166,9 @@ class TenantUserResolver
             ]
         ]);
 
-        request()->session()->put('user_uuid', $user->uuid);
+        // ✅ Используем $request вместо глобального helper
+        $request->session()->put('user_uuid', $user->uuid);
 
-        // 🆕 4. Если есть реферальный код — привязываем гостя к рефереру
         if ($referralCode) {
             $success = $this->referralService->registerReferral($user, $referralCode);
 
@@ -188,17 +184,12 @@ class TenantUserResolver
         return $user;
     }
 
-    /**
-     * 🆕 Попытка привязать существующего пользователя к рефереру
-     * (только если у него ещё нет referrer)
-     */
     private function tryLinkExistingUserToReferrer(TenantUser $user, ?string $referralCode): void
     {
         if (!$referralCode) {
             return;
         }
 
-        // Если у пользователя уже есть реферер — не меняем
         if ($user->referred_by) {
             Log::debug("⚠️ Пользователь уже имеет реферера", [
                 'user_id' => $user->id,
@@ -208,7 +199,6 @@ class TenantUserResolver
             return;
         }
 
-        // Пытаемся привязать
         $success = $this->referralService->registerReferral($user, $referralCode);
 
         if ($success) {
@@ -219,10 +209,6 @@ class TenantUserResolver
         }
     }
 
-    /**
-     * 🆕 Обработка реферального кода для уже авторизованных пользователей
-     * (сохраняем в сессию для аналитики)
-     */
     private function handleReferralCodeForExistingUser(Request $request): void
     {
         $referralCode = $request->query('ref');
@@ -230,7 +216,7 @@ class TenantUserResolver
         if ($referralCode && !$request->session()->has('referral_code')) {
             $request->session()->put('referral_code', $referralCode);
 
-            Log::debug("💾 Реферальный код сохранён в сессию для авторизованного пользователя", [
+            Log::debug("💾 Реферальный код сохранён в сессию", [
                 'user_id' => Auth::guard('tenant')->id(),
                 'referral_code' => $referralCode
             ]);
