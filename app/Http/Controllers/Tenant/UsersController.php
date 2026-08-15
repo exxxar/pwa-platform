@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Tenant;
 
-use App\Facades\MessageService;
+
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantDialog;
 use App\Models\Tenant\TenantUser;
 use App\Models\Tenant\CashBackHistory;
 use App\Services\CashBackService;
+use App\Services\MessageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 

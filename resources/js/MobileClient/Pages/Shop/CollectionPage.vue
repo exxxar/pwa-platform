@@ -236,36 +236,38 @@
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import ProductCard from '@/MobileClient/Components/Shop/ProductCard.vue';
-import CollectionProductItem from '@/MobileClient/Components/Shop/Collections/CollectionProductItem.vue'; // 🆕 Путь может отличаться
-
+import CollectionProductItem from '@/MobileClient/Components/Shop/Collections/CollectionProductItem.vue';
 import { useBasket } from '@/MobileClient/Composables/useBasket.js';
 import { useProducts } from '@/MobileClient/composables/useProducts';
 
 export default {
     name: 'CollectionPage',
-    components: { ProductCard,CollectionProductItem },
+    components: { ProductCard, CollectionProductItem },
 
     setup() {
         const route = useRoute();
         const router = useRouter();
         const basket = useBasket();
         const { selectedPartner } = useProducts();
-        const partnerId = route.params.partnerId ||
-            route.query.partnerId ||
-            selectedPartner.value.tenant_partner_id || null;
 
-        console.log("0partnerId",  selectedPartner)
-        console.log("1partnerId",  selectedPartner.value.tenant_partner_id)
-        console.log("2partnerId",  route.query.partnerId )
-        console.log("3partnerId",  route.params.partnerId )
+        // 🛡️ Безопасное получение partnerId через computed
+        const partnerId = computed(() => {
+            if (route.params.partnerId) return route.params.partnerId;
+            if (route.query.partnerId) return route.query.partnerId;
+            if (selectedPartner?.value?.tenant_partner_id) {
+                return selectedPartner.value.tenant_partner_id;
+            }
+            return null;
+        });
+
         return {
             route,
             router,
             selectedPartner,
+            partnerId,
             addCollectionToCart: basket.addCollection || (() => {}),
             getCollectionVariants: basket.getCollectionVariants || (() => []),
             removeCollectionVariant: basket.removeCollectionVariant || (() => {}),
-            partnerId
         };
     },
 
@@ -273,7 +275,7 @@ export default {
         return {
             collection: null,
             activeTab: 'build',
-            viewMode: 'list', // 🆕 'grid' или 'list'
+            viewMode: 'list',
             selections: {},
             isLoading: false,
         };
@@ -281,7 +283,8 @@ export default {
 
     computed: {
         collectionId() {
-            return this.route.params.id;
+            // 🛡️ Защита от undefined
+            return this.route?.params?.id || this.route?.query?.id || null;
         },
 
         cartVariants() {
@@ -338,9 +341,22 @@ export default {
 
     methods: {
         async loadCollection() {
+            // 🛡️ Проверка наличия collectionId
+            if (!this.collectionId) {
+                console.error('CollectionPage: collectionId не определён');
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'ID коллекции не указан',
+                    type: 'error'
+                });
+                this.goBack();
+                return;
+            }
+
             this.isLoading = true;
             try {
-                const response = await axios.get(`/shop/collections/${this.collectionId}?partner_id=${this.partnerId}`);
+                const params = this.partnerId ? `?partner_id=${this.partnerId}` : '';
+                const response = await axios.get(`/shop/collections/${this.collectionId}${params}`);
                 this.collection = response.data.data || response.data;
 
                 if (!this.collection.collection_categories) {
@@ -364,7 +380,6 @@ export default {
             });
         },
 
-        // 🆕 Метод для случайного выбора по 1 товару из каждой категории
         randomizeSelection() {
             if (!this.collection?.collection_categories) return;
 
@@ -388,13 +403,11 @@ export default {
             }
         },
 
-        // 🆕 Обработчик кнопки "Собрать случайно"
         randomizeAndSwitch() {
             this.activeTab = 'build';
-
+            this.randomizeSelection();
         },
 
-        // 🆕 Метод для полной очистки выбора
         clearSelection() {
             this.collection?.collection_categories?.forEach(cat => {
                 this.selections[cat.id] = [];
@@ -460,7 +473,7 @@ export default {
                 });
 
                 const variant = {
-                    partner_id:this.partnerId,
+                    partner_id: this.partnerId,
                     collection_id: this.collection.id,
                     collection_name: this.collection.name,
                     selected_products: selectedProducts,
@@ -468,7 +481,11 @@ export default {
                 };
 
                 await this.addCollectionToCart(variant);
-                this.$notify?.({ title: 'Успешно', text: `Коллекция "${this.collection.name}" добавлена в корзину`, type: 'success' });
+                this.$notify?.({
+                    title: 'Успешно',
+                    text: `Коллекция "${this.collection.name}" добавлена в корзину`,
+                    type: 'success'
+                });
 
                 this.initSelections();
                 this.activeTab = 'variants';
@@ -502,7 +519,14 @@ export default {
         },
 
         goBack() {
-            this.router.back();
+            // 🛡️ Защита от undefined router
+            if (this.router?.back) {
+                this.router.back();
+            } else if (this.router?.go) {
+                this.router.go(-1);
+            } else {
+                window.history.back();
+            }
         },
 
         formatPrice(price) {

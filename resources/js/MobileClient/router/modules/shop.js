@@ -34,7 +34,7 @@ export default [
     { path: '/cart', name: 'Cart', component: ShopCart, meta: { hideBottomMenu: true } },
     { path: '/grocery-order', name: 'GroceryOrder', component: GroceryOrder, meta: { auth: true, hideBottomMenu: true, title: 'Заказ продуктов' } },
     { path: '/calculator', name: 'Calculator', component: CalculatorPage, meta: { auth: true, hideBottomMenu: true, title: 'Калькулятор стоимости' } },
-    { path: '/collection/:id/:partnerId?', name: 'CollectionPage', component: CollectionPage, meta: { requiresAuth: false } },
+    { path: '/collection/:id/:partnerId?', name: 'CollectionPage', component: CollectionPage, meta: { auth: true } },
 
     // Калькуляторы еды
     { path: '/food-calculators', name: 'FoodCalculators', component: FoodCalculators, meta: { auth: true, title: 'Калькуляторы еды', hideBottomMenu: true } },
