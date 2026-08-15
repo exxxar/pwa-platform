@@ -281,7 +281,7 @@ export default {
                 const referralCode = data.referral_code || data.code || decodedText;
 
                 // Ищем пользователя
-                const response = await axios.post('/cashback/find-by-referral', {
+                const response = await axios.post('/users/find-by-referral', {
                     referral_code: referralCode,
                 });
 
@@ -321,7 +321,7 @@ export default {
             this.isProcessing = true;
 
             try {
-                const response = await axios.post('/cashback/manage-by-referral', {
+                const response = await axios.post('/users/manage-by-referral', {
                     referral_code: this.foundUser.referral_code,
                     amount: this.form.amount,
                     type: this.form.type,
