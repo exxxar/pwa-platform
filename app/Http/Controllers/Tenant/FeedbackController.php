@@ -52,7 +52,7 @@ class FeedbackController extends Controller
             'phone' => 'required|string|max:30',
             'message' => 'required|string|max:' . self::MAX_MESSAGE_LENGTH,
             'photos' => 'nullable|array|max:' . self::MAX_PHOTOS,
-            'photos.*' => 'required|image|mimes:jpg,jpeg,png,webp|max:' . (self::MAX_FILE_SIZE / 1024),
+            'photos.*' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:' . (self::MAX_FILE_SIZE / 1024),
         ], [
             'name.required' => 'Укажите ваше имя',
             'phone.required' => 'Укажите номер телефона',

@@ -216,6 +216,25 @@
                     </div>
                 </transition>
 
+                <!-- Кнопка отправки внутри формы (резервная) -->
+                <button
+                    type="button"
+                    class="submit-btn-inline"
+                    :class="{ 'is-loading': sending }"
+                    :disabled="!canSubmit"
+                    @click="submitCallback"
+                >
+                    <transition name="btn-fade" mode="out-in">
+                    <span v-if="sending" key="loading" class="btn-content">
+                        <span class="spinner"></span>
+                        <span>Отправка сообщения...</span>
+                    </span>
+                                    <span v-else key="default" class="btn-content">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Отправить сообщение</span>
+                    </span>
+                    </transition>
+                </button>
             </form>
         </div>
 
@@ -293,6 +312,7 @@ export default {
                 this.form.name.trim().length >= 2 &&
                 this.form.phone.replace(/\D/g, '').length >= 11 &&
                 this.form.message.trim().length >= 5
+                // ❌ УБРАЛИ: && this.form.images.length > 0
             );
         },
     },
@@ -409,6 +429,7 @@ export default {
                 this.errorMessage = 'Введите текст сообщения (минимум 5 символов)';
                 return false;
             }
+            // ❌ УБРАЛИ проверку form.images.length === 0
             return true;
         },
 
@@ -484,7 +505,7 @@ export default {
 .feedback-page {
     min-height: 100vh;
     background: var(--bs-body-bg);
-    padding-bottom: 110px;
+    padding-bottom: 140px; /* Отступ под sticky + inline кнопку */
 }
 
 /* ==========================================
@@ -1257,5 +1278,132 @@ export default {
     .photo-preview-grid {
         grid-template-columns: repeat(3, 1fr);
     }
+}
+
+/* ==========================================
+   КНОПКА ОТПРАВКИ ВНУТРИ ФОРМЫ
+   ========================================== */
+.submit-btn-inline {
+    width: 100%;
+    padding: 18px 24px;
+    margin-top: 24px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, var(--bs-primary) 0%, #6366f1 50%, #8b5cf6 100%);
+    border: none;
+    border-radius: 16px;
+    color: white;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow:
+        0 8px 24px rgba(99, 102, 241, 0.35),
+        0 2px 8px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+    letter-spacing: 0.3px;
+}
+
+.submit-btn-inline::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.25),
+        transparent
+    );
+    transition: left 0.7s ease;
+}
+
+.submit-btn-inline:hover:not(:disabled)::before {
+    left: 100%;
+}
+
+.submit-btn-inline:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow:
+        0 12px 32px rgba(99, 102, 241, 0.45),
+        0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.submit-btn-inline:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.submit-btn-inline:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
+    box-shadow: none;
+}
+
+.submit-btn-inline.is-loading {
+    background: linear-gradient(135deg, var(--bs-primary) 0%, #6366f1 100%);
+    opacity: 0.9;
+    cursor: wait;
+}
+
+.submit-btn-inline .btn-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.submit-btn-inline .btn-content i {
+    font-size: 1.1rem;
+}
+
+/* ==========================================
+   УЛУЧШЕННАЯ STICKY КНОПКА
+   ========================================== */
+.submit-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(
+        180deg,
+        rgba(var(--bs-body-bg-rgb, 255, 255, 255), 0) 0%,
+        rgba(var(--bs-body-bg-rgb, 255, 255, 255), 0.95) 50%,
+        rgba(var(--bs-body-bg-rgb, 255, 255, 255), 1) 100%
+    );
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 100;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-bs-theme="dark"] .submit-bar {
+    background: linear-gradient(
+        180deg,
+        rgba(26, 26, 26, 0) 0%,
+        rgba(26, 26, 26, 0.95) 50%,
+        rgba(26, 26, 26, 1) 100%
+    );
+}
+
+.submit-bar-inner {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.submit-bar .submit-btn {
+    box-shadow:
+        0 8px 24px rgba(99, 102, 241, 0.4),
+        0 2px 8px rgba(0, 0, 0, 0.1);
 }
 </style>
