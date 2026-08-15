@@ -17,6 +17,7 @@ use App\Http\Controllers\Tenant\CashBackController;
 use App\Http\Controllers\Tenant\ClientsController;
 use App\Http\Controllers\Tenant\CollectionController;
 use App\Http\Controllers\Tenant\FavoriteController;
+use App\Http\Controllers\Tenant\FeedbackController;
 use App\Http\Controllers\Tenant\FriendsController;
 use App\Http\Controllers\Tenant\PromoCodeController;
 use App\Http\Controllers\Tenant\RolesController;
@@ -318,6 +319,10 @@ function routes() {
             Route::post('/archive-multiple', [TenantDialogController::class, 'archiveMultiple']);
             Route::get('/{dialogId}/attachments', [TenantDialogController::class, 'attachments']);
         });
+
+    Route::prefix('feedback')->group(function () {
+        Route::post('/', [FeedbackController::class, 'submit']);
+    });
 
     Route::prefix("basket")
         ->controller(BasketController::class)
