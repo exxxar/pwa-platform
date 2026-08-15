@@ -237,6 +237,10 @@ function routes() {
             Route::get('/search', [UsersController::class, 'search']);
             Route::get('/download', [UsersController::class, 'download']);
             Route::get('/cashback-history', [UsersController::class, 'cashbackHistory']);
+
+            Route::post('/find-by-referral', [UsersController::class, 'findByReferralCode']);
+            Route::post('/manage-by-referral', [UsersController::class, 'manageCashbackByReferralCode']);
+
             Route::post('/{userId}/cashback', [UsersController::class, 'addCashback']);
             Route::post('/{userId}/add-cashback', [UsersController::class, 'manageCashback']);
             Route::post('/{userId}/start-chat', [UsersController::class, 'startChat']);

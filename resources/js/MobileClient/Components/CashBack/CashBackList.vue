@@ -1,18 +1,18 @@
 <template>
-    <div className="cashback-list-container">
+    <div class="cashback-list-container">
 
         <!-- ========================================== -->
         <!-- ИНДИКАТОР ЗАГРУЗКИ -->
         <!-- ========================================== -->
-        <div v-if="isLoading" className="loading-overlay">
-            <div className="loading-spinner"></div>
+        <div v-if="isLoading" class="loading-overlay">
+            <div class="loading-spinner"></div>
             <p>Загрузка истории операций...</p>
         </div>
 
         <!-- ========================================== -->
         <!-- СПИСОК ОПЕРАЦИЙ -->
         <!-- ========================================== -->
-        <div v-else-if="cashback.length > 0" className="cashback-items-list">
+        <div v-else-if="cashback.length > 0" class="cashback-items-list">
             <CashBackItem
                 v-for="item in cashback"
                 :key="'cashback-' + item.id"
@@ -23,9 +23,9 @@
         <!-- ========================================== -->
         <!-- ПУСТОЕ СОСТОЯНИЕ -->
         <!-- ========================================== -->
-        <div v-else className="empty-state">
-            <div className="empty-icon">
-                <i className="fa-solid fa-coins"></i>
+        <div v-else class="empty-state">
+            <div class="empty-icon">
+                <i class="fa-solid fa-coins"></i>
             </div>
             <h3>Операций пока нет</h3>
             <p>История начислений и списаний CashBack появится здесь</p>
@@ -34,7 +34,7 @@
         <!-- ========================================== -->
         <!-- ПАГИНАЦИЯ -->
         <!-- ========================================== -->
-        <div v-if="cashback_paginate_object && cashback_paginate_object.last_page > 1" className="pagination-wrapper">
+        <div v-if="cashback_paginate_object && cashback_paginate_object.last_page > 1" class="pagination-wrapper">
             <Pagination
                 :simple="true"
                 @pagination_page="nextCashBackPage"

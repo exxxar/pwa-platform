@@ -372,6 +372,116 @@ class UsersController extends Controller
 
 
     /**
+     * 🔍 Поиск пользователя по referral_code (для QR-сканера)
+     */
+    public function findByReferralCode(Request $request)
+    {
+        $validated = $request->validate([
+            'referral_code' => 'required|string|max:20',
+        ]);
+
+        $tenant = app('tenant');
+        $user = TenantUser::where('tenant_id', $tenant->id)
+            ->where('referral_code', $validated['referral_code'])
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Пользователь не найден',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'phone' => $user->phone,
+                'cashback_balance' => (float) $user->cashback_balance,
+                'referral_code' => $user->referral_code,
+                'is_vip' => (bool) $user->is_vip,
+                'avatar' => $user->avatar ? asset('storage/' . $user->avatar) : null,
+            ],
+        ]);
+    }
+
+    /**
+     * 💰 Управление кэшбэком через referral_code (для QR-сканера)
+     */
+    public function manageCashbackByReferralCode(Request $request)
+    {
+        $validated = $request->validate([
+            'referral_code' => 'required|string|max:20',
+            'amount' => 'required|numeric|min:1',
+            'type' => 'required|in:credit,debit',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $tenant = app('tenant');
+        $user = TenantUser::where('tenant_id', $tenant->id)
+            ->where('referral_code', $validated['referral_code'])
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Пользователь не найден',
+            ], 404);
+        }
+
+        $amount = (float) $validated['amount'];
+        $type = $validated['type'];
+        $description = $validated['description'] ?? ($type === 'credit' ? 'Начисление через QR' : 'Списание через QR');
+
+        try {
+            DB::beginTransaction();
+
+            if ($type === 'credit') {
+                CashBackService::call()->addCashBack(
+                    amount: $amount,
+                    description: $description,
+                    user: $user,
+                    withLevels: false
+                );
+                $message = "Начислено {$amount} баллов";
+            } else {
+                if ($user->cashback_balance < $amount) {
+                    throw new \Exception("Недостаточно средств. Доступно: {$user->cashback_balance}");
+                }
+
+                CashBackService::call()->removeCashBack(
+                    amount: $amount,
+                    description: $description,
+                    user: $user
+                );
+                $message = "Списано {$amount} баллов";
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'user' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'cashback_balance' => (float) $user->fresh()->cashback_balance,
+                    ],
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Ошибка операции',
+            ], 422);
+        }
+    }
+
+    /**
      * 🆕 Начисление бонусных баллов пользователю (Через CashBackService)
      */
     public function addCashback(Request $request, int $userId)

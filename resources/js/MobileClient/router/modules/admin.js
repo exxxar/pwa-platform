@@ -23,6 +23,7 @@ const AdminTableDetails = defineAsyncComponent(() => import('@/MobileClient/Page
 const AdminTableSettings = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Tables/TableSettings.vue'));
 const AdminUserDetails = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/UserDetails.vue'));
 const AdminCoffeeScanner = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/CoffeeScanner.vue'));
+const AdminCashbackScanner = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/CashbackScanner.vue'));
 
 export default [
     {
@@ -36,6 +37,12 @@ export default [
         name: 'AdminAchievements',
         component: AdminAchievements,
         meta: { requiresAuth: true }
+    },
+    {
+        path: '/admin/cashback-scanner',
+        name: 'CashbackScanner',
+        component: AdminCashbackScanner,
+        meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
     },
     {
         path: '/admin/coffee-scanner',

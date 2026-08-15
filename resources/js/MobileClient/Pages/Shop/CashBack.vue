@@ -32,10 +32,14 @@
                             <i class="fa-solid fa-download me-2"></i>
                             Скачать историю
                         </button>
-                        <!-- 🆕 КНОПКА УПРАВЛЕНИЯ БАЛЛАМИ (только для админов) -->
                         <button v-if="isAdmin" class="btn-manage" @click="openCashbackModal">
                             <i class="fa-solid fa-coins me-2"></i>
                             Управление баллами
+                        </button>
+                        <!-- 🆕 НОВАЯ КНОПКА СКАНЕРА -->
+                        <button v-if="isAdmin" class="btn-scanner" @click="goToScanner">
+                            <i class="fa-solid fa-qrcode me-2"></i>
+                            Сканировать QR
                         </button>
                     </div>
                 </div>
@@ -239,7 +243,9 @@ export default {
             this.cashbackForm = { type: 'credit', amount: null, description: '' };
             this.showCashbackModal = true;
         },
-
+        goToScanner() {
+            this.$router.push({ name: 'CashbackScanner' });
+        },
         async confirmCashback() {
             if (!this.cashbackForm.amount || this.cashbackForm.amount <= 0) return;
 
@@ -265,7 +271,7 @@ export default {
                     user_id: this.self?.id,
                 };
 
-                // 🔄 Запрос к API управления баллами
+
                 // При необходимости замените эндпоинт на актуальный
                 await axios.post(`/admin/users/${this.self.id}/add-cashback`, payload);
 
@@ -776,5 +782,27 @@ export default {
     .btn-manage {
         width: 100%;
     }
+}
+
+.btn-scanner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 24px;
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 16px;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-scanner:hover {
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);
 }
 </style>
