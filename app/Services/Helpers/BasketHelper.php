@@ -18,7 +18,26 @@ use Illuminate\Support\Str;
 
 trait BasketHelper
 {
+    /**
+     * 🎯 Универсальная очистка номера телефона
+     * Удаляет: скобки, пробелы, тире, точки, подчёркивания
+     * Оставляет: только цифры и символ "+" (для международного формата)
+     *
+     * Примеры:
+     *   "+7 (999) 123-45-67" → "+79991234567"
+     *   "8 (999) 123 45 67"  → "89991234567"
+     *   "8-999-123-45-67"    → "89991234567"
+     *   "+7_999_123_45_67"   → "+79991234567"
+     */
+    protected function cleanPhone(?string $phone): string
+    {
+        if (empty($phone)) {
+            return '';
+        }
 
+        // Удаляем всё, кроме цифр и знака "+"
+        return preg_replace('/[^\d+]/', '', $phone);
+    }
 
     /**
      * 🆕 Получает данные адреса: сначала из БД по location_id, иначе из данных формы
@@ -98,7 +117,7 @@ trait BasketHelper
         $orderId = $order->id ?? '-';
         $userId = $this->tenantUser->id ?? '-';
         $name = $this->data["name"] ?? 'Не указано';
-        $phone = $this->data["phone"] ?? 'Не указано';
+        $phone = $this->cleanPhone($this->data["phone"] ?? 'Не указано');
         $money = $this->data["money"] ?? 'Не указано';
         $info = $this->data["info"] ?? 'Не указано';
         $cashbackText = $useCashback ? $cashback : "нет";
@@ -277,7 +296,9 @@ trait BasketHelper
     {
         $phone = $this->data["phone"] ?? $this->tenantUser->phone ?? null;
         $this->tenantUser->name = $this->data["name"] ?? $this->tenantUser->name;
-        $this->tenantUser->phone = $phone ? str_replace(["(", ")", "-"], "", $phone) : $this->tenantUser->phone;
+
+        // 🎯 Используем универсальный метод
+        $this->tenantUser->phone = $phone ? $this->cleanPhone($phone) : $this->tenantUser->phone;
         $this->tenantUser->saveQuietly();
     }
 
@@ -328,11 +349,14 @@ trait BasketHelper
     {
         $user = $this->tenantUser;
         $isUpdated = false;
+
         foreach (['name', 'phone', 'email'] as $field) {
             if (!empty($checkoutData[$field]) && ($field === 'phone' || empty($user->$field))) {
-                $user->$field = $checkoutData[$field];
+                // 🎯 Для телефона — применяем очистку
+                $user->$field = $field === 'phone'
+                    ? $this->cleanPhone($checkoutData[$field])
+                    : $checkoutData[$field];
                 $isUpdated = true;
-                if ($field === 'phone') $user->phone = str_replace(["(", ")", "-"], "", $user->phone);
             }
         }
 
@@ -709,7 +733,7 @@ trait BasketHelper
             'deliveryman_longitude' => $context['lng'],
             'delivery_note' => $this->fsPrepareDeliveryNote(),
             'receiver_name' => $context['customer_name'],
-            'receiver_phone' => $context['customer_phone'],
+            'receiver_phone' => $this->cleanPhone($context['customer_phone']),
             'location_id' => $context['location_id'],
             'status' => OrderStatusEnum::NewOrder->value,
             'order_type' => OrderTypeEnum::InternalStore->value,
@@ -731,7 +755,7 @@ trait BasketHelper
         $info    = $context["info"]    ?? 'Не указано';
         $cash    = self::PAYMENT_TYPES[$context["payment_type"] ?? 0] ?? 'Не указан';
 
-        $phone   = preg_replace('/[^\d+]/', '', $order->receiver_phone);
+        $phone = $this->cleanPhone($order->receiver_phone);
         $baseUrl = request()->getSchemeAndHttpHost() ?? 'не указано';
 
         $message  = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";

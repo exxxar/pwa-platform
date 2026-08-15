@@ -2928,12 +2928,7 @@ export default {
 
     /* Состояние "уже получен" */
     &.is-claimed {
-        background: linear-gradient(
-                135deg,
-                #8b7355 0%,
-                #a88a5a 50%,
-                #c9a961 100%
-        );
+        background: linear-gradient(135deg, #dd7b00, #dfab57, #ffb100);
         box-shadow:
             0 4px 16px rgba(139, 115, 85, 0.25),
             inset 0 1px 0 rgba(255, 255, 255, 0.2);
