@@ -215,8 +215,11 @@ trait BasketHelper
         try {
             $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'default_font' => 'dejavusans']);
             $html = view("pdf.order", [
-                "title" => $tenantTitle, "uniqNumber" => $number, "orderId" => $order->id,
-                "name" => $order->receiver_name, "phone" => $order->receiver_phone,
+                "title" => $tenantTitle,
+                "uniqNumber" => $number,
+                "orderId" => $order->id,
+                "name" => $order->receiver_name ?? '-',
+                "phone" => $order->receiver_phone ?? '-',
                 "address" => $address . "," . ($this->data["flat_number"] ?? ""),
                 "message" => ($this->data["info"] ?? 'Не указано'),
                 "entranceNumber" => ($this->data["entrance_number"] ?? 'Не указано'),
