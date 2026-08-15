@@ -70,6 +70,9 @@ class TenantUserResolver
         if (!$user) {
             $user = $this->createGuestUser($tenant, $referralCode);
         } else {
+            // 🆕 Обеспечиваем наличие реферального кода у существующего пользователя
+            $this->ensureUserHasReferralCode($user);
+
             // 🆕 2. Пользователь существует — проверяем, можно ли его привязать к рефереру
             $this->tryLinkExistingUserToReferrer($user, $referralCode);
         }
@@ -85,6 +88,23 @@ class TenantUserResolver
         return $next($request);
     }
 
+    /**
+     * 🆕 Обеспечивает наличие реферального кода у пользователя
+     * Если кода нет — генерирует и сохраняет
+     */
+    private function ensureUserHasReferralCode(TenantUser $user): void
+    {
+        if (empty($user->referral_code)) {
+            $referralCode = TenantUser::generateReferralCode();
+            $user->referral_code = $referralCode;
+            $user->save();
+
+            Log::info("🎫 Сгенерирован реферальный код для существующего пользователя", [
+                'user_id' => $user->id,
+                'referral_code' => $referralCode
+            ]);
+        }
+    }
     /**
      * 🆕 Создание гостевого пользователя с реферальным кодом
      */
