@@ -33,7 +33,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -50,7 +50,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -68,7 +68,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -92,7 +92,7 @@ class CollectionController extends Controller
                 'success' => false,
                 'message' => $e->getMessage(),
                 'errors' => method_exists($e, 'errors') ? $e->errors() : [],
-            ], $e->getCode() ?? 422);
+            ], 422);
         }
     }
 
@@ -111,7 +111,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -130,7 +130,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -149,7 +149,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -166,7 +166,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 422);
+            ], 400);
         }
     }
 
@@ -179,7 +179,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 422);
+            ], 400);
         }
     }
 
@@ -192,7 +192,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -212,7 +212,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 422);
+            ], 400);
         }
     }
 
@@ -225,7 +225,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -241,7 +241,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 422);
+            ], 400);
         }
     }
 
@@ -258,7 +258,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 
@@ -271,7 +271,7 @@ class CollectionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?? 500);
+            ], 400);
         }
     }
 }

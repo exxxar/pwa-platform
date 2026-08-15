@@ -238,29 +238,6 @@
             </form>
         </div>
 
-        <!-- Sticky кнопка отправки -->
-        <div class="submit-bar">
-            <div class="submit-bar-inner">
-                <button
-                    type="button"
-                    class="submit-btn"
-                    :class="{ 'is-loading': sending }"
-                    :disabled="!canSubmit"
-                    @click="submitCallback"
-                >
-                    <transition name="btn-fade" mode="out-in">
-                        <span v-if="sending" key="loading" class="btn-content">
-                            <span class="spinner"></span>
-                            <span>Отправка...</span>
-                        </span>
-                        <span v-else key="default" class="btn-content">
-                            <i class="fa-solid fa-paper-plane"></i>
-                            <span>Отправить сообщение</span>
-                        </span>
-                    </transition>
-                </button>
-            </div>
-        </div>
     </div>
 
     <!-- Если пользователь не авторизован -->

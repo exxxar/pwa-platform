@@ -274,7 +274,7 @@ class FeedbackController extends Controller
         }
 
         $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
-        $message .= "🏢 <b>Тенант:</b> " . e($tenant->name ?? $tenant->slug) . "\n";
+        $message .= "🏢 <b>Источник:</b> " . e($tenant->name ?? $tenant->slug) . "\n";
 
         return $message;
     }
