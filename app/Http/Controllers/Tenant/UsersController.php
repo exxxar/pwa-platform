@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Tenant;
 
+use App\Facades\MessageService;
 use App\Http\Controllers\Controller;
+use App\Models\Tenant\TenantDialog;
 use App\Models\Tenant\TenantUser;
 use App\Models\Tenant\CashBackHistory;
 use App\Services\CashBackService;
@@ -304,28 +306,25 @@ class UsersController extends Controller
     {
         $tenant = app('tenant');
 
-        // 1. Находим пользователя и проверяем принадлежность к тенанту (безопасность)
         $user = TenantUser::where('tenant_id', $tenant->id)
             ->where('id', $userId)
             ->firstOrFail();
 
-        // 2. Валидация с явным типом операции
         $validated = $request->validate([
-            'amount'      => 'required|numeric|min:1',          // Всегда положительное
-            'type'        => 'required|in:credit,debit',        // Явный тип операции
+            'amount'      => 'required|numeric|min:1',
+            'type'        => 'required|in:credit,debit',
             'description' => 'required|string|max:255',
         ]);
 
         $amount      = (float) $validated['amount'];
         $type        = $validated['type'];
         $description = $validated['description'];
+        $balanceBefore = (float) $user->cashback_balance;
 
         try {
             DB::beginTransaction();
 
             if ($type === 'credit') {
-                // Начисление кэшбэка
-                // withLevels: false — ручное начисление админом не должно триггерить реферальные уровни
                 CashBackService::call()->addCashBack(
                     amount: $amount,
                     description: $description,
@@ -334,8 +333,6 @@ class UsersController extends Controller
                 );
                 $message = 'Кэшбэк успешно начислен';
             } else {
-                // Списание кэшбэка
-                // Дополнительная проверка, что у пользователя хватает баллов
                 if ($user->cashback_balance < $amount) {
                     throw new \Exception("Недостаточно средств. Доступно: {$user->cashback_balance}");
                 }
@@ -350,19 +347,24 @@ class UsersController extends Controller
 
             DB::commit();
 
+            $user->refresh();
+            $balanceAfter = (float) $user->cashback_balance;
+
+            // 🆕 Оповещаем пользователя
+            $this->notifyUserAboutCashback($user, $type, $amount, $description, $balanceBefore, $balanceAfter);
+
             return response()->json([
                 'success' => true,
                 'message' => $message,
                 'data' => [
-                    'user'              => $user->fresh(),
-                    'cashback_balance'  => $user->fresh()->cashback_balance,
+                    'user'              => $user,
+                    'cashback_balance'  => $balanceAfter,
                 ]
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
 
-            // Ловим конкретную ошибку от сервиса (например, "Недостаточно средств")
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage() ?: 'Ошибка операции с кэшбэком'
@@ -433,6 +435,7 @@ class UsersController extends Controller
         $amount = (float) $validated['amount'];
         $type = $validated['type'];
         $description = $validated['description'] ?? ($type === 'credit' ? 'Начисление через QR' : 'Списание через QR');
+        $balanceBefore = (float) $user->cashback_balance;
 
         try {
             DB::beginTransaction();
@@ -460,6 +463,12 @@ class UsersController extends Controller
 
             DB::commit();
 
+            $user->refresh();
+            $balanceAfter = (float) $user->cashback_balance;
+
+            // 🆕 Оповещаем пользователя
+            $this->notifyUserAboutCashback($user, $type, $amount, $description, $balanceBefore, $balanceAfter);
+
             return response()->json([
                 'success' => true,
                 'message' => $message,
@@ -467,7 +476,7 @@ class UsersController extends Controller
                     'user' => [
                         'id' => $user->id,
                         'name' => $user->name,
-                        'cashback_balance' => (float) $user->fresh()->cashback_balance,
+                        'cashback_balance' => $balanceAfter,
                     ],
                 ],
             ]);
@@ -478,6 +487,91 @@ class UsersController extends Controller
                 'success' => false,
                 'message' => $e->getMessage() ?: 'Ошибка операции',
             ], 422);
+        }
+    }
+
+
+    // ==========================================
+    // 🆕 ПРИВАТНЫЙ МЕТОД ОПОВЕЩЕНИЯ
+    // ==========================================
+
+    /**
+     * 📬 Оповещение пользователя об операции с кэшбэком
+     *
+     * Ищет или создаёт системный диалог и отправляет красивое сообщение
+     */
+    private function notifyUserAboutCashback(
+        TenantUser $user,
+        string $type,
+        float $amount,
+        string $description,
+        float $balanceBefore,
+        float $balanceAfter
+    ): void {
+        try {
+            $tenant = app('tenant');
+
+            // 1. Ищем или создаём системный диалог с пользователем
+            $dialog = TenantDialog::firstOrCreate(
+                [
+                    'tenant_id' => $tenant->id,
+                    'tenant_user_id' => $user->id,
+                    'type' => 'system',
+                ],
+                [
+                    'title' => '💰 Уведомления о бонусах',
+                ]
+            );
+
+            // 2. Формируем красивое сообщение
+            $isCredit = $type === 'credit';
+            $emoji = $isCredit ? '🎉' : '💸';
+            $action = $isCredit ? 'НАЧИСЛЕНО' : 'СПИСАНО';
+            $sign = $isCredit ? '+' : '-';
+            $color = $isCredit ? '#10b981' : '#ef4444';
+
+            $message = "{$emoji} <b>{$action} {$amount} БАЛЛОВ</b>\n\n";
+            $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $message .= "📝 <b>Причина:</b> {$description}\n\n";
+            $message .= "📊 <b>Баланс:</b>\n";
+            $message .= "   Было: <b>{$balanceBefore}</b> баллов\n";
+            $message .= "   Операция: <b>{$sign}{$amount}</b>\n";
+            $message .= "   Стало: <b>{$balanceAfter}</b> баллов\n\n";
+            $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+            $message .= "💳 <b>Текущий баланс:</b> <b>{$balanceAfter} баллов</b>";
+
+            if ($isCredit) {
+                $message .= "\n\n🛍️ Баллы можно потратить в нашем магазине!";
+            } else {
+                $message .= "\n\nЕсли у вас есть вопросы — напишите нам в чат.";
+            }
+
+            // 3. Отправляем через MessageService
+            MessageService::call()->sendMessage([
+                'message' => $message,
+                'dialog_id' => $dialog->id,
+                'meta' => [
+                    'is_system' => true,
+                    'type' => 'cashback_' . $type,
+                    'amount' => $amount,
+                    'balance_before' => $balanceBefore,
+                    'balance_after' => $balanceAfter,
+                    'description' => $description,
+                ],
+                'recipients' => [
+                    'client' => true,  // → запись в TenantMessage
+                    'telegram' => false, // Не спамим в общий канал
+                ],
+            ]);
+
+        } catch (\Throwable $e) {
+            // Не прерываем основную операцию, если оповещение упало
+            \Illuminate\Support\Facades\Log::warning('[UsersController] Не удалось оповестить пользователя о кэшбэке', [
+                'user_id' => $user->id,
+                'type' => $type,
+                'amount' => $amount,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
