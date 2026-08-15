@@ -269,19 +269,37 @@ export default {
             await this.stopScanner();
 
             try {
-                // Пытаемся распарсить JSON
-                let data;
+                // Извлекаем referral_code из URL или текста
+                let referralCode = null;
+
+                // Пытаемся распарсить как URL
                 try {
-                    data = JSON.parse(decodedText);
+                    const url = new URL(decodedText);
+                    referralCode = url.searchParams.get('ref');
                 } catch {
-                    // Если не JSON, считаем что это просто referral_code
-                    data = { referral_code: decodedText };
+                    // Если не URL, проверяем другие форматы
+                    try {
+                        // Пытаемся распарсить JSON
+                        const data = JSON.parse(decodedText);
+                        referralCode = data.referral_code || data.code || data.ref;
+                    } catch {
+                        // Если просто текст, ищем паттерн ref=
+                        const match = decodedText.match(/[?&]ref=([^&]+)/);
+                        if (match) {
+                            referralCode = match[1];
+                        } else {
+                            // Считаем что это сам referral_code
+                            referralCode = decodedText.trim();
+                        }
+                    }
                 }
 
-                const referralCode = data.referral_code || data.code || decodedText;
+                if (!referralCode) {
+                    throw new Error('Не удалось извлечь реферальный код из QR');
+                }
 
                 // Ищем пользователя
-                const response = await axios.post('/users/find-by-referral', {
+                const response = await axios.post('/admin/users/find-by-referral', {
                     referral_code: referralCode,
                 });
 
@@ -298,13 +316,12 @@ export default {
             } catch (error) {
                 this.$notify?.({
                     title: 'Ошибка',
-                    text: error.response?.data?.message || 'Пользователь не найден',
+                    text: error.response?.data?.message || error.message || 'Не удалось обработать QR-код',
                     type: 'error',
                 });
                 this.foundUser = null;
             }
         },
-
         async confirmOperation() {
             if (!this.form.amount || this.form.amount <= 0) return;
 
@@ -321,7 +338,7 @@ export default {
             this.isProcessing = true;
 
             try {
-                const response = await axios.post('/users/manage-by-referral', {
+                const response = await axios.post('/admin/users/manage-by-referral', {
                     referral_code: this.foundUser.referral_code,
                     amount: this.form.amount,
                     type: this.form.type,
