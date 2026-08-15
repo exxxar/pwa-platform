@@ -392,7 +392,7 @@ export default {
         // ==========================================
         async loadGameSettings() {
             try {
-                const response = await axios.get('/api/daily-bonus/settings');
+                const response = await axios.get('/daily-bonus/settings');
 
                 if (response.data && response.data.daily_bonus) {
                     this.gameSettings = {...this.gameSettings, ...response.data.daily_bonus};

@@ -1069,18 +1069,50 @@ trait BasketHelper
 
     private function buildClientMessage($order, $partnerProductBox, $summaryPrice, $cashback, $summaryCount, $summaryDiscount, $deliveryPrice, $distance, $needPickup): string
     {
-        $message = "<b>✅ Заказ #{$order->id} принят!</b>\n\n<b>Состав заказа:</b>\n";
-        foreach ($partnerProductBox as $box) $message .= $box["message"];
+        $message = "<b>✅ Заказ #{$order->id} принят!</b>\n\n<b>🛒 Состав заказа:</b>\n";
 
-        $message .= "\n<b>📊 Итого:</b>\nТовары: <b>" . number_format($summaryPrice, 0, '.', ' ') . " ₽</b>\n";
-        if ($cashback > 0) $message .= "Скидка (кэшбэк): <b>-" . number_format($cashback, 0, '.', ' ') . " ₽</b>\n";
-        if ($summaryDiscount > 0) $message .= "Скидки: <b>-" . number_format($summaryDiscount, 0, '.', ' ') . " ₽</b>\n";
-        if ($deliveryPrice > 0) $message .= "Доставка: <b>" . number_format($deliveryPrice, 0, '.', ' ') . " ₽</b>" . ($distance > 0 ? " ({$distance} км)" : "") . "\n";
+        // 🎯 Перебираем все магазины и добавляем заголовок перед товарами
+        $shopCount = count($partnerProductBox);
+
+        foreach ($partnerProductBox as $uuid => $box) {
+            // 🎯 Добавляем заголовок с названием магазина
+            $shopName = e($box['name'] ?? 'Магазин');
+            $shopEmoji = $shopCount > 1 ? '🏪' : '🛍️';
+
+            if ($shopCount > 1) {
+                $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
+                $message .= "{$shopEmoji} <b>{$shopName}</b>\n";
+                $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+            } else {
+                $message .= "{$shopEmoji} <b>{$shopName}</b>\n";
+            }
+
+            // Добавляем сами товары
+            $message .= $box["message"] ?? '';
+        }
+
+        $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "\n<b>📊 Итого:</b>\n";
+        $message .= "Товары: <b>" . number_format($summaryPrice, 0, '.', ' ') . " ₽</b>\n";
+
+        if ($cashback > 0) {
+            $message .= "Скидка (кэшбэк): <b>-" . number_format($cashback, 0, '.', ' ') . " ₽</b>\n";
+        }
+        if ($summaryDiscount > 0) {
+            $message .= "Скидки: <b>-" . number_format($summaryDiscount, 0, '.', ' ') . " ₽</b>\n";
+        }
+        if ($deliveryPrice > 0) {
+            $message .= "Доставка: <b>" . number_format($deliveryPrice, 0, '.', ' ') . " ₽</b>" . ($distance > 0 ? " ({$distance} км)" : "") . "\n";
+        }
 
         $totalToPay = ($summaryPrice - $cashback) + $deliveryPrice;
-        $message .= "\n💰 <b>К оплате: " . number_format($totalToPay, 0, '.', ' ') . " ₽</b>\n📦 Позиций: <b>{$summaryCount}</b>\n";
+        $message .= "\n💰 <b>К оплате: " . number_format($totalToPay, 0, '.', ' ') . " ₽</b>\n";
+        $message .= "📦 Позиций: <b>{$summaryCount}</b>\n";
         $message .= "\n" . $this->fsPrepareUserInfo($order, $cashback);
-        if ($this->fsPrepareDisabilities()) $message .= "\n" . $this->fsPrepareDisabilities();
+
+        if ($this->fsPrepareDisabilities()) {
+            $message .= "\n" . $this->fsPrepareDisabilities();
+        }
 
         return $message;
     }
@@ -1088,11 +1120,32 @@ trait BasketHelper
     private function buildPartnerMessages($order, $partnerProductBox, $cashback, $needPickup): array
     {
         $messages = [];
-        foreach ($partnerProductBox as $uuid => $box) {
-            $resultMessage = "🔔 <b>Новый заказ #{$order->id}</b>\n" . (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
-            $resultMessage .= $this->fsPrepareDisabilities() . ($box["message"] ?? 'Неуказанный продукт') . $this->fsPrepareUserInfo($order, $cashback);
 
-            if ($box["summary_discount"] > 0) $resultMessage .= "\nСкидка: <b>-" . $box["summary_discount"] . " руб.</b>";
+        foreach ($partnerProductBox as $uuid => $box) {
+            $shopName = e($box['name'] ?? 'Магазин');
+
+            $resultMessage = "🔔 <b>Новый заказ #{$order->id}</b>\n";
+            $resultMessage .= (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
+
+            // 🎯 Добавляем название магазина
+            $resultMessage .= "\n🏪 <b>{$shopName}</b>\n";
+            $resultMessage .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+
+            // Ограничения здоровья (если есть)
+            $disabilities = $this->fsPrepareDisabilities();
+            if ($disabilities) {
+                $resultMessage .= $disabilities;
+            }
+
+            // Товары
+            $resultMessage .= ($box["message"] ?? 'Неуказанный продукт');
+
+            // Данные клиента
+            $resultMessage .= $this->fsPrepareUserInfo($order, $cashback);
+
+            if ($box["summary_discount"] > 0) {
+                $resultMessage .= "\nСкидка: <b>-" . $box["summary_discount"] . " руб.</b>";
+            }
             $resultMessage .= "\nИтого: <b>" . $box["summary_price"] . " руб.</b> за <b>" . $box["summary_count"] . " ед.</b>\n";
 
             if ($box["delivery_price"] > 0) {
@@ -1100,20 +1153,33 @@ trait BasketHelper
                 $resultMessage .= "\nИтого c доставкой: <b>" . ($box["summary_price"] + $box["delivery_price"]) . " руб.</b>";
             }
 
-            $messages[$uuid] = ['message' => $resultMessage, 'thread' => $box["thread"], 'id' => $box["id"] ?? null, 'name' => $box["name"] ?? null];
+            $messages[$uuid] = [
+                'message' => $resultMessage,
+                'thread' => $box["thread"],
+                'id' => $box["id"] ?? null,
+                'name' => $box["name"] ?? null,
+            ];
         }
+
         return $messages;
     }
 
     private function buildCrmMessage($order, $partnerProductBox, $summaryPrice, $cashback, $summaryCount, $summaryDiscount, $deliveryPrice, $distance, $needPickup): string
     {
-        $message = "<b>⚠️⚠️⚠️Сводный заказ⚠️⚠️⚠️</b>\n" . (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
+        $message = "<b>⚠️⚠️⚠️Сводный заказ #{$order->id}⚠️⚠️⚠️</b>\n";
+        $message .= (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
         $recountDeliveryPrice = $deliveryPrice == 0;
 
-        foreach ($partnerProductBox as $box) {
-            $message .= "\n<b>﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌</b>\nЗаказ из <b>{$box['name']}</b>\n" . ($box["message"] ?? '');
+        foreach ($partnerProductBox as $uuid => $box) {
+            $shopName = e($box['name'] ?? 'Магазин');
+
+            $message .= "\n<b>━━━━━━━━━━━━━━━━━━━━━━━━</b>\n";
+            $message .= "🏪 <b>{$shopName}</b>\n";
+            $message .= "<b>━━━━━━━━━━━━━━━━━━━━━━━━</b>\n";
+            $message .= ($box["message"] ?? '');
             $message .= "\nСкидка: <b>-" . ($box["summary_discount"] ?? 0) . " руб.</b>";
             $message .= "\nИтого: <b>" . ($box["summary_price"] ?? 0) . " руб.</b> за <b>" . ($box["summary_count"] ?? 0) . " ед.</b>";
+
             if (($box["delivery_price"] ?? 0) > 0) {
                 $message .= "\nДоставка: <b>" . $box["delivery_price"] . " руб.</b> за " . $box["distance"] . " км";
                 $message .= "\nИтого c доставкой: <b>" . ($box["summary_price"] + $box["delivery_price"]) . " руб.</b>";
@@ -1121,10 +1187,13 @@ trait BasketHelper
             }
         }
 
-        $message .= "\n<b>﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌</b>\n";
+        $message .= "\n<b>━━━━━━━━━━━━━━━━━━━━━━━━</b>\n";
+        $message .= "<b>📊 ИТОГО ПО ВСЕМ ЗАКАЗАМ:</b>\n";
+
         if ($cashback > 0) $message .= "Использованы баллы: <b>-$cashback</b> руб.\n";
         $message .= "Итоговая скидка: <b>-$summaryDiscount</b> руб.\n";
         $message .= "Итого по всем: <b>" . ($summaryPrice - $cashback) . " руб.</b> за <b>$summaryCount ед.</b>\n";
+
         if ($deliveryPrice > 0) {
             $message .= "Доставка: <b>" . $deliveryPrice . " руб.</b> за $distance км\n";
             $message .= "Итого c доставкой: <b>" . (($summaryPrice - $cashback) + $deliveryPrice) . " руб.</b>\n";
@@ -1133,7 +1202,6 @@ trait BasketHelper
         $message .= $this->fsPrepareUserInfo($order, $cashback) . $this->fsPrepareDisabilities();
         return $message;
     }
-
     /**
      * 🎯 ПРОВЕРКА ГРАФИКА РАБОТЫ (Главный тенант + Партнеры)
      */
