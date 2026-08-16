@@ -86,10 +86,13 @@ class MessageService
 
         $recipients = $data['recipients'] ?? ['client' => true];
 
-        // 1. КЛИЕНТУ (запись в БД + опциональное Telegram-уведомление админам)
+        // 1. КЛИЕНТУ (запись в БД)
         if (!empty($recipients['client']) && !empty($data['dialog_id'])) {
             try {
-                $result['client'] = $this->sendToDialog($data);
+                $clientData = $data;
+                // 🎯 Приоритет отдаем client_message, если он есть
+                $clientData['message'] = $data['client_message'] ?? $data['message'] ?? '';
+                $result['client'] = $this->sendToDialog($clientData);
             } catch (\Throwable $e) {
                 Log::error('[MessageService] Ошибка отправки клиенту: ' . $e->getMessage());
             }
@@ -98,7 +101,9 @@ class MessageService
         // 2. ПАРТНЁРАМ (Telegram thread)
         if (!empty($recipients['partners'])) {
             try {
-                $result['partners'] = $this->sendToPartnerThread($data);
+                $partnerData = $data;
+                $partnerData['message'] = $data['partner_message'] ?? $data['message'] ?? '';
+                $result['partners'] = $this->sendToPartnerThread($partnerData);
             } catch (\Throwable $e) {
                 Log::error('[MessageService] Ошибка отправки партнёрам: ' . $e->getMessage());
             }
@@ -107,7 +112,9 @@ class MessageService
         // 3. CRM (Kanban)
         if (!empty($recipients['crm']) && $this->crmEnabled) {
             try {
-                $result['crm'] = $this->sendToCrm($data);
+                $crmData = $data;
+                $crmData['message'] = $data['crm_message'] ?? $data['message'] ?? '';
+                $result['crm'] = $this->sendToCrm($crmData);
             } catch (\Throwable $e) {
                 Log::error('[MessageService] Ошибка отправки в CRM: ' . $e->getMessage());
             }
@@ -116,13 +123,50 @@ class MessageService
         // 4. ПРЯМАЯ ОТПРАВКА В TELEGRAM (канал/группа уведомлений)
         if (!empty($recipients['telegram'])) {
             try {
-                $result['telegram'] = $this->sendToTelegram($data);
+                $tgData = $data;
+                // 🎯 Приоритет отдаем telegram_message
+                $tgData['message'] = $data['telegram_message'] ?? $data['message'] ?? '';
+
+                // 🎯 Автоматическое добавление ссылок (опционально, если нужно добавить их к любому сообщению)
+                if (!empty($data['meta']['append_telegram_links'])) {
+                    $tgData['message'] = $this->appendTelegramLinks($tgData['message'], $tgData);
+                }
+
+                $result['telegram'] = $this->sendToTelegram($tgData);
             } catch (\Throwable $e) {
                 Log::error('[MessageService] Ошибка отправки в Telegram: ' . $e->getMessage());
             }
         }
 
         return $result;
+    }
+
+    /**
+     * 🎯 Автоматически добавляет ссылки на диалог и профиль клиента к сообщению
+     * (Используйте этот метод, если захотите генерировать ссылки внутри самого MessageService)
+     */
+    protected function appendTelegramLinks(string $message, array $data): string
+    {
+        $dialogId = $data['dialog_id'] ?? $data['meta']['dialog_id'] ?? null;
+        $userId   = $data['meta']['tenant_user_id'] ?? null;
+        $baseUrl  = request()->getSchemeAndHttpHost();
+
+        if ($baseUrl && $dialogId) {
+            $chatUrl = "{$baseUrl}/pwa#/chat/{$dialogId}";
+            $message .= "\n🔗 <a href=\"{$chatUrl}\">Открыть чат</a>";
+        }
+
+        if ($userId) {
+            $client = \App\Models\Tenant\TenantUser::query()->find($userId);
+            if ($client && method_exists($client, 'getTelegramInfo')) {
+                $clientInfo = $client->getTelegramInfo();
+                if (!empty($clientInfo['profile_url'])) {
+                    $message .= "\n👤 <a href=\"{$clientInfo['profile_url']}\">Профиль клиента</a>";
+                }
+            }
+        }
+
+        return $message . "\n";
     }
 
     // ==========================================

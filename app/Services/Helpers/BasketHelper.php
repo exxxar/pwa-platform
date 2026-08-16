@@ -914,7 +914,9 @@ trait BasketHelper
         //    MessageService сам разберётся, куда что доставлять
         $crmResult = MessageService::call()->sendMessage([
             // Клиенту — в диалог
-            'message'   => $clientMessage,
+            'client_message'   => $clientMessage,
+            'telegram_message' => $telegramMessage,
+            'crm_message'      => $crmMessage,
             'dialog_id' => $dialog?->id,
 
             // Для CRM / Telegram — заголовок
@@ -925,7 +927,8 @@ trait BasketHelper
                 'order_id'           => $order->id,
                 'payment_status'     => $paymentStatusText,
                 'is_system'          => false,
-
+                'tenant_user_id'     => $this->tenantUser->id, // 🎯 Добавляем для доступа к профилю
+                'dialog_id'          => $dialog?->id,
                 // CRM-specific
                 'customer_name'      => $context['customer_name'],
                 'customer_phone'     => $context['customer_phone'],
