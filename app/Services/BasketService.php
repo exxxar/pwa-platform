@@ -56,54 +56,44 @@ class BasketService
             ];
         }
 
-        // 1. Получаем все активные записи корзины с необходимыми связями
-        // 1. Получаем все активные записи корзины с необходимыми связями
         $basketItems = Basket::query()
             ->where('tenant_id', $tenant->id)
             ->where('tenant_user_id', $tenantUser->id)
             ->whereNull('ordered_at')
             ->whereNull('table_approved_at')
             ->with([
-                // 🛡️ ИСПРАВЛЕНО: убрали weight_config, добавили config
-                'product:id,name,price,old_price,images,is_weight_product,config,tenant_id',
+                'product:id,name,price,old_price,images,is_weight_product,config,tenant_id,is_composite',
+                'product.ingredientGroups.ingredients',
+                'product.components',
                 'collection:id,name,image,pricing_type,fixed_price',
             ])
             ->get();
 
-        // 🆕 Оптимизация N+1: Собираем все ID товаров из всех коллекций заранее
+        // Оптимизация N+1 для коллекций
         $allCollectionProductIds = [];
         foreach ($basketItems as $item) {
-            // Безопасно получаем массив params (на случай если cast не сработал)
             $params = is_array($item->params) ? $item->params : (json_decode($item->params, true) ?? []);
-
             if ($item->collection_id && !empty($params['ids']) && is_array($params['ids'])) {
-                // 🛡️ КРИТИЧЕСКИ ВАЖНО: Приводим все ID к строке для надежного сравнения
                 $ids = array_map('strval', $params['ids']);
                 $allCollectionProductIds = array_merge($allCollectionProductIds, $ids);
             }
         }
         $allCollectionProductIds = array_unique($allCollectionProductIds);
 
-        // 🆕 Делаем ОДИН запрос к БД, чтобы получить цены всех нужных товаров
         $productsPriceMap = [];
         $productsNameMap = [];
         if (!empty($allCollectionProductIds)) {
             $products = Product::whereIn('id', $allCollectionProductIds)
-                ->select('id', 'price','name')
+                ->select('id', 'price', 'name')
                 ->get();
 
             foreach ($products as $product) {
-                // 🛡️ Ключ массива обязательно строка, чтобы совпадать с JSON декодированием
                 $productsPriceMap[(string)$product->id] = (float)($product->price ?? 0);
                 $productsNameMap[(string)$product->id] = $product->name ?? '-';
             }
-
-
         }
 
-        // 2. Форматируем данные для фронтенда
         $formattedItems = $basketItems->map(function ($item) use ($tenant, $productsPriceMap, $productsNameMap) {
-            // Безопасно получаем params
             $params = is_array($item->params) ? $item->params : (json_decode($item->params, true) ?? []);
             $extraCharge = (float)($params['extra_charge'] ?? 0);
 
@@ -116,11 +106,56 @@ class BasketService
                 'extra_charge' => $extraCharge,
             ];
 
-            // Сценарий А: Это обычный товар
             if ($item->product_id && $item->product) {
                 $product = $item->product;
-                $price = (float)($product->price ?? 0);
-                $finalPrice = $price + $extraCharge;
+                $basePrice = (float)($product->price ?? 0);
+                $ingredientsExtraPrice = (float)($params['ingredients_extra_price'] ?? 0);
+
+                // 🆕 Рассчитываем цену компонентов
+                $selectedComponents = $params['selected_components'] ?? [];
+                $componentsPrice = 0.0;
+                $componentsDetails = [];
+
+                foreach ($selectedComponents as $comp) {
+                    $componentProduct = $product->components->firstWhere('id', $comp['id']);
+                    if ($componentProduct) {
+                        $compPrice = (float)($componentProduct->price ?? 0);
+                        $compQuantity = (int)($comp['quantity'] ?? 1);
+                        $componentsPrice += $compPrice * $compQuantity;
+
+                        $componentsDetails[] = [
+                            'id' => $componentProduct->id,
+                            'name' => $componentProduct->name,
+                            'price' => $compPrice,
+                            'quantity' => $compQuantity,
+                            'total' => $compPrice * $compQuantity,
+                        ];
+                    }
+                }
+
+                // 🆕 Если товар составной - базовая цена = сумма компонентов
+                if ($product->is_composite && !empty($componentsDetails)) {
+                    $basePrice = $componentsPrice;
+                }
+
+                $finalPrice = $basePrice + $ingredientsExtraPrice + $extraCharge;
+
+                // 🆕 Собираем информацию о выбранных ингредиентах
+                $selectedIngredientIds = $params['selected_ingredients'] ?? [];
+                $selectedIngredientsDetails = [];
+
+                foreach ($product->ingredientGroups as $group) {
+                    foreach ($group->ingredients as $ingredient) {
+                        if (in_array($ingredient->id, $selectedIngredientIds)) {
+                            $selectedIngredientsDetails[] = [
+                                'id' => $ingredient->id,
+                                'name' => $ingredient->name,
+                                'extra_price' => (float)($ingredient->extra_price ?? 0),
+                                'group_name' => $group->name,
+                            ];
+                        }
+                    }
+                }
 
                 return array_merge($baseData, [
                     'type' => 'product',
@@ -128,32 +163,32 @@ class BasketService
                     'name' => $product->name,
                     'image' => $product->images[0] ?? null,
                     'tenant_name' => $product->tenant_name ?? null,
-                    'price' => $price,
+                    'price' => $finalPrice,  // Итоговая цена (для обратной совместимости)
+                    'base_price' => (float)($product->price ?? 0), // 🆕 Чистая базовая цена товара
+                    'components_total' => $componentsPrice,         // 🆕 Сумма компонентов
+                    'ingredients_extra_price' => $ingredientsExtraPrice,
                     'final_price' => $finalPrice,
                     'total_price' => $finalPrice * $item->count,
                     'is_weight_product' => $product->is_weight_product ?? false,
+                    'is_composite' => $product->is_composite ?? false,
+                    'selected_ingredients' => $selectedIngredientsDetails,
+                    'selected_components' => $componentsDetails,
                 ]);
             }
 
-            // Сценарий Б: Это коллекция (подборка)
             if ($item->collection_id && $item->collection) {
                 $collection = $item->collection;
                 $selectedProductIds = $params['ids'] ?? [];
                 $collectionPrice = 0.0;
 
-                // Если цена фиксированная, берем её
                 if ($collection->pricing_type === 'fixed' && $collection->fixed_price) {
                     $collectionPrice = (float)$collection->fixed_price;
-                }
-                // Иначе считаем сумму выбранных товаров внутри коллекции
-                elseif (is_array($selectedProductIds) && !empty($selectedProductIds)) {
+                } elseif (is_array($selectedProductIds) && !empty($selectedProductIds)) {
                     foreach ($selectedProductIds as $pid) {
-                        // 🛡️ Надежное извлечение цены по строковому ключу
                         $collectionPrice += $productsPriceMap[(string)$pid] ?? 0.0;
                     }
                 }
 
-                // Добавляем наценку партнера к цене коллекции, если она есть
                 $finalCollectionPrice = $collectionPrice + $extraCharge;
 
                 return array_merge($baseData, [
@@ -170,11 +205,9 @@ class BasketService
                 ]);
             }
 
-            // Если запись "битая" (нет ни товара, ни коллекции), возвращаем null
             return null;
-        })->filter()->values(); // Убираем null и сбрасываем ключи массива
+        })->filter()->values();
 
-        // 3. Считаем итоги
         $itemsCount = $formattedItems->sum('count');
         $totalPrice = $formattedItems->sum('total_price');
 
@@ -622,6 +655,11 @@ class BasketService
 
         $validator = Validator::make($data, [
             "product_id" => "required",
+            "selected_ingredients" => "nullable|array",
+            "selected_ingredients.*" => "integer",
+            "selected_components" => "nullable|array",
+            "selected_components.*.id" => "required|integer",
+            "selected_components.*.quantity" => "required|integer|min:1",
         ]);
 
         if ($validator->fails()) {
@@ -631,18 +669,21 @@ class BasketService
         $config = $tenant->settings ?? [];
         $hasPartners = $config["partners"]["is_active"] ?? false;
 
-
         $ids = $hasPartners
             ? [$tenant->id, ...$tenant->partners()->get()->pluck("tenant_partner_id")]
             : [$tenant->id];
-
 
         $productId = $data["product_id"] ?? null;
         $productCount = $data["count"] ?? 1;
         $tableId = $data["table_id"] ?? null;
 
+        // 🆕 Получаем выбранные опции
+        $selectedIngredients = $data["selected_ingredients"] ?? [];
+        $selectedComponents = $data["selected_components"] ?? [];
+
         $product = Product::query()
             ->withTrashed()
+            ->with(['ingredientGroups.ingredients', 'components'])
             ->whereIn("tenant_id", $ids)
             ->where("id", $productId)
             ->first();
@@ -655,15 +696,21 @@ class BasketService
             throw new HttpException(403, "Продукт недоступен!");
         }
 
+        // 🆕 Проверяем уникальность комбинации товара + опций
+        $paramsHash = $this->generateParamsHash($selectedIngredients, $selectedComponents);
+
         $productInBasket = Basket::query()
             ->where("product_id", $product->id)
             ->where("tenant_user_id", $tenantUser->id)
             ->where("tenant_id", $tenant->id)
             ->whereNull("ordered_at")
             ->whereNull("table_approved_at")
-            ->first();
+            ->get()
+            ->first(function ($item) use ($paramsHash) {
+                $itemParams = is_array($item->params) ? $item->params : (json_decode($item->params, true) ?? []);
+                return ($itemParams['params_hash'] ?? null) === $paramsHash;
+            });
 
-        // ИСПРАВЛЕНИЕ: Инициализируем tableWithClient заранее
         $tableWithClient = null;
         if (!is_null($tableId)) {
             $tableWithClient = Table::query()
@@ -672,22 +719,19 @@ class BasketService
                 ->whereNull("closed_at")
                 ->first();
         } else {
-            // Ищем стол с клиентом, если tableId не указан
             $tableWithClient = Table::query()
                 ->where("tenant_id", $tenant->id)
                 ->whereNull("closed_at")
                 ->whereHas('clients', function ($query) use ($tenantUser) {
-                    $query->where('tenant_users.id', $tenantUser->id);  // ← указали таблицу
+                    $query->where('tenant_users.id', $tenantUser->id);
                 })->first();
         }
 
         $isWeightProduct = $product->is_weight_product ?? false;
         $weightConfigData = null;
 
-        // Логика для весовых товаров
         if ($isWeightProduct) {
             $weightConfig = $this->parseWeightConfig($product->weight_config);
-
             $min = $weightConfig->min;
             $max = $weightConfig->max;
             $step = $weightConfig->step;
@@ -702,10 +746,8 @@ class BasketService
                 $productCount = $min;
             } else {
                 $productCount = $step;
-
                 if ($max > 0 && ($productInBasket->count + $step) > $max) {
                     $productCount = max(0, $max - $productInBasket->count);
-
                     if ($productCount === 0) {
                         throw new HttpException(400, "Достигнут максимальный вес товара ({$max}г)");
                     }
@@ -713,7 +755,9 @@ class BasketService
             }
         }
 
-        // Создание или обновление записи
+        // 🆕 Рассчитываем доплату за ингредиенты
+        $ingredientsExtraPrice = $this->calculateIngredientsExtraPrice($product, $selectedIngredients);
+
         if (is_null($productInBasket)) {
             $extraCharge = 0;
             if ($product->tenant_id != $tenant->id) {
@@ -721,7 +765,6 @@ class BasketService
                     ->where("tenant_id", $tenant->id)
                     ->where("tenant_partner_id", $product->tenant_id)
                     ->first();
-
                 $extraCharge = $partner?->extra_charge ?? 0;
             }
 
@@ -735,6 +778,10 @@ class BasketService
                 'params' => array_filter([
                     "extra_charge" => $extraCharge,
                     "weight_config" => $weightConfigData,
+                    "selected_ingredients" => $selectedIngredients,
+                    "selected_components" => $selectedComponents,
+                    "ingredients_extra_price" => $ingredientsExtraPrice,
+                    "params_hash" => $paramsHash,
                 ]),
                 'ordered_at' => null,
                 'table_approved_at' => null,
@@ -746,13 +793,10 @@ class BasketService
                 $productInBasket->table_id = $tableWithClient->id;
             }
 
-
             $productInBasket->tenant_partner_id = $product->tenant_id == $tenant->id ? null : $product->tenant_id;
             $productInBasket->count += $productCount;
             $productInBasket->save();
         }
-
-
     }
 
     /**
@@ -931,5 +975,60 @@ class BasketService
             'max' => max(0, (int)($config->max ?? 0)),
             'step' => max(1, (int)($config->step ?? 50)),
         ];
+    }
+
+    /**
+     * 🆕 Генерирует хеш параметров для уникальной идентификации комбинации опций
+     */
+    private function generateParamsHash(array $ingredients, array $components): string
+    {
+        $data = [
+            'ingredients' => sort($ingredients) ?: $ingredients,
+            'components' => collect($components)->sortBy('id')->values()->toArray(),
+        ];
+        return md5(json_encode($data));
+    }
+
+    /**
+     * 🆕 Рассчитывает доплату за выбранные ингредиенты
+     */
+    private function calculateIngredientsExtraPrice(Product $product, array $selectedIngredientIds): float
+    {
+        if (empty($selectedIngredientIds)) {
+            return 0.0;
+        }
+
+        $extraPrice = 0.0;
+
+        foreach ($product->ingredientGroups as $group) {
+            foreach ($group->ingredients as $ingredient) {
+                if (in_array($ingredient->id, $selectedIngredientIds)) {
+                    $extraPrice += (float)($ingredient->extra_price ?? 0);
+                }
+            }
+        }
+
+        return $extraPrice;
+    }
+
+    /**
+     * 🆕 Рассчитывает стоимость выбранных компонентов
+     */
+    private function calculateComponentsPrice(Product $product, array $selectedComponents): float
+    {
+        if (empty($selectedComponents)) {
+            return 0.0;
+        }
+
+        $totalPrice = 0.0;
+
+        foreach ($selectedComponents as $comp) {
+            $componentProduct = $product->components->firstWhere('id', $comp['id']);
+            if ($componentProduct) {
+                $totalPrice += (float)($componentProduct->price ?? 0) * ($comp['quantity'] ?? 1);
+            }
+        }
+
+        return $totalPrice;
     }
 }

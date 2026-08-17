@@ -51,6 +51,7 @@ class ProductService
         $query = Product::query()
             ->where('tenant_id', $tenantId)
             ->whereNull('deleted_at')
+            ->where('is_active', true)
             ->where('in_stop_list', false);
 
         // 🎯 Фильтрация по категории
@@ -160,9 +161,10 @@ class ProductService
         $cacheKey = "products_without_category_{$tenantId}";
         $withoutCategory = cache()->remember($cacheKey, 300, function () use ($tenantId) {
             return Product::query()
-                ->select('id', 'name', 'price', 'images', 'description', 'order_position')
+                ->select('id', 'name', 'price', 'images', 'description', 'order_position','is_composite')
                 ->where('tenant_id', $tenantId)
                 ->where('in_stop_list', false)
+                ->where('is_active', true)
                 ->whereNull('deleted_at')
                 ->whereDoesntHave('categories') // Более быстрый способ чем has('categories', '=', 0)
                 ->orderBy('order_position')
@@ -175,6 +177,7 @@ class ProductService
         $withoutCategoryCount = Product::query()
             ->where('tenant_id', $tenantId)
             ->where('in_stop_list', false)
+            ->where('is_active', true)
             ->whereNull('deleted_at')
             ->whereDoesntHave('categories')
             ->count();
@@ -208,6 +211,7 @@ class ProductService
         $products = Product::query()
             ->withTrashed()
             ->whereIn("id", $favIds)
+            ->where('is_active', true)
             ->get();
 
         return new ProductCollection($products);
@@ -223,7 +227,8 @@ class ProductService
         $size = $size ?? config('app.results_per_page');
 
         //need_hide_disabled_products
-        $products = Product::query();
+        $products = Product::query()
+            ->where('is_active', true);
 
         if ($needRemoved)
             $products = $products->withTrashed();
@@ -473,6 +478,10 @@ class ProductService
      * @throws ValidationException
      * @throws HttpException
      */
+    /**
+     * @throws ValidationException
+     * @throws HttpException
+     */
     public function createOrUpdate(array $data, array $uploadedPhotos = null): ProductResource
     {
         $tenant = app('tenant');
@@ -490,7 +499,6 @@ class ProductService
 
         $slug = $tenant->slug;
 
-
         $photos = !is_null($uploadedPhotos) ?
             $this->uploadPhotos("/public/companies/$slug", $uploadedPhotos) : [];
 
@@ -498,7 +506,6 @@ class ProductService
             for ($i = 0; $i < count($photos); $i++) {
                 $photos[$i] = "/images-by-bot-id/" . $tenant->id . "/" . $photos[$i];
             }
-
 
         $images = $data["images"] ?? null;
 
@@ -524,7 +531,6 @@ class ProductService
                 if (!is_null($tmpOption)) {
                     $tmpOption->delete();
                 }
-
             }
         }
 
@@ -540,8 +546,8 @@ class ProductService
             'type' => $data["type"] ?? 0,
             'old_price' => $data["old_price"] ?? 0,
             'price' => $data["price"] ?? 0,
-
-            'not_for_delivery' => ($data["not_for_delivery"] ?? false) == "true",//? Carbon::now() : false,
+            'is_composite' => $data["is_composite"] ?? false, // 🔥 Флаг составного товара
+            'not_for_delivery' => ($data["not_for_delivery"] ?? false) == "true",
             'is_weight_product' => ($data["is_weight_product"] ?? false) == "true",
             'tenant_id' => $data["tenant_id"] ?? $tenant->id,
             'weight_config' => is_null($data["weight_config"] ?? null) ?
@@ -549,7 +555,6 @@ class ProductService
             'dimension' => is_null($data["dimension"] ?? null) ?
                 null : json_decode($data["dimension"] ?? '[]'),
         ];
-
 
         if (!is_null($productId)) {
             $product = Product::query()
@@ -563,12 +568,10 @@ class ProductService
                 ->with(["categories", "attributes"])
                 ->create($tmp);
 
-
         if (!is_null($data["in_stop_list"] ?? null)) {
-            $product->in_stop_list = $data["in_stop_list"] == "true" ;
+            $product->in_stop_list = $data["in_stop_list"] == "true";
             $product->save();
         }
-
 
         $options = $data["attributes"] ?? null;
 
@@ -594,16 +597,13 @@ class ProductService
                             'section' => $option->section,
                         ]);
             }
-
         }
 
         $categories = $data["categories"] ?? null;
 
         if (!is_null($categories)) {
-
             $tmp = [];
             $categories = json_decode($categories);
-
 
             foreach ($categories as $category) {
                 $tmpCategory = Category::query()
@@ -617,18 +617,101 @@ class ProductService
                             'tenant_id' => $tenant->id
                         ]);
 
-
                 $tmp[] = $tmpCategory->id;
             }
             $product->categories()->sync($tmp);
-
-
         }
 
-        return new ProductResource($product);
+        // 🔥 Синхронизация групп ингредиентов
+        $this->syncIngredientGroups($product, $data["ingredient_groups"] ?? null);
 
+        // 🔥 Синхронизация составных товаров
+        $this->syncComponents($product, $data["components"] ?? null);
+
+        return new ProductResource($product);
     }
 
+    /**
+     * Синхронизация групп ингредиентов товара
+     */
+    private function syncIngredientGroups(Product $product, $ingredientGroupsData): void
+    {
+        if (is_null($ingredientGroupsData)) {
+            return;
+        }
+
+        $groups = is_string($ingredientGroupsData)
+            ? json_decode($ingredientGroupsData, true)
+            : $ingredientGroupsData;
+
+        if (!is_array($groups)) {
+            return;
+        }
+
+        // Удаляем старые группы (каскадно удалятся ингредиенты)
+        $product->ingredientGroups()->delete();
+
+        // Создаём новые группы и ингредиенты
+        foreach ($groups as $groupIndex => $groupData) {
+            $group = $product->ingredientGroups()->create([
+                'tenant_id' => $product->tenant_id,
+                'name' => $groupData['name'] ?? 'Без названия',
+                'sort_order' => $groupData['sort_order'] ?? $groupIndex,
+            ]);
+
+            if (!empty($groupData['ingredients']) && is_array($groupData['ingredients'])) {
+                foreach ($groupData['ingredients'] as $ingIndex => $ingData) {
+                    $group->ingredients()->create([
+                        'tenant_id' => $product->tenant_id,
+                        'name' => $ingData['name'] ?? 'Без названия',
+                        'extra_price' => $ingData['extra_price'] ?? 0,
+                        'is_default' => $ingData['is_default'] ?? false,
+                        'sort_order' => $ingData['sort_order'] ?? $ingIndex,
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Синхронизация составных товаров
+     */
+    private function syncComponents(Product $product, $componentsData): void
+    {
+        if (is_null($componentsData)) {
+            return;
+        }
+
+        $components = is_string($componentsData)
+            ? json_decode($componentsData, true)
+            : $componentsData;
+
+        if (!is_array($components)) {
+            return;
+        }
+
+        $syncData = [];
+
+        foreach ($components as $compIndex => $comp) {
+            if (isset($comp['id'])) {
+                // Проверяем, что компонент существует в том же tenant
+                $componentProduct = Product::where('id', $comp['id'])
+                    ->where('tenant_id', $product->tenant_id)
+                    ->first();
+
+                if ($componentProduct) {
+                    $syncData[$comp['id']] = [
+                        'quantity' => $comp['quantity'] ?? 1,
+                        'is_default' => $comp['is_default'] ?? false,
+                        'sort_order' => $comp['sort_order'] ?? $compIndex,
+                        'tenant_id' => $product->tenant_id,
+                    ];
+                }
+            }
+        }
+
+        $product->components()->sync($syncData);
+    }
     /**
      * @throws ValidationException
      * @throws HttpException
@@ -709,31 +792,43 @@ class ProductService
     /**
      * @throws HttpException
      */
+    /**
+     * @throws HttpException
+     */
     public function destroy($productId): ProductResource
     {
         $product = Product::query()
-            ->with(["categories", "attributes"])
+            ->with(["categories", "attributes", "ingredientGroups", "components"])
             ->find($productId);
 
         if (is_null($product))
             throw new HttpException(404, "Продукт не найден");
 
+        // Удаляем атрибуты
         $options = $product->attributes;
-
         if (!empty($options))
             foreach ($options as $option)
                 $option->delete();
 
+        // Открепляем категории
         $categories = $product->categories;
-
         $tmp = [];
         if (!empty($categories))
             foreach ($categories as $category)
                 $tmp[] = $category->id;
 
-        $tmpProduct = $product;
         $product->categories()->detach($tmp);
 
+        // 🔥 Удаляем группы ингредиентов (каскадно удалятся ингредиенты)
+        $product->ingredientGroups()->delete();
+
+        // 🔥 Открепляем составные товары
+        $product->components()->detach();
+
+        // 🔥 Открепляем товар от других составных товаров (где он является компонентом)
+        $product->compositeProducts()->detach();
+
+        $tmpProduct = $product;
         $product->delete();
 
         return new ProductResource($tmpProduct);
@@ -813,19 +908,21 @@ class ProductService
     /**
      * @throws HttpException
      */
+    /**
+     * @throws HttpException
+     */
     public function removeAllProducts(): void
     {
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
-
         $products = Product::query()
-            ->with(["categories", "attributes"])
+            ->with(["categories", "attributes", "ingredientGroups"])
             ->where("tenant_id", $tenant->id)
             ->get();
 
         if (empty($products))
-            throw new HttpException(404, "Продукты не найден");
+            throw new HttpException(404, "Продукты не найдены");
 
         $baskets = Basket::query()
             ->where("tenant_id", $tenant->id)
@@ -836,14 +933,14 @@ class ProductService
                 $basket->delete();
 
         foreach ($products as $product) {
+            // Удаляем атрибуты
             $options = $product->attributes;
-
             if (!empty($options))
                 foreach ($options as $option)
                     $option->delete();
 
+            // Открепляем категории
             $categories = $product->categories;
-
             $tmp = [];
             if (!empty($categories))
                 foreach ($categories as $category)
@@ -851,10 +948,15 @@ class ProductService
 
             $product->categories()->detach($tmp);
 
+            // 🔥 Удаляем группы ингредиентов
+            $product->ingredientGroups()->delete();
+
+            // 🔥 Открепляем составные товары
+            $product->components()->detach();
+            $product->compositeProducts()->detach();
+
             $product->delete();
         }
-
-
     }
 
     /**
@@ -877,10 +979,13 @@ class ProductService
     /**
      * @throws HttpException
      */
+    /**
+     * @throws HttpException
+     */
     public function duplicate($productId): ProductResource
     {
         $product = Product::query()
-            ->with(["categories", "attributes"])
+            ->with(["categories", "attributes", "ingredientGroups.ingredients", "components"])
             ->find($productId);
 
         if (is_null($product))
@@ -889,6 +994,7 @@ class ProductService
         $newProduct = $product->replicate();
         $newProduct->save();
 
+        // Копируем категории
         if (!empty($product->categories)) {
             $tmp = [];
             foreach ($product->categories as $category)
@@ -897,6 +1003,7 @@ class ProductService
             $newProduct->categories()->sync($tmp);
         }
 
+        // Копируем атрибуты
         if (!empty($product->attributes))
             foreach ($product->attributes as $option)
                 ProductAttribute::query()
@@ -907,6 +1014,42 @@ class ProductService
                         'product_id' => $newProduct->id
                     ]);
 
+        // 🔥 Копируем группы ингредиентов
+        if (!empty($product->ingredientGroups)) {
+            foreach ($product->ingredientGroups as $group) {
+                $newGroup = $newProduct->ingredientGroups()->create([
+                    'tenant_id' => $newProduct->tenant_id,
+                    'name' => $group->name,
+                    'sort_order' => $group->sort_order,
+                ]);
+
+                if (!empty($group->ingredients)) {
+                    foreach ($group->ingredients as $ingredient) {
+                        $newGroup->ingredients()->create([
+                            'tenant_id' => $newProduct->tenant_id,
+                            'name' => $ingredient->name,
+                            'extra_price' => $ingredient->extra_price,
+                            'is_default' => $ingredient->is_default,
+                            'sort_order' => $ingredient->sort_order,
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // 🔥 Копируем составные товары
+        if (!empty($product->components)) {
+            $syncData = [];
+            foreach ($product->components as $component) {
+                $syncData[$component->id] = [
+                    'quantity' => $component->pivot->quantity,
+                    'is_default' => $component->pivot->is_default,
+                    'sort_order' => $component->pivot->sort_order,
+                    'tenant_id' => $newProduct->tenant_id,
+                ];
+            }
+            $newProduct->components()->sync($syncData);
+        }
 
         return new ProductResource($newProduct);
     }

@@ -4,7 +4,8 @@
         class="cart-product-card"
         :class="{
             'is-loading': isProductLoading,
-            'is-weight': item.is_weight_product
+            'is-weight': item.is_weight_product,
+            'is-composite': item.is_composite
         }"
     >
 
@@ -30,6 +31,10 @@
                     <div v-if="item.is_weight_product" class="badge weight-badge">
                         <i class="fa-solid fa-weight-hanging"></i>
                         <span>Вес</span>
+                    </div>
+                    <div v-if="item.is_composite" class="badge composite-badge">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                        <span>Комплект</span>
                     </div>
                 </div>
 
@@ -57,6 +62,68 @@
                     <div class="partner-info" v-if="item.tenant_name">
                         <i class="fa-solid fa-store"></i>
                         <span>{{ item.tenant_name || 'Магазин' }}</span>
+                    </div>
+                </div>
+
+                <!-- 🆕 СЕКЦИЯ ВЫБРАННЫХ ОПЦИЙ -->
+                <div v-if="hasSelectedOptions" class="selected-options-section">
+
+                    <!-- Составные компоненты -->
+                    <div v-if="selectedComponents.length > 0" class="options-group">
+                        <div class="options-group-title">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <span>Состав комплекта:</span>
+                        </div>
+                        <div class="options-list">
+                            <div
+                                v-for="comp in selectedComponents"
+                                :key="comp.id"
+                                class="option-item"
+                            >
+                                <span class="option-name">{{ comp.name }}</span>
+                                <span class="option-quantity">x{{ comp.quantity }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 🆕 Базовая цена составного товара -->
+                    <div v-if="item.is_composite && selectedComponents.length > 0 && basePrice > 0" class="options-group">
+                        <div class="options-group-title">
+                            <i class="fa-solid fa-box"></i>
+                            <span>Базовая цена:</span>
+                        </div>
+                        <div class="options-list">
+                            <div class="option-item">
+                                <span class="option-name">{{ item.name }}</span>
+                                <span class="option-price">{{ formatPrice(basePrice) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Выбранные ингредиенты -->
+                    <div v-if="selectedIngredients.length > 0" class="options-group">
+                        <div class="options-group-title">
+                            <i class="fa-solid fa-blender"></i>
+                            <span>Дополнительно:</span>
+                        </div>
+                        <div class="options-list">
+                            <div
+                                v-for="ing in selectedIngredients"
+                                :key="ing.id"
+                                class="option-item"
+                            >
+                                <span class="option-name">{{ ing.name }}</span>
+                                <span v-if="ing.extra_price > 0" class="option-price">
+                                    +{{ formatPrice(ing.extra_price) }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Итоговая доплата -->
+                    <div v-if="ingredientsExtraPrice > 0" class="options-total">
+                        <span class="total-label">Доплата за опции:</span>
+                        <span class="total-value">+{{ formatPrice(ingredientsExtraPrice) }}</span>
                     </div>
                 </div>
 
@@ -304,6 +371,47 @@ export default {
             return this.getItemById(this.productId);
         },
 
+        // 🆕 === ВЫБРАННЫЕ ОПЦИИ ===
+
+        /**
+         * Выбранные ингредиенты из params корзины
+         */
+        selectedIngredients() {
+            return this.item?.selected_ingredients
+                || this.basketItem?.selected_ingredients
+                || this.basketItem?.params?.selected_ingredients
+                || [];
+        },
+
+        /**
+         * Выбранные компоненты из params корзины
+         */
+        selectedComponents() {
+            return this.item?.selected_components
+                || this.basketItem?.selected_components
+                || this.basketItem?.params?.selected_components
+                || [];
+        },
+
+        /**
+         * Доплата за ингредиенты
+         */
+        ingredientsExtraPrice() {
+            return parseFloat(
+                this.item?.ingredients_extra_price
+                || this.basketItem?.ingredients_extra_price
+                || this.basketItem?.params?.ingredients_extra_price
+                || 0
+            );
+        },
+
+        /**
+         * Есть ли вообще выбранные опции
+         */
+        hasSelectedOptions() {
+            return this.selectedIngredients.length > 0 || this.selectedComponents.length > 0;
+        },
+
         /**
          * Конфигурация веса товара
          */
@@ -346,7 +454,7 @@ export default {
         canProductAction() {
             return (
                 this.isOnline &&
-                !this.isProductLoading(this.productId) && // 🆕 Используем productId
+                !this.isProductLoading(this.productId) &&
                 !this.item?.in_stop_list_at
             );
         },
@@ -408,14 +516,23 @@ export default {
         },
 
         /**
-         * Итоговая стоимость (с учётом количества и веса)
+         * Итоговая стоимость (с учётом количества, веса и опций)
          */
         totalPrice() {
+            // Бэкенд уже всё посчитал в final_price
+            const unitPrice = parseFloat(
+                this.item?.final_price
+                || this.item?.price
+                || this.currentPrice
+                || 0
+            );
+
             if (this.item?.is_weight_product) {
                 const stepsCount = Math.ceil(this.cartCount / this.weightStep);
-                return this.currentPrice * stepsCount;
+                return unitPrice * stepsCount;
             }
-            return this.currentPrice * this.cartCount;
+
+            return unitPrice * this.cartCount;
         },
 
         /**
@@ -432,6 +549,16 @@ export default {
             const stepsInMin = Math.ceil(this.minWeight / this.weightStep);
             return this.currentPrice * stepsInMin;
         },
+
+        basePrice() {
+            return parseFloat(this.item?.base_price || this.item?.price || 0);
+        },
+
+        componentsTotal() {
+            return this.selectedComponents.reduce((sum, c) =>
+                sum + (parseFloat(c.price || 0) * (c.quantity || 1)), 0);
+        },
+
     },
 
     mounted() {
@@ -462,7 +589,7 @@ export default {
             if (!this.form.comment?.trim()) return;
 
             this.saving = true;
-            this.form.id = this.productId; // 🆕 Используем productId
+            this.form.id = this.productId;
 
             try {
                 await this.addCommentToCart({ form: { ...this.form } });
@@ -496,7 +623,7 @@ export default {
             }
 
             try {
-                await this.addProduct(this.productId); // 🆕 Используем productId
+                await this.addProduct(this.productId);
 
                 this.justAdded = true;
                 setTimeout(() => { this.justAdded = false; }, 600);
@@ -520,7 +647,7 @@ export default {
             if (!this.canDecrement) return;
 
             try {
-                await this.removeProduct(this.productId); // 🆕 Используем productId
+                await this.removeProduct(this.productId);
             } catch (error) {
                 console.error('Ошибка уменьшения:', error);
                 this.$notify?.({
@@ -554,6 +681,7 @@ $primary-light: #60a5fa;
 $danger: #dc3545;
 $success: #198754;
 $warning: #ffc107;
+$purple: #6f42c1;
 $text: #1f2937;
 $text-muted: #6b7280;
 $border: #e5e7eb;
@@ -579,6 +707,10 @@ $bg-secondary: #f8f9fa;
         .card-main {
             opacity: 0.7;
         }
+    }
+
+    &.is-composite {
+        border-color: rgba($purple, 0.3);
     }
 }
 
@@ -646,6 +778,11 @@ $bg-secondary: #f8f9fa;
     color: white;
 }
 
+.composite-badge {
+    background: linear-gradient(135deg, $purple 0%, color.adjust($purple, $lightness: -10%) 100%);
+    color: white;
+}
+
 // Нет в наличии
 .out-of-stock-overlay {
     position: absolute;
@@ -708,6 +845,93 @@ $bg-secondary: #f8f9fa;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+// 🆕 СЕКЦИЯ ВЫБРАННЫХ ОПЦИЙ
+.selected-options-section {
+    background: $bg-secondary;
+    border: 1px solid $border;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.options-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.options-group-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: $text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+
+    i {
+        font-size: 0.7rem;
+        color: $primary;
+    }
+}
+
+.options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.option-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px;
+    background: $bg;
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+.option-name {
+    flex: 1;
+    color: $text;
+    font-weight: 500;
+}
+
+.option-quantity {
+    color: $text-muted;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.option-price {
+    color: $success;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.options-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid $border;
+    font-size: 0.8rem;
+
+    .total-label {
+        color: $text-muted;
+        font-weight: 500;
+    }
+
+    .total-value {
+        color: $success;
+        font-weight: 700;
+    }
 }
 
 // Цена
@@ -1207,5 +1431,20 @@ $bg-secondary: #f8f9fa;
         width: 40px;
         height: 40px;
     }
+
+    .selected-options-section {
+        padding: 8px 10px;
+    }
+
+    .option-item {
+        padding: 3px 6px;
+        font-size: 0.75rem;
+    }
+}
+
+/* 🆕 Базовая цена в составе */
+.options-group .option-price {
+    font-weight: 600;
+    color: var(--bs-body-color);
 }
 </style>

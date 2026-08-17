@@ -83,6 +83,7 @@ class Category extends Model
                     'products.name',
                     'products.price',
                     'products.images',
+                    'products.is_composite',
                     'products.description',
                     'products.order_position',
                     'ppc.category_id'

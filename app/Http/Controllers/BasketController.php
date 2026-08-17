@@ -22,6 +22,31 @@ class BasketController extends Controller
         return response()->json($cartData);
     }
 
+    // app/Http/Controllers/BasketController.php
+    public function addProduct(Request $request)
+    {
+        try {
+            BasketService::call()->addAndIncrementProduct($request->all());
+            $basketData = BasketService::call()->productsInBasket();
+
+            return response()->json($basketData);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Ошибка валидации',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (HttpException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], $e->getStatusCode());
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Ошибка добавления товара',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function useWheelOfFortunePrize(Request $request)
     {
         $request->validate([

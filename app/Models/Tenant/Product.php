@@ -29,6 +29,7 @@ class Product extends Model
         'is_active',
         'not_for_delivery',
         'in_stop_list',
+        'is_composite',
         'is_weight_product',
         'order_position',
     ];
@@ -38,12 +39,15 @@ class Product extends Model
         'config' => 'array',
         'dimensions' => 'array',
         'is_active' => 'boolean',
+        'is_composite' => 'boolean',
         'in_stop_list' => 'boolean',
         'not_for_delivery' => 'boolean',
         'is_weight_product' => 'boolean',
     ];
 
-    protected $with = ["categories", "tenant", "reviews"];
+    protected $with = ["categories", "tenant", "reviews", "ingredientGroups.ingredients", "components"];
+
+
 
     protected $appends = ["rating","tenant_name" ];
 
@@ -124,6 +128,42 @@ class Product extends Model
     public function getReviewsCountAttribute(): int
     {
         return $this->reviews()->approved()->count();
+    }
+
+    public function ingredientGroups(): HasMany
+    {
+        return $this->hasMany(IngredientGroup::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Товары, которые входят в состав этого товара (дочерние)
+     */
+    public function components(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'product_components',
+            'composite_product_id',
+            'component_product_id'
+        )
+            ->withPivot(['quantity', 'is_default', 'sort_order'])
+            ->withTimestamps()
+            ->orderBy('product_components.sort_order');
+    }
+
+    /**
+     * Товары, в состав которых входит этот товар (родительские)
+     */
+    public function compositeProducts(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'product_components',
+            'component_product_id',
+            'composite_product_id'
+        )
+            ->withPivot(['quantity', 'is_default', 'sort_order'])
+            ->withTimestamps();
     }
 
 }

@@ -557,9 +557,15 @@ trait BasketHelper
     private function processBasketAndCalculateTotals(array $context): array
     {
         $basket = Basket::query()
-            ->with(["collection", "product"])
+            ->with([
+                "collection",
+                "product.ingredientGroups.ingredients",
+                "product.components"
+            ])
             ->where("tenant_id", $this->tenant->id)
-            ->where("tenant_user_id", $this->tenantUser->id)->whereNull("ordered_at")->get();
+            ->where("tenant_user_id", $this->tenantUser->id)
+            ->whereNull("ordered_at")
+            ->get();
 
         $isPartnersActive = $this->tenant->settings["partners"]["is_active"] ?? false;
         $isPartnersDisplaySelf = $this->tenant->settings["partners"]["display_self"] ?? false;
@@ -571,7 +577,6 @@ trait BasketHelper
         $partnerProductBox = [];
         $processedProductIds = [];
 
-
         foreach ($basket as $item) {
             $productTenantId = $item->product?->tenant_id ?? $item->collection?->tenant_id ?? $this->tenant->id;
 
@@ -582,10 +587,14 @@ trait BasketHelper
 
             if (empty($partnerProductBox[$uuid])) {
                 $partnerProductBox[$uuid] = [
-                    "id" => $partner->id, "name" => $partner->name ?? $partner->slug ?? 'Без названия',
-                    "title" => $partner->title ?? $partner->name ?? 'Без названия', "message" => "",
+                    "id" => $partner->id,
+                    "name" => $partner->name ?? $partner->slug ?? 'Без названия',
+                    "title" => $partner->title ?? $partner->name ?? 'Без названия',
+                    "message" => "",
                     "extra_charge" => (Partner::query()->where("tenant_id", $item->tenant_id)->where("tenant_partner_id", $item->tenant_partner_id)->first())?->extra_charge ?? 0,
-                    "summary_price" => 0, "summary_count" => 0, "summary_discount" => 0,
+                    "summary_price" => 0,
+                    "summary_count" => 0,
+                    "summary_discount" => 0,
                     "delivery_price" => $context['delivery_details'][$uuid]["price"] ?? 0,
                     "distance" => $context['delivery_details'][$uuid]["distance"] ?? 0,
                     "thread" => $partner->topics["delivery"] ?? $this->tenant->topics["delivery"] ?? null,
@@ -597,56 +606,143 @@ trait BasketHelper
             $extraCharge = $partnerProductBox[$uuid]["extra_charge"];
             $isWeightProduct = false;
 
+            // ========================================
+            // ОБЫЧНЫЙ ТОВАР
+            // ========================================
             if (!is_null($item->product ?? null)) {
-                $isWeightProduct = $item->product->is_weight_product ?? false;
-                $currentPrice = $item->params["discount_price"] ?? $item->product->price ?? 0;
-                $unitOfMeasure = "ед.";
+                $product = $item->product;
+                $params = is_array($item->params) ? $item->params : (json_decode($item->params, true) ?? []);
 
-                if ($isWeightProduct) {
-                    $weightConfig = is_string($item->product->weight_config) ? json_decode($item->product->weight_config, true) : ($item->product->weight_config ?? []);
-                    $step = $weightConfig['step'] ?? 100;
-                    $price = (($currentPrice * (1 + $extraCharge / 100)) * $item->count) / $step;
-                    $unitOfMeasure = "гр.";
-                } else {
-                    $price = ($currentPrice * (1 + $extraCharge / 100)) * $item->count;
+                $isWeightProduct = $product->is_weight_product ?? false;
+                $isComposite = $product->is_composite ?? false;
+                $originalPrice = (float)($product->price ?? 0);
+                $ingredientsExtraPrice = (float)($params['ingredients_extra_price'] ?? 0);
+
+                // 🆕 Рассчитываем стоимость компонентов
+                $selectedComponents = $params['selected_components'] ?? [];
+                $componentsPrice = 0.0;
+                $componentsText = "";
+                $componentsDetails = [];
+
+                foreach ($selectedComponents as $comp) {
+                    $componentProduct = $product->components->firstWhere('id', $comp['id']);
+                    if ($componentProduct) {
+                        $compPrice = (float)($componentProduct->price ?? 0);
+                        $compQuantity = (int)($comp['quantity'] ?? 1);
+                        $componentsPrice += $compPrice * $compQuantity;
+
+                        $safeCompName = e($componentProduct->name);
+                        $componentsText .= "    ├─ {$safeCompName} x{$compQuantity}\n";
+
+                        $componentsDetails[] = [
+                            'id' => $componentProduct->id,
+                            'name' => $componentProduct->name,
+                            'quantity' => $compQuantity,
+                            'price' => $compPrice,
+                            'total' => $compPrice * $compQuantity,
+                        ];
+                    }
                 }
 
-                // 🎯 ИСПРАВЛЕНО: Экранируем имя товара и комментарий для безопасного HTML в Telegram
-                $safeProductNameForMsg = e($item->product->name);
+                // 🆕 Базовая цена = оригинал + компоненты (если составной)
+                $basePrice = $originalPrice;
+                if ($isComposite && $componentsPrice > 0) {
+                    $basePrice = $originalPrice + $componentsPrice;
+                }
+
+                // ✅ ЕДИНСТВЕННОЕ применение extra_charge
+                $finalPrice = ($basePrice + $ingredientsExtraPrice) * (1 + $extraCharge / 100);
+
+                // 🆕 Формируем текст ингредиентов
+                $optionsText = "";
+                $selectedIngredientIds = $params['selected_ingredients'] ?? [];
+                $selectedIngredientsDetails = [];
+
+                foreach ($product->ingredientGroups as $group) {
+                    foreach ($group->ingredients as $ingredient) {
+                        if (in_array($ingredient->id, $selectedIngredientIds)) {
+                            $ingPrice = (float)($ingredient->extra_price ?? 0);
+                            $safeIngName = e($ingredient->name);
+                            $selectedIngredientsDetails[] = [
+                                'id' => $ingredient->id,
+                                'name' => $ingredient->name,
+                                'extra_price' => $ingPrice,
+                                'group_name' => $group->name,
+                            ];
+
+                            if ($ingPrice > 0) {
+                                $optionsText .= "    ├─ {$safeIngName} (+{$ingPrice} ₽)\n";
+                            } else {
+                                $optionsText .= "    ├─ {$safeIngName}\n";
+                            }
+                        }
+                    }
+                }
+
+                // ✅ Расчёт общей цены (с учётом количества/веса)
+                $unitOfMeasure = "ед.";
+                if ($isWeightProduct) {
+                    $weightConfig = is_string($product->weight_config)
+                        ? json_decode($product->weight_config, true)
+                        : ($product->weight_config ?? []);
+                    $step = $weightConfig['step'] ?? 100;
+                    $price = ($finalPrice * $item->count) / $step;
+                    $unitOfMeasure = "гр.";
+                } else {
+                    $price = $finalPrice * $item->count;
+                }
+
+                // 🆕 Формируем сообщение для чата
+                $safeProductNameForMsg = e($product->name);
                 $safeComment = $item->comment ? "\n<em>(" . e($item->comment) . ")</em>" : "";
+                $compositePrefix = $isComposite ? "📦 " : "";
+                $productEmoji = $isComposite ? "💎" : "💎";
 
                 $partnerProductBox[$uuid]["message"] .= sprintf(
-                    "💎%s x%s %s=%s руб.%s\n",
+                    "%s%s%s x%s %s=%s руб.%s\n%s%s%s",
+                    $productEmoji,
+                    $compositePrefix,
                     $safeProductNameForMsg,
                     $item->count,
                     $unitOfMeasure,
-                    $price,
-                    $safeComment
+                    number_format($price, 0, '.', ' '),
+                    $safeComment,
+                    $componentsText,
+                    $optionsText,
+                    "\n"
                 );
 
-                $safeProductName = e($item->product->name);
-
+                // ✅ Цена в tmpOrderProductInfo = за единицу (не общая)
                 $tmpOrderProductInfo[] = [
-                    "id" => $item->product->id,
-                    "name" => $safeProductName,
+                    "id" => $product->id,
+                    "name" => e($product->name),
                     "count" => $item->count,
-                    "price" => $this->safeFloat($price),
-                    'external_source' => $item->product->external_source ?? null,
-                    'external_id' => $item->product->external_id ?? null,
+                    "price" => $this->safeFloat($price),                    // общая цена (для чека)
+                    "unit_price" => $this->safeFloat($finalPrice),          // 🆕 цена за единицу
+                    "base_price" => $this->safeFloat($originalPrice),       // 🆕 чистая цена товара
+                    "components_total" => $this->safeFloat($componentsPrice), // 🆕 сумма компонентов
+                    'external_source' => $product->external_source ?? null,
+                    'external_id' => $product->external_id ?? null,
+                    'is_composite' => $isComposite,
+                    'is_weight_product' => $isWeightProduct,
+                    'selected_ingredients' => $selectedIngredientsDetails,
+                    'selected_components' => $componentsDetails,
                 ];
 
-                if (!in_array($item->product->id, $processedProductIds)) {
-                    $processedProductIds[] = $item->product->id;
+                if (!in_array($product->id, $processedProductIds)) {
+                    $processedProductIds[] = $product->id;
                     $partnerProductBox[$uuid]["products"][] = end($tmpOrderProductInfo);
                 }
             }
 
+            // ========================================
+            // КОЛЛЕКЦИЯ
+            // ========================================
             if (!is_null($item->collection ?? null)) {
                 $params = is_array($item->params) ? (object)$item->params : $item->params;
                 $collectionPrice = 0;
                 $collectionItemsText = "";
 
-                // 🎯 ИСПРАВЛЕНО: Экранируем название самой коллекции
                 $safeCollectionName = e($item->collection->name);
 
                 foreach (($item->collection->products ?? []) as $product) {
@@ -666,6 +762,7 @@ trait BasketHelper
                     "name" => "📦 Коллекция: {$safeCollectionName}",
                     "count" => $item->count,
                     "price" => $this->safeFloat($totalCollectionPrice),
+                    "unit_price" => $this->safeFloat($collectionPrice),
                     'external_source' => 'collection',
                     'external_id' => $item->collection->id,
                     'collection_details' => rtrim($collectionItemsText, "\n")
@@ -679,9 +776,7 @@ trait BasketHelper
                 ];
 
                 $partnerProductBox[$uuid]["message"] .= sprintf(
-                    "💎 %s x%s = %s руб.\n%s\n",
-                    // 🎯 ИСПРАВЛЕНО: Используем HTML-тег <code> вместо обратных кавычек для моноширинного шрифта
-                    "Коллекция <code>{$safeCollectionName}</code>",
+                    "💎 📦 Коллекция <code>{$safeCollectionName}</code> x%s = %s руб.\n%s\n",
                     $item->count,
                     number_format($totalCollectionPrice, 0, '.', ' '),
                     $collectionItemsText
@@ -701,8 +796,6 @@ trait BasketHelper
             $summaryPrice += $price;
             $summaryDiscount += $discountToAdd;
 
-            // 🎯 ИСПРАВЛЕНО: Жестко ставим время заказа, чтобы корзина гарантированно очищалась
-            // (Убрали зависимость от APP_DEBUG)
             $item->ordered_at = Carbon::now("+3:00");
             $item->saveQuietly();
         }
@@ -711,9 +804,13 @@ trait BasketHelper
         $this->useCashBackForPayment($cashback);
 
         return [
-            'summary_price' => $summaryPrice, 'summary_count' => $summaryCount, 'summary_discount' => $summaryDiscount,
-            'final_price' => $this->safeFloat($summaryPrice - $cashback), 'cashback' => $cashback,
-            'product_info' => $tmpOrderProductInfo, 'partner_boxes' => $partnerProductBox,
+            'summary_price' => $summaryPrice,
+            'summary_count' => $summaryCount,
+            'summary_discount' => $summaryDiscount,
+            'final_price' => $this->safeFloat($summaryPrice - $cashback),
+            'cashback' => $cashback,
+            'product_info' => $tmpOrderProductInfo,
+            'partner_boxes' => $partnerProductBox,
         ];
     }
 
@@ -788,6 +885,26 @@ trait BasketHelper
             foreach ($box['products'] as $product) {
                 $priceFormatted = number_format($product['price'], 0, '.', ' ');
                 $message .= "  • {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
+
+                // 🆕 Показываем составные компоненты
+                if (!empty($product['is_composite']) && !empty($product['selected_components'])) {
+                    $message .= "    <b>Состав:</b>\n";
+                    foreach ($product['selected_components'] as $comp) {
+                        $compTotal = number_format($comp['price'] * $comp['quantity'], 0, '.', ' ');
+                        $message .= "      ├─ {$comp['name']} x{$comp['quantity']} = {$compTotal} ₽\n";
+                    }
+                }
+
+                // 🆕 Показываем выбранные ингредиенты
+                if (!empty($product['selected_ingredients'])) {
+                    foreach ($product['selected_ingredients'] as $ing) {
+                        $ingText = $ing['extra_price'] > 0
+                            ? "      ├─ {$ing['name']} (+{$ing['extra_price']} ₽)\n"
+                            : "      ├─ {$ing['name']}\n";
+                        $message .= $ingText;
+                    }
+                }
+
                 if (!empty($product['details'])) {
                     $message .= $product['details'] . "\n";
                 }
@@ -817,7 +934,6 @@ trait BasketHelper
             $message .= "\n📝 <b>Комментарий:</b> {$this->data['info']}\n";
         }
 
-        // Ссылки
         $baseUrl = request()->getSchemeAndHttpHost();
         if ($baseUrl) {
             $chatUrl = "{$baseUrl}/pwa#/chat/{$order->dialog_id}";

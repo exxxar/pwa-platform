@@ -25,6 +25,15 @@ class WebhookSyncService
         DB::beginTransaction();
         try {
             $product = $this->syncProduct($tenant, $payload['product']);
+
+            // 🔥 Если пришли компоненты — пытаемся их связать
+            // (может не сработать, если компонент ещё не синхронизирован,
+            // но это не критично — свяжется при следующем вебхуке)
+            $components = $payload['product']['components'] ?? [];
+            if (!empty($components)) {
+                $this->syncComponents($tenant, $product, $components);
+            }
+
             DB::commit();
 
             Log::info('Webhook: product synced', [
@@ -32,6 +41,9 @@ class WebhookSyncService
                 'product_id' => $product->id,
                 'external_id' => $product->external_id,
                 'action' => $product->wasRecentlyCreated ? 'created' : 'updated',
+                'is_composite' => $product->is_composite,
+                'components_count' => $product->components()->count(),
+                'ingredient_groups_count' => $product->ingredientGroups()->count(),
             ]);
 
             return [
@@ -57,24 +69,49 @@ class WebhookSyncService
         DB::beginTransaction();
         try {
             // --- ШАГ 1. "Гасим" всё перед синхронизацией ---
-            // Это помечает как "удаленные" (неактивные) все сущности,
-            // которые не придут в текущем вебхуке.
             Product::where('tenant_id', $tenant->id)->update(['is_active' => false]);
             Collection::where('tenant_id', $tenant->id)->update(['is_active' => false]);
 
             $stats = [
                 'products' => ['total' => count($products), 'created' => 0, 'updated' => 0],
                 'collections' => ['total' => count($collections), 'created' => 0, 'updated' => 0],
+                'components_linked' => 0,
             ];
 
-            // --- ШАГ 2. Синхронизируем Товары ---
-            // ВАЖНО: Сначала товары, так как коллекции будут ссылаться на них по external_id
+            // --- ШАГ 2. Синхронизируем Товары (без components) ---
+            // Сначала создаём/обновляем все товары, чтобы потом можно было связать их между собой
             foreach ($products as $productData) {
-                $product = $this->syncProduct($tenant, $productData);
+                $productDataWithoutComponents = $productData;
+                unset($productDataWithoutComponents['components']);
+
+                $product = $this->syncProduct($tenant, $productDataWithoutComponents);
                 $stats['products'][$product->wasRecentlyCreated ? 'created' : 'updated']++;
             }
 
-            // --- ШАГ 3. Синхронизируем Коллекции ---
+            // --- ШАГ 3. Связываем составные товары ---
+            // Теперь все товары уже есть в БД, можно безопасно ссылаться на них
+            foreach ($products as $productData) {
+                $components = $productData['components'] ?? [];
+                if (empty($components)) {
+                    continue;
+                }
+
+                $externalId = (string)($productData['id'] ?? '');
+                if (!$externalId) {
+                    continue;
+                }
+
+                $product = Product::where('tenant_id', $tenant->id)
+                    ->where('external_id', $externalId)
+                    ->first();
+
+                if ($product) {
+                    $this->syncComponents($tenant, $product, $components);
+                    $stats['components_linked'] += count($components);
+                }
+            }
+
+            // --- ШАГ 4. Синхронизируем Коллекции ---
             foreach ($collections as $collectionData) {
                 $result = $this->syncCollection($tenant, $collectionData);
                 $stats['collections'][$result['action']]++;
@@ -387,11 +424,9 @@ class WebhookSyncService
                 ->first();
         }
 
-        // ✅ ВСЕ поля для обновления/создания
         $mappedData = $this->mapProductData($data, $externalId);
 
         if ($product) {
-            // ✅ Полное обновление всех полей
             $product->update($mappedData);
         } else {
             $product = Product::create(array_merge($mappedData, [
@@ -402,7 +437,13 @@ class WebhookSyncService
         // Синхронизируем связанные данные
         $this->syncCategories($tenant, $product, $data['categories'] ?? []);
         $this->syncAttributes($product, $data['attributes'] ?? []);
-        $this->syncIngredients($product, $data['ingredients'] ?? []);
+
+        // 🔥 НОВАЯ структура: группы ингредиентов вместо плоских атрибутов
+        $this->syncIngredientGroups($tenant, $product, $data['ingredient_groups'] ?? []);
+
+        // 🔥 Составные товары (ссылки на другие товары по external_id)
+        // ВАЖНО: делаем это после syncProduct, чтобы товар был сохранён
+        $this->syncComponents($tenant, $product, $data['components'] ?? []);
 
         return $product;
     }
@@ -420,6 +461,7 @@ class WebhookSyncService
             'sku' => $data['sku'] ?? null,
             'description' => $data['description'] ?? '',
             'is_active' => (bool)($data['is_active'] ?? true),
+            'is_composite' => (bool)($data['is_composite'] ?? false), // 🔥 NEW
             'in_stop_list' => (bool)($data['in_stop_list'] ?? false),
             'images' => $this->mapImages($data['images'] ?? []),
         ];
@@ -595,24 +637,97 @@ class WebhookSyncService
     /**
      * Синхронизация ингредиентов через ProductAttribute
      */
-    protected function syncIngredients(Product $product, array $ingredients): void
+    /**
+     * 🔥 Синхронизация групп ингредиентов (новая структура)
+     *
+     * Полностью заменяет старые группы и их ингредиенты при каждом вебхуке.
+     * Каскадное удаление через БД позаботится о чистоте данных.
+     */
+    protected function syncIngredientGroups(Tenant $tenant, Product $product, array $groups): void
     {
-        $product->attributes()
-            ->where('section', 'ingredients')
-            ->delete();
+        // Полностью удаляем старые группы (каскадно удалятся и их ингредиенты)
+        $product->ingredientGroups()->delete();
 
-        foreach ($ingredients as $index => $ingData) {
-            if (empty($ingData['name'])) {
+        foreach ($groups as $groupIndex => $groupData) {
+            $group = $product->ingredientGroups()->create([
+                'tenant_id' => $tenant->id,
+                'name' => $groupData['name'] ?? 'Без названия',
+                'sort_order' => $groupData['sort_order'] ?? $groupIndex,
+            ]);
+
+            $ingredients = $groupData['ingredients'] ?? [];
+            if (!is_array($ingredients)) {
                 continue;
             }
 
-            ProductAttribute::create([
-                'product_id' => $product->id,
-                'name' => $ingData['name'],
-                'value' => $ingData['id'] ?? '',
-                'section' => 'ingredients',
-                'order_position' => $index,
-            ]);
+            foreach ($ingredients as $ingIndex => $ingData) {
+                if (empty($ingData['name'])) {
+                    continue;
+                }
+
+                $group->ingredients()->create([
+                    'tenant_id' => $tenant->id,
+                    'name' => $ingData['name'],
+                    'extra_price' => (float)($ingData['extra_price'] ?? 0),
+                    'is_default' => (bool)($ingData['is_default'] ?? false),
+                    'sort_order' => $ingData['sort_order'] ?? $ingIndex,
+                ]);
+            }
         }
+    }
+
+    /**
+     * 🔥 Синхронизация составных товаров (components)
+     *
+     * Связывает текущий товар с другими товарами по external_id.
+     * Если компонент ещё не синхронизирован — пропускаем (не блокируем процесс).
+     */
+    protected function syncComponents(Tenant $tenant, Product $product, array $components): void
+    {
+        if (empty($components)) {
+            // Очищаем состав, если в вебхуке компонентов нет
+            $product->components()->detach();
+            return;
+        }
+
+        $syncData = [];
+
+        foreach ($components as $compIndex => $compData) {
+            $compExternalId = (string)($compData['id'] ?? '');
+            if (!$compExternalId) {
+                continue;
+            }
+
+            // Ищем локальный товар по external_id в рамках того же tenant
+            $localComponent = Product::where('tenant_id', $tenant->id)
+                ->where('external_id', $compExternalId)
+                ->first();
+
+            if (!$localComponent) {
+                Log::warning('Webhook: component not found locally, skipping', [
+                    'tenant_id' => $tenant->id,
+                    'product_external_id' => $product->external_id,
+                    'component_external_id' => $compExternalId,
+                ]);
+                continue;
+            }
+
+            // Нельзя добавить товар в состав самого себя
+            if ($localComponent->id === $product->id) {
+                Log::warning('Webhook: self-reference in components, skipping', [
+                    'product_external_id' => $product->external_id,
+                ]);
+                continue;
+            }
+
+            $syncData[$localComponent->id] = [
+                'tenant_id' => $tenant->id,
+                'quantity' => (int)($compData['quantity'] ?? 1),
+                'is_default' => (bool)($compData['is_default'] ?? false),
+                'sort_order' => $compData['sort_order'] ?? $compIndex,
+            ];
+        }
+
+        $product->components()->sync($syncData);
     }
 }

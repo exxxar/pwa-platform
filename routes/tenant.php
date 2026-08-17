@@ -356,6 +356,8 @@ function routes() {
             Route::post("/use-wheel-of-fortune-prize", "useWheelOfFortunePrize");
             Route::post('/increment/{id}', "incrementItem")->middleware(['track.stats:products_in_cart']);
             Route::post('/decrement/{id}', "decrementItem");
+
+            Route::post('/add-product', [BasketController::class, 'addProduct']);
             Route::post('/inc-product', "incProductInBasket")->middleware(['track.stats:products_in_cart']);
             Route::post('/comment-product', "commentProductInBasket");
             Route::post('/dec-product', "decProductInBasket");

@@ -73,6 +73,7 @@ export function useBasket() {
     const loadProductsInBasket = (payload = {}) => store.loadProductsInBasket(payload);
     const startCheckout = (payload) => store.startCheckout(payload);
     const createCheckoutLink = (payload) => store.createCheckoutLink(payload);
+    const addProductWithOptions = (payload) => store.addProductWithOptions(payload);
 
     // ==========================================
     // 4. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
@@ -110,6 +111,7 @@ export function useBasket() {
         removeProductCompletely,
         incrementQuantity,
         decrementQuantity,
+        addProductWithOptions,
 
         // 🆕 Методы: ВАРИАНТЫ коллекций
         addCollectionVariant,

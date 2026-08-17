@@ -245,9 +245,30 @@ export const useBasketStore = defineStore('basket', {
             }
         },
 
-        // ==========================================
-        // ТОВАРЫ
-        // ==========================================
+        // Добавляем новый метод addProductWithOptions
+        async addProductWithOptions(payload) {
+            const productId = payload.product_id;
+            const actionKey = `product-opts-${productId}-${Date.now()}`;
+            this.productActions[actionKey] = 'add-with-options';
+
+            try {
+                const response = await axios.post(`${BASE}/add-product`, {
+                    product_id: productId,
+                    selected_ingredients: payload.selected_ingredients || [],
+                    selected_components: payload.selected_components || [],
+                    count: payload.count || 1,
+                });
+                this._updateBasketFromResponse(response.data);
+                return response.data;
+            } catch (err) {
+                console.error('[Basket Store] Ошибка добавления товара с опциями:', err);
+                throw err;
+            } finally {
+                delete this.productActions[actionKey];
+            }
+        },
+
+
         async addProductToCart(productId) {
             this.productActions[String(productId)] = 'inc';
 
