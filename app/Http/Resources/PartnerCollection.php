@@ -54,6 +54,7 @@ class PartnerCollection extends ResourceCollection
                     // 🆕 Новые поля статистики
                     'products_count' => $partner->products_count ?? 0,
                     'products_sum' => round($partner->products_sum ?? 0, 2),
+                    'partner_slug' => $partner->partner_slug,
 
                     // Форматированные значения для фронта
                     'products_count_formatted' => number_format($partner->products_count ?? 0, 0, '.', ' '),
