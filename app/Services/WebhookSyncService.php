@@ -554,6 +554,7 @@ class WebhookSyncService
         foreach ($categories as $catData) {
             $externalId = (string)($catData['id'] ?? '');
             $name = $catData['name'] ?? '';
+            $sortOrder = $catData['sort_order'] ?? 0;
 
             if (!$externalId && !$name) {
                 continue;
@@ -580,7 +581,7 @@ class WebhookSyncService
                     'name' => $name ?: "Категория #{$externalId}",
                     'external_id' => $externalId,
                     'is_active' => true,
-                    'order_position' => 0,
+                    'order_position' => $sortOrder,
                 ]);
             } else {
                 // ✅ ПОЛНОЕ обновление существующей категории

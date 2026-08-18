@@ -67,13 +67,11 @@ class PartnersController extends Controller
     }
 
 
-    /**
-     * @throws ValidationException
-     */
+
     public function store(Request $request): \App\Http\Resources\PartnerResource
     {
         $request->validate([
-            "telegram_domain" => "required",
+            "url" => "required",
         ]);
 
         return PartnerService::call()

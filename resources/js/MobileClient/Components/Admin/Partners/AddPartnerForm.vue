@@ -17,11 +17,11 @@
                         </button>
                         <div class="modal-header-content">
                             <div class="modal-icon">
-                                <i class="fa-brands fa-telegram"></i>
+                                <i class="fa-solid fa-globe"></i>
                             </div>
                             <div>
                                 <h3 class="modal-title">Добавление партнёра</h3>
-                                <p class="modal-subtitle">Укажите ссылку и теги для поиска</p>
+                                <p class="modal-subtitle">Укажите ссылку на приложение и теги</p>
                             </div>
                         </div>
                     </div>
@@ -33,30 +33,29 @@
                         </div>
 
                         <form @submit.prevent="handleSubmit" class="partner-form">
-                            <!-- Telegram Input -->
+                            <!-- URL Input -->
                             <div class="form-group">
-                                <label class="form-label" for="telegram-input">
-                                    <i class="fa-brands fa-telegram"></i>
-                                    Ссылка на Telegram-бота
+                                <label class="form-label" for="url-input">
+                                    <i class="fa-solid fa-link"></i>
+                                    Ссылка на приложение
                                     <span class="required">*</span>
                                 </label>
                                 <input
-                                    id="telegram-input"
+                                    id="url-input"
                                     type="text"
-                                    v-model="telegramInput"
+                                    v-model="urlInput"
                                     class="form-input"
-                                    :class="{ 'has-error': errors.telegram }"
-                                    placeholder="https://t.me/your_bot или @your_bot"
+                                    :class="{ 'has-error': errors.url }"
+                                    placeholder="https://test.mypwa.ru"
                                     :disabled="isLoading"
                                     required
-                                    @input="validateTelegram"
                                 >
-                                <span v-if="errors.telegram" class="form-error">
+                                <span v-if="errors.url" class="form-error">
                                     <i class="fa-solid fa-circle-exclamation"></i>
-                                    {{ errors.telegram }}
+                                    {{ errors.url }}
                                 </span>
                                 <span v-else class="form-hint">
-                                    Пример: https://t.me/my_bot или @my_bot
+                                    Пример: https://test.mypwa.ru
                                 </span>
                             </div>
 
@@ -148,22 +147,22 @@ export default {
         return {
             showModal: false,
             isLoading: false,
-            telegramInput: '',
+            urlInput: '',
 
             // 🆕 Данные для тегов
             tags: [],
             tagInput: '',
 
             errors: {
-                telegram: '',
-                tags: '', // 🆕 Ошибки тегов
+                url: '',
+                tags: '',
             },
         }
     },
 
     computed: {
         isValid() {
-            return this.telegramInput.trim().length > 0 && !this.errors.telegram
+            return this.urlInput.trim().length > 0 && !this.errors.url
         },
     },
 
@@ -171,18 +170,16 @@ export default {
         openModal() {
             this.showModal = true
             document.body.style.overflow = 'hidden'
-            // Фокус на поле Telegram при открытии
             this.$nextTick(() => {
-                document.getElementById('telegram-input')?.focus()
+                document.getElementById('url-input')?.focus()
             })
         },
 
         closeModal() {
             this.showModal = false
-            this.telegramInput = ''
-            this.errors.telegram = ''
+            this.urlInput = ''
+            this.errors.url = ''
 
-            // 🆕 Сброс тегов
             this.tags = []
             this.tagInput = ''
             this.errors.tags = ''
@@ -190,43 +187,12 @@ export default {
             document.body.style.overflow = ''
         },
 
-        validateTelegram() {
-            this.errors.telegram = ''
-            const input = this.telegramInput.trim()
-
-            if (!input) return
-
-            const processed = this.processTelegramLink(input)
-            const telegramRegex = /^[a-zA-Z0-9_]{5,32}$/
-
-            if (!telegramRegex.test(processed)) {
-                this.errors.telegram = 'Некорректный формат. Используйте @username или https://t.me/username'
-            }
-        },
-
-        processTelegramLink(link) {
-            let processedLink = link.trim()
-
-            if (processedLink.startsWith('https://t.me/')) {
-                processedLink = processedLink.replace('https://t.me/', '')
-            } else if (processedLink.startsWith('http://t.me/')) {
-                processedLink = processedLink.replace('http://t.me/', '')
-            } else if (processedLink.startsWith('@')) {
-                processedLink = processedLink.replace('@', '')
-            }
-
-            processedLink = processedLink.split(/[/?#]/)[0]
-            return processedLink
-        },
-
-        // 🆕 Методы для работы с тегами
         focusTagInput() {
             this.$refs.tagInputRef?.focus()
         },
 
         addTag() {
             const newTag = this.tagInput.trim().toLowerCase()
-
             if (!newTag) return
 
             if (this.tags.length >= 10) {
@@ -241,7 +207,6 @@ export default {
                 return
             }
 
-            // Проверка на недопустимые символы (только буквы, цифры, дефис)
             if (!/^[a-zа-яё0-9\-]+$/i.test(newTag)) {
                 this.errors.tags = 'Тег может содержать только буквы, цифры и дефис'
                 setTimeout(() => { this.errors.tags = '' }, 2000)
@@ -255,11 +220,10 @@ export default {
 
         removeTag(index) {
             this.tags.splice(index, 1)
-            this.errors.tags = '' // Сбрасываем ошибку при удалении
+            this.errors.tags = ''
         },
 
         handleBackspace() {
-            // Если инпут пустой и есть теги, удаляем последний тег по Backspace
             if (!this.tagInput && this.tags.length > 0) {
                 this.removeTag(this.tags.length - 1)
             }
@@ -268,15 +232,42 @@ export default {
         async handleSubmit() {
             if (!this.isValid) return
 
+            const inputUrl = this.urlInput.trim();
+
+            // Добавляем протокол, если его нет, для корректного парсинга URL
+            let urlToParse = inputUrl.startsWith('http') ? inputUrl : `https://${inputUrl}`;
+            let urlObj;
+
+            try {
+                urlObj = new URL(urlToParse);
+            } catch (e) {
+                this.errors.url = 'Некорректная ссылка';
+                return;
+            }
+
+            // Проверка домена
+            if (!urlObj.hostname.endsWith('mypwa.ru')) {
+                this.errors.url = 'Ссылка должна вести на домен mypwa.ru';
+                return;
+            }
+
+            // Извлекаем slug (поддомен)
+            const match = urlObj.hostname.match(/^([a-z0-9-]+)\.mypwa\.ru$/i);
+            if (!match) {
+                this.errors.url = 'Некорректный формат (ожидается slug.mypwa.ru)';
+                return;
+            }
+
+            const slug = match[1];
+
             this.isLoading = true
 
             try {
-                const processedTelegram = this.processTelegramLink(this.telegramInput)
-
                 const data = new FormData()
-                data.append('telegram_domain', processedTelegram)
+                data.append('url', inputUrl)
+                data.append('slug', slug) // 🆕 Передаем извлеченный slug
 
-                // 🆕 Добавляем теги в FormData (формат tags[] для Laravel)
+                // Добавляем теги в FormData
                 this.tags.forEach(tag => {
                     data.append('tags[]', tag)
                 })
@@ -293,7 +284,6 @@ export default {
                 this.$emit('callback')
             } catch (err) {
                 console.error('Ошибка добавления партнёра:', err)
-
                 const errorMessage = err?.response?.data?.message || 'Не удалось добавить партнёра'
 
                 this.$notify?.({
@@ -318,15 +308,11 @@ $admin-border: #e9ecef;
 $admin-primary: #3b82f6;
 $admin-danger: #ef4444;
 $admin-success: #10b981;
-$admin-telegram: #0088cc;
 
 .add-partner-form {
     padding: 16px 0;
 }
 
-// ==========================================
-// КНОПКА ДОБАВЛЕНИЯ
-// ==========================================
 .btn-add-partner {
     width: 100%;
     display: flex;
@@ -355,9 +341,6 @@ $admin-telegram: #0088cc;
     }
 }
 
-// ==========================================
-// МОДАЛКА
-// ==========================================
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -420,7 +403,7 @@ $admin-telegram: #0088cc;
     width: 52px;
     height: 52px;
     border-radius: 14px;
-    background: linear-gradient(135deg, $admin-telegram 0%, #0066aa 100%);
+    background: linear-gradient(135deg, $admin-primary 0%, #2563eb 100%);
     color: white;
     display: flex;
     align-items: center;
@@ -448,9 +431,6 @@ $admin-telegram: #0088cc;
     flex: 1;
 }
 
-// ==========================================
-// ФОРМА
-// ==========================================
 .info-alert {
     display: flex;
     align-items: flex-start;
@@ -493,7 +473,7 @@ $admin-telegram: #0088cc;
     color: $admin-text;
 
     i {
-        color: $admin-telegram;
+        color: $admin-primary;
         font-size: 1rem;
     }
 
@@ -544,7 +524,6 @@ $admin-telegram: #0088cc;
     }
 }
 
-// 🆕 Стили для инпута тегов
 .tags-input-container {
     border: 1px solid $admin-border;
     border-radius: 10px;
@@ -717,9 +696,6 @@ $admin-telegram: #0088cc;
     to { transform: rotate(360deg); }
 }
 
-// ==========================================
-// АНИМАЦИИ
-// ==========================================
 .modal-fade-enter-active {
     transition: opacity 0.3s ease;
 

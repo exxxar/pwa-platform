@@ -1337,6 +1337,7 @@ trait BasketHelper
         $mainTenantSchedule = $this->tenant->settings['schedule'] ?? null;
 
 
+
         if (!$this->isCurrentlyOpen($mainTenantSchedule)) {
             $errors[] = [
                 'type' => 'main_tenant',

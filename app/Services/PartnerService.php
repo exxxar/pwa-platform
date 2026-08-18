@@ -241,46 +241,56 @@ class PartnerService
     /**
      * @throws ValidationException
      */
+    /**
+     * @throws ValidationException
+     */
     public function create(array $data): PartnerResource
     {
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
         $validator = Validator::make($data, [
-            "uuid" => "required",
+            "url"    => "required|url",
+            "slug"   => "required|string|max:255",
+            "tags"   => "nullable|array",
+            "tags.*" => "string|max:50",
         ]);
 
-        if ($validator->fails())
+        if ($validator->fails()) {
             throw new ValidationException($validator);
+        }
 
-        $botPartner = Tenant::query()
-            ->where("uuid", $data["uuid"])
+        // 🆕 Ищем тенант (приложение) по slug, а не по uuid
+        $urlPartner = Tenant::query()
+            ->where("slug", $data["slug"])
             ->first();
 
-        if (is_null($botPartner))
-            throw new HttpException(404, "Бот-партнер не найден в системе!");
+        if (is_null($urlPartner)) {
+            throw new HttpException(404, "Приложение-партнер не найдено в системе!");
+        }
 
         $partner = Partner::query()
             ->where("tenant_id", $tenant->id)
-            ->where("tenant_partner_id", $botPartner->id)
+            ->where("tenant_partner_id", $urlPartner->id)
             ->first();
 
-        if (!is_null($partner))
-            throw new HttpException(403, "Данные боты уже являются партнерами!");
+        if (!is_null($partner)) {
+            throw new HttpException(403, "Данное приложение уже является партнером!");
+        }
 
-        $partner = Partner::query()->create(
-            [
-                'tenant_id' => $tenant->id,
-                'tenant_partner_id' => $botPartner->id,
-                'title' => $botPartner->title,
-                'description' => $botPartner->short_description,
-                'image' => $botPartner->image,
-                'is_active' => true,
-                'extra_charge' => 0,
-                'config' => [],
-                'legal_info' => [],
-                'tags' => [],
-            ]);
+        // 🆕 Исправлено использование несуществующей переменной $botPartner
+        $partner = Partner::query()->create([
+            'tenant_id'         => $tenant->id,
+            'tenant_partner_id' => $urlPartner->id,
+            'title'             => $urlPartner->name ?? $data['slug'],
+            'description'       => $urlPartner->description ?? '',
+            'image'             => $urlPartner->image ?? null,
+            'is_active'         => true,
+            'extra_charge'      => 0,
+            'config'            => [],
+            'legal_info'        => [],
+            'tags'              => $data['tags'] ?? [], // 🆕 Сохраняем теги
+        ]);
 
         return new PartnerResource($partner);
     }
@@ -306,16 +316,18 @@ class PartnerService
             throw new HttpException(401, 'Пользователь не авторизован');
         }
 
-        // 🆕 1. Валидация (config приходит как JSON-строка из FormData)
+        // 🆕 1. Валидация
         $rules = [
             'id' => 'required|integer|exists:partners,id',
-            'tenant_partner_id' => 'required|integer|exists:tenants,id',
+            'tenant_partner_id' => 'nullable|integer|exists:tenants,id', // Делаем nullable
+            'url' => 'nullable|string', // 🆕
+            'slug' => 'nullable|string|max:255', // 🆕
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'order_position' => 'nullable|integer|min:0',
             'is_active' => 'nullable',
             'extra_charge' => 'nullable|numeric|min:0',
-            'config' => 'nullable|string', // 🆕 Ожидаем строку (JSON)
+            'config' => 'nullable|string',
             'legal_info' => 'nullable|string',
             'tags' => 'nullable',
             'address' => 'nullable|string|max:255',
@@ -330,14 +342,45 @@ class PartnerService
 
         $validated = $validator->validated();
 
-        $partnerTenant = Tenant::findOrFail($validated['tenant_partner_id']);
-
         $partner = Partner::query()
             ->where('id', $validated['id'])
             ->where('tenant_id', $tenant->id)
             ->firstOrFail();
 
-        // 🆕 2. Работа с файлами
+        // 🆕 ЛОГИКА СМЕНЫ ПРИЛОЖЕНИЯ-ПАРТНЁРА
+        $newSlug = $validated['slug'] ?? null;
+        $partnerTenant = null;
+
+        if ($newSlug) {
+            $newPartnerTenant = Tenant::where('slug', $newSlug)->first();
+            if (!$newPartnerTenant) {
+                throw new HttpException(404, "Приложение по новой ссылке не найдено в системе!");
+            }
+
+            // Если slug реально изменился
+            if ($newPartnerTenant->id !== $partner->tenant_partner_id) {
+                $alreadyPartner = Partner::where('tenant_id', $tenant->id)
+                    ->where('tenant_partner_id', $newPartnerTenant->id)
+                    ->exists();
+
+                if ($alreadyPartner) {
+                    throw new HttpException(403, "Это приложение уже добавлено в ваши партнёры!");
+                }
+
+                $partner->tenant_partner_id = $newPartnerTenant->id;
+            }
+            $partnerTenant = $newPartnerTenant;
+        } else {
+            // Если slug не передан, берем текущего партнера
+            $partnerTenant = Tenant::find($partner->tenant_partner_id);
+            if (!$partnerTenant && !empty($validated['tenant_partner_id'])) {
+                $partnerTenant = Tenant::findOrFail($validated['tenant_partner_id']);
+            } elseif (!$partnerTenant) {
+                throw new HttpException(404, "Приложение-партнер не найдено!");
+            }
+        }
+
+        // 2. Работа с файлами (Используем $partnerTenant, который может быть новым)
         $imageName = $partner->image;
 
         if ($file) {
@@ -353,69 +396,45 @@ class PartnerService
             $imageName = '/storage/' . $newFileName;
         }
 
-        // 🆕 3. Нормализация типов данных
+        // 3. Нормализация типов данных
         $isActive = filter_var($validated['is_active'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        // --- 🆕 4. БЕЗОПАСНОЕ ОБЪЕДИНЕНИЕ CONFIG ---
-        // Получаем текущий config из базы (Laravel сам его декодирует, если есть cast 'array',
-        // но на всякий случай обрабатываем оба варианта)
         $existingConfig = $partner->config ?? [];
-        if (is_string($existingConfig)) {
-            $existingConfig = json_decode($existingConfig, true) ?? [];
-        } elseif (!is_array($existingConfig)) {
-            $existingConfig = [];
-        }
+        if (is_string($existingConfig)) $existingConfig = json_decode($existingConfig, true) ?? [];
+        elseif (!is_array($existingConfig)) $existingConfig = [];
 
-        // Декодируем пришедший config из FormData
         $incomingConfig = $validated['config'] ?? null;
-        if (is_string($incomingConfig)) {
-            $incomingConfig = json_decode($incomingConfig, true) ?? [];
-        } elseif (!is_array($incomingConfig)) {
-            $incomingConfig = [];
-        }
+        if (is_string($incomingConfig)) $incomingConfig = json_decode($incomingConfig, true) ?? [];
+        elseif (!is_array($incomingConfig)) $incomingConfig = [];
 
-        // Объединяем: новые данные (включая telegram_*) перезаписывают старые ключи,
-        // но остальные ключи (например, bg_color) сохраняются.
         $mergedConfig = array_merge($existingConfig, $incomingConfig);
-        // --------------------------------------------
 
         $legalInfo = $validated['legal_info'] ?? null;
-        if (is_string($legalInfo)) {
-            $legalInfo = json_decode($legalInfo, true) ?? [];
-        } elseif (!is_array($legalInfo)) {
-            $legalInfo = [];
-        }
+        if (is_string($legalInfo)) $legalInfo = json_decode($legalInfo, true) ?? [];
+        elseif (!is_array($legalInfo)) $legalInfo = [];
 
         $tags = $validated['tags'] ?? [];
-        if (is_string($tags)) {
-            $tags = json_decode($tags, true) ?? [];
-        } elseif (!is_array($tags)) {
-            $tags = [];
-        }
+        if (is_string($tags)) $tags = json_decode($tags, true) ?? [];
+        elseif (!is_array($tags)) $tags = [];
 
-        // 🆕 5. Обновление модели (Laravel сам сделает json_encode для каста 'array' в модели Partner)
+        // 5. Обновление модели (Добавляем tenant_partner_id для сохранения изменений)
         $partner->update([
+            'tenant_partner_id' => $partnerTenant->id,
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'image' => $imageName,
             'order_position' => $validated['order_position'] ?? 0,
             'is_active' => $isActive,
             'extra_charge' => $validated['extra_charge'] ?? 0,
-            'config' => $mergedConfig, // 🆕 Сохраняем объединенный массив
+            'config' => $mergedConfig,
             'legal_info' => $legalInfo,
             'tags' => $tags,
         ]);
 
-        // 🆕 6. Обновление настроек связанного Tenant (Адрес и Координаты)
+        // 6. Обновление настроек связанного Tenant
         $tenantSettingsToUpdate = [];
-
-        if (array_key_exists('address', $validated)) {
-            $tenantSettingsToUpdate['address'] = $validated['address'];
-        }
-
-        if (array_key_exists('shop_coords', $validated)) {
-            $tenantSettingsToUpdate['shop_coords'] = $validated['shop_coords'];
-        }
+        if (array_key_exists('address', $validated)) $tenantSettingsToUpdate['address'] = $validated['address'];
+        if (array_key_exists('shop_coords', $validated)) $tenantSettingsToUpdate['shop_coords'] = $validated['shop_coords'];
 
         if (!empty($tenantSettingsToUpdate)) {
             $this->mergeIntoMeta($partnerTenant, $tenantSettingsToUpdate);

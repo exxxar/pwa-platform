@@ -90,6 +90,10 @@ class TenantSettingsController extends Controller
             $this->mergeIntoMeta($tenant, ['company' => $validated['meta']['company']]);
         }
 
+        if (isset($validated['meta']['company']["schedule"])) {
+            $this->mergeIntoMeta($tenant, ['schedule' => $validated['meta']['company']["schedule"]]);
+        }
+
         return response()->json(['success' => true, 'message' => 'Основная информация обновлена']);
     }
 

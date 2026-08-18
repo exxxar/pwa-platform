@@ -8,6 +8,30 @@
                 Основная информация
             </div>
 
+            <!-- 🆕 Ссылка на приложение -->
+            <div class="form-group">
+                <label class="form-label" for="partner-url">
+                    <i class="fa-solid fa-link"></i>
+                    Ссылка на приложение
+                </label>
+                <input
+                    id="partner-url"
+                    type="text"
+                    v-model="urlInput"
+                    class="form-input"
+                    :class="{ 'has-error': errors.url }"
+                    placeholder="https://slug.mypwa.ru"
+                    :disabled="isLoading"
+                >
+                <span v-if="errors.url" class="form-error">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    {{ errors.url }}
+                </span>
+                <span v-else class="form-hint">
+                    Оставьте пустым, если не хотите изменять текущую ссылку. Формат: https://slug.mypwa.ru
+                </span>
+            </div>
+
             <!-- Статус -->
             <div class="setting-row">
                 <div class="setting-info">
@@ -215,7 +239,7 @@
             </div>
         </div>
 
-        <!-- 🆕 УВЕДОМЛЕНИЯ (TELEGRAM) -->
+        <!-- УВЕДОМЛЕНИЯ (TELEGRAM) -->
         <div class="form-section">
             <div class="section-title">
                 <i class="fa-brands fa-telegram"></i>
@@ -244,7 +268,6 @@
                 </label>
             </div>
 
-            <!-- Поля появляются только если включено -->
             <template v-if="form.config.telegram_enabled">
                 <div class="form-group">
                     <label class="form-label" for="telegram-token">
@@ -442,9 +465,15 @@ export default {
             preview: null,
             isDragging: false,
             tagInput: '',
+
+            // 🆕 Поля для управления ссылкой
+            urlInput: '',
+            originalUrl: '',
+
             errors: {
                 title: '',
                 tags: '',
+                url: '',
             },
             form: {
                 id: null,
@@ -458,7 +487,6 @@ export default {
                 demo_mode: true,
                 address: '',
                 shop_coords: '',
-                // 🆕 Все настройки партнера теперь внутри config
                 config: {
                     excludes: [],
                     bg_color: 'transparent',
@@ -475,24 +503,13 @@ export default {
         globalVenueTags() {
             const tags = this.settings?.venue_tags;
             if (!tags) return [];
-
-            if (Array.isArray(tags)) {
-                return tags;
-            }
-            if (typeof tags === 'string') {
-                return tags.split(',').map(t => t.trim()).filter(Boolean);
-            }
+            if (Array.isArray(tags)) return tags;
+            if (typeof tags === 'string') return tags.split(',').map(t => t.trim()).filter(Boolean);
             return [];
         },
-        tenant() {
-            return window.Tenant || null;
-        },
-        self() {
-            return window.TenantUser || null;
-        },
-        settings() {
-            return this.tenant?.settings || null;
-        },
+        tenant() { return window.Tenant || null; },
+        self() { return window.TenantUser || null; },
+        settings() { return this.tenant?.settings || null; },
 
         isValid() {
             return this.form.title?.trim().length > 0
@@ -500,22 +517,16 @@ export default {
 
         previewImage() {
             if (this.preview) return this.preview
-            if (this.form.image) {
-                return this.form.image
-            }
+            if (this.form.image) return this.form.image
             return null
         }
     },
 
     mounted() {
         if (this.initialData) {
-            // 1. Сохраняем дефолтную структуру config, чтобы не потерять поля
             const defaultConfig = { ...this.form.config }
-
-            // 2. Сливаем данные
             this.form = { ...this.form, ...this.initialData }
 
-            // 3. Нормализация тегов
             if (!Array.isArray(this.form.tags)) {
                 if (typeof this.form.tags === 'string' && this.form.tags.trim() !== '') {
                     this.form.tags = this.form.tags.split(',').map(t => t.trim()).filter(Boolean)
@@ -524,98 +535,78 @@ export default {
                 }
             }
 
-            // 🆕 4. Нормализация config (защита от строки JSON, null или отсутствия полей)
             let parsedConfig = defaultConfig;
             if (this.initialData.config) {
                 if (typeof this.initialData.config === 'string') {
-                    try {
-                        parsedConfig = { ...defaultConfig, ...JSON.parse(this.initialData.config) }
-                    } catch (e) {
-                        parsedConfig = defaultConfig;
-                    }
+                    try { parsedConfig = { ...defaultConfig, ...JSON.parse(this.initialData.config) } }
+                    catch (e) { parsedConfig = defaultConfig; }
                 } else if (typeof this.initialData.config === 'object') {
                     parsedConfig = { ...defaultConfig, ...this.initialData.config }
                 }
             }
 
-            // 5. Гарантируем реактивность и наличие всех полей с правильными типами
             this.form.config = {
                 excludes: parsedConfig.excludes || [],
                 bg_color: parsedConfig.bg_color || 'transparent',
-                telegram_enabled: Boolean(parsedConfig.telegram_enabled), // 👈 Строго приводим к boolean
+                telegram_enabled: Boolean(parsedConfig.telegram_enabled),
                 telegram_token: parsedConfig.telegram_token || '',
                 telegram_channel_id: parsedConfig.telegram_channel_id || '',
                 telegram_thread_id: parsedConfig.telegram_thread_id || '',
             }
+
+            // 🆕 Восстанавливаем текущую ссылку, если она есть в initialData
+            if (this.initialData.tenant_partner_slug) {
+                this.urlInput = `https://${this.initialData.tenant_partner_slug}.mypwa.ru`;
+            } else if (this.initialData.current_url) {
+                this.urlInput = this.initialData.current_url;
+            }
+            this.originalUrl = this.urlInput;
         }
     },
 
     beforeUnmount() {
-        if (this.preview) {
-            URL.revokeObjectURL(this.preview)
-        }
+        if (this.preview) URL.revokeObjectURL(this.preview)
     },
 
     methods: {
         addGlobalTag(tag) {
             const normalizedTag = tag.trim().toLowerCase();
             if (!normalizedTag) return;
-
             if (this.form.tags.includes(normalizedTag)) {
-                this.$notify?.({
-                    title: 'Информация',
-                    text: 'Этот тег уже добавлен',
-                    type: 'info'
-                });
+                this.$notify?.({ title: 'Информация', text: 'Этот тег уже добавлен', type: 'info' });
                 return;
             }
-
             if (this.form.tags.length >= 10) {
-                this.$notify?.({
-                    title: 'Ошибка',
-                    text: 'Максимальное количество тегов: 10',
-                    type: 'warning'
-                });
+                this.$notify?.({ title: 'Ошибка', text: 'Максимальное количество тегов: 10', type: 'warning' });
                 return;
             }
-
             this.form.tags.push(normalizedTag);
-            this.$notify?.({
-                title: 'Успех',
-                text: `Тег "${tag}" добавлен`,
-                type: 'success'
-            });
+            this.$notify?.({ title: 'Успех', text: `Тег "${tag}" добавлен`, type: 'success' });
         },
 
-        focusTagInput() {
-            this.$refs.tagInputRef?.focus()
-        },
+        focusTagInput() { this.$refs.tagInputRef?.focus() },
 
         addTag() {
             const newTag = this.tagInput.trim().toLowerCase()
             if (!newTag) return
-
             if (this.form.tags.length >= 10) {
                 this.errors.tags = 'Максимальное количество тегов: 10'
                 this.tagInput = ''
                 setTimeout(() => { this.errors.tags = '' }, 2000)
                 return
             }
-
             if (this.form.tags.includes(newTag)) {
                 this.errors.tags = 'Этот тег уже добавлен'
                 this.tagInput = ''
                 setTimeout(() => { this.errors.tags = '' }, 2000)
                 return
             }
-
             if (!/^[a-zа-яё0-9\-]+$/i.test(newTag)) {
                 this.errors.tags = 'Тег может содержать только буквы, цифры и дефис'
                 this.tagInput = ''
                 setTimeout(() => { this.errors.tags = '' }, 2000)
                 return
             }
-
             this.errors.tags = ''
             this.form.tags.push(newTag)
             this.tagInput = ''
@@ -632,59 +623,61 @@ export default {
             }
         },
 
-        triggerFileInput() {
-            this.$refs.fileInput?.click()
-        },
-
-        onFileChange(e) {
-            const file = e.target.files?.[0]
-            this.handleFile(file)
-        },
-
+        triggerFileInput() { this.$refs.fileInput?.click() },
+        onFileChange(e) { this.handleFile(e.target.files?.[0]) },
         onFileDrop(e) {
             this.isDragging = false
             const file = e.dataTransfer?.files?.[0]
-            if (file && file.type.startsWith('image/')) {
-                this.handleFile(file)
-            }
+            if (file && file.type.startsWith('image/')) this.handleFile(file)
         },
 
         handleFile(file) {
             if (!file) return
-
-            if (this.preview) {
-                URL.revokeObjectURL(this.preview)
-            }
-
+            if (this.preview) URL.revokeObjectURL(this.preview)
             this.file = file
             this.preview = URL.createObjectURL(file)
             this.$emit('select', file)
         },
 
         removeImage() {
-            if (this.preview) {
-                URL.revokeObjectURL(this.preview)
-            }
+            if (this.preview) URL.revokeObjectURL(this.preview)
             this.file = null
             this.preview = null
             this.form.image = ''
-
-            if (this.$refs.fileInput) {
-                this.$refs.fileInput.value = ''
-            }
+            if (this.$refs.fileInput) this.$refs.fileInput.value = ''
         },
 
         validateForm() {
             this.errors.title = ''
+            this.errors.url = ''
 
             if (!this.form.title?.trim()) {
                 this.errors.title = 'Заголовок обязателен для заполнения'
                 return false
             }
-
             if (this.form.title.trim().length < 2) {
                 this.errors.title = 'Заголовок должен содержать минимум 2 символа'
                 return false
+            }
+
+            // 🆕 Валидация новой ссылки, если она введена
+            if (this.urlInput.trim()) {
+                let urlToParse = this.urlInput.trim().startsWith('http') ? this.urlInput.trim() : `https://${this.urlInput.trim()}`;
+                try {
+                    const urlObj = new URL(urlToParse);
+                    if (!urlObj.hostname.endsWith('mypwa.ru')) {
+                        this.errors.url = 'Ссылка должна вести на домен mypwa.ru';
+                        return false;
+                    }
+                    const match = urlObj.hostname.match(/^([a-z0-9-]+)\.mypwa\.ru$/i);
+                    if (!match) {
+                        this.errors.url = 'Некорректный формат (ожидается slug.mypwa.ru)';
+                        return false;
+                    }
+                } catch (e) {
+                    this.errors.url = 'Некорректная ссылка';
+                    return false;
+                }
             }
 
             return true
@@ -713,6 +706,17 @@ export default {
 
                 if (this.file) {
                     data.append('file', this.file)
+                }
+
+                // 🆕 Добавляем URL и slug, если ссылка была изменена
+                if (this.urlInput.trim() && this.urlInput.trim() !== this.originalUrl) {
+                    let urlToParse = this.urlInput.trim().startsWith('http') ? this.urlInput.trim() : `https://${this.urlInput.trim()}`;
+                    const urlObj = new URL(urlToParse);
+                    const match = urlObj.hostname.match(/^([a-z0-9-]+)\.mypwa\.ru$/i);
+                    const slug = match[1];
+
+                    data.append('url', this.urlInput.trim());
+                    data.append('slug', slug);
                 }
 
                 await this.updatePartner({ form: data })

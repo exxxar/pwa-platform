@@ -372,7 +372,7 @@
 
                                     <div v-if="error.closes_at" class="reopens-info">
                                         <i class="fa-regular fa-clock"></i>
-                                        <span>Следующее открытие: сегодня в <strong>{{
+                                        <span>Заказ недоступен с: <strong>{{
                                                 error.closes_at
                                             }}</strong></span>
                                     </div>
@@ -2139,6 +2139,7 @@ $card-bg: #ffffff;
     padding: 24px;
     text-align: center;
     border-radius: 20px 20px 0 0;
+    flex-direction: column;
 }
 
 .closed-icon-wrapper {
