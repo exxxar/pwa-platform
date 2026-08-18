@@ -15,7 +15,17 @@ return [
     'need_hide_disabled_products' => true,
     'shop_coords' => '0,0',
     'pick_up_type' => 0,
-    'schedule' => [],
+    'schedule' => [
+
+        ['start_at' => '10:00', 'end_at' => '18:30'], // Понедельник
+        ['start_at' => '10:00', 'end_at' => '18:30'], // Вторник
+        ['start_at' => '10:00', 'end_at' => '18:30'], // Среда
+        ['start_at' => '10:00', 'end_at' => '18:30'], // Четверг
+        ['start_at' => '10:00', 'end_at' => '18:30'], // Пятница (удлиненный день)
+        ['start_at' => '10:00', 'end_at' => '18:30'], // Суббота
+        ['start_at' => '10:00', 'end_at' => '18:30'], // Воскресенье
+
+    ],
     'map_tiler' => null,
     'can_buy_after_closing' => false,
 

@@ -1335,6 +1335,8 @@ trait BasketHelper
 
         // 1. Проверка основного тенанта (Служба доставки)
         $mainTenantSchedule = $this->tenant->settings['schedule'] ?? null;
+
+
         if (!$this->isCurrentlyOpen($mainTenantSchedule)) {
             $errors[] = [
                 'type' => 'main_tenant',
@@ -1352,6 +1354,7 @@ trait BasketHelper
             if (!$partner) continue;
 
             $partnerSchedule = $partner->settings['schedule'] ?? null;
+
 
             if (!$this->isCurrentlyOpen($partnerSchedule)) {
                 $errors[] = [
@@ -1390,7 +1393,7 @@ trait BasketHelper
             return false;
         }
 
-        $currentTime = $now->format('H:i');
+        $currentTime = $now->setTimezone("+3:00")->format('H:i');
         $startTime = $daySchedule['start_at'] ?? '00:00';
         $endTime = $daySchedule['end_at'] ?? '23:59';
 
