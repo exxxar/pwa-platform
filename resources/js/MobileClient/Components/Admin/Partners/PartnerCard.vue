@@ -23,7 +23,7 @@
                 </span>
             </div>
 
-            <!-- 🆕 Блок тегов (максимум 2 + счетчик остальных) -->
+            <!-- Блок тегов (максимум 2 + счетчик остальных) -->
             <div class="partner-tags" v-if="Array.isArray(partner.tags) && partner.tags.length > 0">
                 <span
                     v-for="(tag, index) in partner.tags.slice(0, 2)"
@@ -46,8 +46,9 @@
                     <i class="fa-solid fa-percent"></i>
                     {{ partner.extra_charge }}%
                 </span>
-                <span v-if="partner.link" class="meta-item telegram">
-                    <i class="fa-brands fa-telegram"></i>
+                <!-- 🆕 Индикатор наличия ссылки -->
+                <span v-if="partner.partner_slug" class="meta-item link-badge">
+                    <i class="fa-solid fa-globe"></i>
                 </span>
             </div>
         </div>
@@ -81,6 +82,15 @@
 
                         <!-- Основные действия -->
                         <div class="sheet-actions-group">
+                            <!-- 🆕 КНОПКА ПЕРЕХОДА К ПАРТНЕРУ -->
+                            <button class="sheet-action" @click="handleAction('open')">
+                                <div class="action-icon bg-success-subtle">
+                                    <i class="fa-solid fa-arrow-up-right-from-square text-success"></i>
+                                </div>
+                                <span class="action-text">Открыть приложение</span>
+                                <i class="fa-solid fa-chevron-right action-arrow"></i>
+                            </button>
+
                             <button class="sheet-action" @click="handleAction('edit')">
                                 <div class="action-icon bg-primary-subtle">
                                     <i class="fa-solid fa-pen text-primary"></i>
@@ -152,7 +162,6 @@ export default {
     data() {
         return {
             showModal: false,
-            extra_charge: 0,
         }
     },
 
@@ -160,15 +169,17 @@ export default {
         const partners = usePartners()
         return {
             isPartnerLoading: partners.isPartnerLoading,
+            // 🚨 Примечание: вызов loadProducts в mounted для каждого элемента списка
+            // может вызвать избыточную нагрузку на API.
+            // Лучше загружать товары только при открытии модалки "Товары партнёра".
             loadProducts: partners.loadProductsByCategory
         }
     },
 
     mounted() {
-        this.extra_charge = this.partner.extra_charge || 0
-        this.loadProducts({ partner_id: this.partner.id })
+        // Если нужно превью товаров прямо в списке, оставьте этот вызов.
+        // this.loadProducts({ partner_id: this.partner.tenant_partner_id || this.partner.id })
 
-        // Блокируем скролл фона при открытии модалки
         this.$watch('showModal', (isOpen) => {
             document.body.style.overflow = isOpen ? 'hidden' : ''
         })
@@ -195,11 +206,36 @@ export default {
     methods: {
         handleAction(action) {
             this.showModal = false
+
+            // 🆕 Обработка открытия приложения
+            if (action === 'open') {
+                this.openPartnerApp()
+                return
+            }
+
             this.$emit(action, this.partner)
+        },
+
+        // 🆕 Метод открытия ссылки
+        openPartnerApp() {
+            const slug = this.partner.partner_slug
+
+            if (slug) {
+                const url = `https://${slug}.mypwa.ru`
+                window.open(url, '_blank')
+            } else {
+                this.$notify?.({
+                    title: 'Информация',
+                    text: 'Ссылка на приложение этого партнёра недоступна',
+                    type: 'warning'
+                })
+            }
         }
     }
 }
 </script>
+
+
 
 <style lang="scss" scoped>
 @use 'sass:color';
@@ -335,8 +371,15 @@ $admin-info: #0ea5e9;
     align-items: center;
     gap: 4px;
 
-    &.telegram { color: #0088cc; }
     &.charge { color: $admin-warning; font-weight: 600; }
+
+    /* 🆕 Стили для индикатора ссылки */
+    &.link-badge {
+        color: $admin-success;
+        background: rgba($admin-success, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
 }
 
 .partner-controls {

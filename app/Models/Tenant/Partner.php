@@ -36,6 +36,7 @@ class Partner extends Model
     protected $appends = [
         'address',
         'shop_coords',
+        'partner_slug',
     ];
 
     /*
@@ -43,6 +44,29 @@ class Partner extends Model
     | Relations
     |--------------------------------------------------------------------------
     */
+
+    protected function partnerSlug(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if (!$this->tenant_partner_id) return null;
+
+                // Кэш в рамках одного HTTP-запроса для защиты от N+1
+                static $cache = [];
+
+                if (isset($cache[$this->tenant_partner_id])) {
+                    return $cache[$this->tenant_partner_id];
+                }
+
+                $slug = DB::table('tenants')
+                    ->where('id', $this->tenant_partner_id)
+                    ->value('slug');
+
+                $cache[$this->tenant_partner_id] = $slug;
+                return $slug;
+            }
+        );
+    }
 
     public function tenant()
     {
