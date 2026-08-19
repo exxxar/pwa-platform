@@ -193,7 +193,7 @@ class ProductService
         ];
 
         return (object)[
-            "data" => [$tmpCategory, ...$categories]
+            "data" => [...$categories, $tmpCategory]
         ];
     }
 
