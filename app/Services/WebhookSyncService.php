@@ -597,6 +597,8 @@ class WebhookSyncService
                     $updateData['external_id'] = $externalId;
                 }
 
+                $updateData['order_position'] = $sortOrder;
+
                 if (!empty($updateData)) {
                     $category->update($updateData);
                 }
