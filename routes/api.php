@@ -21,4 +21,4 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::get('/v1/tenants/export', TenantExportController::class);
-Route::get('/v1/tenants/{id}/products', TenantExportProductsController::class);
+Route::get('/v1/tenants/{id}/products/export', TenantExportProductsController::class);

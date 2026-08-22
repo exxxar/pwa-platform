@@ -18,7 +18,7 @@ class TenantExportProductsController extends Controller
 
         $products = $tenant->products()
             ->where('is_active', true)
-            ->with(['category', 'images'])
+            ->with(['categories'])
             ->get()
             ->map(fn ($p) => [
                 'id' => $p->id,
@@ -26,7 +26,7 @@ class TenantExportProductsController extends Controller
                 'description' => $p->description,
                 'price' => $p->price,
                 'weight' => $p->weight,
-                'image' => $p->images->first()?->url,
+                'images' => $p->images,
                 'category' => $p->category?->name,
             ]);
 
