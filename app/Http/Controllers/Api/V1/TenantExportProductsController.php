@@ -13,6 +13,7 @@ class TenantExportProductsController extends Controller
     public function __invoke(Request $request, $id): JsonResponse
     {
         $tenant = Tenant::query()
+            ->with(["products"])
             ->findOrFail($id);
 
         $products = $tenant->products()
