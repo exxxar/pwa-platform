@@ -47,4 +47,23 @@ class TenantExportController extends Controller
             'data' => $tenants->toArray(),
         ]);
     }
+
+    public function products(Tenant $tenant)
+    {
+        $products = $tenant->products()
+            ->where('is_active', true)
+            ->with(['category', 'images'])
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'description' => $p->description,
+                'price' => $p->price,
+                'weight' => $p->weight,
+                'image' => $p->images->first()?->url,
+                'category' => $p->category?->name,
+            ]);
+
+        return response()->json(['data' => $products]);
+    }
 }
