@@ -14,7 +14,8 @@ class TenantExportProductsController extends Controller
     {
         $tenant = Tenant::query()
             ->with(["products"])
-            ->findOrFail($id);
+            ->where("uuid", $id)
+            ->firstOrFail();
 
         $products = $tenant->products()
             ->where('is_active', true)
