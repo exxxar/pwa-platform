@@ -3,11 +3,9 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicLandingController;
 use App\Http\Controllers\Tenant\PaymentCallbackController;
-use App\Models\Tenant\Tenant;
-use Illuminate\Foundation\Application;
+use App\Services\Tenants\PricingService;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Services\PricingService;
 
 /*
 |--------------------------------------------------------------------------

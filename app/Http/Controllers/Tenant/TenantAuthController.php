@@ -5,17 +5,15 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantUser;
-use App\Notifications\NewOrderNotification;
-use App\Services\BasketService;
-use App\Services\ChatService;
-use App\Services\ProductService;
+use App\Services\Tenants\BasketService;
+use App\Services\Tenants\ChatService;
+use App\Services\Tenants\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 
 class TenantAuthController extends Controller

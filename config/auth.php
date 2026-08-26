@@ -45,6 +45,7 @@ return [
             'provider' => 'tenant_users',
 
         ],
+
     ],
 
     /*

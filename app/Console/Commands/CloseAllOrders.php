@@ -7,10 +7,8 @@ use App\Models\Tenant\Order;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantDialog;
 use App\Models\Tenant\TenantMessage;
-use App\Models\Tenant\ReferralReward;
-use App\Services\ReferralService;
+use App\Services\Tenants\ReferralService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class CloseAllOrders extends Command

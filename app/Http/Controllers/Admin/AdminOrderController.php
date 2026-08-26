@@ -5,8 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Exports\AdminOrdersExport;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\Order;
-use App\Models\Tenant\TenantDialog;
-use App\Services\MessageService;
+use App\Services\Tenants\MessageService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 

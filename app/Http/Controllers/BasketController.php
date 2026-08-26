@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\BasketCollection;
 use App\Models\Tenant\Basket;
-use App\Services\BasketService;
+use App\Services\Tenants\BasketService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 

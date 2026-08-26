@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Http\Requests\Admin\Global;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class UpdateAdminUserRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'name' => 'sometimes|string|max:255',
+            'email' => [
+                'sometimes',
+                'email',
+                Rule::unique('users')->ignore($this->route('user')),
+            ],
+            'password' => 'nullable|string|min:8|confirmed',
+            'role_ids' => 'nullable|array',
+            'role_ids.*' => 'exists:roles,id',
+        ];
+    }
+}

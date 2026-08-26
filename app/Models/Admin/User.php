@@ -3,6 +3,7 @@
 namespace App\Models\Admin;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -59,5 +60,13 @@ class User extends Authenticatable
                 $q->where('name', $permission);
             })
             ->exists();
+    }
+
+    // В вашей модели App\Models\Admin\User
+    protected function password(): Attribute
+    {
+        return Attribute::make(
+            set: fn($value) => $value ? bcrypt($value) : null,
+        );
     }
 }

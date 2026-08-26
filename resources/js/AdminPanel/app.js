@@ -1,22 +1,42 @@
-import '@/AdminPanel/bootstrap';
+import { createApp, h } from 'vue'
+import { createInertiaApp } from '@inertiajs/vue3'
+import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
+import { createPinia } from 'pinia'
 
-import { createApp, h } from 'vue';
-import { createInertiaApp } from '@inertiajs/vue3';
-import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import {ZiggyVue} from '../../../vendor/tightenco/ziggy/dist';
+// 🆕 1. Импортируем наши Layout-ы
+import AuthLayout from './Layouts/AuthLayout.vue'
+import AdminLayout from './Layouts/AdminLayout.vue'
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'Админ-панель'
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) => resolvePageComponent(`./Pages/${name}.vue`, import.meta.glob('./Pages/**/*.vue')),
+
+    // 🆕 2. Модифицируем resolve, чтобы автоматически назначать Layout
+    resolve: (name) => {
+        return resolvePageComponent(`./Pages/${name}.vue`, import.meta.glob('./Pages/**/*.vue')).then((module) => {
+            const page = module.default
+
+            // Если это страница логина, используем AuthLayout
+            if (name === 'Auth/Login') {
+                page.layout = AuthLayout
+            } else {
+                // Для всех остальных страниц (дашборд, тенанты, пользователи и т.д.) используем AdminLayout
+                page.layout = AdminLayout
+            }
+
+            return page
+        })
+    },
+
     setup({ el, App, props, plugin }) {
-        return createApp({ render: () => h(App, props) })
+        const app = createApp({ render: () => h(App, props) })
             .use(plugin)
-            .use(ZiggyVue)
-            .mount(el);
+            .use(createPinia())
+
+        app.mount(el)
     },
     progress: {
-        color: '#4B5563',
+        color: '#667eea',
     },
-});
+})

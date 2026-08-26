@@ -2,15 +2,11 @@
 
 namespace App\Http\Controllers\Tenant;
 
-use App\Exports\AdminOrdersExport;
 use App\Http\Controllers\Controller;
-
 use App\Models\Tenant\Order;
-use App\Services\OrderService;
-use App\Services\ReviewService;
+use App\Services\Tenants\OrderService;
+use App\Services\Tenants\ReviewService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Maatwebsite\Excel\Facades\Excel;
 
 
 class OrderController extends Controller

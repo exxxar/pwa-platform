@@ -40,7 +40,7 @@ class UserStat extends Model
         $stat->increment('stat_value', $amount);
 
         // Проверяем достижения
-        app(\App\Services\AchievementService::class)->checkAchievements($userId, $key);
+        app(\App\Services\Tenants\AchievementService::class)->checkAchievements($userId, $key);
     }
 
     /**
@@ -56,7 +56,7 @@ class UserStat extends Model
         $stat->decrement('stat_value', $amount);
 
         // Проверяем достижения
-        app(\App\Services\AchievementService::class)->checkAchievements($userId, $key);
+        app(\App\Services\Tenants\AchievementService::class)->checkAchievements($userId, $key);
     }
 
     /**
@@ -72,7 +72,7 @@ class UserStat extends Model
         $stat->update(['stat_value' => $value]);
 
         // Проверяем достижения
-        app(\App\Services\AchievementService::class)->checkAchievements($userId, $key);
+        app(\App\Services\Tenants\AchievementService::class)->checkAchievements($userId, $key);
     }
 
     /**

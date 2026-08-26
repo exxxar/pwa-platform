@@ -3,7 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Tenant\TenantUser;
-use App\Services\AchievementService;
+use App\Services\Tenants\AchievementService;
 
 class TenantUserObserver
 {

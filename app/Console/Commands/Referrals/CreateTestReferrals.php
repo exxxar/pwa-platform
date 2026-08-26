@@ -6,7 +6,7 @@ use App\Enums\OrderStatusEnum;
 use App\Models\Tenant\Order;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantUser;
-use App\Services\ReferralService;
+use App\Services\Tenants\ReferralService;
 use Faker\Factory as Faker;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;

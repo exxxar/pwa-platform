@@ -33,7 +33,17 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $request->user() ? [
+                    'id' => $request->user()->id,
+                    'name' => $request->user()->name,
+                    'email' => $request->user()->email,
+                    'roles' => $request->user()->load('roles.permissions')->roles->map(function ($role) {
+                        return [
+                            'name' => $role->name,
+                            'permissions' => $role->permissions->pluck('name')->toArray(),
+                        ];
+                    })->toArray(),
+                ] : null,
             ],
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),

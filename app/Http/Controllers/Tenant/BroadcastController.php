@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\Broadcast;
 use App\Models\Tenant\BroadcastMedia;
 use App\Models\Tenant\TenantUser;
-use App\Services\BroadcastService;
+use App\Services\Tenants\BroadcastService;
 use Illuminate\Http\Request;
 
 class BroadcastController extends Controller

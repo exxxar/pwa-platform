@@ -2,6 +2,7 @@
 
 namespace App\Http;
 
+use App\Http\Middleware\Tenant\CheckTenantStatus;
 use App\Http\Middleware\Tenant\DebugTestTenet;
 use App\Http\Middleware\Tenant\TenantResolver;
 use App\Http\Middleware\Tenant\TenantUserResolver;
@@ -49,7 +50,7 @@ class Kernel extends HttpKernel
 
         'tenant' => [
             TenantResolver::class,
-
+            CheckTenantStatus::class,
             \App\Http\Middleware\Tenant\TenantContext::class,
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,

@@ -6,12 +6,12 @@ namespace App\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static \App\Services\TenantService call()
+ * @method static \App\Services\Tenants\TenantService call()
  */
 class TenantService extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return \App\Services\TenantService::class;
+        return \App\Services\Tenants\TenantService::class;
     }
 }

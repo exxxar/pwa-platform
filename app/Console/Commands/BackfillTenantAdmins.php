@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
+use Database\Seeders\Tenant\BackfillTenantAdminsSeeder;
 use Illuminate\Console\Command;
-use Database\Seeders\BackfillTenantAdminsSeeder;
 
 class BackfillTenantAdmins extends Command
 {

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\Tenant;
-use App\Services\WebhookSyncService;
+use App\Services\Tenants\WebhookSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 

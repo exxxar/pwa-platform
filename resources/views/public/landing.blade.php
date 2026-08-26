@@ -6,7 +6,8 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
     <title>{{ $appName }} — Создайте свой онлайн-магазин за 5 минут</title>
-    <meta name="description" content="Современная платформа для создания PWA-магазинов. Заказы, оплата, доставка, CRM — всё в одном месте.">
+    <meta name="description"
+          content="Современная платформа для создания PWA-магазинов. Заказы, оплата, доставка, CRM — всё в одном месте.">
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -218,9 +219,8 @@
             content: '';
             position: absolute;
             inset: 0;
-            background-image:
-                radial-gradient(circle at 20% 30%, rgba(255,255,255,0.1) 0%, transparent 40%),
-                radial-gradient(circle at 80% 70%, rgba(255,255,255,0.08) 0%, transparent 40%);
+            background-image: radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 40%),
+            radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.08) 0%, transparent 40%);
             pointer-events: none;
         }
 
@@ -251,9 +251,15 @@
         }
 
         @keyframes blobFloat {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(30px, -30px) scale(1.1); }
-            66% { transform: translate(-20px, 20px) scale(0.95); }
+            0%, 100% {
+                transform: translate(0, 0) scale(1);
+            }
+            33% {
+                transform: translate(30px, -30px) scale(1.1);
+            }
+            66% {
+                transform: translate(-20px, 20px) scale(0.95);
+            }
         }
 
         .hero-content {
@@ -503,12 +509,29 @@
             margin-bottom: 20px;
         }
 
-        .feature-icon.blue { background: linear-gradient(135deg, #667eea, #764ba2); }
-        .feature-icon.green { background: linear-gradient(135deg, #10b981, #059669); }
-        .feature-icon.orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
-        .feature-icon.red { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        .feature-icon.purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
-        .feature-icon.cyan { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+        .feature-icon.blue {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .feature-icon.green {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .feature-icon.orange {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .feature-icon.red {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .feature-icon.purple {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        }
+
+        .feature-icon.cyan {
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+        }
 
         .feature-title {
             font-size: 1.2rem;
@@ -734,9 +757,8 @@
             content: '';
             position: absolute;
             inset: 0;
-            background-image:
-                radial-gradient(circle at 10% 20%, rgba(255,255,255,0.1) 0%, transparent 40%),
-                radial-gradient(circle at 90% 80%, rgba(255,255,255,0.08) 0%, transparent 40%);
+            background-image: radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 40%),
+            radial-gradient(circle at 90% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 40%);
             pointer-events: none;
         }
 
@@ -1282,8 +1304,8 @@
 </section>
 
 @php
-    $plans = \App\Services\PricingService::getActivePlans();
-    $display = \App\Services\PricingService::getDisplaySettings();
+    $plans = \App\Services\Tenants\PricingService::getActivePlans();
+    $display = \App\Services\Tenants\PricingService::getDisplaySettings();
 @endphp
 
 <section class="section pricing" id="pricing">
@@ -1324,7 +1346,8 @@
                         @endforeach
                     </ul>
 
-                    <a href="{{ $plan['button_url'] ?? '#cta' }}" class="price-btn {{ $plan['is_featured'] ? '' : 'ghost' }}">
+                    <a href="{{ $plan['button_url'] ?? '#cta' }}"
+                       class="price-btn {{ $plan['is_featured'] ? '' : 'ghost' }}">
                         {{ $plan['button_text'] ?? 'Выбрать' }}
                     </a>
                 </div>
@@ -1374,7 +1397,8 @@
 
                     <div class="form-group">
                         <label class="form-label">Расскажите о вашем бизнесе</label>
-                        <textarea name="message" class="form-input" rows="3" placeholder="Чем занимаетесь, что продаёте..."></textarea>
+                        <textarea name="message" class="form-input" rows="3"
+                                  placeholder="Чем занимаетесь, что продаёте..."></textarea>
                     </div>
 
                     <button type="submit" class="form-submit" id="submitBtn">
@@ -1460,7 +1484,7 @@
      VANILLA JS
      ========================================== -->
 <script>
-    (function() {
+    (function () {
         'use strict';
 
         // ==========================================
@@ -1476,7 +1500,7 @@
             }
         }
 
-        window.addEventListener('scroll', handleHeaderScroll, { passive: true });
+        window.addEventListener('scroll', handleHeaderScroll, {passive: true});
         handleHeaderScroll();
 
         // ==========================================
@@ -1486,14 +1510,14 @@
         const mobileMenu = document.getElementById('mobileMenu');
 
         if (burger && mobileMenu) {
-            burger.addEventListener('click', function() {
+            burger.addEventListener('click', function () {
                 burger.classList.toggle('active');
                 mobileMenu.classList.toggle('active');
             });
 
             // Закрытие при клике на ссылку
-            mobileMenu.querySelectorAll('a').forEach(function(link) {
-                link.addEventListener('click', function() {
+            mobileMenu.querySelectorAll('a').forEach(function (link) {
+                link.addEventListener('click', function () {
                     burger.classList.remove('active');
                     mobileMenu.classList.remove('active');
                 });
@@ -1503,8 +1527,8 @@
         // ==========================================
         // ПЛАВНЫЙ СКРОЛЛ
         // ==========================================
-        document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
-            anchor.addEventListener('click', function(e) {
+        document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+            anchor.addEventListener('click', function (e) {
                 const href = this.getAttribute('href');
                 if (href === '#' || href.length < 2) return;
 
@@ -1528,11 +1552,11 @@
         const animatedElements = document.querySelectorAll('.feature-card, .step-card, .price-card');
 
         if ('IntersectionObserver' in window) {
-            const observer = new IntersectionObserver(function(entries) {
-                entries.forEach(function(entry, index) {
+            const observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry, index) {
                     if (entry.isIntersecting) {
                         // Задержка для каскадного эффекта
-                        setTimeout(function() {
+                        setTimeout(function () {
                             entry.target.classList.add('visible');
                         }, index * 80);
                         observer.unobserve(entry.target);
@@ -1543,12 +1567,12 @@
                 rootMargin: '0px 0px -50px 0px'
             });
 
-            animatedElements.forEach(function(el) {
+            animatedElements.forEach(function (el) {
                 observer.observe(el);
             });
         } else {
             // Fallback для старых браузеров
-            animatedElements.forEach(function(el) {
+            animatedElements.forEach(function (el) {
                 el.classList.add('visible');
             });
         }
@@ -1586,17 +1610,17 @@
         }
 
         if (counters.length > 0) {
-            const counterObserver = new IntersectionObserver(function(entries) {
-                entries.forEach(function(entry) {
+            const counterObserver = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
                     if (entry.isIntersecting && !countersAnimated) {
                         countersAnimated = true;
                         counters.forEach(animateCounter);
                         counterObserver.disconnect();
                     }
                 });
-            }, { threshold: 0.3 });
+            }, {threshold: 0.3});
 
-            counters.forEach(function(counter) {
+            counters.forEach(function (counter) {
                 counterObserver.observe(counter);
             });
         }
@@ -1606,7 +1630,7 @@
         // ==========================================
         const phoneInput = document.querySelector('input[name="phone"]');
         if (phoneInput) {
-            phoneInput.addEventListener('input', function(e) {
+            phoneInput.addEventListener('input', function (e) {
                 let value = e.target.value.replace(/\D/g, '');
 
                 if (value.startsWith('8')) {
@@ -1669,23 +1693,23 @@
             }
 
             // Валидация при blur
-            form.querySelectorAll('.form-input').forEach(function(input) {
-                input.addEventListener('blur', function() {
+            form.querySelectorAll('.form-input').forEach(function (input) {
+                input.addEventListener('blur', function () {
                     validateField(this);
                 });
 
-                input.addEventListener('input', function() {
+                input.addEventListener('input', function () {
                     if (this.classList.contains('error')) {
                         validateField(this);
                     }
                 });
             });
 
-            form.addEventListener('submit', function(e) {
+            form.addEventListener('submit', function (e) {
                 e.preventDefault();
 
                 let allValid = true;
-                form.querySelectorAll('.form-input').forEach(function(input) {
+                form.querySelectorAll('.form-input').forEach(function (input) {
                     if (!validateField(input)) {
                         allValid = false;
                     }
@@ -1697,7 +1721,7 @@
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Отправка...</span>';
 
-                setTimeout(function() {
+                setTimeout(function () {
                     // TODO: Замените на реальный fetch/axios
                     // fetch('/api/leads', { method: 'POST', body: new FormData(form) })
 
@@ -1705,7 +1729,7 @@
                     formSuccess.classList.add('visible');
 
                     // Скролл к сообщению
-                    formSuccess.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    formSuccess.scrollIntoView({behavior: 'smooth', block: 'center'});
                 }, 1500);
             });
         }
@@ -1717,11 +1741,11 @@
         if (blobs.length > 0 && window.innerWidth > 768) {
             let ticking = false;
 
-            window.addEventListener('scroll', function() {
+            window.addEventListener('scroll', function () {
                 if (!ticking) {
-                    requestAnimationFrame(function() {
+                    requestAnimationFrame(function () {
                         const scrolled = window.pageYOffset;
-                        blobs.forEach(function(blob, i) {
+                        blobs.forEach(function (blob, i) {
                             const speed = (i + 1) * 0.1;
                             blob.style.transform = 'translateY(' + (scrolled * speed) + 'px)';
                         });
@@ -1729,7 +1753,7 @@
                     });
                     ticking = true;
                 }
-            }, { passive: true });
+            }, {passive: true});
         }
 
         console.log('🚀 Landing initialized');

@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant\Tenant;
-use App\Services\TenantSettingsService;
+use App\Services\Tenants\TenantSettingsService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 

@@ -6,7 +6,7 @@ use App\Models\Tenant\TenantDialog;
 use App\Models\Tenant\TenantMessage;
 use App\Models\Tenant\TenantRole;
 use App\Models\Tenant\TenantUser;
-use App\Services\ReferralService;
+use App\Services\Tenants\ReferralService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

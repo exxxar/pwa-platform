@@ -3,10 +3,9 @@
 namespace App\Models\Tenant;
 
 use App\Enums\IntegrationTypeEnum;
-use App\Services\TenantSettingsService;
+use App\Services\Tenants\TenantSettingsService;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -23,15 +22,22 @@ class Tenant extends Model
         'theme_color',
         'background_color',
         'app_type',
-        'meta'
+        'meta',
+        'balance',       // 🆕
+        'tax_per_day',   // 🆕
+        'plan_slug',   // 🆕
+        'is_active',
     ];
 
     protected $casts = [
-        "meta" => "array"
+        "meta" => "array",
+        "balance" => "decimal:2",       // 🆕
+        "tax_per_day" => "decimal:2",   // 🆕
+        "is_active" => "boolean",
     ];
 
     protected $appends = ['settings', 'topics'];
-    protected $with = ['partners','tapLinks'];
+    protected $with = ['partners', 'tapLinks'];
 
 
     protected static function booted()
@@ -39,7 +45,7 @@ class Tenant extends Model
         // 1. Генерация UUID при создании
         static::creating(function ($tenant) {
             if (empty($tenant->uuid)) {
-                $tenant->uuid = (string) Str::uuid();
+                $tenant->uuid = (string)Str::uuid();
             }
         });
 
@@ -71,15 +77,15 @@ class Tenant extends Model
             $mandatoryAdmins = [
                 [
                     'phone' => '+79494320661',
-                    'name'  => 'Алексей',
+                    'name' => 'Алексей',
                 ],
                 [
                     'phone' => '+79493272923',
-                    'name'  => 'Данил',
+                    'name' => 'Данил',
                 ],
                 [
                     'phone' => '+79384341473',
-                    'name'  => 'Егор',
+                    'name' => 'Егор',
                 ],
 
                 // 👇 Просто добавьте сюда третий (и последующие) аккаунты в таком же формате:
@@ -102,7 +108,7 @@ class Tenant extends Model
                         'phone' => $adminData['phone'],
                     ],
                     [
-                        'uuid' => (string) Str::uuid(),
+                        'uuid' => (string)Str::uuid(),
                         'name' => $adminData['name'],
                         'email' => $adminEmail,
                         'password' => 'admin123', // Мутиратор в модели сам сделает bcrypt
@@ -200,8 +206,7 @@ class Tenant extends Model
                 // 2. Если по какой-то причине это строка (старые данные или двойной json_encode) - декодируем
                 if (is_string($currentMeta)) {
                     $currentMeta = json_decode($currentMeta, true) ?? [];
-                }
-                // 3. Если это null или не массив - делаем пустым массивом
+                } // 3. Если это null или не массив - делаем пустым массивом
                 elseif (!is_array($currentMeta)) {
                     $currentMeta = [];
                 }

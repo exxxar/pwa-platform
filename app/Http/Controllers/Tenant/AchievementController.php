@@ -3,15 +3,12 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
-use App\Models\Tenant\CashBack;
 use App\Models\Tenant\CashBackHistory;
 use App\Models\Tenant\UserAchievement;
 use App\Models\Tenant\UserStat;
-use App\Services\AchievementService;
-use App\Services\CashBackService;
-use Illuminate\Http\Request;
+use App\Services\Tenants\AchievementService;
+use App\Services\Tenants\CashBackService;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class AchievementController extends Controller

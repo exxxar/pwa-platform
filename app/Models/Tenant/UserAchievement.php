@@ -38,7 +38,7 @@ class UserAchievement extends Model
 
         // Начисляем награду
         if ($this->achievement->reward_type && $this->achievement->reward_value > 0) {
-            app(\App\Services\AchievementService::class)->giveReward($this);
+            app(\App\Services\Tenants\AchievementService::class)->giveReward($this);
         }
     }
 }

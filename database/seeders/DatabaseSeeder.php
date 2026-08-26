@@ -3,15 +3,26 @@
 namespace Database\Seeders;
 
 use App\Models\Tenant\Tenant;
+use Database\Seeders\Admin\AdminUserSeeder;
+use Database\Seeders\Admin\RoleAndPermissionSeeder;
+use Database\Seeders\Tenant\PartnerSeeder;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Базовая конфигурация meta (оставляем как есть, она отличная)
+        $this->call([
+            RoleAndPermissionSeeder::class,
+        ]);
+
+       /* // Затем создаем администраторов
+        $this->call([
+            AdminUserSeeder::class,
+        ]);*/
+
+      /*  // 1. Базовая конфигурация meta (оставляем как есть, она отличная)
         $baseMeta = [
             'sbp' => [
                 'sber' => [],
@@ -142,6 +153,6 @@ class DatabaseSeeder extends Seeder
 
         // Вызов остальных сидеров
         $this->command->info("✅ Тенанты созданы/обновлены.");
-        $this->call(PartnerSeeder::class);
+        $this->call(PartnerSeeder::class);*/
     }
 }

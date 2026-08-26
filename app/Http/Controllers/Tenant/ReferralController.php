@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
-use App\Services\ReferralService;
-use App\Services\FriendService;
+use App\Services\Tenants\FriendService;
+use App\Services\Tenants\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

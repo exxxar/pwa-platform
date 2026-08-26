@@ -6,7 +6,7 @@ use App\Enums\OrderStatusEnum;
 use App\Models\Tenant\Order;
 use App\Models\Tenant\TenantDialog;
 use App\Models\Tenant\TenantMessage;
-use App\Services\ReferralService;
+use App\Services\Tenants\ReferralService;
 use Illuminate\Support\Facades\Log;
 
 class OrderObserver

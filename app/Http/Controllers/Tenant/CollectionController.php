@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
-use App\Services\CollectionService;
+use App\Services\Tenants\CollectionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

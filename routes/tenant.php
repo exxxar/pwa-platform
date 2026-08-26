@@ -14,6 +14,7 @@ use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\Tenant\AchievementAdminController;
 use App\Http\Controllers\Tenant\AchievementController;
+use App\Http\Controllers\Tenant\BillingController;
 use App\Http\Controllers\Tenant\CashBackController;
 use App\Http\Controllers\Tenant\ClientsController;
 use App\Http\Controllers\Tenant\CoffeeController;
@@ -142,6 +143,23 @@ function routes() {
     require base_path('routes/games.php');
 
     Route::prefix('admin')->group(function () {
+
+
+        Route::prefix('tenant')->group(function () {
+
+            Route::get('/pricing-plans', [BillingController::class, 'getPricingPlans']);
+            Route::post('/update-plan', [BillingController::class, 'updateTenantPlan']);
+
+            // Пополнение баланса
+            Route::post('/topup', function (Request $request) {
+                $tenant = app('tenant');
+                $tenant->increment('balance', $request->amount);
+                return response()->json(['success' => true, 'balance' => $tenant->balance]);
+            });
+
+        });
+
+
         Route::prefix('orders')->group(function () {
             Route::get('/', [AdminOrderController::class, 'index']);
             Route::get("/export", [AdminOrderController::class, "export"]);
