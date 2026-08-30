@@ -11,6 +11,8 @@ return [
         'www.fastoran.ru' => 'fastoran', // Обязательно добавляем www-версию
         'fastoran.com' => 'fastoran',
         'www.fastoran.com' => 'fastoran', // Обязательно добавляем www-версию
+        'bolshoyjohn.ru' => 'bigjohn', // Обязательно добавляем www-версию
+        'www.bolshoyjohn.ru' => 'bigjohn', // Обязательно добавляем www-версию
 
         // В будущем можно добавлять другие домены:
         // 'another-client.com' => 'client_slug',

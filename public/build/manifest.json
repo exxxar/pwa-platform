@@ -1,7 +1,7 @@
 {
-  "_AppDivider-!~{023}~.js": {
+  "_AppDivider-!~{022}~.js": {
     "file": "assets/AppDivider-DSLUy5iM.css",
-    "src": "_AppDivider-!~{023}~.js"
+    "src": "_AppDivider-!~{022}~.js"
   },
   "_AppDivider-B5iHyWoT.js": {
     "css": [
@@ -18,9 +18,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_CartProductList-!~{027}~.js": {
+  "_CartProductList-!~{026}~.js": {
     "file": "assets/CartProductList-C5vLVQ3g.css",
-    "src": "_CartProductList-!~{027}~.js"
+    "src": "_CartProductList-!~{026}~.js"
   },
   "_CartProductList-IVy4vgPA.js": {
     "css": [
@@ -34,9 +34,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_CoffeeProgress-!~{01$}~.js": {
+  "_CoffeeProgress-!~{01_}~.js": {
     "file": "assets/CoffeeProgress-fPzksYPD.css",
-    "src": "_CoffeeProgress-!~{01$}~.js"
+    "src": "_CoffeeProgress-!~{01_}~.js"
   },
   "_CoffeeProgress-Dj4hhH20.js": {
     "css": [
@@ -48,13 +48,13 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_Pagination-!~{01H}~.js": {
+  "_Pagination-!~{01G}~.js": {
     "file": "assets/Pagination-WQvPbERX.css",
-    "src": "_Pagination-!~{01H}~.js"
+    "src": "_Pagination-!~{01G}~.js"
   },
-  "_Pagination-!~{01z}~.js": {
+  "_Pagination-!~{01y}~.js": {
     "file": "assets/Pagination-CW0udt1G.css",
-    "src": "_Pagination-!~{01z}~.js"
+    "src": "_Pagination-!~{01y}~.js"
   },
   "_Pagination-45U1gPqS.js": {
     "css": [
@@ -74,9 +74,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_Preloader-!~{01X}~.js": {
+  "_Preloader-!~{01W}~.js": {
     "file": "assets/Preloader-DcBMQ-5x.css",
-    "src": "_Preloader-!~{01X}~.js"
+    "src": "_Preloader-!~{01W}~.js"
   },
   "_Preloader-DrqsfWHq.js": {
     "css": [
@@ -87,9 +87,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_ProductCard-!~{01N}~.js": {
+  "_ProductCard-!~{01M}~.js": {
     "file": "assets/ProductCard-VeFnvfCs.css",
-    "src": "_ProductCard-!~{01N}~.js"
+    "src": "_ProductCard-!~{01M}~.js"
   },
   "_ProductCard-B4D2pC8T.js": {
     "css": [
@@ -103,9 +103,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_ProfileCard-!~{026}~.js": {
+  "_ProfileCard-!~{025}~.js": {
     "file": "assets/ProfileCard-Dahp6mab.css",
-    "src": "_ProfileCard-!~{026}~.js"
+    "src": "_ProfileCard-!~{025}~.js"
   },
   "_ProfileCard-Y3eQOYpV.js": {
     "css": [
@@ -117,9 +117,9 @@
       "_AppDivider-B5iHyWoT.js"
     ]
   },
-  "_ReviewCard-!~{01L}~.js": {
+  "_ReviewCard-!~{01K}~.js": {
     "file": "assets/ReviewCard-D2jlQxu1.css",
-    "src": "_ReviewCard-!~{01L}~.js"
+    "src": "_ReviewCard-!~{01K}~.js"
   },
   "_ReviewCard-CW9nushp.js": {
     "css": [
@@ -130,9 +130,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_ScheduleList-!~{01W}~.js": {
+  "_ScheduleList-!~{01V}~.js": {
     "file": "assets/ScheduleList-BnQqZfz_.css",
-    "src": "_ScheduleList-!~{01W}~.js"
+    "src": "_ScheduleList-!~{01V}~.js"
   },
   "_ScheduleList-Bw38wZMY.js": {
     "css": [
@@ -143,9 +143,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_ScreenPaymentForm-!~{028}~.js": {
+  "_ScreenPaymentForm-!~{027}~.js": {
     "file": "assets/ScreenPaymentForm-o5Ue8Krb.css",
-    "src": "_ScreenPaymentForm-!~{028}~.js"
+    "src": "_ScreenPaymentForm-!~{027}~.js"
   },
   "_ScreenPaymentForm-DqPAdN48.js": {
     "css": [
@@ -165,9 +165,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_SkeletonLoader-!~{020}~.js": {
+  "_SkeletonLoader-!~{01$}~.js": {
     "file": "assets/SkeletonLoader-BUiUEKKC.css",
-    "src": "_SkeletonLoader-!~{020}~.js"
+    "src": "_SkeletonLoader-!~{01$}~.js"
   },
   "_SkeletonLoader-p7IpDj4T.js": {
     "css": [
@@ -178,9 +178,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_StoryList-!~{021}~.js": {
+  "_StoryList-!~{020}~.js": {
     "file": "assets/StoryList-B4W1_BQP.css",
-    "src": "_StoryList-!~{021}~.js"
+    "src": "_StoryList-!~{020}~.js"
   },
   "_StoryList-of-hmPRO.js": {
     "css": [
@@ -193,9 +193,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_StoryModal-!~{024}~.js": {
+  "_StoryModal-!~{023}~.js": {
     "file": "assets/StoryModal-DS_-I6E6.css",
-    "src": "_StoryModal-!~{024}~.js"
+    "src": "_StoryModal-!~{023}~.js"
   },
   "_StoryModal-CDWZHU1F.js": {
     "css": [
@@ -206,9 +206,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_TableBookingPlanner-!~{01Z}~.js": {
+  "_TableBookingPlanner-!~{01Y}~.js": {
     "file": "assets/TableBookingPlanner-CRZ8oQ-g.css",
-    "src": "_TableBookingPlanner-!~{01Z}~.js"
+    "src": "_TableBookingPlanner-!~{01Y}~.js"
   },
   "_TableBookingPlanner-Du_KZqi2.js": {
     "css": [
@@ -220,9 +220,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_WheelOfFortuneShopVariant-!~{01D}~.js": {
+  "_WheelOfFortuneShopVariant-!~{01C}~.js": {
     "file": "assets/WheelOfFortuneShopVariant-BXk7RDx3.css",
-    "src": "_WheelOfFortuneShopVariant-!~{01D}~.js"
+    "src": "_WheelOfFortuneShopVariant-!~{01C}~.js"
   },
   "_WheelOfFortuneShopVariant-B0X8IY0t.js": {
     "css": [
@@ -239,9 +239,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_carousel-!~{022}~.js": {
+  "_carousel-!~{021}~.js": {
     "file": "assets/carousel-yDz9D9ut.css",
-    "src": "_carousel-!~{022}~.js"
+    "src": "_carousel-!~{021}~.js"
   },
   "_carousel-Cd5a-oT4.js": {
     "css": [
@@ -261,9 +261,9 @@
       "resources/js/MobileClient/app.js"
     ]
   },
-  "_maplibre-gl-!~{025}~.js": {
+  "_maplibre-gl-!~{024}~.js": {
     "file": "assets/maplibre-gl-Bj0H8vA5.css",
-    "src": "_maplibre-gl-!~{025}~.js"
+    "src": "_maplibre-gl-!~{024}~.js"
   },
   "_maplibre-gl-lOKvdyjF.js": {
     "css": [
@@ -392,11 +392,6 @@
   "node_modules/@fortawesome/fontawesome-free/webfonts/fa-v4compatibility.woff2": {
     "file": "assets/fa-v4compatibility-DD84SGiu.woff2",
     "src": "node_modules/@fortawesome/fontawesome-free/webfonts/fa-v4compatibility.woff2"
-  },
-  "resources/css/AdminPanel/app.css": {
-    "file": "assets/app-vZbYH97k.css",
-    "isEntry": true,
-    "src": "resources/css/AdminPanel/app.css"
   },
   "resources/css/MobileClient/app.css": {
     "file": "assets/app-B_SY1GJM.css",
