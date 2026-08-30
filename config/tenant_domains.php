@@ -9,8 +9,6 @@ return [
         // Пример: когда приходит запрос на fastoran.ru, мы отдаем тенанта с slug 'fastoran'
         'fastoran.ru' => 'fastoran',
         'www.fastoran.ru' => 'fastoran', // Обязательно добавляем www-версию
-        'fastoran.com' => 'fastoran',
-        'www.fastoran.com' => 'fastoran', // Обязательно добавляем www-версию
         'bolshoyjohn.ru' => 'bigjohn', // Обязательно добавляем www-версию
         'www.bolshoyjohn.ru' => 'bigjohn', // Обязательно добавляем www-версию
 
