@@ -70,7 +70,7 @@
                                     class="product-card"
                                 >
                                     <div class="product-image" @click="openModal(product)">
-                                        <img v-lazy="product.images[0].url" :alt="product.name" loading="lazy"
+                                        <img v-lazy="preparedImageLink(product.images[0].url)" :alt="product.name" loading="lazy"
                                              @error="handleImageError">
                                         <div v-if="product.badge" class="product-badge">{{ product.badge }}</div>
                                     </div>
@@ -160,6 +160,9 @@ export default {
     },
 
     computed: {
+        tenant() {
+            return window.Tenant || null
+        },
         visibleCategories() {
             return this.shopStore.categories.filter(cat => this.getFilteredProducts(cat).length > 0);
         },
@@ -169,6 +172,10 @@ export default {
     },
 
     methods: {
+        preparedImageLink(img) {
+            const base = "https://" + this.tenant.slug + ".mypwa.ru"
+            return base + (img || '/logo.png');
+        },
         getProductQuantity(productId) {
             const items = Array.isArray(this.basketItemsRef)
                 ? this.basketItemsRef

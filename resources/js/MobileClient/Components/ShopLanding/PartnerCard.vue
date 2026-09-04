@@ -21,7 +21,7 @@
 
         <!-- Контент -->
         <div class="card-content">
-            <h3 class="partner-name">{{ partner.title }}</h3>
+            <h3 class="partner-name">{{ partner.name || partner.title }}</h3>
 
             <div class="partner-meta">
                 <div class="meta-item" v-if="partner.address">
