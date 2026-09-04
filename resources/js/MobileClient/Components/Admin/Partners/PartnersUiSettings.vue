@@ -64,7 +64,7 @@
 
             <div v-for="(item, index) in uiForm.cuisines" :key="item.id || index" class="dynamic-list-item">
                 <div class="item-image-box">
-                    <img v-if="getImagePreview('cuisine', item.id)" :src="getImagePreview('cuisine', item.id)" class="item-preview-img">
+                    <img v-if="getImagePreview('cuisine', item.id)" v-lazy="getImagePreview('cuisine', item.id)" class="item-preview-img">
                     <div v-else class="item-preview-placeholder"><i class="fa-solid fa-image"></i></div>
                     <label class="item-image-upload">
                         <i class="fa-solid fa-camera"></i>

@@ -124,6 +124,9 @@ export const useTenantSettingsStore = defineStore('tenantSettings', {
         async savePwaSettings(pwaForm) {
             return this._saveSection('pwa', { pwa: pwaForm }, `${BASE}/pwa`);
         },
+        async saveSeoSettings(seoForm) {
+            return this._saveSection('seo', { seo: seoForm }, `${BASE}/seo`);
+        },
         async saveIconsSettings(formData) {
             this.isSaving = true;
             this.savingSection = 'icons';

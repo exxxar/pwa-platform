@@ -8,8 +8,8 @@
         <!-- Изображение -->
         <div class="card-image">
             <img
-                v-lazy="partner.image || partner.logo || 'https://via.placeholder.com/400x250?text=No+Image'"
-                :alt="partner.name"
+                v-lazy="preparedImageLink"
+                :alt="partner.title"
                 loading="lazy"
             >
             <div class="card-overlay">
@@ -21,7 +21,7 @@
 
         <!-- Контент -->
         <div class="card-content">
-            <h3 class="partner-name">{{ partner.name }}</h3>
+            <h3 class="partner-name">{{ partner.title }}</h3>
 
             <div class="partner-meta">
                 <div class="meta-item" v-if="partner.address">
@@ -45,10 +45,21 @@
 export default {
     name: "PartnerCard",
     props: {
-        partner: { type: Object, required: true },
-        isSelf: { type: Boolean, default: false }
+        partner: {type: Object, required: true},
+        isSelf: {type: Boolean, default: false}
     },
-    emits: ['select']
+    emits: ['select'],
+    mounted() {
+    },
+    computed: {
+        tenant() {
+            return window.Tenant || null
+        },
+        preparedImageLink() {
+            const base = "https://" + this.tenant.slug + ".mypwa.ru"
+            return base + (this.partner.image || this.partner.logo || '/logo.png');
+        }
+    }
 }
 </script>
 
@@ -57,7 +68,7 @@ export default {
     background: white;
     border-radius: 20px;
     overflow: hidden;
-    border: 1px solid rgba(0,0,0,0.04);
+    border: 1px solid rgba(0, 0, 0, 0.04);
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     position: relative;

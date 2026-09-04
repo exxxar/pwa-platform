@@ -70,7 +70,7 @@
                                     class="product-card"
                                 >
                                     <div class="product-image" @click="openModal(product)">
-                                        <img v-lazy="product.images[0]" :alt="product.name" loading="lazy"
+                                        <img v-lazy="product.images[0].url" :alt="product.name" loading="lazy"
                                              @error="handleImageError">
                                         <div v-if="product.badge" class="product-badge">{{ product.badge }}</div>
                                     </div>

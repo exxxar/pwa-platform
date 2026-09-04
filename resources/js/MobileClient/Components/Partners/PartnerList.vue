@@ -35,10 +35,10 @@
                 <div class="hero-orb orb-2"></div>
 
                 <div class="hero-images">
-                    <div class="food-image food-image-1"><img :src="dynamicHeroImages.image1" alt="Food 1"></div>
-                    <div class="food-image food-image-2"><img :src="dynamicHeroImages.image2" alt="Food 2"></div>
-                    <div class="food-image food-image-3"><img :src="dynamicHeroImages.image3" alt="Food 3"></div>
-                    <div class="food-image food-image-4"><img :src="dynamicHeroImages.image4" alt="Food 4"></div>
+                    <div class="food-image food-image-1"><img v-lazy="dynamicHeroImages.image1" alt="Food 1"></div>
+                    <div class="food-image food-image-2"><img v-lazy="dynamicHeroImages.image2" alt="Food 2"></div>
+                    <div class="food-image food-image-3"><img v-lazy="dynamicHeroImages.image3" alt="Food 3"></div>
+                    <div class="food-image food-image-4"><img v-lazy="dynamicHeroImages.image4" alt="Food 4"></div>
                 </div>
 
                 <div class="hero-content">
@@ -384,7 +384,7 @@
                                 @click="selectCuisine(cuisine)"
                             >
                                 <div class="cuisine-chip-image">
-                                    <img :src="cuisine.image || getDefaultImage('pizza')" :alt="cuisine.name">
+                                    <img v-lazy="cuisine.image || getDefaultImage('pizza')" :alt="cuisine.name">
                                 </div>
                                 <span class="cuisine-chip-name">{{ cuisine.name }}</span>
                                 <i v-if="isCuisineSelected(cuisine.slug)" class="fa-solid fa-check cuisine-chip-check"></i>

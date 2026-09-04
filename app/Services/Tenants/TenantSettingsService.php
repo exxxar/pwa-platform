@@ -44,6 +44,7 @@ class TenantSettingsService
 
             // Кофе
             'coffee' => config('tenant.coffee', []),
+            'seo' => config('tenant.seo', []),
 
             // Кэшбэк
             'max_cashback_use_percent' => config('tenant.cashback.max_percent', 15),

@@ -10,12 +10,22 @@
         </ShopHero>
 
         <!-- Партнеры -->
-        <template v-if="config.sectionsVisibility?.partners !== false">
+        <template v-if="config.sectionsVisibility?.partners !== false && settings.partners?.is_active">
+
             <ShopPartners @select-partner="handlePartnerSelect"/>
             <div class="container" style="margin-top: 2rem;">
                 <ShopSelectedPartnerBanner v-if="selectedPartner" :partner="selectedPartner" @reset="resetPartnerSelection" />
             </div>
         </template>
+
+        <template v-if="!settings.partners?.is_active">
+            <div class="container" style="margin-top: 2rem;">
+                <SelfShopBanner v-if="tenant"
+                                           :tenant="tenant"
+                                            />
+            </div>
+        </template>
+
 
         <!-- Товары (обычно всегда нужны, но можно скрыть) -->
         <div id="shop-products-section">
@@ -28,6 +38,8 @@
                 />
             </template>
         </div>
+
+
 
         <!-- Остальные секции с проверкой -->
         <ShopPromotions v-if="config.sectionsVisibility?.promotions !== false" />
@@ -136,6 +148,7 @@ import ShopPartners from '@/MobileClient/Components/ShopLanding/ShopPartners.vue
 import ShopProductsSkeleton from '@/MobileClient/Components/ShopLanding/ShopProductsSkeleton.vue';
 import ShopCheckoutForm from '@/MobileClient/Components/ShopLanding/ShopCheckoutForm.vue';
 import ShopSelectedPartnerBanner from '@/MobileClient/Components/ShopLanding/ShopSelectedPartnerBanner.vue';
+import SelfShopBanner from '@/MobileClient/Components/ShopLanding/SelfShopBanner.vue';
 import StoryListLanding from '@/MobileClient/Components/ShopLanding/StoryListLanding.vue';
 
 import { useShopLandingStore } from "@/MobileClient/stores/ShopLanding/shop";
@@ -146,6 +159,7 @@ export default {
 
     components: {
         ShopSelectedPartnerBanner,
+        SelfShopBanner,
         StoryListLanding,
         ShopNavbar,
         ShopHero,
@@ -243,7 +257,10 @@ export default {
                 '--light': t.light || '#fffdf8',
                 '--gray': t.gray || '#6c757d',
             };
-        }
+        },
+        settings(){
+            return this.tenant.settings || null
+        },
     },
 
     methods: {

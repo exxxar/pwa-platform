@@ -364,6 +364,15 @@ class TenantSettingsController extends Controller
         return response()->json(['success' => true, 'message' => 'Бонусные игры обновлены']);
     }
 
+
+    public function updateSeo(Request $request)
+    {
+        $tenant = $this->getTenant();
+        $this->mergeIntoMeta($tenant, ['seo' => $request->input('seo', [])]);
+        return response()->json(['success' => true, 'message' => 'Настройки SEO обновлены']);
+    }
+
+
     /**
      * 9. Обновление CRM
      */

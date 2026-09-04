@@ -105,6 +105,9 @@ export default {
         tenant() {
             return window.Tenant || {};
         },
+        settings(){
+          return this.tenant.settings || null
+        },
 
         tenantName() {
             return this.tenant.name || this.tenant.settings?.company?.name || 'Магазин';

@@ -67,6 +67,7 @@ import TabMainMenu from '@/MobileClient/components/settings/TabMainMenu.vue';
 import TabGuests from '@/MobileClient/components/settings/TabGuests.vue';
 import TabFaq from '@/MobileClient/components/settings/TabFaq.vue';
 import TabTelegram from '@/MobileClient/components/settings/TabTelegram.vue';
+import TabSeo from '@/MobileClient/components/settings/TabSeo.vue';
 
 export default {
     name: 'TenantSettingsPage',
@@ -103,6 +104,7 @@ export default {
                 { key: 'guests', title: 'Гости', icon: 'fa-solid fa-user-astronaut', section: 'guests', component: TabGuests, saveAction: 'saveGuestsSettings' },
                 { key: 'faq', title: 'FAQ', icon: 'fa-solid fa-circle-question', section: 'faq', component: TabFaq, saveAction: 'saveFaqSettings' },
                 { key: 'telegram', title: 'Telegram', icon: 'fa-brands fa-telegram', section: 'telegram', component: TabTelegram, saveAction: 'saveTelegramSettings' },
+                { key: 'seo', title: 'SEO', icon: 'fa-brands fa-telegram', section: 'telegram', component: TabSeo, saveAction: 'saveSeoSettings' },
             ],
 
             // ==========================================

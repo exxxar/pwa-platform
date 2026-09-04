@@ -77,6 +77,12 @@ export default {
                 return { backgroundImage: `url(${this.config.backgroundImage})` };
             }
             return {};
+        },
+        tenant(){
+            return window.Tenant || null
+        },
+        settings(){
+            return this.tenant?.settings || null
         }
     },
     methods: {

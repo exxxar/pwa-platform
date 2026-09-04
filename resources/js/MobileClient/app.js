@@ -28,8 +28,11 @@ import VueLazyLoad from 'vue3-lazyload'
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+const tenant = window.Tenant || null
+
+
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => `${tenant.name} - ${appName}`,
     resolve: (name) => resolvePageComponent(`./Pages/${name}.vue`, import.meta.glob('./Pages/**/*.vue')),
     setup({el, App, props, plugin}) {
 

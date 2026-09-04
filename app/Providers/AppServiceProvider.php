@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Inertia\Inertia;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -89,6 +90,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+
         TenantUser::observe(TenantUserObserver::class);
 
         URL::forceScheme('https');

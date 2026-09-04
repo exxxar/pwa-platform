@@ -29,6 +29,7 @@ return [
         'landing',
         'misc',
         'main_menu',
-        'telegram'
+        'telegram',
+        'seo'
     ],
 ];

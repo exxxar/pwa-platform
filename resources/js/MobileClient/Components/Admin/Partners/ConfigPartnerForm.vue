@@ -336,7 +336,7 @@
             >
                 <template v-if="previewImage">
                     <div class="preview-container">
-                        <img :src="previewImage" class="preview-image" alt="Превью">
+                        <img v-lazy="previewImage" class="preview-image" alt="Превью">
                         <button
                             type="button"
                             class="remove-btn"

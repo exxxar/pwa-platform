@@ -46,14 +46,18 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Tenant\TenantPasswordController;
 use App\Http\Controllers\Tenant\TenantEmailVerificationController;
+use Illuminate\Support\Facades\Session;
 use Inertia\Inertia;
 use Jenssegers\Agent\Agent;
 
-Route::domain('mypwa.ru')->group(function(){
+Route::domain('mypwa.ru')->group(function () {
     Route::view("/", "landing-2");
 });
 
-function routes() {
+function routes()
+{
+
+    Route::get('sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
 
     Route::get('/app-version', function () {
         $version = config('app.version', '1.0.0');
@@ -68,10 +72,14 @@ function routes() {
         if ($agent->isMobile()) {
             return redirect('/pwa', 301);
         }
+
         $tenant = $request->tenant;
-        \Illuminate\Support\Facades\Session::put("tenant", $tenant->name);
+
+        Session::put("tenant", $tenant->toArray());
         $tenantUser = Auth::guard('tenant')->user();
+
         Inertia::setRootView("shop-landing");
+
         return Inertia::render('ShopLanding', [
             'tenant' => $tenant,
             'tenant_user' => $tenantUser
@@ -238,6 +246,7 @@ function routes() {
             Route::put('/menu', [TenantSettingsController::class, 'updateMenu']);
             Route::put('/calculators', [TenantSettingsController::class, 'updateCalculators']);
             Route::put('/games', [TenantSettingsController::class, 'updateGames']);
+            Route::put('/seo', [TenantSettingsController::class, 'updateSeo']);
             Route::put('/crm', [TenantSettingsController::class, 'updateCrm']);
             Route::post('/main-menu/upload-icon', [TenantSettingsController::class, 'uploadMainMenuIcon']);
             Route::post('/main-menu/reset-icon', [TenantSettingsController::class, 'resetMainMenuIcon']);
@@ -564,7 +573,7 @@ Route::middleware(['tenant'])->group(function () {
     routes();
 });
 
-Route::get("/m", function (){
+Route::get("/m", function () {
     return redirect('/pwa', 301);
 });
 
@@ -576,7 +585,8 @@ Route::post('/auth/logout', [TenantAuthController::class, 'logout']);
 
 Route::get('/me', [TenantAuthController::class, 'me']);
 
-Route::middleware(['tenant.access'])->group(function () {});
+Route::middleware(['tenant.access'])->group(function () {
+});
 
 Route::get('/confirm-password', [TenantPasswordController::class, 'confirmPasswordPage'])
     ->middleware('tenant.access')
