@@ -4,13 +4,14 @@
     $seo = $tenant["settings"]["seo"] ?? [];
 @endphp
 
-<!DOCTYPE html>
+    <!DOCTYPE html>
 <html lang="{{ $seo['meta']['language'] ?? 'ru' }}">
 <head>
 
     {{-- 1. Базовые технические мета-теги --}}
     <meta charset="{{ $seo['meta']['charset'] ?? 'UTF-8' }}">
-    <meta name="viewport" content="{{ $seo['meta']['viewport'] ?? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover' }}">
+    <meta name="viewport"
+          content="{{ $seo['meta']['viewport'] ?? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover' }}">
     <meta name="theme-color" content="{{ $seo['images']['theme_color'] ?? '#ffffff' }}">
 
 
@@ -23,19 +24,18 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- 4. Название приложения на домашнем экране iOS (берем из ваших настроек или фоллбэк) -->
-    <meta name="apple-mobile-web-app-title" content="{{ $pwa['short_name'] ?? $tenant->short_name ?? 'Мое Приложение' }}">
+    <meta name="apple-mobile-web-app-title"
+          content="{{ $pwa['short_name'] ?? $tenant->short_name ?? 'Мое Приложение' }}">
 
     <!-- 5. Иконка для iOS (Apple Touch Icon) -->
     <!-- iOS не использует manifest.json для иконок на старых версиях, ей нужна эта ссылка -->
-    <link rel="apple-touch-icon" href="{{ $manifestIcons[0]['src'] ?? url('/storage/defaults/icons/icon-192x192.png') }}">
+    <link rel="apple-touch-icon"
+          href="{{ $manifestIcons[0]['src'] ?? url('/storage/defaults/icons/icon-192x192.png') }}">
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title inertia>{{ $tenant->name ?? 'pwa' }}</title>
+    <title inertia>{{ $seo['meta']['title']  ?? $tenant->name ?? config('app.name') }}</title>
 
-
-    {{-- 2. Заголовок страницы (Title) --}}
-    <title>{{ $seo['meta']['title'] ?? config('app.name') }}</title>
 
     {{-- 3. Основные SEO мета-теги --}}
     @if(!empty($seo['meta']['description']))
@@ -182,7 +182,7 @@
         let touchStartY = 0;
         document.addEventListener('touchstart', e => {
             touchStartY = e.touches[0].clientY;
-        }, { passive: false });
+        }, {passive: false});
 
         document.addEventListener('touchmove', e => {
             // Pull-to-refresh
@@ -193,7 +193,7 @@
             if (e.touches.length >= 2) {
                 e.preventDefault();
             }
-        }, { passive: false });
+        }, {passive: false});
 
 // iOS gestures
         ['gesturestart', 'gesturechange', 'gestureend'].forEach(evt => {
@@ -203,7 +203,7 @@
 // Ctrl+wheel на десктопе
         document.addEventListener('wheel', e => {
             if (e.ctrlKey) e.preventDefault();
-        }, { passive: false });
+        }, {passive: false});
 
     }
     if ('serviceWorker' in navigator) {

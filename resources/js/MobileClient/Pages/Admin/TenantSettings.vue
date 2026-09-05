@@ -104,7 +104,7 @@ export default {
                 { key: 'guests', title: 'Гости', icon: 'fa-solid fa-user-astronaut', section: 'guests', component: TabGuests, saveAction: 'saveGuestsSettings' },
                 { key: 'faq', title: 'FAQ', icon: 'fa-solid fa-circle-question', section: 'faq', component: TabFaq, saveAction: 'saveFaqSettings' },
                 { key: 'telegram', title: 'Telegram', icon: 'fa-brands fa-telegram', section: 'telegram', component: TabTelegram, saveAction: 'saveTelegramSettings' },
-                { key: 'seo', title: 'SEO', icon: 'fa-brands fa-telegram', section: 'telegram', component: TabSeo, saveAction: 'saveSeoSettings' },
+                { key: 'seo', title: 'SEO', icon: 'fa-solid fa-magnifying-glass-chart', section: 'seo', component: TabSeo, saveAction: 'saveSeoSettings' },
             ],
 
             // ==========================================
@@ -189,7 +189,18 @@ export default {
                     { id: 3, title: 'Отслеживание', description: 'Курьер на карте в реальном времени' }
                 ]
             },
-
+            // 🆕 ДОБАВЬТЕ ЭТОТ БЛОК
+            seoForm: {
+                meta: { title: '', description: '', keywords: '', h1: '', robots: 'index, follow', canonical: '' },
+                og: { title: '', description: '', image: '', type: 'website', url: '', site_name: '', locale: 'ru_RU' },
+                twitter: { card: 'summary_large_image', title: '', description: '', image: '', site: '', creator: '' },
+                schema: { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: '', description: '', url: '', telephone: '', email: '', image: '', logo: '', priceRange: '', address: { '@type': 'PostalAddress', streetAddress: '', addressLocality: '', addressRegion: '', postalCode: '', addressCountry: 'RU' }, geo: { '@type': 'GeoCoordinates', latitude: '', longitude: '' } },
+                sitemap: { priority: '0.8', changefreq: 'weekly', include_in_sitemap: true },
+                social: { vk: '', telegram: '', instagram: '', youtube: '', facebook: '', twitter: '', whatsapp: '' },
+                images: { cover_alt: '', logo_alt: '', favicon: '/favicon.ico', apple_touch_icon: '/apple-touch-icon.png', theme_color: '#ffffff' },
+                local: { inn: '', ogrn: '', city: '', region: '', country: 'RU', timezone: 'Europe/Moscow', nearest_cities: '' },
+                advanced: { noindex: false, nofollow: false, noarchive: false, noimageindex: false, notranslate: false, hreflang: [] }
+            },
             cashbackForm: {
                 max_cashback_use_percent: 15, level_1: 0, level_2: 0, level_3: 0,
                 expiration_period: 'never', expiration_percent: 100,
@@ -249,6 +260,7 @@ export default {
                 guests: this.guestsForm,
                 faq: this.faqForm,
                 telegram: this.telegramForm,
+                seo: this.seoForm,
             };
             return map[this.currentTab.key];
         },
@@ -380,6 +392,19 @@ export default {
                 thread_id: tgSettings.thread_id || ''
             };
 
+            const seoSettings = settings.seo || {};
+            this.seoForm = {
+                meta: { ...this.seoForm.meta, ...(seoSettings.meta || {}) },
+                og: { ...this.seoForm.og, ...(seoSettings.og || {}) },
+                twitter: { ...this.seoForm.twitter, ...(seoSettings.twitter || {}) },
+                schema: { ...this.seoForm.schema, ...(seoSettings.schema || {}) },
+                sitemap: { ...this.seoForm.sitemap, ...(seoSettings.sitemap || {}) },
+                social: { ...this.seoForm.social, ...(seoSettings.social || {}) },
+                images: { ...this.seoForm.images, ...(seoSettings.images || {}) },
+                local: { ...this.seoForm.local, ...(seoSettings.local || {}) },
+                advanced: { ...this.seoForm.advanced, ...(seoSettings.advanced || {}) },
+            };
+
             try {
                 const response = await axios.get('/admin/tenant-settings/pwa');
                 const pwaData = response.data.settings || {};
@@ -390,6 +415,8 @@ export default {
             } catch (error) {
                 console.error('Ошибка загрузки PWA настроек:', error);
             }
+
+
         },
     },
 };

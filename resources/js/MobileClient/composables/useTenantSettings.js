@@ -127,6 +127,7 @@ export function useTenantSettings() {
 
     const saveCrmSettings = (data) => executeSave('crm', '/admin/tenant-settings/crm', { crm: data });
     const savePwaSettings = (data) => executeSave('pwa', '/admin/tenant-settings/pwa', data);
+    const saveSeoSettings = (data) => executeSave('pwa', '/admin/tenant-settings/seo', data);
     const saveIconsSettings = (formData) => executeSave('icons', '/admin/tenant-settings/pwa/upload-icon', formData, 'post');
     const saveMainMenuSettings = (data) => executeSave('main_menu_items', '/admin/tenant-settings/main-menu', { main_menu_items: data });
     const saveGuestsSettings = (data) => executeSave('guests', '/admin/tenant-settings/guests', data);
@@ -163,6 +164,7 @@ export function useTenantSettings() {
         saveTelegramSettings,
         saveBasicInfo, saveCompanyInfo, saveShopSettings, saveCashbackSettings, saveInteractiveSettings, saveTablesSettings,
         saveFaqSettings, // ✅ Экспортируем новый метод
+        saveSeoSettings, // ✅ Экспортируем новый метод
         saveMenuSettings, saveCalculatorsSettings, saveFoodCalculatorsSettings, saveGamesSettings, saveBonusGamesSettings, saveCrmSettings, savePwaSettings, saveIconsSettings, saveMainMenuSettings, saveGuestsSettings,
         // Сброс
         $reset: store.$reset,

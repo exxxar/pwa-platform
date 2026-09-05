@@ -15,12 +15,7 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title inertia>{{ $tenant->name ?? 'pwa' }}</title>
-
-
-
-    {{-- 2. Заголовок страницы (Title) --}}
-    <title>{{ $seo['meta']['title'] ?? config('app.name') }}</title>
+    <title inertia>{{ $seo['meta']['title']  ?? $tenant->name ?? config('app.name') }}</title>
 
     {{-- 3. Основные SEO мета-теги --}}
     @if(!empty($seo['meta']['description']))

@@ -408,7 +408,7 @@ export default {
         handlePartnerSelect(partner) {
             this.selectedPartner = partner;
             this.shopStore.partnerId = partner.id;
-            this.shopStore.fetchShopData(partner.id);
+            this.shopStore.fetchShopData(partner.tenant_partner_id);
 
             this.$nextTick(() => {
                 const productsSection = document.getElementById('shop-products-section');

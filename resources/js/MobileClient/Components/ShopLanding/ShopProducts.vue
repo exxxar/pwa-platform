@@ -70,7 +70,8 @@
                                     class="product-card"
                                 >
                                     <div class="product-image" @click="openModal(product)">
-                                        <img v-lazy="preparedImageLink(product.images[0].url)" :alt="product.name" loading="lazy"
+                                        <img v-lazy="preparedImageLink(product.images[0].url)" :alt="product.name"
+                                             loading="lazy"
                                              @error="handleImageError">
                                         <div v-if="product.badge" class="product-badge">{{ product.badge }}</div>
                                     </div>
@@ -173,6 +174,8 @@ export default {
 
     methods: {
         preparedImageLink(img) {
+            if (img.indexOf('http') !== -1)
+                return img
             const base = "https://" + this.tenant.slug + ".mypwa.ru"
             return base + (img || '/logo.png');
         },
@@ -505,7 +508,6 @@ export default {
 }
 
 
-
 .loading-state {
     display: flex;
     flex-direction: column;
@@ -746,7 +748,6 @@ export default {
     text-align: center;
     color: var(--dark, #222);
 }
-
 
 
 .qty-btn {

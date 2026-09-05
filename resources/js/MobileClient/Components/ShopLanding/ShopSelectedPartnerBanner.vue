@@ -3,7 +3,7 @@
         <div class="partner-banner" v-if="partner">
             <!-- 1. Обложка (Cover) -->
             <div class="banner-cover">
-                <img v-lazy="partner.cover_image || partner.image || '/images/default-cover.jpg'" alt="Cover" class="cover-image">
+                <img v-lazy="preparedImageLink" alt="Cover" class="cover-image">
                 <div class="cover-overlay"></div>
 
                 <!-- Кнопка сброса выбора -->
@@ -19,7 +19,7 @@
                     <!-- Логотип -->
                     <div class="partner-logo-wrapper">
                         <div class="partner-logo">
-                            <img v-lazy="partner.logo || partner.image || '/images/default-logo.png'" alt="Logo">
+                            <img v-lazy="preparedImageLink" alt="Logo">
                         </div>
                     </div>
 
@@ -209,6 +209,13 @@ export default {
         };
     },
     computed: {
+        tenant(){
+          return window.Tenant || null
+        },
+        preparedImageLink() {
+            const base = "https://" + this.tenant.slug + ".mypwa.ru"
+            return base + (this.partner.image || this.partner.logo || '/logo.png');
+        },
         isOpen() {
             if (this.partner.is_disabled) return false;
             return this.partner.is_work !== false || this.partner.can_buy_after_closing;
