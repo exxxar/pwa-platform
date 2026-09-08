@@ -8,7 +8,7 @@ use Inertia\Inertia;
 // 🌐 AUTH
 // ==========================================
 
-Route::prefix('admin')->group(function () {
+/*Route::prefix('admin')->group(function () {
 
     Route::get('/login', function () {
         Inertia::setRootView("app");
@@ -294,4 +294,4 @@ Route::prefix('admin')->group(function () {
                 ->name('admin.exports.tenants');
         });
     });
-});
+});*/
