@@ -32,36 +32,45 @@ const tenant = window.Tenant || null
 
 
 createInertiaApp({
-    title: (title) => `${tenant.name} - ${appName}`,
+    title: (title) => `${tenant?.name || ''} - ${appName}`,
     resolve: (name) => resolvePageComponent(`./Pages/${name}.vue`, import.meta.glob('./Pages/**/*.vue')),
-    setup({el, App, props, plugin}) {
+    setup({ el, App, props, plugin }) {
+        const app = createApp({ render: () => h(App, props) });
 
-        const app = createApp({render: () => h(App, props)});
+        // 1. Сначала создаем и подключаем Pinia (до всех остальных плагинов)
+        const pinia = createPinia();
+        app.use(pinia);
 
-        // Директива v-can="['admin', 'worker']" или v-can="'manage_orders'"
+        // 2. Подключаем Inertia plugin и роутер
+        app.use(plugin)
+            .use(router);
+
+        // 3. Остальные плагины
+        app.use(ZiggyVue)
+            .use(NotificationPlugin, { position: 'top-right' })
+            .use(Vue3TouchEvents)
+            .use(VueLazyLoad, {
+                loading: '../pwa-lazy.jpg',
+                error: '../pwa-lazy.jpg'
+            });
+
+        // 4. Глобальные свойства и директивы
         app.directive('can', {
             mounted(el, binding) {
                 const user = window.TenantUser || {};
                 const value = binding.value;
-
                 let hasAccess = false;
 
-                // Если передали массив или строку ролей
                 if (typeof value === 'string' || Array.isArray(value)) {
                     const rolesToCheck = Array.isArray(value) ? value : [value];
                     hasAccess = rolesToCheck.some(role => user.role_names?.includes(role));
-                }
-                // Если передали объект с настройками (продвинутый уровень)
-                else if (typeof value === 'object' && value.permission) {
+                } else if (typeof value === 'object' && value.permission) {
                     const permsToCheck = Array.isArray(value.permission) ? value.permission : [value.permission];
-                    if (user.role_names?.includes('super_admin')) {
-                        hasAccess = true;
-                    } else {
-                        hasAccess = permsToCheck.some(perm => user.permission_names?.includes(perm));
-                    }
+                    hasAccess = user.role_names?.includes('super_admin')
+                        ? true
+                        : permsToCheck.some(perm => user.permission_names?.includes(perm));
                 }
 
-                // Если доступа нет, удаляем элемент из DOM
                 if (!hasAccess) {
                     el.parentNode?.removeChild(el);
                 }
@@ -69,51 +78,24 @@ createInertiaApp({
         });
 
         app.config.globalProperties.$filters = {
-            local(date){
-                return moment(date).format("YYYY-MM-DDThh:mm")
-            },
-            timeAgo(date) {
-                return moment(date).fromNow()
-            },
-            current(date) {
-                return moment(date).format("YYYY-MM-DD")
-            },
-            currentFull(date) {
-                return moment(date).format("YYYY-MM-DD HH:mm:ss")
-            },
-        }
+            local: (date) => moment(date).format("YYYY-MM-DDThh:mm"),
+            timeAgo: (date) => moment(date).fromNow(),
+            current: (date) => moment(date).format("YYYY-MM-DD"),
+            currentFull: (date) => moment(date).format("YYYY-MM-DD HH:mm:ss"),
+        };
 
         app.config.globalProperties.$tenant = {
             ...window.Tenant,
-            auth:  window.TenantAuth || null,
+            auth: window.TenantAuth || null,
             user: window.TenantUser || null
-        }
-        app.config.globalProperties.$productInfo = ProductInfo
-        app.config.globalProperties.$preloader = Preloader
+        };
+        app.config.globalProperties.$productInfo = ProductInfo;
+        app.config.globalProperties.$preloader = Preloader;
 
-        const pinia = createPinia();
-        setActivePinia(pinia);
-
-        return app
-            .use(NotificationPlugin, {
-                position: 'top-right', // top-right, top-left, bottom-right, bottom-left, top-center, bottom-center
-            })
-            .use(plugin)
-            .use(pinia)
-
-            .use(router)
-            .use(ZiggyVue)
-            .use(Vue3TouchEvents)
-            .use(VueLazyLoad,
-                {
-                    loading: '../pwa-lazy.jpg',
-                    error: '../pwa-lazy.jpg'
-                })
-            .mount(el);
+        // 5. Монтируем приложение в самом конце
+        return app.mount(el);
     },
-    progress: {
-        color: '#4B5563',
-    },
+    progress: { color: '#4B5563' },
 });
 
 if (import.meta.env.PROD) { // Только в production!

@@ -2,10 +2,13 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Agent\Agent;
+use App\Models\Agent\AgentClient;
+use App\Models\Agent\AgentReferral;
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
@@ -631,5 +634,29 @@ class TenantUser extends Authenticatable
     public function dialogs()
     {
         return $this->hasMany(TenantDialog::class);
+    }
+
+    // Добавьте в существующий TenantUser.php:
+
+    public function agentProfile(): HasOne
+    {
+        return $this->hasOne(Agent::class);
+    }
+
+    public function isAgent(): bool
+    {
+        return $this->agentProfile()->exists();
+    }
+
+// Клиент у каких агентов
+    public function agentClientships(): HasMany
+    {
+        return $this->hasMany(AgentClient::class);
+    }
+
+// Агентские рефералы (куда пришёл)
+    public function agentReferrals(): HasMany
+    {
+        return $this->hasMany(AgentReferral::class, 'referred_tenant_user_id');
     }
 }

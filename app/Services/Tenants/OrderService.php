@@ -255,7 +255,7 @@ class OrderService
      * @throws HttpException
      * @throws ValidationException
      */
-    public function repeatOrder(array $data): \App\Http\Resources\BasketCollection
+    public function repeatOrder(array $data): array
     {
         $tenant = app('tenant');
 

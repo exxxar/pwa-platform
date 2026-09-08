@@ -3,9 +3,12 @@
 namespace App\Models\Tenant;
 
 use App\Enums\IntegrationTypeEnum;
+use App\Models\Agent\Agent;
+use App\Models\Agent\AgentClient;
 use App\Services\Tenants\TenantSettingsService;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -250,5 +253,20 @@ class Tenant extends Model
     public function getActiveTapLinksAttribute()
     {
         return $this->tapLinks()->where('is_active', true)->get();
+    }
+
+    public function agent(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Agent::class);
+    }
+
+    public function agentClient(): BelongsTo
+    {
+        return $this->belongsTo(AgentClient::class, 'client_id');
+    }
+
+    public function scopeByAgent($query, Agent $agent)
+    {
+        return $query->where('agent_id', $agent->id);
     }
 }

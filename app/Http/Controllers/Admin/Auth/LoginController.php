@@ -16,12 +16,15 @@ class LoginController extends Controller
             'password' => 'required|string',
         ]);
 
+
         // Пытаемся авторизовать пользователя
         if (!Auth::guard('web')->attempt($request->only('email', 'password'), $request->boolean('remember'))) {
             throw ValidationException::withMessages([
                 'email' => ['Неверные учетные данные.'],
             ]);
         }
+
+
 
         // Регенерируем сессию для защиты от CSRF-атак
         $request->session()->regenerate();

@@ -22,12 +22,12 @@ export default defineConfig(({ mode }) => {
             laravel({
                 input: [
                     'resources/js/MobileClient/app.js',
-                 //   'resources/js/AdminPanel/app.js',
-                  //  'resources/css/AdminPanel/app.css',
+                    'resources/js/AdminPanel/app.js',
+                    'resources/css/AdminPanel/app.css',
                     'resources/css/MobileClient/app.css',
                 ],
                 ssr: [
-                   // 'resources/js/AdminPanel/ssr.js',
+                    'resources/js/AdminPanel/ssr.js',
                     'resources/js/MobileClient/ssr.js',
                 ],
                 refresh: true,
@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
         ],
         resolve: {
             alias: {
-               // 'AdminPanel@': path.resolve(__dirname, './resources/js/AdminPanel'),
+                'AdminPanel@': path.resolve(__dirname, './resources/js/AdminPanel'),
                 'Mobile@': path.resolve(__dirname, './resources/js/MobileClient'),
             },
         },

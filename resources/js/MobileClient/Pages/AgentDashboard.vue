@@ -264,7 +264,11 @@
     </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { useAgent } from '@/MobileClient/composables/useAgent.js';
+
+// Импорт компонентов
 import AgentOverview from '@/MobileClient/Components/Agent/AgentOverview.vue';
 import AgentTenants from '@/MobileClient/Components/Agent/AgentTenants.vue';
 import AgentFinance from '@/MobileClient/Components/Agent/AgentFinance.vue';
@@ -272,294 +276,121 @@ import AgentDocuments from '@/MobileClient/Components/Agent/AgentDocuments.vue';
 import AgentMarketing from '@/MobileClient/Components/Agent/AgentMarketing.vue';
 import AgentIncomeForecast from '@/MobileClient/Components/Agent/AgentIncomeForecast.vue';
 import AgentProfileSettings from '@/MobileClient/Components/Agent/AgentProfileSettings.vue';
-export default {
-    name: "AgentDashboard",
-    components: {
-        AgentOverview,
-        AgentTenants,
-        AgentFinance,
-        AgentDocuments,
-        AgentMarketing,
-        AgentProfileSettings,
-        AgentIncomeForecast,
-    },
-    data() {
-        return {
-            activeTab: 'overview',
 
-            showProfileModal: false,
-            // Глобальное состояние
-            agent: {
-                name: 'Александр Петров',
-                status: 'verified',
-                balance: 45200,
-                pending_balance: 12000,
-                total_earned: 187500,
-                tenant_count: 12,
-                clients_count: 9,
-                referrals_count: 156,
-            },
-            tabs: [
-                {id: 'overview', label: 'Обзор', icon: 'fa-solid fa-chart-pie'},
-                {id: 'tenants', label: 'Мои приложения', icon: 'fa-solid fa-rotenant', badge: 12},
-                { id: 'forecast', label: 'Прогноз', icon: 'fa-solid fa-chart-line' },
-                {id: 'finance', label: 'Финансы', icon: 'fa-solid fa-wallet'},
-                {id: 'documents', label: 'Документы', icon: 'fa-solid fa-folder-open'},
-                {id: 'marketing', label: 'Маркетинг', icon: 'fa-solid fa-bullhorn'},
-            ],
+// Инициализация композабла — теперь agent доступен напрямую!
+const {
+    store,
+    agent,
+    tenants,
+    transactions,
+    documents,
+    marketingCategories,
+    verificationStatus,
+    notifications,
+    agentInitials,
+    statusText,
+    recentActivities,
+    formatPrice,
+    notify
+} = useAgent();
 
-            // Данные для передачи в дочерние компоненты
-            tenants: [
-                {
-                    id: 1,
-                    name: 'Бот для кофейни "Арома"',
-                    client_name: 'Иван Иванов',
-                    status: 'active',
-                    statusText: 'Активен',
-                    icon: 'fa-solid fa-mug-hot',
-                    color: 'linear-gradient(135deg, #8b4513 0%, #d2691e 100%)',
-                    created_at: '15.06.2026',
-                    earnings: 15000
-                },
-                {
-                    id: 2,
-                    name: 'Магазин цветов "Флора"',
-                    client_name: 'Мария Сидорова',
-                    status: 'active',
-                    statusText: 'Активен',
-                    icon: 'fa-solid fa-seedling',
-                    color: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    created_at: '10.06.2026',
-                    earnings: 22000
-                },
-                {
-                    id: 3,
-                    name: 'Салон красоты "Гламур"',
-                    client_name: 'Елена Козлова',
-                    status: 'draft',
-                    statusText: 'Черновик',
-                    icon: 'fa-solid fa-spa',
-                    color: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
-                    created_at: '05.06.2026',
-                    earnings: 0
-                },
-            ],
-            transactions: [
-                {
-                    id: 1,
-                    type: 'income',
-                    icon: 'fa-solid fa-plus',
-                    title: 'Оплата от Иванова И.И.',
-                    date: '15 июня 2026',
-                    amount: '+15 000 ₽',
-                    amountClass: 'income'
-                },
-                {
-                    id: 2,
-                    type: 'payout',
-                    icon: 'fa-solid fa-arrow-up',
-                    title: 'Вывод на карту',
-                    date: '12 июня 2026',
-                    amount: '−30 000 ₽',
-                    amountClass: 'expense'
-                },
-            ],
-            recentActivities: [],
-            notifications: [
-                {id: 1, type: 'success', icon: 'fa-solid fa-circle-check', text: 'Документы успешно верифицированы'},
-            ],
-            requiredDocuments: [
-                {
-                    id: 1,
-                    title: 'Паспорт',
-                    description: 'Разворот с фото и прописка',
-                    icon: 'fa-solid fa-id-card',
-                    required: true,
-                    uploaded: true,
-                    uploaded_at: '10.05.2026'
-                },
-                {
-                    id: 2,
-                    title: 'СНИЛС',
-                    description: 'Страховое свидетельство',
-                    icon: 'fa-solid fa-shield-halved',
-                    required: true,
-                    uploaded: false
-                },
-            ],
-            marketingCategories: [
-                {
-                    id: 1,
-                    title: 'Презентации',
-                    description: 'Материалы для встреч',
-                    icon: 'fa-regular fa-file-powerpoint',
-                    color: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                    materials: [{
-                        id: 101,
-                        title: 'Презентация продукта',
-                        size: '2.4 МБ',
-                        url: '/marketing/presentation.pdf'
-                    }]
-                },
-                {
-                    id: 2,
-                    title: 'Договора',
-                    description: 'Шаблон договора',
-                    icon: 'fa-solid fa-file-invoice-dollar',
-                    color: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                    materials: [{
-                        id: 102,
-                        title: 'Шаблон договора',
-                        size: '12.4 МБ',
-                        url: '/marketing/document.doc'
-                    }]
-                }
-            ],
-            verificationStatus: 'partial',
+// --- Локальное UI-состояние ---
+const activeTab = ref('overview');
+const showProfileModal = ref(false);
+const showInvoiceModal = ref(false);
+const showAllTransactionsModal = ref(false);
+const modalTransactionFilter = ref('all');
 
-            showInvoiceModal: false, // <-- Добавляем это
-            showAllTransactionsModal: false,
-            modalTransactionFilter: 'all', // 'all', 'income', 'payout'
-            invoiceForm: {           // <-- Добавляем это
-                client_name: '',
-                client_email: '',
-                service_type: 'bot',
-                amount: null,
-                description: '',
-            },
-        };
-    },
-    computed: {
-        filteredModalTransactions() {
-            if (this.modalTransactionFilter === 'all') return this.transactions;
-            return this.transactions.filter(t => t.type === this.modalTransactionFilter);
-        },
-        agentInitials() {
-            return this.agent.name ? this.agent.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'А';
-        },
-        statusText() {
-            const statuses = {pending: 'На проверке', verified: 'Верифицирован', suspended: 'Приостановлен'};
-            return statuses[this.agent.status] || 'Неизвестно';
-        }
-    },
-    mounted() {
-        this.recentActivities = this.transactions.slice(0, 5);
-    },
-    methods: {
-        openProfileSettings() {
-            this.showProfileModal = true;
-        },
+const invoiceForm = ref({
+    client_name: '', client_email: '', service_type: 'bot', amount: null, description: ''
+});
 
-        handleProfileSave(updatedProfileData) {
-            // Обновляем данные агента в главном состоянии
-            this.agent = {
-                ...this.agent,
-                profile: updatedProfileData,
-                name: updatedProfileData.name // Обновляем имя для шапки
-            };
+const tabs = [
+    { id: 'overview', label: 'Обзор', icon: 'fa-solid fa-chart-pie' },
+    { id: 'tenants', label: 'Мои приложения', icon: 'fa-solid fa-robot', badge: 12 },
+    { id: 'forecast', label: 'Прогноз', icon: 'fa-solid fa-chart-line' },
+    { id: 'finance', label: 'Финансы', icon: 'fa-solid fa-wallet' },
+    { id: 'documents', label: 'Документы', icon: 'fa-solid fa-folder-open' },
+    { id: 'marketing', label: 'Маркетинг', icon: 'fa-solid fa-bullhorn' },
+];
 
-            this.showProfileModal = false;
+// --- Вычисляемые свойства ---
+const filteredModalTransactions = computed(() => {
+    if (modalTransactionFilter.value === 'all') return transactions.value;
+    return transactions.value.filter(t => t.type === modalTransactionFilter.value);
+});
 
-            this.$notify?.({
-                title: 'Успех',
-                text: 'Данные профиля и реквизиты сохранены',
-                type: 'success'
-            });
-        },
-        openAllTransactionsModal() {
-            this.modalTransactionFilter = 'all'; // Сбрасываем фильтр при открытии
-            this.showAllTransactionsModal = true;
-        },
-        openInvoiceModal() {
-
-            this.invoiceForm = {
-                client_name: '',
-                client_email: '',
-                service_type: 'bot',
-                amount: null,
-                description: '',
-            };
-            this.showInvoiceModal = true;
-        },
-
-        // Метод отправки счёта
-        async submitInvoice() {
-            if (!this.invoiceForm.client_name || !this.invoiceForm.amount) {
-                this.$notify?.({ title: 'Ошибка', text: 'Заполните название клиента и сумму', type: 'error' });
-                return;
-            }
-
-            try {
-                // TODO: await this.$store.dispatch('createInvoice', this.invoiceForm);
-                await new Promise(resolve => setTimeout(resolve, 800)); // Имитация запроса
-
-                this.$notify?.({
-                    title: 'Успех',
-                    text: `Счёт на ${this.formatPrice(this.invoiceForm.amount)} отправлен клиенту`,
-                    type: 'success'
-                });
-
-                this.showInvoiceModal = false;
-            } catch (err) {
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось создать счёт', type: 'error' });
-            }
-        },
-
-        formatPrice(price) {
-            return new Intl.NumberFormat('ru-RU', {
-                style: 'currency',
-                currency: 'RUB',
-                minimumFractionDigits: 0
-            }).format(price || 0);
-        },
-
-        // Методы-обработчики событий от дочерних компонентов
-        createNewTenant() {
-            this.$notify?.({title: 'Создание', text: 'Переход к мастеру', type: 'info'});
-        },
-        editTenant(tenant) {
-            this.$notify?.({title: 'Редактирование', text: `Настройки: ${tenant.name}`, type: 'info'});
-        },
-        viewTenant(tenant) {
-            this.$notify?.({title: 'Просмотр', text: `Открываем: ${tenant.name}`, type: 'info'});
-        },
-        deleteTenant(tenantId) {
-            this.tenants = this.tenants.filter(b => b.id !== tenantId);
-            this.agent.tenant_count = this.tenants.length;
-            this.$notify?.({title: 'Успех', text: 'Бот удалён', type: 'success'});
-        },
-        handlePayout(data) {
-            this.agent.balance -= data.amount;
-            this.$notify?.({
-                title: 'Выплата',
-                text: `Заявка на ${this.formatPrice(data.amount)} принята`,
-                type: 'success'
-            });
-        },
-        handleInvoice(data) {
-            this.$notify?.({
-                title: 'Счёт',
-                text: `Счёт на ${this.formatPrice(data.amount)} отправлен`,
-                type: 'success'
-            });
-        },
-        handleDocumentUpload(docId) {
-            const doc = this.requiredDocuments.find(d => d.id === docId);
-            if (doc) {
-                doc.uploaded = true;
-                doc.uploaded_at = new Date().toLocaleDateString('ru-RU');
-                this.verificationStatus = 'verified'; // Упрощенная логика для примера
-                this.$notify?.({title: 'Успех', text: 'Документ загружен', type: 'success'});
-            }
-        },
-        downloadMaterial(material) {
-            this.$notify?.({title: 'Скачивание', text: `Файл "${material.title}" скачивается`, type: 'success'});
-        },
-        copyReferralLink() {
-            this.$notify?.({title: 'Успех', text: 'Ссылка скопирована в буфер обмена', type: 'success'});
-        }
+// --- Методы ---
+const handleProfileSave = async (updatedProfileData) => {
+    try {
+        await store.updateProfile(updatedProfileData);
+        showProfileModal.value = false;
+        notify({ title: 'Успех', text: 'Данные профиля и реквизиты сохранены', type: 'success' });
+    } catch (err) {
+        notify({ title: 'Ошибка', text: 'Не удалось сохранить профиль', type: 'error' });
     }
 };
+
+const submitInvoice = async () => {
+    if (!invoiceForm.value.client_name || !invoiceForm.value.amount) {
+        notify({ title: 'Ошибка', text: 'Заполните название клиента и сумму', type: 'error' });
+        return;
+    }
+    try {
+        await store.createInvoice(invoiceForm.value);
+        notify({ title: 'Успех', text: `Счёт на ${formatPrice(invoiceForm.value.amount)} отправлен клиенту`, type: 'success' });
+        showInvoiceModal.value = false;
+    } catch (err) {
+        notify({ title: 'Ошибка', text: 'Не удалось создать счёт', type: 'error' });
+    }
+};
+
+const handlePayout = async (data) => {
+    try {
+        await store.requestPayout(data.amount);
+        notify({ title: 'Выплата', text: `Заявка на ${formatPrice(data.amount)} принята`, type: 'success' });
+    } catch (err) {
+        notify({ title: 'Ошибка', text: err.message, type: 'error' });
+    }
+};
+
+const handleDocumentUpload = async (docId) => {
+    try {
+        await store.uploadDocument(docId);
+        notify({ title: 'Успех', text: 'Документ загружен', type: 'success' });
+    } catch (err) {
+        notify({ title: 'Ошибка', text: 'Не удалось загрузить документ', type: 'error' });
+    }
+};
+
+const deleteTenant = async (tenantId) => {
+    try {
+        await store.deleteTenant(tenantId);
+        notify({ title: 'Успех', text: 'Приложение удалено', type: 'success' });
+    } catch (err) {
+        notify({ title: 'Ошибка', text: 'Не удалось удалить', type: 'error' });
+    }
+};
+
+const createNewTenant = () => notify({ title: 'Создание', text: 'Переход к мастеру', type: 'info' });
+const editTenant = (tenant) => notify({ title: 'Редактирование', text: `Настройки: ${tenant.name}`, type: 'info' });
+const viewTenant = (tenant) => notify({ title: 'Просмотр', text: `Открываем: ${tenant.name}`, type: 'info' });
+const downloadMaterial = (material) => notify({ title: 'Скачивание', text: `Файл "${material.title}" скачивается`, type: 'success' });
+const copyReferralLink = () => notify({ title: 'Успех', text: 'Ссылка скопирована в буфер обмена', type: 'success' });
+const openProfileSettings = () => { showProfileModal.value = true; };
+const openInvoiceModal = () => {
+    invoiceForm.value = { client_name: '', client_email: '', service_type: 'bot', amount: null, description: '' };
+    showInvoiceModal.value = true;
+};
+const openAllTransactionsModal = () => {
+    modalTransactionFilter.value = 'all';
+    showAllTransactionsModal.value = true;
+};
+
+// --- Lifecycle ---
+onMounted(async () => {
+    await store.fetchAgentData();
+});
 </script>
 
 <style lang="scss" scoped>

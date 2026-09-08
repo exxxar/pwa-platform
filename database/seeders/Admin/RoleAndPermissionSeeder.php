@@ -158,7 +158,7 @@ class RoleAndPermissionSeeder extends Seeder
             ['email' => 'admin@example.com'],
             [
                 'name' => 'Главный Администратор',
-                'password' => 'password', // Будет захеширован мутиратором
+                'password' => bcrypt('password'), // Будет захеширован мутиратором
             ]
         );
 

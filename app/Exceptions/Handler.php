@@ -2,6 +2,9 @@
 
 namespace App\Exceptions;
 
+use App\Exceptions\Agent\AgentNotVerifiedException;
+use App\Exceptions\Agent\DocumentValidationException;
+use App\Exceptions\Agent\InsufficientBalanceException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
 
@@ -44,6 +47,34 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+
+        // Рендерим агентские исключения в JSON
+        $this->renderable(function (InsufficientBalanceException $e, $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+        });
+
+        $this->renderable(function (AgentNotVerifiedException $e, $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 403);
+            }
+        });
+
+        $this->renderable(function (DocumentValidationException $e, $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+        });
     }
 
     public function render($request, Throwable $e)
@@ -71,6 +102,7 @@ class Handler extends ExceptionHandler
                 ], 404);
             }
         }
+
 
         return parent::render($request, $e);
     }

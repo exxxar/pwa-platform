@@ -117,7 +117,7 @@
                             'is-loading': isProductLoading(item.id)
                         }"
                         :disabled="!canProductAction"
-                        @click.stop="incProductCart"
+                        @click.stop="handleAddClick"
                     >
                         <div class="add-btn-content">
                             <div class="add-icon">
@@ -263,7 +263,9 @@ export default {
     },
 
     computed: {
-
+        hasModifiers() {
+            return Boolean(this.item?.is_composite) || (this.item?.ingredient_groups && this.item.ingredient_groups.length > 0);
+        },
         getFirstImage() {
             if (!this.item) return '/no-image.png';
 
@@ -411,6 +413,21 @@ export default {
     },
 
     methods: {
+        handleAddClick() {
+            if (this.hasModifiers) {
+                // Передаем вторым аргументом объект с флагом прокрутки
+                if (this.$productInfo?.show) {
+                    this.$productInfo.show(this.item, { scrollToOptions: true });
+                } else {
+                    // Фоллбэк через CustomEvent
+                    window.dispatchEvent(new CustomEvent('product-info-event', {
+                        detail: { product: this.item, scrollToOptions: true }
+                    }));
+                }
+            } else {
+                this.incProductCart();
+            }
+        },
         // ==========================================
         // ПРОСМОТР ДЕТАЛЕЙ
         // ==========================================

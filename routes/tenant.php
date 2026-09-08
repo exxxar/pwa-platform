@@ -97,6 +97,10 @@ function routes()
         ->where('any', '.*')
         ->name("shop.landing");
 
+    Route::get('/agents/{any?}', [TenantAuthController::class, 'handlerAgent'])
+        ->where('any', '.*')
+        ->name("shop.agent");
+
     Route::get('/pwa/{any?}', [TenantAuthController::class, 'handler'])
         ->where('any', '.*');
 

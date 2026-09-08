@@ -99,5 +99,7 @@ class Kernel extends HttpKernel
 
         'tenant.resolve' => \App\Http\Middleware\Tenant\TenantResolver::class,
         'tenant.user' => \App\Http\Middleware\Tenant\TenantUserResolver::class,
+
+        'agent' => \App\Http\Middleware\EnsureAgent::class,
     ];
 }

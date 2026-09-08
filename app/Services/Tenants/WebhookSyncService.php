@@ -647,6 +647,9 @@ class WebhookSyncService
      * Полностью заменяет старые группы и их ингредиенты при каждом вебхуке.
      * Каскадное удаление через БД позаботится о чистоте данных.
      */
+    /**
+     * 🔥 Синхронизация групп ингредиентов (новая структура с правилами)
+     */
     protected function syncIngredientGroups(Tenant $tenant, Product $product, array $groups): void
     {
         // Полностью удаляем старые группы (каскадно удалятся и их ингредиенты)
@@ -656,6 +659,13 @@ class WebhookSyncService
             $group = $product->ingredientGroups()->create([
                 'tenant_id' => $tenant->id,
                 'name' => $groupData['name'] ?? 'Без названия',
+
+                // ✅ БЕЗОПАСНЫЕ Фоллбэки для старых данных
+                'selection_rule' => $groupData['selection_rule'] ?? 'multiple',
+                'min_select' => (int)($groupData['min_select'] ?? 0),
+                'max_select' => (int)($groupData['max_select'] ?? 999),
+                'is_required' => (bool)($groupData['is_required'] ?? false),
+
                 'sort_order' => $groupData['sort_order'] ?? $groupIndex,
             ]);
 

@@ -2,6 +2,8 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Agent\Agent;
+use App\Models\Agent\AgentClient;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -65,5 +67,27 @@ class Transaction extends Model
     public function getFormattedAmountAttribute(): string
     {
         return number_format($this->amount, 2, '.', ' ') . ' ' . $this->currency;
+    }
+
+    // Добавьте в существующий Transaction.php:
+
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(Agent::class);
+    }
+
+    public function agentClient(): BelongsTo
+    {
+        return $this->belongsTo(AgentClient::class);
+    }
+
+    public function related()
+    {
+        return $this->morphTo();
+    }
+
+    public function scopeAgentTransactions($query)
+    {
+        return $query->whereNotNull('agent_id');
     }
 }
