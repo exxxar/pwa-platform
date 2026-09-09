@@ -572,7 +572,7 @@ trait BasketHelper
             'delivery_details' => json_decode($data["delivery_details"] ?? '[]', true) ?: [],
             'use_cashback' => ($data["use_cashback"] ?? "false") === "true",
             'customer_name' => $data["name"] ?? 'Нет имени',
-            'customer_phone' => $data["phone"] ?? null,
+            'customer_phone' => $data["phone"] ? $this->cleanPhone($data["phone"]) : $this->tenantUser->phone,
             'persons' => $data["persons"] ?? null,
         ];
     }
