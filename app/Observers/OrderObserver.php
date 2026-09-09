@@ -12,17 +12,20 @@ use Illuminate\Support\Facades\Log;
 class OrderObserver
 {
     /**
-     * 🆕 ВРЕМЕННЫЙ ФЛАГ: Начислять бонусы сразу при создании заказа (без проверки статуса)
-     * Установите в false, когда перейдете на нормальную логику (бонусы только после оплаты)
+     * ВРЕМЕННЫЙ ФЛАГ:
+     * Начислять бонусы сразу при создании заказа (без проверки статуса).
+     *
+     * Установите в true, если необходимо начислять бонусы
+     * непосредственно при создании заказа.
      */
     private const REWARD_ON_CREATE = false;
 
     /**
-     * 🆕 Статусы, при которых начисляются реферальные бонусы
+     * Статусы, при которых начисляются реферальные бонусы.
      */
     private const REWARDABLE_STATUSES = [
-        OrderStatusEnum::Completed,      // 2 - Завершен
-        OrderStatusEnum::InDelivery,     // 1 - В доставке (оплачен и отправлен)
+        OrderStatusEnum::Completed,
+        OrderStatusEnum::InDelivery,
     ];
 
     public function __construct(
@@ -37,8 +40,14 @@ class OrderObserver
         // ==========================================
         // 🎁 НАЧИСЛЕНИЕ РЕФЕРАЛЬНЫХ БОНУСОВ
         // ==========================================
-        $shouldReward = self::REWARD_ON_CREATE
-            || $this->isRewardableStatus($order->status);
+
+        $shouldReward = self::REWARD_ON_CREATE;
+
+        // При создании заказа статус теоретически может быть null.
+        // В этом случае бонусы не начисляем, но создание заказа не ломаем.
+        if (!$shouldReward && $order->status !== null) {
+            $shouldReward = $this->isRewardableStatus((int) $order->status);
+        }
 
         if ($shouldReward) {
             $this->processRewards($order);
@@ -48,7 +57,7 @@ class OrderObserver
         // 💬 СОЗДАНИЕ ДИАЛОГА ПОДДЕРЖКИ ПО ЗАКАЗУ
         // ==========================================
 
-        // Если диалог уже привязан (например, создан вручную), пропускаем
+        // Если диалог уже привязан, пропускаем создание.
         if ($order->dialog_id) {
             return;
         }
@@ -66,27 +75,27 @@ class OrderObserver
             // 2. Привязываем ID диалога к заказу
             $order->dialog_id = $dialog->id;
 
-            // 3. Сохраняем ТИХО (без повторного вызова событий), чтобы избежать бесконечного цикла
+            // 3. Сохраняем тихо, чтобы не вызвать повторно события Order
             $order->saveQuietly();
 
             // 4. Создаем приветственное системное сообщение
             TenantMessage::create([
                 'dialog_id' => $dialog->id,
                 'tenant_id' => $order->tenant_id,
-                'tenant_user_id' => null, // null = сообщение от системы/бота
+                'tenant_user_id' => null,
                 'message' => "Здравствуйте! Это чат поддержки по вашему заказу #{$order->id}. Если у вас есть вопросы, напишите нам здесь.",
-                'is_read' => true, // Системные сообщения считаем "прочитанными"
+                'is_read' => true,
             ]);
 
             Log::info("💬 Создан диалог поддержки для заказа #{$order->id}", [
                 'dialog_id' => $dialog->id,
-                'order_id' => $order->id
+                'order_id' => $order->id,
             ]);
-
         } catch (\Exception $e) {
+            // Ошибка создания диалога не должна ломать уже созданный заказ.
             Log::error("❌ Ошибка создания диалога поддержки: " . $e->getMessage(), [
                 'order_id' => $order->id,
-                'exception' => $e->getMessage()
+                'exception' => $e->getMessage(),
             ]);
         }
     }
@@ -100,13 +109,21 @@ class OrderObserver
         // 🎁 НАЧИСЛЕНИЕ БОНУСОВ ПРИ СМЕНЕ СТАТУСА
         // ==========================================
 
-        // Если статус не менялся — ничего не делаем
+        // Если статус не менялся — ничего не делаем.
         if (!$order->wasChanged('status')) {
             return;
         }
 
-        // Если новый статус "вознаграждаемый" и бонусы еще не начислены
-        if ($this->isRewardableStatus($order->status)) {
+        $status = $order->status;
+
+        // Если новый статус отсутствует — ничего не делаем.
+        // Главное: не передаем null в методы, ожидающие int.
+        if ($status === null) {
+            return;
+        }
+
+        // Если новый статус вознаграждаемый и бонусы еще не начислены.
+        if ($this->isRewardableStatus((int) $status)) {
             $hasRewards = $order->referralRewards()->exists();
 
             if (!$hasRewards) {
@@ -118,7 +135,7 @@ class OrderObserver
         // 🚫 АВТОЗАКРЫТИЕ ДИАЛОГА ПРИ ОТМЕНЕ ЗАКАЗА
         // ==========================================
 
-        $currentStatus = $this->toEnum($order->status);
+        $currentStatus = $this->toEnum((int) $status);
 
         if ($currentStatus === OrderStatusEnum::Decline) {
             $this->closeDialog($order);
@@ -130,11 +147,11 @@ class OrderObserver
     // ==========================================
 
     /**
-     * 🆕 Безопасное начисление бонусов с логированием
+     * Безопасное начисление бонусов с логированием.
      */
     private function processRewards(Order $order): void
     {
-        // Защита от двойного начисления
+        // Защита от двойного начисления.
         if ($order->referralRewards()->exists()) {
             return;
         }
@@ -147,19 +164,19 @@ class OrderObserver
                     'order_id' => $order->id,
                     'status' => $order->status,
                     'rewards_count' => count($rewards),
-                    'rewards' => $rewards
+                    'rewards' => $rewards,
                 ]);
             }
         } catch (\Exception $e) {
             Log::error("❌ Ошибка начисления реферальных бонусов: " . $e->getMessage(), [
                 'order_id' => $order->id,
-                'exception' => $e->getTraceAsString()
+                'exception' => $e->getTraceAsString(),
             ]);
         }
     }
 
     /**
-     * 🆕 Автозакрытие диалога при отмене/завершении заказа
+     * Автозакрытие диалога при отмене заказа.
      */
     private function closeDialog(Order $order): void
     {
@@ -171,7 +188,9 @@ class OrderObserver
             $dialog = TenantDialog::find($order->dialog_id);
 
             if ($dialog && !$dialog->is_closed) {
-                $dialog->update(['is_closed' => true]);
+                $dialog->update([
+                    'is_closed' => true,
+                ]);
 
                 // Финальное системное сообщение
                 TenantMessage::create([
@@ -185,15 +204,26 @@ class OrderObserver
                 Log::info("🔒 Диалог закрыт из-за отмены заказа #{$order->id}");
             }
         } catch (\Exception $e) {
-            Log::error("❌ Ошибка закрытия диалога: " . $e->getMessage());
+            Log::error("❌ Ошибка закрытия диалога: " . $e->getMessage(), [
+                'order_id' => $order->id,
+                'exception' => $e->getMessage(),
+            ]);
         }
     }
 
     /**
-     * 🆕 Проверка, является ли статус "вознаграждаемым"
+     * Проверка, является ли статус "вознаграждаемым".
+     *
+     * Nullable, потому что на некоторых этапах создания/обновления
+     * заказа статус может временно отсутствовать.
      */
-    private function isRewardableStatus(int $status): bool
+    private function isRewardableStatus(?int $status): bool
     {
+        // Null не является вознаграждаемым статусом.
+        if ($status === null) {
+            return false;
+        }
+
         $statusEnum = $this->toEnum($status);
 
         if ($statusEnum === null) {
@@ -204,10 +234,14 @@ class OrderObserver
     }
 
     /**
-     * 🆕 Безопасная конвертация int в OrderStatusEnum
+     * Безопасная конвертация int в OrderStatusEnum.
      */
-    private function toEnum(int $status): ?OrderStatusEnum
+    private function toEnum(?int $status): ?OrderStatusEnum
     {
+        if ($status === null) {
+            return null;
+        }
+
         return OrderStatusEnum::tryFrom($status);
     }
 }

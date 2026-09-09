@@ -43,8 +43,12 @@
                                 <span class="info-value">#{{ lastOrderId }}</span>
                             </div>
                             <div class="info-row">
-                                <span class="info-label">Сумма</span>
-                                <span class="info-value price">{{ formatPrice(lastOrderTotal) }}</span>
+                                <span class="info-label">Товары</span>
+                                <span class="info-value price">{{ formatPrice(lastOrderTotal) }}₽</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Доставка</span>
+                                <span class="info-value price">{{ formatPrice(lastDeliveryTotal) }}₽</span>
                             </div>
                             <div class="info-row">
                                 <span class="info-label">Статус</span>
@@ -468,6 +472,7 @@ export default {
             lastOrderId: null,
             lastOrderDialogId: null, // 🆕 Добавляем ID диалога
             lastOrderTotal: 0,
+            lastDeliveryTotal: 0,
             autoCloseCountdown: 10,
             autoCloseTimer: null,
             countdownTimer: null,
@@ -648,7 +653,7 @@ export default {
         },
         formatPrice(value) {
             if (!value && value !== 0) return '0';
-            return Number(value).toLocaleString('ru-RU');
+            return Number(Math.round(value)).toLocaleString('ru-RU');
         },
 
         goToStep(index) {
@@ -757,6 +762,7 @@ export default {
                 if (response?.success) {
                     this.lastOrderId = response.order_id;
                     this.lastOrderTotal = response.summary_price;
+                    this.lastDeliveryTotal = response.delivery_price || 0;
 
                     // ✅ Уведомление об успешном заказе
                     this.$notify?.({

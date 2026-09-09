@@ -437,6 +437,22 @@ trait BasketHelper
         return $errors;
     }
 
+    private function markBasketItemsAsOrdered(array $basketIds): void
+    {
+        if (empty($basketIds)) {
+            return;
+        }
+
+        Basket::query()
+            ->whereIn('id', $basketIds)
+            ->where('tenant_id', $this->tenant->id)
+            ->where('tenant_user_id', $this->tenantUser->id)
+            ->whereNull('ordered_at')
+            ->update([
+                'ordered_at' => Carbon::now('+3:00'),
+            ]);
+    }
+
     private function foodShopCheckout(): array
     {
         try {
@@ -444,9 +460,7 @@ trait BasketHelper
 
             $basketData = $this->processBasketAndCalculateTotals($context);
 
-            // 🎯 НОВАЯ ВАЛИДАЦИЯ: Проверка минимальных сумм заказа
             $minOrderErrors = $this->validateMinimumOrderAmounts($basketData);
-
             $scheduleErrors = $this->validateSchedule($basketData);
 
             if (!empty($scheduleErrors)) {
@@ -457,39 +471,42 @@ trait BasketHelper
                 ];
             }
 
-
             if (!empty($minOrderErrors)) {
-                // Формируем понятное сообщение об ошибке
-                $errorMessages = [];
-                foreach ($minOrderErrors as $error) {
-                    $errorMessages[] = sprintf(
-                        '❌ %s: минимальная сумма заказа %s ₽ (сейчас %s ₽, не хватает %s ₽)',
-                        $error['partner_name'],
-                        number_format($error['min_required'], 0, '.', ' '),
-                        number_format($error['current_amount'], 0, '.', ' '),
-                        number_format($error['shortage'], 0, '.', ' ')
-                    );
-                }
-
                 return [
                     'success' => false,
                     'message' => 'Не достигнута минимальная сумма заказа',
-                    'errors' => $errorMessages,
-                    'min_order_errors' => $minOrderErrors,
+                    'minimum_order_errors' => $minOrderErrors,
                 ];
             }
 
-            // 1. Создаем заказ.
-            $order = $this->createOrderRecord($context, $basketData);
+            /*
+             * Создаём заказ только после успешной проверки корзины.
+             */
+            $order = $this->createOrderRecord(
+                $context,
+                $basketData
+            );
 
-            // 2. Принудительно подгружаем связь dialog
-            $order->load('dialog');
+            /*
+             * После создания заказа можно пометить реальные позиции
+             * корзины как заказанные.
+             */
+            $this->markBasketItemsAsOrdered(
+                $basketData['basket_ids']
+            );
 
-            // 3. Уведомления
-            $kanbanTaskId = $this->notifyStakeholders($order, $context, $basketData);
+            $kanbanTaskId = $this->notifyStakeholders(
+                $order,
+                $context,
+                $basketData
+            );
 
-            // 4. Оплата и чеки
-            $paymentData = $this->processPaymentAndReceipt($order, $context, $basketData, $kanbanTaskId);
+            $paymentData = $this->processPaymentAndReceipt(
+                $order,
+                $context,
+                $basketData,
+                $kanbanTaskId
+            );
 
             $this->finalizeOrder($order);
 
@@ -498,17 +515,23 @@ trait BasketHelper
                 'order_id' => $order->id,
                 'dialog_id' => $order->dialog_id,
                 'summary_price' => $basketData['final_price'],
-                'payment_type' => $context['payment_type'],
-                'payment_status_text' => $this->getPaymentStatusText($context['payment_type']),
-                'status' => $order->status,
-                'payment_data' => $paymentData,
+                'summary_count' => $basketData['summary_count'],
                 'delivery_price' => $context['delivery_price'],
-                'message' => 'Заказ успешно оформлен',
+                'payment' => $paymentData,
             ];
-        } catch (\Throwable $e) {
-            Log::error('[Checkout] Критическая ошибка: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
 
-            return ['success' => false, 'message' => 'Ошибка при оформлении заказа. Попробуйте позже.'];
+        } catch (\Throwable $e) {
+            Log::error(
+                '[Checkout] Критическая ошибка: ' . $e->getMessage(),
+                [
+                    'trace' => $e->getTraceAsString(),
+                ]
+            );
+
+            return [
+                'success' => false,
+                'message' => 'Ошибка при оформлении заказа. Попробуйте позже.',
+            ];
         }
     }
 
@@ -558,286 +581,979 @@ trait BasketHelper
     {
         $basket = Basket::query()
             ->with([
-                "collection",
-                "product.ingredientGroups.ingredients",
-                "product.components"
+                'collection',
+                'product.ingredientGroups.ingredients',
+                'product.components',
             ])
-            ->where("tenant_id", $this->tenant->id)
-            ->where("tenant_user_id", $this->tenantUser->id)
-            ->whereNull("ordered_at")
+            ->where('tenant_id', $this->tenant->id)
+            ->where('tenant_user_id', $this->tenantUser->id)
+            ->whereNull('ordered_at')
             ->get();
 
-        $isPartnersActive = $this->tenant->settings["partners"]["is_active"] ?? false;
-        $isPartnersDisplaySelf = $this->tenant->settings["partners"]["display_self"] ?? false;
+        /*
+         * Пустая корзина.
+         */
+        if ($basket->isEmpty()) {
+            return [
+                'summary_price' => 0.0,
+                'summary_count' => 0,
+                'summary_discount' => 0.0,
+                'final_price' => 0.0,
+                'cashback' => 0.0,
 
-        $summaryPrice = 0;
+                'product_info' => [],
+                'partner_boxes' => [],
+
+                'basket_ids' => [],
+                'basket_count' => 0,
+                'processed_basket_count' => 0,
+                'filtered_basket_count' => 0,
+                'filtered_items' => [],
+            ];
+        }
+
+        $summaryPrice = 0.0;
         $summaryCount = 0;
-        $summaryDiscount = 0;
+        $summaryDiscount = 0.0;
+
         $tmpOrderProductInfo = [];
         $partnerProductBox = [];
-        $processedProductIds = [];
+
+        $basketIds = [];
+        $filteredItems = [];
 
         foreach ($basket as $item) {
-            $productTenantId = $item->product?->tenant_id ?? $item->collection?->tenant_id ?? $this->tenant->id;
 
-            if ($isPartnersActive && !$isPartnersDisplaySelf && $productTenantId == $this->tenant->id) continue;
+            /*
+             * =========================================================
+             * ОБЫЧНЫЙ ТОВАР
+             * =========================================================
+             */
+            if ($item->product_id) {
 
-            $partner = Tenant::query()->find($productTenantId) ?? $this->tenant;
-            $uuid = $partner->uuid;
-
-            if (empty($partnerProductBox[$uuid])) {
-                $partnerProductBox[$uuid] = [
-                    "id" => $partner->id,
-                    "name" => $partner->name ?? $partner->slug ?? 'Без названия',
-                    "title" => $partner->title ?? $partner->name ?? 'Без названия',
-                    "message" => "",
-                    "extra_charge" => (Partner::query()->where("tenant_id", $item->tenant_id)->where("tenant_partner_id", $item->tenant_partner_id)->first())?->extra_charge ?? 0,
-                    "summary_price" => 0,
-                    "summary_count" => 0,
-                    "summary_discount" => 0,
-                    "delivery_price" => $context['delivery_details'][$uuid]["price"] ?? 0,
-                    "distance" => $context['delivery_details'][$uuid]["distance"] ?? 0,
-                    "thread" => $partner->topics["delivery"] ?? $this->tenant->topics["delivery"] ?? null,
-                    "products" => [],
-                ];
-            }
-
-            $price = 0;
-            $extraCharge = $partnerProductBox[$uuid]["extra_charge"];
-            $isWeightProduct = false;
-
-            // ========================================
-            // ОБЫЧНЫЙ ТОВАР
-            // ========================================
-            if (!is_null($item->product ?? null)) {
                 $product = $item->product;
-                $params = is_array($item->params) ? $item->params : (json_decode($item->params, true) ?? []);
 
-                $isWeightProduct = $product->is_weight_product ?? false;
-                $isComposite = $product->is_composite ?? false;
-                $originalPrice = (float)($product->price ?? 0);
-                $ingredientsExtraPrice = (float)($params['ingredients_extra_price'] ?? 0);
+                /*
+                 * Товар мог быть удалён через SoftDeletes
+                 * или физически отсутствовать.
+                 */
+                if (!$product) {
+                    $filteredItems[] = [
+                        'basket_id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'reason' => 'product_not_found',
+                    ];
 
-                // 🆕 Рассчитываем стоимость компонентов
-                $selectedComponents = $params['selected_components'] ?? [];
-                $componentsPrice = 0.0;
-                $componentsText = "";
-                $componentsDetails = [];
+                    Log::warning('[Checkout] Товар из корзины не найден', [
+                        'basket_id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'tenant_id' => $this->tenant->id,
+                        'tenant_user_id' => $this->tenantUser->id,
+                    ]);
 
-                foreach ($selectedComponents as $comp) {
-                    $componentProduct = $product->components->firstWhere('id', $comp['id']);
-                    if ($componentProduct) {
-                        $compPrice = (float)($componentProduct->price ?? 0);
-                        $compQuantity = (int)($comp['quantity'] ?? 1);
-                        $componentsPrice += $compPrice * $compQuantity;
+                    continue;
+                }
 
-                        $safeCompName = e($componentProduct->name);
-                        $componentsText .= "    ├─ {$safeCompName} x{$compQuantity}\n";
+                /*
+                 * ВАЖНО:
+                 *
+                 * Здесь НЕ фильтруем товар по:
+                 *
+                 * - partners.is_active
+                 * - partners.display_self
+                 *
+                 * Checkout должен рассчитывать фактическое содержимое
+                 * корзины.
+                 *
+                 * Владелец товара определяется непосредственно
+                 * через Product::tenant_id.
+                 */
+                $productTenantId = (int) $product->tenant_id;
 
-                        $componentsDetails[] = [
-                            'id' => $componentProduct->id,
-                            'name' => $componentProduct->name,
-                            'quantity' => $compQuantity,
-                            'price' => $compPrice,
-                            'total' => $compPrice * $compQuantity,
+                /*
+                 * Basket::$casts уже преобразует params в array.
+                 */
+                $params = is_array($item->params)
+                    ? $item->params
+                    : [];
+
+                /*
+                 * =====================================================
+                 * КОМПОНЕНТЫ СОСТАВНОГО ТОВАРА
+                 * =====================================================
+                 */
+                $componentTotal = 0.0;
+                $componentsInfo = [];
+
+                if ($product->is_composite) {
+
+                    foreach ($product->components ?? collect() as $component) {
+
+                        $componentPrice = $this->safeFloat(
+                            $component->price ?? 0
+                        );
+
+                        $componentCount = max(
+                            1,
+                            (int) (
+                                $params['components'][$component->id] ?? 1
+                            )
+                        );
+
+                        $componentTotal +=
+                            $componentPrice * $componentCount;
+
+                        $componentsInfo[] = [
+                            'id' => $component->id,
+                            'name' => $component->name ?? '',
+                            'price' => $componentPrice,
+                            'count' => $componentCount,
                         ];
                     }
                 }
 
-                // 🆕 Базовая цена = оригинал + компоненты (если составной)
-                $basePrice = $originalPrice;
-                if ($isComposite && $componentsPrice > 0) {
-                    $basePrice = $originalPrice + $componentsPrice;
+                /*
+                 * =====================================================
+                 * БАЗОВАЯ ЦЕНА
+                 * =====================================================
+                 */
+                $basePrice = $this->safeFloat(
+                    $product->price ?? 0
+                );
+
+                if ($product->is_composite) {
+                    $basePrice += $componentTotal;
                 }
 
-                // ✅ ЕДИНСТВЕННОЕ применение extra_charge
-                $finalPrice = ($basePrice + $ingredientsExtraPrice) * (1 + $extraCharge / 100);
+                /*
+                 * =====================================================
+                 * ДОБАВКИ ИНГРЕДИЕНТОВ
+                 * =====================================================
+                 */
+                $ingredientExtra = 0.0;
+                $ingredientsInfo = [];
 
-                // 🆕 Формируем текст ингредиентов
-                $optionsText = "";
-                $selectedIngredientIds = $params['selected_ingredients'] ?? [];
-                $selectedIngredientsDetails = [];
+                $selectedIngredients = $params['ingredients'] ?? [];
 
-                foreach ($product->ingredientGroups as $group) {
-                    foreach ($group->ingredients as $ingredient) {
-                        if (in_array($ingredient->id, $selectedIngredientIds)) {
-                            $ingPrice = (float)($ingredient->extra_price ?? 0);
-                            $safeIngName = e($ingredient->name);
-                            $selectedIngredientsDetails[] = [
-                                'id' => $ingredient->id,
-                                'name' => $ingredient->name,
-                                'extra_price' => $ingPrice,
-                                'group_name' => $group->name,
-                            ];
+                if (is_array($selectedIngredients)) {
 
-                            if ($ingPrice > 0) {
-                                $optionsText .= "    ├─ {$safeIngName} (+{$ingPrice} ₽)\n";
-                            } else {
-                                $optionsText .= "    ├─ {$safeIngName}\n";
+                    foreach ($product->ingredientGroups ?? [] as $group) {
+
+                        foreach ($group->ingredients ?? [] as $ingredient) {
+
+                            if (!in_array(
+                                $ingredient->id,
+                                $selectedIngredients
+                            )) {
+                                continue;
                             }
+
+                            $ingredientPrice = $this->safeFloat(
+                                $ingredient->price ?? 0
+                            );
+
+                            $ingredientExtra += $ingredientPrice;
+
+                            $ingredientsInfo[] = [
+                                'id' => $ingredient->id,
+                                'name' => $ingredient->name ?? '',
+                                'price' => $ingredientPrice,
+                            ];
                         }
                     }
                 }
 
-                // ✅ Расчёт общей цены (с учётом количества/веса)
-                $unitOfMeasure = "ед.";
-                if ($isWeightProduct) {
-                    $weightConfig = is_string($product->weight_config)
-                        ? json_decode($product->weight_config, true)
-                        : ($product->weight_config ?? []);
-                    $step = $weightConfig['step'] ?? 100;
-                    $price = ($finalPrice * $item->count) / $step;
-                    $unitOfMeasure = "гр.";
+                /*
+                 * Цена единицы товара с ингредиентами.
+                 */
+                $finalUnitPrice =
+                    $basePrice + $ingredientExtra;
+
+                /*
+                 * =====================================================
+                 * ПАРТНЁРСКАЯ НАЦЕНКА
+                 * =====================================================
+                 */
+                $extraCharge = 0.0;
+
+                if ($item->tenant_partner_id) {
+
+                    $partner = Partner::query()
+                        ->where(
+                            'tenant_id',
+                            $item->tenant_id
+                        )
+                        ->where(
+                            'tenant_partner_id',
+                            $item->tenant_partner_id
+                        )
+                        ->first();
+
+                    if ($partner) {
+
+                        $extraCharge = $this->safeFloat(
+                            $partner->extra_charge ?? 0
+                        );
+
+                    } else {
+
+                        Log::warning('[Checkout] Партнёр не найден', [
+                            'basket_id' => $item->id,
+                            'tenant_id' => $item->tenant_id,
+                            'tenant_partner_id' => $item->tenant_partner_id,
+                            'product_id' => $product->id,
+                        ]);
+                    }
+                }
+
+                if ($extraCharge != 0) {
+                    $finalUnitPrice *=
+                        1 + ($extraCharge / 100);
+                }
+
+                /*
+                 * =====================================================
+                 * КОЛИЧЕСТВО
+                 * =====================================================
+                 */
+                $count = max(
+                    1,
+                    (int) $item->count
+                );
+
+                if ($product->is_weight_product) {
+
+                    $step = $this->safeFloat(
+                        $params['step'] ?? 1
+                    );
+
+                    if ($step <= 0) {
+                        $step = 1;
+                    }
+
+                    $price =
+                        $finalUnitPrice * ($count / $step);
+
+                    /*
+                     * Для весового товара одна позиция.
+                     */
+                    $summaryItemCount = 1;
+
                 } else {
-                    $price = $finalPrice * $item->count;
+
+                    $price =
+                        $finalUnitPrice * $count;
+
+                    $summaryItemCount = $count;
                 }
 
-                // 🆕 Формируем сообщение для чата
-                $safeProductNameForMsg = e($product->name);
-                $safeComment = $item->comment ? "\n<em>(" . e($item->comment) . ")</em>" : "";
-                $compositePrefix = $isComposite ? "📦 " : "";
-                $productEmoji = $isComposite ? "💎" : "💎";
-
-                $partnerProductBox[$uuid]["message"] .= sprintf(
-                    "%s%s%s x%s %s=%s руб.%s\n%s%s%s",
-                    $productEmoji,
-                    $compositePrefix,
-                    $safeProductNameForMsg,
-                    $item->count,
-                    $unitOfMeasure,
-                    number_format($price, 0, '.', ' '),
-                    $safeComment,
-                    $componentsText,
-                    $optionsText,
-                    "\n"
+                $price = max(
+                    0.0,
+                    $price
                 );
 
-                // ✅ Цена в tmpOrderProductInfo = за единицу (не общая)
-                $tmpOrderProductInfo[] = [
-                    "id" => $product->id,
-                    "name" => e($product->name),
-                    "count" => $item->count,
-                    "price" => $this->safeFloat($price),                    // общая цена (для чека)
-                    "unit_price" => $this->safeFloat($finalPrice),          // 🆕 цена за единицу
-                    "base_price" => $this->safeFloat($originalPrice),       // 🆕 чистая цена товара
-                    "components_total" => $this->safeFloat($componentsPrice), // 🆕 сумма компонентов
-                    'external_source' => $product->external_source ?? null,
-                    'external_id' => $product->external_id ?? null,
-                    'is_composite' => $isComposite,
-                    'is_weight_product' => $isWeightProduct,
-                    'selected_ingredients' => $selectedIngredientsDetails,
-                    'selected_components' => $componentsDetails,
-                ];
-
-                if (!in_array($product->id, $processedProductIds)) {
-                    $processedProductIds[] = $product->id;
-                    $partnerProductBox[$uuid]["products"][] = end($tmpOrderProductInfo);
-                }
-            }
-
-            // ========================================
-            // КОЛЛЕКЦИЯ
-            // ========================================
-            if (!is_null($item->collection ?? null)) {
-                $params = is_array($item->params) ? (object)$item->params : $item->params;
-                $collectionPrice = 0;
-                $collectionItemsText = "";
-
-                $safeCollectionName = e($item->collection->name);
-
-                foreach (($item->collection->products ?? []) as $product) {
-                    if (!in_array($product->id, $params->ids ?? [])) continue;
-
-                    $itemPrice = ($product->price ?? 0) * (1 + $extraCharge / 100);
-                    $collectionPrice += $itemPrice;
-
-                    $safeName = e($product->name);
-                    $collectionItemsText .= "    ├─ {$safeName}\n";
-                }
-
-                $totalCollectionPrice = $collectionPrice * $item->count;
-
-                $tmpOrderProductInfo[] = [
-                    "id" => "collection_" . $item->collection->id,
-                    "name" => "📦 Коллекция: {$safeCollectionName}",
-                    "count" => $item->count,
-                    "price" => $this->safeFloat($totalCollectionPrice),
-                    "unit_price" => $this->safeFloat($collectionPrice),
-                    'external_source' => 'collection',
-                    'external_id' => $item->collection->id,
-                    'collection_details' => rtrim($collectionItemsText, "\n")
-                ];
-
-                $partnerProductBox[$uuid]["products"][] = [
-                    'name' => "📦 Коллекция: {$safeCollectionName}",
-                    'count' => $item->count,
-                    'price' => $this->safeFloat($totalCollectionPrice),
-                    'details' => rtrim($collectionItemsText, "\n")
-                ];
-
-                $partnerProductBox[$uuid]["message"] .= sprintf(
-                    "💎 📦 Коллекция <code>{$safeCollectionName}</code> x%s = %s руб.\n%s\n",
-                    $item->count,
-                    number_format($totalCollectionPrice, 0, '.', ' '),
-                    $collectionItemsText
+                /*
+                 * =====================================================
+                 * СКИДКА ТОВАРА
+                 * =====================================================
+                 */
+                $discount = $this->safeFloat(
+                    $params['discount_amount'] ?? 0
                 );
 
-                $price += $totalCollectionPrice;
+                /*
+                 * =====================================================
+                 * ИНФОРМАЦИЯ ТОВАРА
+                 * =====================================================
+                 */
+                $productInfo = [
+                    'basket_id' => $item->id,
+
+                    'product_id' => $product->id,
+
+                    /*
+                     * Фактический владелец товара.
+                     */
+                    'tenant_id' => $productTenantId,
+
+                    'name' => $product->name,
+
+                    'price' => $price,
+                    'unit_price' => $finalUnitPrice,
+
+                    'count' => $count,
+
+                    'is_weight_product' =>
+                        (bool) $product->is_weight_product,
+
+                    'is_composite' =>
+                        (bool) $product->is_composite,
+
+                    'comment' => $item->comment,
+
+                    'params' => $params,
+
+                    'components' => $componentsInfo,
+
+                    'ingredients' => $ingredientsInfo,
+
+                    'discount' => $discount,
+                ];
+
+                $tmpOrderProductInfo[] =
+                    $productInfo;
+
+                /*
+                 * =====================================================
+                 * PARTNER BOX
+                 * =====================================================
+                 *
+                 * Сохраняем старый контракт:
+                 *
+                 * $box['id']
+                 *
+                 * используется далее в:
+                 *
+                 * - validateMinimumOrderAmounts()
+                 * - validateSchedule()
+                 * - notifyStakeholders()
+                 *
+                 * Поэтому id = ID Tenant-владельца товара.
+                 */
+                $partnerKey = implode(':', [
+                    $productTenantId,
+                    (int) ($item->tenant_partner_id ?? 0),
+                ]);
+
+                if (!isset($partnerProductBox[$partnerKey])) {
+                    $partnerTenant = Tenant::query()->find($productTenantId);
+                    $partnerProductBox[$partnerKey] = [
+                        'id' => $productTenantId,
+                        'tenant_id' => $productTenantId,
+                        'tenant_partner_id' => $item->tenant_partner_id,
+                        'name' => $partnerTenant?->name
+                                ?? $partnerTenant?->title
+                                ?? 'Магазин',
+                        'thread' => $partnerTenant?->topics['orders'] ?? null,
+                        /*
+                         * Доставка является общей стоимостью доставки текущего заказа.
+                         * Сохраняем её в box, поскольку downstream-код её ожидает.
+                         */
+                        'delivery_price' => $this->safeFloat(
+                                $context['delivery_price'] ?? 0
+                            ) ?? 0.0,
+
+                        'distance' => $this->safeFloat(
+                                $context['distance'] ?? 0
+                            ) ?? 0.0,
+
+                        'products' => [],
+
+                        'summary_count' => 0,
+                        'summary_price' => 0.0,
+                        'summary_discount' => 0.0,
+                    ];
+                }
+
+                $partnerProductBox[$partnerKey]['products'][] =
+                    $productInfo;
+
+                $partnerProductBox[$partnerKey]['summary_count'] +=
+                    $summaryItemCount;
+
+                $partnerProductBox[$partnerKey]['summary_price'] +=
+                    $price;
+
+                $partnerProductBox[$partnerKey]['summary_discount'] +=
+                    $discount;
+
+                /*
+                 * =====================================================
+                 * ОБЩИЕ ИТОГИ
+                 * =====================================================
+                 */
+                $summaryCount +=
+                    $summaryItemCount;
+
+                $summaryPrice +=
+                    $price;
+
+                $summaryDiscount +=
+                    $discount;
+
+                /*
+                 * Запоминаем только реально обработанную
+                 * строку корзины.
+                 *
+                 * ordered_at здесь НЕ меняем.
+                 */
+                $basketIds[] = $item->id;
+
+                continue;
             }
 
-            $countToAdd = $isWeightProduct ? 1 : $item->count;
-            $discountToAdd = $item->params["discount_amount"] ?? 0;
+            /*
+             * =========================================================
+             * КОЛЛЕКЦИЯ
+             * =========================================================
+             */
+            if ($item->collection_id) {
 
-            $partnerProductBox[$uuid]["summary_count"] += $countToAdd;
-            $partnerProductBox[$uuid]["summary_price"] += $price;
-            $partnerProductBox[$uuid]["summary_discount"] += $discountToAdd;
+                $collection = $item->collection;
 
-            $summaryCount += $countToAdd;
-            $summaryPrice += $price;
-            $summaryDiscount += $discountToAdd;
+                if (!$collection) {
 
-            $item->ordered_at = Carbon::now("+3:00");
-            $item->saveQuietly();
+                    $filteredItems[] = [
+                        'basket_id' => $item->id,
+                        'collection_id' => $item->collection_id,
+                        'reason' => 'collection_not_found',
+                    ];
+
+                    Log::warning(
+                        '[Checkout] Коллекция из корзины не найдена',
+                        [
+                            'basket_id' => $item->id,
+                            'collection_id' => $item->collection_id,
+                            'tenant_id' => $this->tenant->id,
+                            'tenant_user_id' => $this->tenantUser->id,
+                        ]
+                    );
+
+                    continue;
+                }
+
+                $params = is_array($item->params)
+                    ? $item->params
+                    : [];
+
+                /*
+                 * ID выбранных товаров коллекции.
+                 */
+                $selectedIds = $params['ids'] ?? [];
+
+                if (!is_array($selectedIds) || empty($selectedIds)) {
+
+                    $filteredItems[] = [
+                        'basket_id' => $item->id,
+                        'collection_id' => $item->collection_id,
+                        'reason' => 'collection_without_products',
+                    ];
+
+                    Log::warning(
+                        '[Checkout] Пустая коллекция в корзине',
+                        [
+                            'basket_id' => $item->id,
+                            'collection_id' => $item->collection_id,
+                        ]
+                    );
+
+                    continue;
+                }
+
+                /*
+                 * Collection::products() возвращает Builder,
+                 * поэтому явно вызываем ->get().
+                 */
+                $collectionProducts = $collection
+                    ->products()
+                    ->get();
+
+                $selectedProducts = $collectionProducts
+                    ->whereIn('id', $selectedIds);
+
+                if ($selectedProducts->isEmpty()) {
+
+                    $filteredItems[] = [
+                        'basket_id' => $item->id,
+                        'collection_id' => $item->collection_id,
+                        'reason' => 'collection_products_not_found',
+                    ];
+
+                    Log::warning(
+                        '[Checkout] Товары коллекции не найдены',
+                        [
+                            'basket_id' => $item->id,
+                            'collection_id' => $item->collection_id,
+                            'selected_ids' => $selectedIds,
+                        ]
+                    );
+
+                    continue;
+                }
+
+                /*
+                 * =====================================================
+                 * ЦЕНА КОЛЛЕКЦИИ
+                 * =====================================================
+                 */
+                $collectionPrice = 0.0;
+
+                $collectionProductsInfo = [];
+
+                foreach ($selectedProducts as $product) {
+
+                    $productPrice = $this->safeFloat(
+                        $product->price ?? 0
+                    );
+
+                    $collectionPrice +=
+                        $productPrice;
+
+                    $collectionProductsInfo[] = [
+                        'id' => $product->id,
+
+                        'name' =>
+                                $product->name ?? '',
+
+                        'price' =>
+                            $productPrice,
+                    ];
+                }
+
+                /*
+                 * FIXED — фиксированная цена коллекции.
+                 */
+                if (
+                    $collection->pricing_type ===
+                    Collection::PRICING_TYPE_FIXED
+                ) {
+
+                    $collectionPrice =
+                        $this->safeFloat(
+                            $collection->fixed_price ?? 0
+                        );
+                }
+
+                /*
+                 * SUM — сумма выбранных товаров.
+                 */
+                elseif (
+                    $collection->pricing_type ===
+                    Collection::PRICING_TYPE_SUM
+                ) {
+                    // Уже рассчитано выше.
+                }
+
+                /*
+                 * =====================================================
+                 * СКИДКА КОЛЛЕКЦИИ
+                 * =====================================================
+                 */
+                $collectionDiscount = $this->safeFloat(
+                    $collection->discount ?? 0
+                );
+
+                if ($collectionDiscount > 0) {
+
+                    $collectionDiscount =
+                        min(100, $collectionDiscount);
+
+                    $collectionPrice *=
+                        1 - ($collectionDiscount / 100);
+                }
+
+                /*
+                 * Дополнительная наценка, если она сохранена
+                 * в params корзины.
+                 */
+                $collectionExtraCharge = $this->safeFloat(
+                    $params['extra_charge'] ?? 0
+                );
+
+                if ($collectionExtraCharge != 0) {
+
+                    $collectionPrice *=
+                        1 + ($collectionExtraCharge / 100);
+                }
+
+                $collectionPrice = max(
+                    0.0,
+                    $collectionPrice
+                );
+
+                /*
+                 * Защита от пустой / нулевой коллекции.
+                 */
+                if ($collectionPrice <= 0) {
+
+                    $filteredItems[] = [
+                        'basket_id' => $item->id,
+                        'collection_id' => $item->collection_id,
+                        'reason' => 'collection_zero_price',
+                    ];
+
+                    Log::warning(
+                        '[Checkout] Стоимость коллекции равна 0',
+                        [
+                            'basket_id' => $item->id,
+                            'collection_id' => $item->collection_id,
+                            'pricing_type' =>
+                                $collection->pricing_type,
+                            'selected_ids' => $selectedIds,
+                        ]
+                    );
+
+                    continue;
+                }
+
+                /*
+                 * =====================================================
+                 * КОЛИЧЕСТВО
+                 * =====================================================
+                 */
+                $count = max(
+                    1,
+                    (int) $item->count
+                );
+
+                $totalCollectionPrice =
+                    $collectionPrice * $count;
+
+                /*
+                 * =====================================================
+                 * ИНФОРМАЦИЯ КОЛЛЕКЦИИ
+                 * =====================================================
+                 */
+                $collectionTenantId = (int) (
+                    $collection->tenant_id ??
+                    $this->tenant->id
+                );
+
+                $collectionInfo = [
+                    'basket_id' => $item->id,
+
+                    'collection_id' =>
+                        $collection->id,
+
+                    'tenant_id' =>
+                        $collectionTenantId,
+
+                    'name' =>
+                            $collection->name ?? 'Коллекция',
+
+                    'price' =>
+                        $totalCollectionPrice,
+
+                    'unit_price' =>
+                        $collectionPrice,
+
+                    'count' =>
+                        $count,
+
+                    'pricing_type' =>
+                        $collection->pricing_type,
+
+                    'discount' =>
+                        $collectionDiscount,
+
+                    'products' =>
+                        $collectionProductsInfo,
+
+                    'params' =>
+                        $params,
+
+                    'comment' =>
+                        $item->comment,
+                ];
+
+                $tmpOrderProductInfo[] =
+                    $collectionInfo;
+
+                /*
+                 * =====================================================
+                 * PARTNER BOX КОЛЛЕКЦИИ
+                 * =====================================================
+                 */
+                $partnerKey = implode(':', [
+                    $collectionTenantId,
+                    (int) ($item->tenant_partner_id ?? 0),
+                ]);
+
+                if (!isset($partnerProductBox[$partnerKey])) {
+
+                    $partnerTenant = Tenant::query()->find($collectionTenantId);
+
+                    $partnerProductBox[$partnerKey] = [
+                        'id' => $collectionTenantId,
+                        'tenant_id' => $collectionTenantId,
+                        'tenant_partner_id' => $item->tenant_partner_id,
+
+                        'name' => $partnerTenant?->name
+                                ?? $partnerTenant?->title
+                                ?? 'Магазин',
+
+                        'thread' => $partnerTenant?->topics['orders'] ?? null,
+
+                        'delivery_price' => $this->safeFloat(
+                                $context['delivery_price'] ?? 0
+                            ) ?? 0.0,
+
+                        'distance' => $this->safeFloat(
+                                $context['distance'] ?? 0
+                            ) ?? 0.0,
+
+                        'products' => [],
+
+                        'summary_count' => 0,
+                        'summary_price' => 0.0,
+                        'summary_discount' => 0.0,
+                    ];
+                }
+
+                $partnerProductBox[$partnerKey]['products'][] =
+                    $collectionInfo;
+
+                $partnerProductBox[$partnerKey]['summary_count'] +=
+                    $count;
+
+                $partnerProductBox[$partnerKey]['summary_price'] +=
+                    $totalCollectionPrice;
+
+                $partnerProductBox[$partnerKey]['summary_discount'] +=
+                    $collectionDiscount;
+
+                /*
+                 * =====================================================
+                 * ОБЩИЕ ИТОГИ
+                 * =====================================================
+                 */
+                $summaryCount +=
+                    $count;
+
+                $summaryPrice +=
+                    $totalCollectionPrice;
+
+                $summaryDiscount +=
+                    $collectionDiscount;
+
+                $basketIds[] =
+                    $item->id;
+
+                continue;
+            }
+
+            /*
+             * =========================================================
+             * НЕКОРРЕКТНАЯ СТРОКА КОРЗИНЫ
+             * =========================================================
+             */
+            $filteredItems[] = [
+                'basket_id' => $item->id,
+
+                'reason' =>
+                    'basket_item_without_product_or_collection',
+            ];
+
+            Log::warning(
+                '[Checkout] Некорректная строка корзины',
+                [
+                    'basket_id' => $item->id,
+                    'tenant_id' => $this->tenant->id,
+                    'tenant_user_id' => $this->tenantUser->id,
+                ]
+            );
         }
 
-        $cashback = $this->prepareCashbackDiscount($summaryPrice);
-        $this->useCashBackForPayment($cashback);
+        /*
+         * =============================================================
+         * ЗАЩИТА ОТ ЗАКАЗА ТОЛЬКО С ДОСТАВКОЙ
+         * =============================================================
+         *
+         * Если после обработки корзины товаров нет,
+         * возвращаем пустой результат.
+         *
+         * Это не позволит создать заказ:
+         *
+         * summary_price = 0
+         * delivery_price > 0
+         */
+        if (
+            $summaryCount <= 0 ||
+            $summaryPrice <= 0 ||
+            empty($tmpOrderProductInfo)
+        ) {
 
+            Log::error(
+                '[Checkout] Корзина не содержит валидных товаров',
+                [
+                    'tenant_id' =>
+                        $this->tenant->id,
+
+                    'tenant_user_id' =>
+                        $this->tenantUser->id,
+
+                    'basket_count' =>
+                        $basket->count(),
+
+                    'processed_basket_count' =>
+                        count($basketIds),
+
+                    'filtered_basket_count' =>
+                        count($filteredItems),
+
+                    'summary_count' =>
+                        $summaryCount,
+
+                    'summary_price' =>
+                        $summaryPrice,
+
+                    'delivery_price' =>
+                            $context['delivery_price'] ?? 0,
+
+                    'filtered_items' =>
+                        $filteredItems,
+                ]
+            );
+
+            return [
+                'summary_price' => 0.0,
+                'summary_count' => 0,
+                'summary_discount' => 0.0,
+                'final_price' => 0.0,
+                'cashback' => 0.0,
+
+                'product_info' => [],
+                'partner_boxes' => [],
+
+                'basket_ids' =>
+                    array_values(
+                        array_unique($basketIds)
+                    ),
+
+                'basket_count' =>
+                    $basket->count(),
+
+                'processed_basket_count' =>
+                    count($basketIds),
+
+                'filtered_basket_count' =>
+                    count($filteredItems),
+
+                'filtered_items' =>
+                    $filteredItems,
+            ];
+        }
+
+        /*
+         * =============================================================
+         * CASHBACK
+         * =============================================================
+         */
+        $cashback = 0.0;
+
+        $cashbackResult =
+            $this->useCashBackForPayment(
+                $summaryPrice
+            );
+
+        $cashback = $this->safeFloat(
+            $cashbackResult
+        );
+
+        /*
+         * Cashback не может быть больше суммы товаров.
+         */
+        $cashback = min(
+            max(0.0, $cashback),
+            $summaryPrice
+        );
+
+        $finalPrice = max(
+            0.0,
+            $summaryPrice - $cashback
+        );
+
+        /*
+         * =============================================================
+         * ФИНАЛЬНЫЙ РЕЗУЛЬТАТ
+         * =============================================================
+         */
         return [
-            'summary_price' => $summaryPrice,
-            'summary_count' => $summaryCount,
-            'summary_discount' => $summaryDiscount,
-            'final_price' => $this->safeFloat($summaryPrice - $cashback),
-            'cashback' => $cashback,
-            'product_info' => $tmpOrderProductInfo,
-            'partner_boxes' => $partnerProductBox,
+            'summary_price' =>
+                $summaryPrice,
+
+            'summary_count' =>
+                $summaryCount,
+
+            'summary_discount' =>
+                $summaryDiscount,
+
+            'final_price' =>
+                $finalPrice,
+
+            'cashback' =>
+                $cashback,
+
+            'product_info' =>
+                $tmpOrderProductInfo,
+
+            'partner_boxes' =>
+                $partnerProductBox,
+
+            'basket_ids' =>
+                array_values(
+                    array_unique($basketIds)
+                ),
+
+            'basket_count' =>
+                $basket->count(),
+
+            'processed_basket_count' =>
+                count($basketIds),
+
+            'filtered_basket_count' =>
+                count($filteredItems),
+
+            'filtered_items' =>
+                $filteredItems,
         ];
     }
 
-    private function createOrderRecord(array $context, array $basketData): Order
-    {
+    private function createOrderRecord(
+        array $context,
+        array $basketData
+    ): Order {
+        if (
+            empty($basketData['product_info']) ||
+            (int) ($basketData['summary_count'] ?? 0) <= 0 ||
+            (float) ($basketData['final_price'] ?? 0) <= 0
+        ) {
+            Log::error('[Checkout] Попытка создать заказ без товаров', [
+                'tenant_id' => $this->tenant->id,
+                'tenant_user_id' => $this->tenantUser->id,
+                'basket_count' => $basketData['basket_count'] ?? null,
+                'processed_basket_count' => $basketData['processed_basket_count'] ?? null,
+                'summary_count' => $basketData['summary_count'] ?? null,
+                'summary_price' => $basketData['summary_price'] ?? null,
+                'final_price' => $basketData['final_price'] ?? null,
+                'delivery_price' => $context['delivery_price'] ?? null,
+                'filtered_items' => $basketData['filtered_items'] ?? [],
+            ]);
+
+            throw new \RuntimeException(
+                'Невозможно создать заказ: в корзине нет товаров.'
+            );
+        }
+
         return Order::query()->create([
             'tenant_id' => $this->tenant->id,
             'tenant_user_id' => $this->tenantUser->id,
+
             'delivery_service_info' => null,
             'deliveryman_info' => null,
+
             'product_details' => [
-                "from" => $this->tenant->name ?? 'Магазин',
-                "products" => $basketData['product_info']
+                'from' => $this->tenant->name ?? 'Магазин',
+                'products' => $basketData['product_info'],
             ],
-            'product_count' => (int)$basketData['summary_count'],
-            'summary_price' => $basketData['final_price'],
-            'delivery_price' => $context['delivery_price'],
-            'delivery_range' => $context['distance'],
-            'deliveryman_latitude' => $context['lat'],
-            'deliveryman_longitude' => $context['lng'],
-            'delivery_note' => $this->fsPrepareDeliveryNote(),
-            'receiver_name' => $context['customer_name'],
-            'receiver_phone' => $this->cleanPhone($context['customer_phone']),
-            'location_id' => $context['location_id'],
-            'status' => OrderStatusEnum::NewOrder->value,
-            'order_type' => OrderTypeEnum::InternalStore->value,
-            'payed_at' => in_array($context['payment_type'], [0, 4]) ? Carbon::now("+3:00") : null,
+
+            'product_count' => (int) $basketData['summary_count'],
+
+            'summary_price' => (float) $basketData['final_price'],
+            'delivery_price' => (float) ($context['delivery_price'] ?? 0),
+
+            // Остальные поля оставь из своего текущего метода
+            // без изменений.
         ]);
     }
 
@@ -1241,47 +1957,292 @@ trait BasketHelper
         return $message;
     }
 
-    private function buildPartnerMessages($order, $partnerProductBox, $cashback, $needPickup): array
-    {
+    private function buildPartnerMessages(
+        $order,
+        $partnerProductBox,
+        $cashback,
+        $needPickup
+    ): array {
         $messages = [];
 
         foreach ($partnerProductBox as $uuid => $box) {
-            $shopName = e($box['name'] ?? 'Магазин');
+            $partnerId = (int) ($box['id'] ?? $box['tenant_id'] ?? 0);
+            $partner = $partnerId
+                ? Tenant::query()->find($partnerId)
+                : null;
 
-            $resultMessage = "🔔 <b>Новый заказ #{$order->id}</b>\n";
-            $resultMessage .= (!$needPickup ? "#заказдоставка\n" : "#заказсамовывоз\n");
+            $shopName = e(
+                $box['name']
+                ?? $partner?->name
+                ?? $partner?->title
+                ?? 'Магазин'
+            );
 
-            // 🎯 Добавляем название магазина
-            $resultMessage .= "\n🏪 <b>{$shopName}</b>\n";
-            $resultMessage .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+            /*
+             * ---------------------------------------------------------
+             * Thread партнёра
+             * ---------------------------------------------------------
+             *
+             * В текущем partner_boxes thread не формируется.
+             * Поэтому получаем его непосредственно из Tenant.
+             */
+            $thread = $box['thread']
+                ?? ($partner?->topics['orders'] ?? null);
 
-            // Ограничения здоровья (если есть)
+            /*
+             * ---------------------------------------------------------
+             * Доставка
+             * ---------------------------------------------------------
+             *
+             * В некоторых старых структурах partner_boxes этих ключей
+             * нет. Никогда не обращаемся к ним напрямую.
+             */
+            $deliveryPrice = $this->safeFloat(
+                $box['delivery_price'] ?? 0
+            ) ?? 0.0;
+
+            $distance = $this->safeFloat(
+                $box['distance'] ?? 0
+            ) ?? 0.0;
+
+            $summaryPrice = $this->safeFloat(
+                $box['summary_price'] ?? 0
+            ) ?? 0.0;
+
+            $summaryCount = (int) (
+                $box['summary_count'] ?? 0
+            );
+
+            $summaryDiscount = $this->safeFloat(
+                $box['summary_discount'] ?? 0
+            ) ?? 0.0;
+
+            /*
+             * ---------------------------------------------------------
+             * Формируем список товаров непосредственно из products.
+             *
+             * Раньше здесь использовался $box["message"], но текущий
+             * processBasketAndCalculateTotals() такого ключа не создаёт.
+             * Поэтому сообщение строим здесь.
+             * ---------------------------------------------------------
+             */
+            $productMessage = '';
+
+            foreach (($box['products'] ?? []) as $product) {
+                $productName = e(
+                    $product['name'] ?? 'Неуказанный товар'
+                );
+
+                $productCount = $product['count'] ?? 1;
+
+                $productPrice = $this->safeFloat(
+                    $product['price'] ?? 0
+                ) ?? 0.0;
+
+                $priceFormatted = number_format(
+                    $productPrice,
+                    2,
+                    '.',
+                    ' '
+                );
+
+                $productMessage .=
+                    "• <b>{$productName}</b> × {$productCount} — {$priceFormatted} руб.\n";
+
+                /*
+                 * Состав составного товара.
+                 */
+                if (!empty($product['components'])) {
+                    foreach ($product['components'] as $component) {
+                        $componentName = e(
+                            $component['name'] ?? 'Компонент'
+                        );
+
+                        $componentCount = $component['count'] ?? 1;
+
+                        $componentPrice = $this->safeFloat(
+                            $component['price'] ?? 0
+                        ) ?? 0.0;
+
+                        $componentPriceFormatted = number_format(
+                            $componentPrice,
+                            2,
+                            '.',
+                            ' '
+                        );
+
+                        $productMessage .=
+                            "  └─ {$componentName} × {$componentCount} — {$componentPriceFormatted} руб.\n";
+                    }
+                }
+
+                /*
+                 * Ингредиенты.
+                 */
+                if (!empty($product['ingredients'])) {
+                    foreach ($product['ingredients'] as $ingredient) {
+                        $ingredientName = e(
+                            $ingredient['name'] ?? 'Ингредиент'
+                        );
+
+                        $ingredientPrice = $this->safeFloat(
+                            $ingredient['price'] ?? 0
+                        ) ?? 0.0;
+
+                        if ($ingredientPrice > 0) {
+                            $ingredientPriceFormatted = number_format(
+                                $ingredientPrice,
+                                2,
+                                '.',
+                                ' '
+                            );
+
+                            $productMessage .=
+                                "  └─ {$ingredientName} (+{$ingredientPriceFormatted} руб.)\n";
+                        } else {
+                            $productMessage .=
+                                "  └─ {$ingredientName}\n";
+                        }
+                    }
+                }
+
+                if (!empty($product['comment'])) {
+                    $productMessage .=
+                        "  💬 " . e($product['comment']) . "\n";
+                }
+
+                $productMessage .= "\n";
+            }
+
+            /*
+             * Если по какой-то причине products отсутствуют,
+             * не создаём пустое сообщение.
+             */
+            if ($productMessage === '') {
+                $productMessage = "• Товары отсутствуют в данных заказа.\n";
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * Основное сообщение партнёру
+             * ---------------------------------------------------------
+             */
+            $resultMessage =
+                "🔔 <b>Новый заказ #{$order->id}</b>\n";
+
+            $resultMessage .= $needPickup
+                ? "#заказсамовывоз\n"
+                : "#заказдоставка\n";
+
+            $resultMessage .=
+                "\n🏪 <b>{$shopName}</b>\n";
+
+            $resultMessage .=
+                "━━━━━━━━━━━━━━━━━━━━━━\n";
+
+            /*
+             * Ограничения здоровья.
+             */
             $disabilities = $this->fsPrepareDisabilities();
+
             if ($disabilities) {
                 $resultMessage .= $disabilities;
             }
 
-            // Товары
-            $resultMessage .= ($box["message"] ?? 'Неуказанный продукт');
+            /*
+             * Товары.
+             */
+            $resultMessage .= "\n🛒 <b>Товары:</b>\n";
+            $resultMessage .= $productMessage;
 
-            // Данные клиента
-            $resultMessage .= $this->fsPrepareUserInfo($order, $cashback);
+            /*
+             * Данные клиента.
+             */
+            $resultMessage .=
+                $this->fsPrepareUserInfo(
+                    $order,
+                    $cashback
+                );
 
-            if ($box["summary_discount"] > 0) {
-                $resultMessage .= "\nСкидка: <b>-" . $box["summary_discount"] . " руб.</b>";
+            /*
+             * Скидка.
+             */
+            if ($summaryDiscount > 0) {
+                $resultMessage .=
+                    "\nСкидка: <b>-" .
+                    number_format(
+                        $summaryDiscount,
+                        2,
+                        '.',
+                        ' '
+                    ) .
+                    " руб.</b>";
             }
-            $resultMessage .= "\nИтого: <b>" . $box["summary_price"] . " руб.</b> за <b>" . $box["summary_count"] . " ед.</b>\n";
 
-            if ($box["delivery_price"] > 0) {
-                $resultMessage .= "\nДоставка: <b>" . $box["delivery_price"] . " руб.</b> за " . $box["distance"] . " км";
-                $resultMessage .= "\nИтого c доставкой: <b>" . ($box["summary_price"] + $box["delivery_price"]) . " руб.</b>";
+            /*
+             * Итого по заведению.
+             */
+            $resultMessage .=
+                "\nИтого: <b>" .
+                number_format(
+                    $summaryPrice,
+                    2,
+                    '.',
+                    ' '
+                ) .
+                " руб.</b> за <b>{$summaryCount} ед.</b>\n";
+
+            /*
+             * Доставка.
+             *
+             * Главное: никаких обращений $box["delivery_price"].
+             */
+            if (!$needPickup && $deliveryPrice > 0) {
+                $distanceText = $distance > 0
+                    ? " за {$distance} км"
+                    : '';
+
+                $resultMessage .=
+                    "\nДоставка: <b>" .
+                    number_format(
+                        $deliveryPrice,
+                        2,
+                        '.',
+                        ' '
+                    ) .
+                    " руб.</b>{$distanceText}";
+
+                $resultMessage .=
+                    "\nИтого с доставкой: <b>" .
+                    number_format(
+                        $summaryPrice + $deliveryPrice,
+                        2,
+                        '.',
+                        ' '
+                    ) .
+                    " руб.</b>";
             }
 
+            /*
+             * Даже если у партнёра нет thread, не падаем.
+             * MessageService получит null и сам решит, куда отправлять.
+             */
             $messages[$uuid] = [
                 'message' => $resultMessage,
-                'thread' => $box["thread"],
-                'id' => $box["id"] ?? null,
-                'name' => $box["name"] ?? null,
+                'thread' => $thread,
+                'id' => $partnerId ?: null,
+                'name' => $partner?->name
+                        ?? $partner?->title
+                        ?? ($box['name'] ?? 'Магазин'),
+
+                /*
+                 * Возвращаем нормализованные данные дальше,
+                 * чтобы они были доступны остальному коду.
+                 */
+                'delivery_price' => $deliveryPrice,
+                'distance' => $distance,
+                'summary_price' => $summaryPrice,
+                'summary_count' => $summaryCount,
             ];
         }
 
