@@ -266,6 +266,7 @@ class BasketService
         $this->data = $data;
         $this->uploadedImage = $uploadedImage;
 
+
         $this->storeClientInfoAsContact();
 
         return $this->foodShopCheckout();
@@ -661,6 +662,8 @@ class BasketService
             "selected_components.*.quantity" => "required|integer|min:1",
         ]);
 
+
+
         if ($validator->fails()) {
             throw new ValidationException($validator);
         }
@@ -766,6 +769,7 @@ class BasketService
                     ->first();
                 $extraCharge = $partner?->extra_charge ?? 0;
             }
+
 
             $basketData = [
                 'product_id' => $product->id,
@@ -999,8 +1003,11 @@ class BasketService
 
         $extraPrice = 0.0;
 
+
         foreach ($product->ingredientGroups as $group) {
+
             foreach ($group->ingredients as $ingredient) {
+
                 if (in_array($ingredient->id, $selectedIngredientIds)) {
                     $extraPrice += (float)($ingredient->extra_price ?? 0);
                 }

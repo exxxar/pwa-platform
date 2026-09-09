@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenant\Basket;
 use App\Services\Tenants\BasketService;
+use Exception;
+use HttpException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class BasketController extends Controller
@@ -38,10 +41,11 @@ class BasketController extends Controller
             return response()->json([
                 'message' => $e->getMessage(),
             ], $e->getStatusCode());
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::info($e);
             return response()->json([
                 'message' => 'Ошибка добавления товара',
-                'error' => $e->getMessage(),
+                'error' => $e->getMessage()
             ], 500);
         }
     }
