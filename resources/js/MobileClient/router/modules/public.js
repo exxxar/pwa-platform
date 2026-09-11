@@ -14,7 +14,25 @@ const Coffee = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/Coff
 const PartnersPage = defineAsyncComponent(() => import('@/MobileClient/Pages/Shop/PartnersPage.vue'));
 
 export default [
-    { path: '/', redirect: { name: 'Catalog' } },
+    {
+        path: '/',
+        redirect: (to) => {
+            const hostname = window.location.hostname;
+
+            // 1. Если домен содержит "delivery" (работает и для delivery.mypwa.ru, и для localhost:delivery)
+            if (hostname.includes('delivery')) {
+                return '/delivery';
+            }
+
+            // 2. Если домен содержит "agents"
+            if (hostname.includes('agents')) {
+                return '/agents';
+            }
+
+            // 3. Дефолтный редирект для основного домена (клиентская часть)
+            return { name: 'Catalog' };
+        }
+    },
     { path: '/menu', name: 'Menu', component: Menu, meta: { public: true } },
     { path: '/catalog', name: 'Catalog', component: Catalog, meta: { public: true } },
     { path: '/shop-menu', name: 'ShopMenu', component: ShopMenuPage, meta: { public: true } },
