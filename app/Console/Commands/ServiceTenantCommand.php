@@ -70,7 +70,7 @@ class ServiceTenantCommand extends Command
 
         // 3. Минимальные данные тенанта (остальное подтянется из конфигов приложения)
         $tenantData = [
-            'uuid' => (string) Str::uuid(),
+            'uuid' => (string)Str::uuid(),
             'slug' => $config['slug'],
             'name' => $config['name'],
             'description' => $config['description'],
@@ -153,7 +153,7 @@ class ServiceTenantCommand extends Command
         $adminUser = TenantUser::updateOrCreate(
             ['tenant_id' => $tenant->id, 'email' => $adminEmail],
             [
-                'uuid' => (string) Str::uuid(),
+                'uuid' => (string)Str::uuid(),
                 'name' => $config['super_admin'],
                 'phone' => '+79990000000',
                 'password' => bcrypt($adminPassword),

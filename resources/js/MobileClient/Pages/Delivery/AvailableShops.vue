@@ -69,10 +69,14 @@
 
 <script>
 import axios from 'axios';
+import {usePermissions} from "@/MobileClient/composables/usePermissions";
 
 export default {
     name: 'AvailableShops',
-
+    setup() {
+        const { isAdmin } = usePermissions();
+        return { isAdmin };
+    },
     data() {
         return {
             shops: [],
@@ -82,7 +86,11 @@ export default {
             isSaving: false,
         };
     },
-
+    created() {
+        if (!this.isAdmin) {
+            this.$router.push({ name: 'Auth' }).catch(() => {});
+        }
+    },
     mounted() {
         this.fetchShops();
     },

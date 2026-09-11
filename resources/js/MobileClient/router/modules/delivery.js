@@ -10,13 +10,11 @@ export default [
         path: '/delivery/delivery-main',
         name: 'DeliverymanDashboard',
         component: DeliveryMain,
-        meta: { auth: false }
     },
     {
         path: '/delivery/shops',
         name: 'AvailableShops',
         component: AvailableShops,
-        meta: { auth: true, roles: ['admin', 'super_admin'] }
     },
 
 

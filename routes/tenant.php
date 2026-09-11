@@ -51,6 +51,19 @@ use Illuminate\Support\Facades\Session;
 use Inertia\Inertia;
 use Jenssegers\Agent\Agent;
 
+Route::domain('delivery.mypwa.ru')->group(function () {
+    Route::get('/', function () {
+        return redirect('/delivery');
+    });
+});
+
+Route::domain('agents.mypwa.ru')->group(function () {
+    Route::get('/', function () {
+        return redirect('/agents');
+    });
+});
+
+
 Route::domain('mypwa.ru')->group(function () {
     Route::view("/", "landing-2");
 });
@@ -654,15 +667,4 @@ Route::get('/email/verify/{id}/{hash}', [TenantEmailVerificationController::clas
     ->name('tenant.verification.verify');
 
 
-Route::domain('delivery.mypwa.ru')->group(function () {
-    Route::get('/', function () {
-        return redirect('/delivery');
-    });
-});
-
-Route::domain('agents.mypwa.ru')->group(function () {
-    Route::get('/', function () {
-        return redirect('/agents');
-    });
-});
 
