@@ -185,11 +185,26 @@ class TenantAuthController extends Controller
 
     }
 
+    public function handlerDelivery(Request $request) {
+        $tenant = $request->tenant;
+
+        Session::put("tenant", $tenant ?? null);
+
+
+        $tenantUser = Auth::guard('tenant')->user();
+
+        Inertia::setRootView("mobile");
+        return Inertia::render('DeliveryMain', [
+            'tenant' => $tenant,
+            'tenant_user' => $tenantUser
+        ]);
+    }
     public function handlerAgent(Request $request)
     {
 
         $tenant = $request->tenant;
-        \Illuminate\Support\Facades\Session::put("tenant", $tenant->name ?? null);
+
+        Session::put("tenant", $tenant ?? null);
 
         $tenantUser = Auth::guard('tenant')->user();
 

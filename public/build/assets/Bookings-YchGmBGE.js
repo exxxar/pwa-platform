@@ -1,0 +1,1 @@
+import{T as e}from"./TableBookingPlanner-B8T6qC6x.js";import{o as s,b as a,a as o,h as t}from"./app-BvoEbmO3.js";import"./tables-a-iZtrM8.js";const c={class:"container py-3 px-1"},n={class:"row"},_={class:"col-12"},r={data(){}},h=Object.assign(r,{__name:"Bookings",setup(i){return(d,l)=>(s(),a("div",c,[o("div",n,[o("div",_,[t(e)])])]))}});export{h as default};

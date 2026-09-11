@@ -89,7 +89,7 @@
         <ProductInfo/>
 
         <!-- BottomMenu -->
-        <BottomMenu/>
+        <BottomMenu :user-type="'client'"/>
 
         <!-- FOOTER -->
         <Footer/>

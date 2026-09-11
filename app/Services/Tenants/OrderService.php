@@ -27,11 +27,10 @@ class OrderService
     }
 
     /**
+     * Начислить кэшбэк за заказ
+     *
      * @throws ValidationException
      * @throws HttpException
-     */
-    /**
-     * Начислить кэшбэк за заказ
      */
     public function addCashBackToOrder(array $data): void
     {
@@ -57,17 +56,18 @@ class OrderService
             throw new HttpException(404, "Заказ не найден");
         }
 
-        if ($order->is_cashback_crediting) {
+        // Проверка на наличие поля is_cashback_crediting (если его нет в БД, эту проверку можно убрать)
+        if (!empty($order->is_cashback_crediting)) {
             throw new HttpException(400, "По данному заказу уже был начислен CashBack");
         }
 
-        $client = TenantUser::query()->where("id", $order->customer_id)->first();
+        // 🛠 ИСПРАВЛЕНО: используем tenant_user_id вместо несуществующего customer_id
+        $client = TenantUser::query()->where("id", $order->tenant_user_id)->first();
 
         if (!$client) {
             throw new HttpException(404, "Клиент не найден");
         }
 
-        // Рассчитываем процент кэшбэка (например, 5% от суммы заказа)
         $cashbackPercent = $tenant->cashback_percent ?? 5;
         $cashbackAmount = $order->summary_price * ($cashbackPercent / 100);
 
@@ -81,11 +81,16 @@ class OrderService
             );
         }
 
-        $order->is_cashback_crediting = true;
-        $order->save();
+        // Если поле существует в БД, обновляем его
+        if (in_array('is_cashback_crediting', $order->getFillable())) {
+            $order->is_cashback_crediting = true;
+            $order->save();
+        }
     }
 
     /**
+     * Регистрация данных доставщика
+     *
      * @throws ValidationException
      */
     public function registerDeliveryman(array $data): void
@@ -103,18 +108,19 @@ class OrderService
             "documents.*.params" => "required",
         ]);
 
-        if ($validator->fails())
+        if ($validator->fails()) {
             throw new ValidationException($validator);
+        }
 
         $birthday = Carbon::parse($data["birthday"] ?? $tenantUser->birthday ?? Carbon::now())->format("Y-m-d");
 
-        $tenantUser->name = $data["name"] ?? $tenantUser->name ?? null;
-        $tenantUser->phone = $data["phone"] ?? $tenantUser->phone ?? null;
-        $tenantUser->email = $data["email"] ?? $tenantUser->email ?? null;
+        $tenantUser->name = $data["name"] ?? $tenantUser->name;
+        $tenantUser->phone = $data["phone"] ?? $tenantUser->phone;
+        $tenantUser->email = $data["email"] ?? $tenantUser->email;
         $tenantUser->birthday = $birthday;
-        $tenantUser->city = $data["city"] ?? $tenantUser->city ?? null;
-        $tenantUser->country = $data["country"] ?? $tenantUser->country ?? null;
-        $tenantUser->address = $data["address"] ?? $tenantUser->address ?? null;
+        $tenantUser->city = $data["city"] ?? $tenantUser->city;
+        $tenantUser->country = $data["country"] ?? $tenantUser->country;
+        $tenantUser->address = $data["address"] ?? $tenantUser->address;
         $tenantUser->sex = (bool)($data["sex"] ?? false);
         $tenantUser->age = Carbon::now()->year - Carbon::parse($birthday)->year;
         $tenantUser->save();
@@ -134,7 +140,7 @@ class OrderService
                     'title' => $document->title ?? null,
                     'description' => $document->description ?? null,
                     'type' => $document->type ?? 0,
-                    'params' => json_decode($document->params ?? '[]'),
+                    'params' => json_decode($document->params ?? '[]', true),
                     'verified_at' => null,
                 ]
             );
@@ -142,6 +148,8 @@ class OrderService
     }
 
     /**
+     * Сохранение координат доставщика в активные заказы
+     *
      * @throws HttpException
      */
     public function storeCoordsToOrder(float $lat = 0, float $lon = 0): bool
@@ -152,11 +160,12 @@ class OrderService
         $orders = Order::query()
             ->where('tenant_id', $tenant->id)
             ->where('deliveryman_id', $tenantUser->id)
-            ->whereNot('status', OrderStatusEnum::Completed->value)
+            ->whereNotIn('status', [OrderStatusEnum::Completed->value, OrderStatusEnum::Decline->value])
             ->get();
 
-        if ($orders->isEmpty())
+        if ($orders->isEmpty()) {
             return false;
+        }
 
         foreach ($orders as $order) {
             $order->deliveryman_latitude = $lat;
@@ -168,6 +177,8 @@ class OrderService
     }
 
     /**
+     * Принятие заказа доставщиком
+     *
      * @throws HttpException
      */
     public function acceptOrder($orderId): bool
@@ -180,40 +191,47 @@ class OrderService
             ->where("tenant_id", $tenant->id)
             ->first();
 
-        if (is_null($order))
+        if (is_null($order)) {
             return false;
+        }
 
-        $documents = Documents::query()
-            ->where("tenant_id", $tenant->id)
-            ->where("tenant_user_id", $tenantUser->id)
-            ->whereNotNull("verified_at")
-            ->get();
-
-        $deliverymanInfo = (object)[
-            "name" => $tenantUser->name ?? $tenantUser->id,
+        $deliverymanInfo = [
+            "name" => $tenantUser->name ?? "Курьер #{$tenantUser->id}",
             "phone" => $tenantUser->phone ?? '-',
-            "documents" => $documents->pluck('params')->toArray(),
+            "documents" => [],
         ];
 
         $order->update([
             'deliveryman_id' => $tenantUser->id,
-            'delivery_service_info' => $tenant->title ?? $tenant->id,
+            // 🆕 Передаем массив, который Laravel благодаря касту сам превратит в валидный JSON
+            'delivery_service_info' => [
+                'name' => $tenant->name ?? $tenant->title ?? 'Служба доставки'
+            ],
             'deliveryman_info' => $deliverymanInfo,
-            'delivery_price' => 0,
-            'delivery_range' => 0,
             'status' => OrderStatusEnum::InDelivery->value,
         ]);
 
         return true;
     }
 
+    /**
+     * Подтверждение доставки
+     * (Основная логика гео-проверки теперь в DeliverymanController,
+     * здесь оставлен базовый метод для совместимости, если он вызывается из других мест)
+     */
     public function confirmDelivery($orderId): void
     {
-        // Подтвердить можно в случае если координаты доставщика и заказчика близко друг к другу
-        // Выставить рейтинг
+        $order = Order::find($orderId);
+        if ($order) {
+            $order->status = OrderStatusEnum::Completed->value;
+            $order->delivered_at = now();
+            $order->save();
+        }
     }
 
     /**
+     * Отмена заказа
+     *
      * @throws HttpException
      */
     public function declineOrder($orderId): void
@@ -225,14 +243,17 @@ class OrderService
             ->where("tenant_id", $tenant->id)
             ->first();
 
-        if (is_null($order))
+        if (is_null($order)) {
             throw new HttpException(404, "Заказ не найден!");
+        }
 
         $order->status = OrderStatusEnum::Decline->value;
         $order->save();
     }
 
     /**
+     * Получение заказа
+     *
      * @throws HttpException
      */
     public function getOrder($orderId): OrderResource
@@ -242,16 +263,18 @@ class OrderService
         $order = Order::query()
             ->where("tenant_id", $tenant->id)
             ->where("id", $orderId)
-            ->orderBy("created_at", "DESC")
             ->first();
 
-        if (is_null($order))
+        if (is_null($order)) {
             throw new HttpException(404, "Заказ не найден!");
+        }
 
         return new OrderResource($order);
     }
 
     /**
+     * Повтор заказа
+     *
      * @throws HttpException
      * @throws ValidationException
      */
@@ -263,41 +286,37 @@ class OrderService
             "id" => "required",
         ]);
 
-        if ($validator->fails())
+        if ($validator->fails()) {
             throw new ValidationException($validator);
+        }
 
         $order = Order::query()
             ->where("id", $data["id"])
+            ->where("tenant_id", $tenant->id)
             ->firstOrFail();
 
         $details = $order->product_details["products"] ?? [];
 
-        if (empty($details))
+        if (empty($details)) {
             throw new HttpException(404, "Продукты не найдены");
+        }
 
-        $ids = array_values(\Illuminate\Support\Collection::make($details)
-            ->pluck("id")->toArray());
+        $ids = array_values(\Illuminate\Support\Collection::make($details)->pluck("id")->toArray());
 
-        BasketService::call()
-            ->clearBasket();
+        BasketService::call()->clearBasket();
 
-        foreach ($ids as $id)
-            BasketService::call()
-                ->addAndIncrementProduct([
-                    "product_id" => $id
-                ]);
+        foreach ($ids as $id) {
+            BasketService::call()->addAndIncrementProduct([
+                "product_id" => $id
+            ]);
+        }
 
-      /*  $products = Product::query()
-            // ->where("tenant_id", $tenant->id)
-            ->where("in_stop_list", false)
-            ->whereIn("id", $ids)
-            ->get();*/
-
-        return BasketService::call()
-            ->productsInBasket();
+        return BasketService::call()->productsInBasket();
     }
 
     /**
+     * Смена статуса заказа
+     *
      * @throws HttpException
      */
     public function changeStatusOrder($orderId, $status = 0): void
@@ -309,16 +328,19 @@ class OrderService
             ->where("tenant_id", $tenant->id)
             ->first();
 
-        if (is_null($order))
+        if (is_null($order)) {
             throw new HttpException(404, "Заказ не найден!");
+        }
 
         $order->status = $status ?? 0;
         $order->save();
 
-        // Уведомление клиента о смене статуса можно реализовать через NotificationService / Mail
+        // Уведомление клиента о смене статуса автоматически сработает через OrderObserver
     }
 
     /**
+     * Список заказов
+     *
      * @throws HttpException
      * @throws ValidationException
      */
@@ -328,36 +350,42 @@ class OrderService
         $tenantUser = Auth::guard('tenant')->user();
 
         $validator = Validator::make($data, [
-            "search" => "",
-            "order_by" => "",
-            "direction" => "",
+            "search" => "nullable|string",
+            "order_by" => "nullable|string",
+            "direction" => "nullable|in:asc,desc",
         ]);
 
-        if ($validator->fails())
+        if ($validator->fails()) {
             throw new ValidationException($validator);
+        }
 
         $search = $data["search"] ?? null;
         $orderBy = $data["order_by"] ?? "id";
         $direction = $data["direction"] ?? "desc";
         $tenantUserId = $data["tenant_user_id"] ?? null;
 
-        $orders = Order::query()
-            ->where("tenant_id", $tenant->id);
+        $orders = Order::query()->where("tenant_id", $tenant->id);
 
-        if (!is_null($search))
-            $orders = $orders->where("id", "like", "%$search%");
+        if (!is_null($search)) {
+            $orders = $orders->where(function($q) use ($search) {
+                $q->where("id", "like", "%$search%")
+                    ->orWhere("receiver_name", "like", "%$search%")
+                    ->orWhere("receiver_phone", "like", "%$search%");
+            });
+        }
 
-        if (!$needAll || !is_null($tenantUserId))
+        if (!$needAll || !is_null($tenantUserId)) {
             $orders = $orders->where("tenant_user_id", $tenantUserId ?? $tenantUser->id);
+        }
 
-        $orders = $orders
-            ->orderBy($orderBy, $direction)
-            ->paginate($size);
+        $orders = $orders->orderBy($orderBy, $direction)->paginate($size);
 
         return new OrderCollection($orders);
     }
 
     /**
+     * Отправка СБП инвойса
+     *
      * @throws ValidationException
      * @throws HttpException
      */
@@ -370,18 +398,20 @@ class OrderService
             "amount" => "required|numeric",
         ]);
 
-        if ($validator->fails())
+        if ($validator->fails()) {
             throw new ValidationException($validator);
+        }
 
         $order = Order::query()
             ->where("id", $data["order_id"])
             ->where("tenant_id", $tenant->id)
             ->first();
 
-        if (is_null($order))
+        if (is_null($order)) {
             throw new HttpException(404, "Заказ не найден");
+        }
 
-        // Интеграция с СБП — замените на реальный вызов платёжного шлюза
+        // Интеграция с СБП — здесь должен быть реальный вызов платежного шлюза
         return [
             "status" => "pending",
             "order_id" => $order->id,
@@ -390,6 +420,8 @@ class OrderService
     }
 
     /**
+     * Расчет стоимости доставки
+     *
      * @throws ValidationException
      */
     public function getDeliveryPrice(array $data): array
@@ -401,8 +433,9 @@ class OrderService
             "longitude" => "required|numeric",
         ]);
 
-        if ($validator->fails())
+        if ($validator->fails()) {
             throw new ValidationException($validator);
+        }
 
         $basePrice = $tenant->settings["delivery_base_price"] ?? 200;
         $pricePerKm = $tenant->settings["delivery_price_per_km"] ?? 50;

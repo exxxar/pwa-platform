@@ -164,7 +164,7 @@ class PaymentService
             );
         }
 
-        $namespace = 'App\\Services\\Tenants\\Banking';
+        $namespace = 'App\\Services\\Tenants\\Banking\\';
 
         $className = match ($bankKey) {
             'yandex' => $namespace . 'YookassaService',

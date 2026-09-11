@@ -2,7 +2,6 @@
     <nav class="bottom-nav" v-if="!$route.meta.hideBottomMenu">
         <div class="container-fluid h-100">
             <div class="row h-100 text-center g-0">
-
                 <div
                     v-for="item in navItems"
                     :key="item.route"
@@ -31,7 +30,6 @@
                         <span class="nav-label">{{ item.label }}</span>
                     </button>
                 </div>
-
             </div>
         </div>
     </nav>
@@ -44,6 +42,15 @@ import { onMounted, onUnmounted } from 'vue';
 
 export default {
     name: "BottomMenu",
+
+    // 🆕 1. Добавляем пропс для определения типа интерфейса
+    props: {
+        userType: {
+            type: String,
+            default: 'client', // 'client' | 'delivery' | 'agent'
+            validator: (value) => ['client', 'delivery', 'agent'].includes(value)
+        }
+    },
 
     setup() {
         const basket = useBasket();
@@ -63,13 +70,61 @@ export default {
         return {
             cartTotalCount: basket.cartTotalCount,
             isEmpty: basket.isEmpty,
-            totalUnread: chat.totalUnread, // ✅ реактивный ref из state
+            totalUnread: chat.totalUnread,
         };
     },
 
-    data() {
-        return {
-            navItems: [
+    // 🆕 2. Переносим navItems в computed, чтобы они реагировали на пропс userType
+    computed: {
+        navItems() {
+            // Базовый элемент, который есть везде
+            const profileItem = {
+                route: 'Profile',
+                label: 'Профиль',
+                icon: 'fa-solid fa-user',
+                badgeKey: null,
+            };
+
+            // 🚚 МЕНЮ ДЛЯ ДОСТАВКИ
+            if (this.userType === 'delivery') {
+                return [
+                    {
+                        route: 'DeliverymanDashboard', // Замените на актуальное имя вашего роута
+                        label: 'Панель',
+                        icon: 'fa-solid fa-motorcycle',
+                        badgeKey: null,
+                    },
+                    {
+                        route: 'AvailableShops', // Замените на актуальное имя роута (например, Catalog или Shops)
+                        label: 'Магазины',
+                        icon: 'fa-solid fa-store',
+                        badgeKey: null,
+                    },
+                    profileItem
+                ];
+            }
+
+            // 🕵️ МЕНЮ ДЛЯ АГЕНТА (на будущее)
+            if (this.userType === 'agent') {
+                return [
+                    {
+                        route: 'AgentDashboard',
+                        label: 'Агентам',
+                        icon: 'fa-solid fa-briefcase',
+                        badgeKey: null,
+                    },
+                    {
+                        route: 'AgentTenants',
+                        label: 'Тенанты',
+                        icon: 'fa-solid fa-building',
+                        badgeKey: null,
+                    },
+                    profileItem
+                ];
+            }
+
+            // 👤 МЕНЮ ДЛЯ КЛИЕНТА (по умолчанию)
+            return [
                 {
                     route: 'Menu',
                     label: 'Главная',
@@ -96,14 +151,9 @@ export default {
                     badgeKey: 'chat',
                     hasItems: () => true,
                 },
-                {
-                    route: 'Profile',
-                    label: 'Профиль',
-                    icon: 'fa-solid fa-user',
-                    badgeKey: null,
-                },
-            ],
-        };
+                profileItem,
+            ];
+        }
     },
 
     methods: {
@@ -112,9 +162,6 @@ export default {
             this.$router.push({ name });
         },
 
-        /**
-         * 🆕 Универсальный метод получения значения бейджа
-         */
         getBadgeCount(item) {
             if (!item.badgeKey) return 0;
 
@@ -122,7 +169,6 @@ export default {
                 case 'cart':
                     return this.cartTotalCount || 0;
                 case 'chat':
-                    // 🎯 totalUnread — это ref из setup, Vue разворачивает его автоматически
                     return this.totalUnread || 0;
                 default:
                     return 0;
@@ -156,12 +202,11 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
     background: transparent;
     pointer-events: none;
 
-    // 📱 АДАПТИВ: на планшетах и десктопах меню центрируется и не растягивается
     @media (min-width: 768px) {
         left: 50%;
         right: auto;
         transform: translateX(-50%);
-        max-width: 600px; // Оптимальная ширина для 5 элементов (можно изменить на 500px или 700px по вкусу)
+        max-width: 600px;
         width: 100%;
     }
 }
@@ -171,12 +216,11 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
     background-color: $bg;
     color: $text;
     border-radius: 16px;
-    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.08),
-    0 0 0 1px $border;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.08), 0 0 0 1px $border;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    width: 100%; // Гарантируем, что внутренний контейнер занимает всю доступную ширину родителя
+    width: 100%;
 }
 
 // ==========================================
@@ -210,13 +254,11 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
         box-shadow: none;
     }
 
-    // Подсветка иконки корзины при наличии товаров
     &.has-items i {
         color: $primary;
     }
 }
 
-// Обёртка для иконки + бейджа
 .icon-wrapper {
     position: relative;
     display: flex;
@@ -281,7 +323,6 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
     box-shadow: 0 2px 8px rgba($danger, 0.3);
 }
 
-// Анимация появления/исчезновения бейджа
 .badge-pop-enter-active {
     animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -291,25 +332,15 @@ $border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
 }
 
 @keyframes badgePop {
-    0% {
-        transform: scale(0);
-        opacity: 0;
-    }
-    70% {
-        transform: scale(1.3);
-        opacity: 1;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
+    0% { transform: scale(0); opacity: 0; }
+    70% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 // ==========================================
 // ТЁМНАЯ ТЕМА
 // ==========================================
 :root[data-bs-theme="dark"] .bottom-nav .container-fluid {
-    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 </style>

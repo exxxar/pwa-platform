@@ -108,7 +108,7 @@
             <!-- ========================================== -->
             <div v-if="offerAgreement" class="checkout-actions">
 
-                <!-- Кнопка "Далее" -->
+<!--                &lt;!&ndash; Кнопка "Далее" &ndash;&gt;
                 <button
                     v-if="spentTime <= 0"
                     type="button"
@@ -126,7 +126,7 @@
                     </template>
                 </button>
 
-                <!-- Кнопка ожидания -->
+                &lt;!&ndash; Кнопка ожидания &ndash;&gt;
                 <button
                     v-else
                     type="button"
@@ -135,7 +135,7 @@
                 >
                     <div class="waiting-spinner"></div>
                     <span>Осталось ждать {{ spentTime }} сек.</span>
-                </button>
+                </button>-->
 
                 <!-- Кнопка "Вернуться в корзину" -->
                 <button

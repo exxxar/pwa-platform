@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+
 class Order extends Model
 {
 
@@ -25,6 +26,7 @@ class Order extends Model
         'tenant_user_id',
         'dialog_id',
         'delivery_service_info',
+        'deliveryman_id',       // 🆕 ДОБАВЛЕНО
         'deliveryman_info',
         'product_details',
         'product_count',
@@ -45,6 +47,7 @@ class Order extends Model
     protected $casts = [
         'tenant_id' => 'integer',
         'dialog_id' => 'integer',
+        'deliveryman_id' => 'integer',
         'tenant_user_id' => 'integer',
         'product_details' => 'array',
         'product_count' => 'integer',
@@ -57,8 +60,13 @@ class Order extends Model
         'status' => 'integer',
         'order_type' => 'integer',
         'payed_at' => 'datetime',
+        'delivered_at' => 'datetime',
+
+        'delivery_service_info' => 'json',
+        'deliveryman_info' => 'array',
     ];
 
+    protected $with = ["location"];
     protected static function booted()
     {
         static::observe(OrderObserver::class);
@@ -69,9 +77,19 @@ class Order extends Model
         return $this->hasOne(Review::class);
     }
 
+    public function location(): HasOne
+    {
+        return $this->hasOne(TenantUserAddress::class,'id','location_id');
+    }
+
     public function tenantUser(): BelongsTo
     {
         return $this->belongsTo(TenantUser::class);
+    }
+
+    public function deliveryman(): BelongsTo
+    {
+        return $this->belongsTo(TenantUser::class, 'deliveryman_id');
     }
 
     /**

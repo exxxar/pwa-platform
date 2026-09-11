@@ -11,7 +11,7 @@
     {{-- 1. Базовые технические мета-теги --}}
     <meta charset="{{ $seo['meta']['charset'] ?? 'UTF-8' }}">
     <meta name="viewport"
-          content="{{ $seo['meta']['viewport'] ?? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover' }}">
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="{{ $seo['images']['theme_color'] ?? '#ffffff' }}">
 
 

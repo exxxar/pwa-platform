@@ -680,14 +680,24 @@ trait BasketHelper
         }
 
         return Order::query()->create([
-            'tenant_id' => $this->tenant->id, 'tenant_user_id' => $this->tenantUser->id,
-            'delivery_service_info' => null, 'deliveryman_info' => null,
+            'tenant_id' => $this->tenant->id,
+            'tenant_user_id' => $this->tenantUser->id,
+
+            // 🎯 ИСПРАВЛЕНО: Добавляем location_id из контекста
+            'location_id' => $context['location_id'] ?? null,
+
+            'delivery_service_info' => null,
+            'deliveryman_info' => null,
             'product_details' => ['from' => $this->tenant->name ?? 'Магазин', 'products' => $basketData['product_info']],
             'product_count' => (int) $basketData['summary_count'],
             'summary_price' => (float) $basketData['final_price'],
             'delivery_price' => (float) ($context['delivery_price'] ?? 0),
             'receiver_name' => $context['customer_name'] ?? 'Не указано',
             'receiver_phone' => $context['customer_phone'] ?? '',
+
+            // 💡 РЕКОМЕНДАЦИЯ: Сразу сохраняем сформированную заметку для курьера,
+            // так как у вас уже есть готовый метод fsPrepareDeliveryNote()
+            'delivery_note' => $this->fsPrepareDeliveryNote(),
         ]);
     }
 

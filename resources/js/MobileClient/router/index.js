@@ -9,6 +9,7 @@ import shopRoutes from './modules/shop';
 import gamesRoutes from './modules/games';
 import adminRoutes from './modules/admin';
 import legalRoutes from './modules/legal';
+import deliveryRoutes from './modules/delivery';
 
 
 // 404
@@ -22,6 +23,7 @@ const routes = [
     ...gamesRoutes,
     ...adminRoutes,
     ...legalRoutes,
+    ...deliveryRoutes,
 
 
     // 404 (всегда в конце)

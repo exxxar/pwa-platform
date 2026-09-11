@@ -1,1 +1,0 @@
-import{C as e}from"./CoffeeProgress-CFPq8w4y.js";import{_ as s,D as r,o as t,k as n}from"./vue-router-b4pZJgTU.js";import"./usePermissions-BMuh-iuX.js";const c={components:{CoffeeProgress:e}};function f(p,a,_,m,i,C){const o=r("CoffeeProgress");return t(),n(o)}const $=s(c,[["render",f]]);export{$ as default};

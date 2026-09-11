@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\BasketController;
 use App\Http\Controllers\BitrixController;
 use App\Http\Controllers\CdekController;
+use App\Http\Controllers\DeliverymanController;
 use App\Http\Controllers\IikoController;
 use App\Http\Controllers\PartnersController;
 use App\Http\Controllers\ProductCollectionController;
@@ -101,6 +102,10 @@ function routes()
         ->where('any', '.*')
         ->name("shop.agent");
 
+    Route::get('/delivery/{any?}', [TenantAuthController::class, 'handlerDelivery'])
+        ->where('any', '.*')
+        ->name("shop.delivery");
+
     Route::get('/pwa/{any?}', [TenantAuthController::class, 'handler'])
         ->where('any', '.*');
 
@@ -132,6 +137,25 @@ function routes()
     });
 
     Route::get("/tables-qr", [ProductController::class, "generateTablesQR"]);
+
+    Route::prefix('deliveryman')->group(function () {
+        // Профиль и статистика
+        Route::get('/dashboard', [DeliverymanController::class, 'dashboard']);
+        Route::post('/toggle-status', [DeliverymanController::class, 'toggleStatus']); // Онлайн/Офлайн
+        Route::get('/orders/available', [DeliverymanController::class, 'availableOrders']); // Новые заказы рядом
+        Route::get('/orders/active', [DeliverymanController::class, 'activeOrders']);       // Текущие доставки
+        Route::get('/orders/completed', [DeliverymanController::class, 'completedOrders']);       // Текущие доставки
+        Route::post('/orders/{id}/accept', [DeliverymanController::class, 'acceptOrder']);  // Взять заказ
+        Route::post('/orders/{id}/confirm-delivery', [DeliverymanController::class, 'confirmDelivery']);  // Взять заказ
+        Route::post('/orders/{id}/status', [DeliverymanController::class, 'changeStatus']);  // Взять заказ
+        Route::post('/orders/{id}/location', [DeliverymanController::class, 'updateLocation']); // Отправка координат
+        Route::post('/orders/{id}/message', [DeliverymanController::class, 'sendMessage']);
+        Route::get('/dialogs/{dialogId}/messages', [DeliverymanController::class, 'getDialogMessages']);
+        Route::post('/dialogs/{dialogId}/messages', [DeliverymanController::class, 'sendDialogMessage']);
+
+        Route::get('/finance', [DeliverymanController::class, 'finance']);
+        Route::post('/finance/payout', [DeliverymanController::class, 'requestPayout']);
+    });
 
     Route::prefix('profile')->middleware(['auth:tenant'])->group(function () {
         Route::get('/', [ProfileController::class, 'index']);
