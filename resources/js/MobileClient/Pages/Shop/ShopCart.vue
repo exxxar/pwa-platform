@@ -771,13 +771,13 @@ export default {
                         type: 'success'
                     });
 
-                    if (this.deliveryForm.payment_type === 4 && response.payment_data?.url) {
+                    if (this.deliveryForm.payment_type === 4 && response.payment?.url) {
                         this.$notify?.({
                             title: 'Перенаправление на оплату',
                             text: 'Сейчас вы будете перенаправлены на страницу оплаты через СБП',
                             type: 'info'
                         });
-                        window.location.href = response.payment_data.url;
+                        window.location.href = response.payment.url;
                         return;
                     }
 

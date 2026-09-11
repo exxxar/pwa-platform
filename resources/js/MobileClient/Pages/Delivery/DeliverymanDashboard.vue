@@ -1,7 +1,7 @@
 <template>
     <div v-if="isAdmin" class="deliveryman-dashboard">
         <!-- ========================================== -->
-        <!-- HERO СЕКЦИЯ (Без изменений) -->
+        <!-- HERO СЕКЦИЯ -->
         <!-- ========================================== -->
         <div class="deliveryman-hero" :class="{ 'is-offline': !isOnline }">
             <div class="hero-background"></div>
@@ -10,20 +10,11 @@
                     <div class="deliveryman-info">
                         <div class="deliveryman-details">
                             <h1 class="deliveryman-name">{{ deliveryman.name || 'Курьер' }}</h1>
-                            <div class="deliveryman-status" :class="isOnline ? 'status-online' : 'status-offline'" @click="handleToggleOnline">
-                                <span class="status-dot"></span>
-                                <span>{{ isOnline ? 'На линии' : 'Не активен' }}</span>
-                            </div>
-                            <div class="deliveryman-meta-row">
-                                <div class="deliveryman-rating-small">
-                                    <i class="fa-solid fa-star"></i>
-                                    <span>Рейтинг: {{ deliveryman.rating }}</span>
-                                </div>
-                                <button class="settings-btn-small" disabled title="Настройки профиля (в разработке)">
-                                    <i class="fa-solid fa-gear"></i>
-                                    <span>Настройки</span>
-                                </button>
-                            </div>
+                            <!-- 🆕 Только кнопка настроек -->
+                            <button class="settings-btn-header" @click="showSettingsModal = true" title="Настройки автообновления">
+                                <i class="fa-solid fa-gear"></i>
+                                <span>Настройки</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -78,8 +69,34 @@
         <!-- КОНТЕНТ -->
         <!-- ========================================== -->
         <div class="dashboard-content">
+
             <!-- Вкладка: Доступные заказы -->
             <div v-if="activeTab === 'available'" class="tab-content">
+                <!-- 🆕 ПАНЕЛЬ ФИЛЬТРА ПО ДАТАМ -->
+                <!-- 🆕 ПАНЕЛЬ ФИЛЬТРА ПО ДАТАМ (Заменить во всех 3 вкладках: available, active, completed) -->
+                <div class="date-filter-bar">
+                    <div class="filter-group">
+                        <label><i class="fa-solid fa-calendar-day"></i> С:</label>
+                        <input type="date" v-model="dateFrom" @change="reloadCurrentTab" class="date-input">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fa-solid fa-calendar-check"></i> По:</label>
+                        <input type="date" v-model="dateTo" @change="reloadCurrentTab" class="date-input">
+                    </div>
+
+                    <!-- 🆕 Группа кнопок действий -->
+                    <div class="filter-actions">
+                        <button class="btn-reset-dates" @click="resetToToday" title="Показать только сегодняшние заказы">
+                            <i class="fa-solid fa-rotate-left"></i> Сегодня
+                        </button>
+                        <button class="btn-load-orders" @click="reloadCurrentTab" :disabled="isLoadingTab">
+                            <i v-if="isLoadingTab" class="fa-solid fa-spinner fa-spin"></i>
+                            <i v-else class="fa-solid fa-rotate"></i>
+                            <span>Загрузить</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div v-if="availableOrders.length === 0" class="empty-state">
                     <i class="fa-solid fa-mug-hot"></i>
                     <p>Новых заказов пока нет. Ожидайте...</p>
@@ -141,6 +158,31 @@
 
             <!-- Вкладка: Мои текущие -->
             <div v-if="activeTab === 'active'" class="tab-content">
+                <!-- 🆕 ПАНЕЛЬ ФИЛЬТРА ПО ДАТАМ -->
+                <!-- 🆕 ПАНЕЛЬ ФИЛЬТРА ПО ДАТАМ (Заменить во всех 3 вкладках: available, active, completed) -->
+                <div class="date-filter-bar">
+                    <div class="filter-group">
+                        <label><i class="fa-solid fa-calendar-day"></i> С:</label>
+                        <input type="date" v-model="dateFrom" @change="reloadCurrentTab" class="date-input">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fa-solid fa-calendar-check"></i> По:</label>
+                        <input type="date" v-model="dateTo" @change="reloadCurrentTab" class="date-input">
+                    </div>
+
+                    <!-- 🆕 Группа кнопок действий -->
+                    <div class="filter-actions">
+                        <button class="btn-reset-dates" @click="resetToToday" title="Показать только сегодняшние заказы">
+                            <i class="fa-solid fa-rotate-left"></i> Сегодня
+                        </button>
+                        <button class="btn-load-orders" @click="reloadCurrentTab" :disabled="isLoadingTab">
+                            <i v-if="isLoadingTab" class="fa-solid fa-spinner fa-spin"></i>
+                            <i v-else class="fa-solid fa-rotate"></i>
+                            <span>Загрузить</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div v-if="activeOrders.length === 0" class="empty-state">
                     <i class="fa-solid fa-clipboard-check"></i>
                     <p>Нет активных доставок. Отличная работа!</p>
@@ -202,6 +244,31 @@
 
             <!-- Вкладка: Завершенные -->
             <div v-if="activeTab === 'completed'" class="tab-content">
+                <!-- 🆕 ПАНЕЛЬ ФИЛЬТРА ПО ДАТАМ -->
+                <!-- 🆕 ПАНЕЛЬ ФИЛЬТРА ПО ДАТАМ (Заменить во всех 3 вкладках: available, active, completed) -->
+                <div class="date-filter-bar">
+                    <div class="filter-group">
+                        <label><i class="fa-solid fa-calendar-day"></i> С:</label>
+                        <input type="date" v-model="dateFrom" @change="reloadCurrentTab" class="date-input">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fa-solid fa-calendar-check"></i> По:</label>
+                        <input type="date" v-model="dateTo" @change="reloadCurrentTab" class="date-input">
+                    </div>
+
+                    <!-- 🆕 Группа кнопок действий -->
+                    <div class="filter-actions">
+                        <button class="btn-reset-dates" @click="resetToToday" title="Показать только сегодняшние заказы">
+                            <i class="fa-solid fa-rotate-left"></i> Сегодня
+                        </button>
+                        <button class="btn-load-orders" @click="reloadCurrentTab" :disabled="isLoadingTab">
+                            <i v-if="isLoadingTab" class="fa-solid fa-spinner fa-spin"></i>
+                            <i v-else class="fa-solid fa-rotate"></i>
+                            <span>Загрузить</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div v-if="completedOrders.length === 0" class="empty-state">
                     <i class="fa-solid fa-box-open"></i>
                     <p>История доставок пуста</p>
@@ -230,6 +297,66 @@
                 </div>
             </div>
         </div>
+
+        <!-- ========================================== -->
+        <!-- 🆕 МОДАЛКА: НАСТРОЙКИ АВТООБНОВЛЕНИЯ -->
+        <!-- ========================================== -->
+        <transition name="modal-fade">
+            <div v-if="showSettingsModal" class="modal-overlay" @click.self="showSettingsModal = false">
+                <div class="modal-container">
+                    <div class="modal-header">
+                        <h3><i class="fa-solid fa-gear text-primary me-2"></i> Настройки дашборда</h3>
+                        <button class="modal-close" @click="showSettingsModal = false"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Автообновление -->
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-title">Автообновление заказов</div>
+                                <div class="setting-desc">Периодически проверять наличие новых заказов</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" v-model="deliverySettings.auto_refresh" @change="saveSettings">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- Интервал обновления -->
+                        <div class="setting-row" v-if="deliverySettings.auto_refresh">
+                            <div class="setting-info">
+                                <div class="setting-title">Интервал обновления</div>
+                                <div class="setting-desc">Минимум 30 секунд</div>
+                            </div>
+                            <div class="setting-input-group">
+                                <input
+                                    type="number"
+                                    v-model.number="deliverySettings.refresh_interval"
+                                    @change="saveSettings"
+                                    min="30"
+                                    class="setting-input"
+                                >
+                                <span class="input-suffix">сек</span>
+                            </div>
+                        </div>
+
+                        <!-- Звуковые уведомления -->
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-title">Звуковые уведомления</div>
+                                <div class="setting-desc">Звук при появлении новых заказов</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" v-model="deliverySettings.sound_enabled" @change="saveSettings">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary-modern w-100" @click="showSettingsModal = false">Закрыть</button>
+                    </div>
+                </div>
+            </div>
+        </transition>
 
         <!-- ========================================== -->
         <!-- МОДАЛКА: ПОЛНЫЕ ДЕТАЛИ ЗАКАЗА -->
@@ -280,7 +407,6 @@
                             </div>
                         </div>
 
-                        <!-- 🆕 БЛОК БЫСТРЫХ СООБЩЕНИЙ И ССЫЛКА НА ПОЛНЫЙ ЧАТ -->
                         <div v-if="currentOrder.dialog_id" class="detail-section">
                             <div class="chat-actions-header">
                                 <h4 class="section-title"><i class="fa-solid fa-comments"></i> Сообщение клиенту</h4>
@@ -328,7 +454,6 @@
         <transition name="modal-fade">
             <div v-if="showChatModal && currentChatOrder" class="modal-overlay chat-modal-overlay" @click.self="closeChatModal">
                 <div class="modal-container chat-modal-container">
-                    <!-- Шапка чата -->
                     <div class="chat-modal-header">
                         <div class="chat-header-info">
                             <div class="chat-avatar">
@@ -342,18 +467,15 @@
                         <button class="modal-close" @click="closeChatModal"><i class="fa-solid fa-xmark"></i></button>
                     </div>
 
-                    <!-- Область сообщений -->
                     <div ref="chatMessagesContainer" class="chat-messages-area">
                         <div v-if="isChatLoading" class="chat-loader">
                             <div class="loader-spinner"></div>
                             <span>Загрузка истории...</span>
                         </div>
-
                         <div v-else-if="chatMessages.length === 0" class="empty-chat-state">
                             <i class="fa-solid fa-comments"></i>
                             <p>История сообщений пуста</p>
                         </div>
-
                         <div v-else class="messages-list">
                             <div v-for="msg in chatMessages" :key="msg.id" class="message-bubble" :class="{ 'is-mine': isMyMessage(msg) }">
                                 <div class="message-content">
@@ -369,7 +491,6 @@
                         </div>
                     </div>
 
-                    <!-- Поле ввода -->
                     <div class="chat-input-area">
                         <textarea
                             v-model="newChatMessage"
@@ -419,6 +540,7 @@
             </div>
         </transition>
     </div>
+
     <div v-else class="d-flex justify-content-center align-items-center" style="height: 100vh; background: #f9fafb;">
         <div class="text-center">
             <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
@@ -441,22 +563,41 @@ export default {
     },
 
     data() {
+        // 🆕 Получаем сегодняшнюю дату в формате YYYY-MM-DD для input type="date"
+        const today = new Date().toISOString().split('T')[0];
+        // 🆕 Загружаем даты из localStorage или используем сегодня
+        const savedDateFrom = localStorage.getItem('delivery_dateFrom');
+        const savedDateTo = localStorage.getItem('delivery_dateTo');
         return {
             activeTab: 'available',
+
+            // 🆕 Переменные для фильтра дат
+            dateFrom: savedDateFrom || today,
+            dateTo: savedDateTo || today,
+            isLoadingTab: false,
+
+            showSettingsModal: false,
+            deliverySettings: {
+                auto_refresh: false,
+                refresh_interval: 30,
+                sound_enabled: true
+            },
+            isSavingSettings: false,
+            refreshTimer: null,
+            previousAvailableCount: 0,
+
             showDetailsModal: false,
-            showChatModal: false, // 🆕 Для модалки чата
+            showChatModal: false,
             showProfileModal: false,
             showStatusModal: false,
             currentOrder: null,
-            currentChatOrder: null, // 🆕 Отслеживает, чей чат открыт
+            currentChatOrder: null,
 
-            // Состояние чата
             chatMessages: [],
             isChatLoading: false,
             newChatMessage: '',
             isSendingChatMessage: false,
 
-            // Состояние быстрых действий
             statusOrder: null,
             newStatus: null,
             isChangingStatus: false,
@@ -486,22 +627,32 @@ export default {
     },
 
     watch: {
-        // 🆕 Автопрокрутка вниз при добавлении новых сообщений
         chatMessages: {
             handler() {
                 this.$nextTick(() => this.scrollToBottom());
             },
             deep: true
-        }
+        },
+        // 🆕 При смене вкладки автоматически применяем текущий фильтр дат
+        activeTab() {
+            this.reloadCurrentTab();
+        },
+        // 🆕 Сохраняем даты в localStorage при изменении
+        dateFrom(newVal) { localStorage.setItem('delivery_dateFrom', newVal); },
+        dateTo(newVal) { localStorage.setItem('delivery_dateTo', newVal); },
+
+        // 🆕 Перезапускаем таймер при изменении настроек
+        'deliverySettings.auto_refresh'() { this.manageAutoRefresh(); },
+        'deliverySettings.refresh_interval'() { this.manageAutoRefresh(); },
+
     },
+
     created() {
-        // Если у пользователя нет роли admin или super_admin, редиректим на вход
-        console.log("test")
         if (!this.isAdmin) {
-            console.log("test not admin")
             this.$router.push({ name: 'Auth' }).catch(() => {});
         }
     },
+
     methods: {
         ...mapActions(useDeliverymanStore, [
             'fetchDashboard',
@@ -512,9 +663,129 @@ export default {
             'stopLocationTracking'
         ]),
 
-        // ==========================================
-        // 🆕 ЛОГИКА ЧАТА В МОДАЛКЕ
-        // ==========================================
+        // 🆕 Загрузка настроек с бэкенда
+        async loadSettings() {
+            try {
+                const response = await axios.get('/deliveryman/settings');
+                if (response.data.success) {
+                    this.deliverySettings = { ...this.deliverySettings, ...response.data.data };
+                }
+            } catch (e) {
+                console.error('Ошибка загрузки настроек:', e);
+            }
+        },
+
+        // 🆕 Сохранение настроек на бэкенд
+        async saveSettings() {
+            // Принудительно ставим минимум 30 секунд
+            if (this.deliverySettings.refresh_interval < 30) {
+                this.deliverySettings.refresh_interval = 30;
+            }
+
+            this.isSavingSettings = true;
+            try {
+                await axios.post('/deliveryman/settings', this.deliverySettings);
+                this.$notify?.({ title: 'Успех', text: 'Настройки сохранены', type: 'success' });
+                this.manageAutoRefresh(); // Перезапускаем таймер с новыми значениями
+            } catch (e) {
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить настройки', type: 'error' });
+            } finally {
+                this.isSavingSettings = false;
+            }
+        },
+
+        // 🆕 Управление автообновлением
+        manageAutoRefresh() {
+            if (this.refreshTimer) {
+                clearInterval(this.refreshTimer);
+                this.refreshTimer = null;
+            }
+
+            if (this.deliverySettings.auto_refresh) {
+                const intervalMs = Math.max(30, this.deliverySettings.refresh_interval) * 1000;
+                this.refreshTimer = setInterval(() => {
+                    this.checkForNewOrders();
+                }, intervalMs);
+            }
+        },
+
+        // 🆕 Проверка новых заказов и обновление
+        async checkForNewOrders() {
+            const store = useDeliverymanStore();
+            const oldCount = this.previousAvailableCount || store.availableOrders.length;
+
+            await this.reloadCurrentTab(); // Обновляем текущую вкладку
+
+            // Если включен звук и появились новые заказы в "Доступных"
+            if (this.deliverySettings.sound_enabled && this.activeTab === 'available') {
+                const newCount = store.availableOrders.length;
+                if (newCount > oldCount) {
+                    this.playNotificationSound();
+                }
+            }
+            this.previousAvailableCount = store.availableOrders.length;
+        },
+
+        // 🆕 Простой звуковой сигнал через Web Audio API (не требует внешних файлов)
+        // 🆕 Воспроизведение вашего кастомного звука
+        playNotificationSound() {
+            if (!this.deliverySettings.sound_enabled) return;
+
+            try {
+                // 🎵 УКАЖИТЕ ЗДЕСЬ ПУТЬ К ВАШЕМУ ФАЙЛУ
+                // Если файл лежит в public/sounds/new_order.mp3, путь будет '/sounds/new_order.mp3'
+                const audio = new Audio('/sounds/new_order.mp3');
+
+                // Можно настроить громкость (от 0.0 до 1.0)
+                audio.volume = 0.6;
+
+                // Запускаем воспроизведение
+                audio.play().catch(e => {
+                    // Браузеры иногда блокируют автовоспроизведение звука, если пользователь еще не взаимодействовал со страницей
+                    console.warn('Не удалось воспроизвести звук (возможно, блокировка автовоспроизведения браузером):', e);
+                });
+            } catch (e) {
+                console.error('Ошибка при попытке воспроизвести звук:', e);
+            }
+        },
+
+        async reloadCurrentTab() {
+            this.isLoadingTab = true;
+            try {
+                const params = {
+                    date_from: this.dateFrom,
+                    date_to: this.dateTo
+                };
+
+                const store = useDeliverymanStore();
+                let response;
+
+                if (this.activeTab === 'available') {
+                    response = await axios.get('/deliveryman/orders/available', { params });
+                    store.availableOrders = response.data.data;
+                } else if (this.activeTab === 'active') {
+                    response = await axios.get('/deliveryman/orders/active', { params });
+                    store.activeOrders = response.data.data;
+                } else if (this.activeTab === 'completed') {
+                    response = await axios.get('/deliveryman/orders/completed', { params });
+                    store.completedOrders = response.data.data;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки заказов:', error);
+            } finally {
+                this.isLoadingTab = false;
+            }
+        },
+
+        resetToToday() {
+            const today = new Date().toISOString().split('T')[0];
+            this.dateFrom = today;
+            this.dateTo = today;
+            this.reloadCurrentTab();
+        },
+
+
+
         async openChatModal(order) {
             if (!order.dialog_id) {
                 this.$notify?.({ title: 'Ошибка', text: 'У этого заказа нет привязанного чата', type: 'error' });
@@ -553,7 +824,7 @@ export default {
             if (!this.newChatMessage.trim() || !this.currentChatOrder?.dialog_id) return;
 
             const textToSend = this.newChatMessage;
-            this.newChatMessage = ''; // Очищаем поле сразу для лучшего UX
+            this.newChatMessage = '';
             this.isSendingChatMessage = true;
 
             try {
@@ -562,13 +833,12 @@ export default {
                 });
 
                 if (response.data.success) {
-                    // Добавляем новое сообщение в список локально
                     this.chatMessages.push(response.data.data);
                     this.$notify?.({ title: 'Отправлено', text: 'Сообщение доставлено', type: 'success' });
                 }
             } catch (e) {
                 this.$notify?.({ title: 'Ошибка', text: e.response?.data?.error || 'Не удалось отправить сообщение', type: 'error' });
-                this.newChatMessage = textToSend; // Возвращаем текст при ошибке
+                this.newChatMessage = textToSend;
             } finally {
                 this.isSendingChatMessage = false;
             }
@@ -582,7 +852,6 @@ export default {
         },
 
         isMyMessage(msg) {
-            // Считаем сообщение "своим", если отправитель - курьер (deliveryman)
             return msg.sender_type === 'deliveryman';
         },
 
@@ -603,9 +872,6 @@ export default {
             return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         },
 
-        // ==========================================
-        // ОСТАЛЬНЫЕ МЕТОДЫ (Без изменений)
-        // ==========================================
         parseOrderInfo(infoString) {
             if (!infoString) return [];
             const lines = infoString.replace(/<br\s*\/?>/gi, '\n').split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -768,6 +1034,367 @@ export default {
     }
 };
 </script>
+
+<style lang="scss" scoped>
+$primary: #3b82f6;
+$primary-dark: #2563eb;
+$success: #10b981;
+$danger: #ef4444;
+$warning: #f59e0b;
+$text: #1f2937;
+$text-muted: #6b7280;
+$border: #e5e7eb;
+$bg: #f9fafb;
+$card-bg: #ffffff;
+
+.deliveryman-dashboard {
+    min-height: 100vh;
+    background: $bg;
+    padding-bottom: 40px;
+}
+
+// ... (Здесь оставьте все ваши существующие стили без изменений) ...
+
+// 🆕 ИСПРАВЛЕННЫЙ СЕЛЕКТОР (был пропущен точку в вашем коде)
+.chat-modal-overlay {
+    align-items: center;
+}
+
+.chat-modal-container {
+    max-width: 500px;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid $border;
+    background: $card-bg;
+    flex-shrink: 0;
+
+    .chat-header-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .chat-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+
+    .chat-header-text {
+        .chat-header-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: $text;
+        }
+        .chat-header-order {
+            font-size: 0.8rem;
+            color: $text-muted;
+        }
+    }
+}
+
+.chat-messages-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: $bg;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    &::-webkit-scrollbar {
+        width: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: $border;
+        border-radius: 3px;
+    }
+}
+
+.chat-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: $text-muted;
+    font-size: 0.9rem;
+    height: 100%;
+
+    .loader-spinner {
+        width: 24px;
+        height: 24px;
+        border: 2px solid $border;
+        border-top-color: $primary;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+}
+
+.empty-chat-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: $text-muted;
+    gap: 8px;
+
+    i {
+        font-size: 2rem;
+        opacity: 0.3;
+    }
+}
+
+.messages-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.message-bubble {
+    display: flex;
+    max-width: 85%;
+    animation: fadeIn 0.2s ease;
+
+    &.is-mine {
+        align-self: flex-end;
+
+        .message-content {
+            background: $primary;
+            color: white;
+            border-bottom-right-radius: 4px;
+
+            .message-time {
+                color: rgba(255, 255, 255, 0.7);
+            }
+        }
+    }
+
+    &:not(.is-mine) {
+        align-self: flex-start;
+
+        .message-content {
+            background: $card-bg;
+            border: 1px solid $border;
+            border-bottom-left-radius: 4px;
+        }
+    }
+}
+
+.message-content {
+    padding: 10px 14px;
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    max-width: 100%;
+}
+
+.sender-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: $primary;
+    margin-bottom: 4px;
+}
+
+.message-text {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.message-meta {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+}
+
+.message-time {
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+.chat-input-area {
+    padding: 12px 16px;
+    background: $card-bg;
+    border-top: 1px solid $border;
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.chat-textarea {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid $border;
+    border-radius: 20px;
+    resize: none;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: $bg;
+    max-height: 100px;
+
+    &:focus {
+        outline: none;
+        border-color: $primary;
+        box-shadow: 0 0 0 2px rgba($primary, 0.1);
+    }
+}
+
+.chat-send-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: $primary;
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+
+    &:hover:not(:disabled) {
+        background: $primary-dark;
+        transform: scale(1.05);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+    .chat-modal-overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+    .chat-modal-container {
+        max-width: 100%;
+        height: 95vh;
+        border-radius: 20px 20px 0 0;
+    }
+}
+
+// ==========================================
+// 🆕 ПАНЕЛЬ ФИЛЬТРА ПО ДАТАМ
+// ==========================================
+.date-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: $card-bg;
+    border: 1px solid $border;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: $text-muted;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .date-input {
+            padding: 8px 12px;
+            border: 1px solid $border;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: $text;
+            background: $bg;
+            cursor: pointer;
+            transition: all 0.2s;
+
+            &:focus {
+                outline: none;
+                border-color: $primary;
+                box-shadow: 0 0 0 3px rgba($primary, 0.1);
+            }
+        }
+    }
+
+    .btn-reset-dates {
+        margin-left: auto;
+        padding: 8px 16px;
+        background: rgba($primary, 0.08);
+        color: $primary;
+        border: 1px solid rgba($primary, 0.2);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+
+        &:hover {
+            background: rgba($primary, 0.15);
+            border-color: $primary;
+        }
+
+        &:active {
+            transform: scale(0.98);
+        }
+    }
+}
+
+@media (max-width: 640px) {
+    .date-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+
+        .filter-group {
+            justify-content: space-between;
+        }
+
+        .btn-reset-dates {
+            margin-left: 0;
+            justify-content: center;
+            width: 100%;
+        }
+    }
+}
+</style>
 
 
 
@@ -2171,6 +2798,362 @@ chat-modal-overlay {
         max-width: 100%;
         height: 95vh;
         border-radius: 20px 20px 0 0;
+    }
+}
+
+// ==========================================
+// 🆕 ПАНЕЛЬ ФИЛЬТРА ПО ДАТАМ
+// ==========================================
+.date-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: $card-bg;
+    border: 1px solid $border;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: $text-muted;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .date-input {
+            padding: 8px 12px;
+            border: 1px solid $border;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: $text;
+            background: $bg;
+            cursor: pointer;
+            transition: all 0.2s;
+
+            &:focus {
+                outline: none;
+                border-color: $primary;
+                box-shadow: 0 0 0 3px rgba($primary, 0.1);
+            }
+        }
+    }
+
+    .btn-reset-dates {
+        margin-left: auto; // Прижимает кнопку вправо
+        padding: 8px 16px;
+        background: rgba($primary, 0.08);
+        color: $primary;
+        border: 1px solid rgba($primary, 0.2);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+
+        &:hover {
+            background: rgba($primary, 0.15);
+            border-color: $primary;
+        }
+
+        &:active {
+            transform: scale(0.98);
+        }
+    }
+}
+
+// Адаптив для мобильных
+@media (max-width: 640px) {
+    .date-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+
+        .filter-group {
+            justify-content: space-between;
+        }
+
+        .btn-reset-dates {
+            margin-left: 0;
+            justify-content: center;
+            width: 100%;
+        }
+    }
+}
+
+// 🆕 Стили для кнопки настроек в шапке
+.settings-btn-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-1px);
+    }
+}
+
+// 🆕 Стили для модалки настроек
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-bottom: 1px solid $border;
+
+    &:last-child {
+        border-bottom: none;
+    }
+}
+
+.setting-info {
+    flex: 1;
+    padding-right: 16px;
+}
+
+.setting-title {
+    font-weight: 600;
+    color: $text;
+    margin-bottom: 4px;
+}
+
+.setting-desc {
+    font-size: 0.8rem;
+    color: $text-muted;
+}
+
+// Переключатель (Toggle Switch)
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+    flex-shrink: 0;
+
+    input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+
+        &:checked + .toggle-slider {
+            background-color: $primary;
+        }
+
+        &:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+    }
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: $border;
+    transition: .3s;
+    border-radius: 34px;
+
+    &:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+}
+
+// Поле ввода интервала
+.setting-input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.setting-input {
+    width: 80px;
+    padding: 8px 12px;
+    border: 1px solid $border;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    text-align: center;
+    background: $bg;
+
+    &:focus {
+        outline: none;
+        border-color: $primary;
+        box-shadow: 0 0 0 3px rgba($primary, 0.1);
+    }
+}
+
+.input-suffix {
+    font-size: 0.9rem;
+    color: $text-muted;
+    font-weight: 500;
+}
+
+// ==========================================
+// 🆕 ОБНОВЛЕННЫЕ СТИЛИ ПАНЕЛИ ФИЛЬТРА
+// ==========================================
+.date-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: $card-bg;
+    border: 1px solid $border;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: $text-muted;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .date-input {
+            padding: 8px 12px;
+            border: 1px solid $border;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: $text;
+            background: $bg;
+            cursor: pointer;
+            transition: all 0.2s;
+
+            &:focus {
+                outline: none;
+                border-color: $primary;
+                box-shadow: 0 0 0 3px rgba($primary, 0.1);
+            }
+        }
+    }
+
+    // 🆕 Группа для кнопок, чтобы они держались вместе
+    .filter-actions {
+        display: flex;
+        gap: 8px;
+        margin-left: auto; // Прижимает кнопки вправо на десктопе
+    }
+
+    .btn-reset-dates {
+        padding: 8px 16px;
+        background: rgba($primary, 0.08);
+        color: $primary;
+        border: 1px solid rgba($primary, 0.2);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+
+        &:hover {
+            background: rgba($primary, 0.15);
+            border-color: $primary;
+        }
+
+        &:active {
+            transform: scale(0.98);
+        }
+    }
+
+    // 🆕 Стили для новой кнопки "Загрузить"
+    .btn-load-orders {
+        padding: 8px 16px;
+        background: $primary;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+
+        &:hover:not(:disabled) {
+            background: $primary-dark;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba($primary, 0.2);
+        }
+
+        &:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        &:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+    }
+}
+
+// 🆕 Адаптив для мобильных устройств
+@media (max-width: 640px) {
+    .date-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+
+        .filter-group {
+            justify-content: space-between;
+        }
+
+        .filter-actions {
+            margin-left: 0;
+            flex-direction: column; // Кнопки друг под другом на телефоне
+            width: 100%;
+        }
+
+        .btn-reset-dates,
+        .btn-load-orders {
+            width: 100%;
+            justify-content: center;
+        }
     }
 }
 </style>

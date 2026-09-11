@@ -2,7 +2,7 @@
     <div class="app-layout">
 
 
-        <Head :title="pageTitle" />
+        <Head :title="pageTitle"/>
 
         <!-- ========================================== -->
         <!-- OFFLINE BANNER (Баннер отсутствия сети) -->
@@ -21,7 +21,7 @@
 
                 <!-- 1. Кнопка меню (Гамбургер) -->
                 <button class="menu-btn" @click="toggleSidebar" aria-label="Открыть меню">
-                    <HamburgerMenu target-id="sidebar-menu" />
+                    <HamburgerMenu target-id="sidebar-menu"/>
                 </button>
 
                 <!-- 2. Название магазина (Триггер модалки) -->
@@ -37,18 +37,6 @@
                 </div>
 
 
-
-                <!-- 3. Кэшбэк (Премиальный бейдж) -->
-                <a
-                    v-if="loadedCashback"
-                    @click.prevent="goTo('Cashback')"
-                    class="cashback-pill"
-                    href="#"
-                    title="Ваш кэшбэк"
-                >
-                    <i class="fa-solid fa-coins"></i>
-                    <span class="cashback-amount">{{ formatCashback(self.cashback_balance || 0) }}</span>
-                </a>
 
             </div>
         </header>
@@ -94,7 +82,9 @@
         <!-- FOOTER -->
         <Footer/>
 
-        <AppSidebar id="sidebar-menu" @close="toggleSidebar"/>
+        <AppSidebar id="sidebar-menu"
+                    role-type="delivery"
+                    @close="toggleSidebar"/>
         <ShopInfoModal/>
 
         <!-- MODAL: График работы -->
@@ -159,7 +149,8 @@
                         </div>
 
                         <ul v-else class="list-group list-group-flush queue-list">
-                            <li v-for="task in queue.tasks" :key="task.id" class="list-group-item queue-item d-flex align-items-start gap-3 px-0">
+                            <li v-for="task in queue.tasks" :key="task.id"
+                                class="list-group-item queue-item d-flex align-items-start gap-3 px-0">
                                 <div class="queue-icon" :class="`type-${task.type}`">
                                     <i :class="getTaskIcon(task.type)"></i>
                                 </div>
@@ -169,7 +160,8 @@
                                         {{ formatTaskDate(task.timestamp) }}
                                     </div>
                                 </div>
-                                <button class="btn btn-sm btn-outline-danger border-0" @click="queue.removeTask(task.id)" title="Удалить">
+                                <button class="btn btn-sm btn-outline-danger border-0"
+                                        @click="queue.removeTask(task.id)" title="Удалить">
                                     <i class="fa-solid fa-trash-can"></i>
                                 </button>
                             </li>
@@ -180,7 +172,8 @@
                         <button class="btn btn-link text-danger" @click="queue.clearQueue()">
                             Очистить всё
                         </button>
-                        <button class="btn btn-primary" @click="retryQueue" :disabled="queue.isProcessing || queue.isOffline">
+                        <button class="btn btn-primary" @click="retryQueue"
+                                :disabled="queue.isProcessing || queue.isOffline">
                             <i class="fa-solid fa-rotate-right me-1" :class="{'fa-spin': queue.isProcessing}"></i>
                             {{ queue.isOffline ? 'Нет сети' : 'Отправить всё' }}
                         </button>
@@ -229,7 +222,8 @@
                             <i class="fa-solid fa-mobile-screen-button"></i>
                         </div>
                         <h3 class="pwa-title">Установите приложение</h3>
-                        <p class="pwa-subtitle">Получите мгновенный доступ к {{ tenant?.name || 'магазину' }} прямо с рабочего стола вашего устройства</p>
+                        <p class="pwa-subtitle">Получите мгновенный доступ к {{ tenant?.name || 'магазину' }} прямо с
+                            рабочего стола вашего устройства</p>
                     </div>
 
                     <!-- Тело: Инструкции в зависимости от ОС -->
@@ -242,7 +236,11 @@
                                 <div class="step-content">
                                     <span>Нажмите кнопку</span>
                                     <span class="ios-share-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                             stroke-linejoin="round"><path
+                                            d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline
+                                            points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
                                         Поделиться
                                     </span>
                                 </div>
@@ -258,7 +256,8 @@
 
                         <!-- Для Android / Desktop -->
                         <div v-else class="pwa-instruction-card desktop-card">
-                            <p>Нажмите кнопку ниже, чтобы добавить ярлык приложения на главный экран или рабочий стол.</p>
+                            <p>Нажмите кнопку ниже, чтобы добавить ярлык приложения на главный экран или рабочий
+                                стол.</p>
                             <div class="browser-hints">
                                 <span class="hint-badge"><i class="fa-brands fa-chrome"></i> Chrome</span>
                                 <span class="hint-badge"><i class="fa-brands fa-safari"></i> Safari</span>
@@ -289,7 +288,7 @@
 </template>
 
 <script>
-import { Head } from '@inertiajs/vue3'; // Обязательно импортируем
+import {Head} from '@inertiajs/vue3'; // Обязательно импортируем
 import ScheduleList from "@/MobileClient/Components/Shop/ScheduleList.vue";
 import ProductInfo from "@/MobileClient/Components/Shop/ProductInfo.vue";
 import Preloader from "@/MobileClient/Components/Shop/Preloader.vue";
@@ -302,7 +301,7 @@ import pushNotifications from '@/MobileClient/mixins/pushNotifications';
 import {useFavorites} from "@/MobileClient/composables/useFavorites";
 import {useBasket} from "@/MobileClient/composables/useBasket";
 import {useChat} from "@/MobileClient/composables/useChat";
-import { getThemeScheme } from '@/MobileClient/constants/themeSchemes.js';
+import {getThemeScheme} from '@/MobileClient/constants/themeSchemes.js';
 import ShopInfoModal from "@/MobileClient/Components/Shop/ShopInfoModal.vue";
 import {useQueueStore} from "@/MobileClient/stores/useQueueStore";
 
@@ -327,7 +326,7 @@ export default {
         const chat = useChat();
         const queue = useQueueStore(); // 🆕
 
-        return { favorites, basket, chat, queue };
+        return {favorites, basket, chat, queue};
     },
     data() {
         return {
@@ -348,8 +347,8 @@ export default {
         tenant() {
             return window.Tenant || null;
         },
-        pageTitle(){
-          return this.tenant?.name || 'Мини-магазин'
+        pageTitle() {
+            return this.tenant?.name || 'Мини-магазин'
         },
         self() {
             return window.TenantUser || null;
@@ -479,7 +478,7 @@ export default {
                 this.deferredPrompt = null;
                 this.showPwaModal = false;
                 localStorage.setItem('ios_prompt_hidden', 'true'); // На всякий случай
-                this.$notify?.({ title: 'Успех', text: 'Приложение успешно установлено!', type: 'success' });
+                this.$notify?.({title: 'Успех', text: 'Приложение успешно установлено!', type: 'success'});
             });
         },
 
@@ -496,7 +495,7 @@ export default {
                 this.deferredPrompt.prompt();
 
                 // Ждем выбора пользователя
-                const { outcome } = await this.deferredPrompt.userChoice;
+                const {outcome} = await this.deferredPrompt.userChoice;
                 if (outcome === 'accepted') {
                     console.log('Пользователь принял установку PWA');
                 } else {
@@ -534,7 +533,6 @@ export default {
                 this.applyColor(savedColor);
             }
         },
-
 
 
         toggleSidebar() {
@@ -690,16 +688,20 @@ export default {
         },
 
         getTaskIcon(type) {
-            switch(type) {
-                case 'order': return 'fa-solid fa-cart-shopping';
-                case 'message': return 'fa-solid fa-comment-dots';
-                case 'feedback': return 'fa-solid fa-star';
-                default: return 'fa-solid fa-paper-plane';
+            switch (type) {
+                case 'order':
+                    return 'fa-solid fa-cart-shopping';
+                case 'message':
+                    return 'fa-solid fa-comment-dots';
+                case 'feedback':
+                    return 'fa-solid fa-star';
+                default:
+                    return 'fa-solid fa-paper-plane';
             }
         },
 
         formatTaskDate(isoString) {
-            return new Date(isoString).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            return new Date(isoString).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
         }
     },
 };
@@ -1125,6 +1127,7 @@ export default {
 .modal-fade-enter-active, .modal-fade-leave-active {
     transition: opacity 0.3s ease;
 }
+
 .modal-fade-enter-from, .modal-fade-leave-to {
     opacity: 0;
 }
@@ -1152,9 +1155,8 @@ export default {
 
         /* Тонкая окантовка в стиле iOS */
         border: 0.5px solid rgba(0, 0, 0, 0.12);
-        box-shadow:
-            0 1px 0 rgba(255, 255, 255, 0.5) inset,
-            0 8px 24px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset,
+        0 8px 24px rgba(0, 0, 0, 0.08);
 
         border-bottom: none; /* Убираем лишний бордер */
     }
@@ -1162,9 +1164,8 @@ export default {
     [data-bs-theme="dark"] .modern-header {
         background: rgba(var(--bs-body-bg-rgb, 33, 37, 41), 0.72);
         border-color: rgba(255, 255, 255, 0.1);
-        box-shadow:
-            0 1px 0 rgba(255, 255, 255, 0.05) inset,
-            0 8px 24px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset,
+        0 8px 24px rgba(0, 0, 0, 0.4);
     }
 
     /* Более тонкие внутренние отступы для компактности */
@@ -1223,6 +1224,7 @@ export default {
 .slide-down-enter-active, .slide-down-leave-active {
     transition: all 0.3s ease;
 }
+
 .slide-down-enter-from, .slide-down-leave-to {
     transform: translateY(-100%);
     opacity: 0;
@@ -1254,9 +1256,8 @@ export default {
     font-weight: 700;
     font-size: 0.9rem;
     cursor: pointer;
-    box-shadow:
-        0 4px 16px rgba(255, 152, 0, 0.4),
-        0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 16px rgba(255, 152, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.1);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     animation: pulse-warning 2s infinite, float 3s ease-in-out infinite;
     pointer-events: auto; /* Возвращаем кликабельность самой кнопке */
@@ -1266,9 +1267,8 @@ export default {
 
 .queue-pill:hover {
     transform: translateY(-3px) scale(1.03);
-    box-shadow:
-        0 8px 24px rgba(255, 152, 0, 0.5),
-        0 4px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 24px rgba(255, 152, 0, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .queue-pill:active {
@@ -1294,26 +1294,27 @@ export default {
 
 /* Анимация плавания (как будто висит в воздухе) */
 @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-4px);
+    }
 }
 
 /* Анимация пульсации (привлекает внимание) */
 @keyframes pulse-warning {
     0% {
-        box-shadow:
-            0 0 0 0 rgba(255, 152, 0, 0.7),
-            0 4px 16px rgba(255, 152, 0, 0.4);
+        box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7),
+        0 4px 16px rgba(255, 152, 0, 0.4);
     }
     70% {
-        box-shadow:
-            0 0 0 12px rgba(255, 152, 0, 0),
-            0 4px 16px rgba(255, 152, 0, 0.4);
+        box-shadow: 0 0 0 12px rgba(255, 152, 0, 0),
+        0 4px 16px rgba(255, 152, 0, 0.4);
     }
     100% {
-        box-shadow:
-            0 0 0 0 rgba(255, 152, 0, 0),
-            0 4px 16px rgba(255, 152, 0, 0.4);
+        box-shadow: 0 0 0 0 rgba(255, 152, 0, 0),
+        0 4px 16px rgba(255, 152, 0, 0.4);
     }
 }
 
@@ -1334,14 +1335,17 @@ export default {
 .fade-scale-enter-active, .fade-scale-leave-active {
     transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 .fade-scale-enter-from, .fade-scale-leave-to {
     opacity: 0;
     transform: translateY(-20px) scale(0.85);
 }
+
 .fade-scale-enter-to {
     opacity: 1;
     transform: translateY(0) scale(1);
 }
+
 /* ==========================================
    📋 QUEUE MODAL STYLES
    ========================================== */
@@ -1349,7 +1353,7 @@ export default {
     border-radius: 20px;
     border: none;
     overflow: hidden;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
 .queue-list {
@@ -1358,7 +1362,7 @@ export default {
 }
 
 .queue-item {
-    border-bottom: 1px solid var(--bs-border-color-translucent, rgba(0,0,0,0.05)) !important;
+    border-bottom: 1px solid var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05)) !important;
     padding-top: 12px !important;
     padding-bottom: 12px !important;
 }
@@ -1374,8 +1378,23 @@ export default {
     flex-shrink: 0;
 }
 
-.queue-icon.type-order { background: rgba(var(--bs-primary-rgb), 0.1); color: var(--bs-primary); }
-.queue-icon.type-message { background: rgba(var(--bs-success-rgb), 0.1); color: var(--bs-success); }
-.queue-icon.type-feedback { background: rgba(var(--bs-warning-rgb), 0.1); color: var(--bs-warning); }
-.queue-icon.type-request { background: rgba(var(--bs-secondary-rgb), 0.1); color: var(--bs-secondary); }
+.queue-icon.type-order {
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+}
+
+.queue-icon.type-message {
+    background: rgba(var(--bs-success-rgb), 0.1);
+    color: var(--bs-success);
+}
+
+.queue-icon.type-feedback {
+    background: rgba(var(--bs-warning-rgb), 0.1);
+    color: var(--bs-warning);
+}
+
+.queue-icon.type-request {
+    background: rgba(var(--bs-secondary-rgb), 0.1);
+    color: var(--bs-secondary);
+}
 </style>

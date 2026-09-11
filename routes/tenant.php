@@ -141,6 +141,11 @@ function routes()
     Route::prefix('deliveryman')->group(function () {
         // Профиль и статистика
         Route::get('/dashboard', [DeliverymanController::class, 'dashboard']);
+
+        Route::get('/shops', [DeliverymanController::class, 'getAvailableShops']);
+        Route::post('/shops', [DeliverymanController::class, 'updateDeliveryShops']);
+        Route::get('/settings', [DeliverymanController::class, 'getSettings']);
+        Route::post('/settings', [DeliverymanController::class, 'saveSettings']);
         Route::post('/toggle-status', [DeliverymanController::class, 'toggleStatus']); // Онлайн/Офлайн
         Route::get('/orders/available', [DeliverymanController::class, 'availableOrders']); // Новые заказы рядом
         Route::get('/orders/active', [DeliverymanController::class, 'activeOrders']);       // Текущие доставки
@@ -152,6 +157,9 @@ function routes()
         Route::post('/orders/{id}/message', [DeliverymanController::class, 'sendMessage']);
         Route::get('/dialogs/{dialogId}/messages', [DeliverymanController::class, 'getDialogMessages']);
         Route::post('/dialogs/{dialogId}/messages', [DeliverymanController::class, 'sendDialogMessage']);
+
+
+
 
         Route::get('/finance', [DeliverymanController::class, 'finance']);
         Route::post('/finance/payout', [DeliverymanController::class, 'requestPayout']);
@@ -644,3 +652,17 @@ Route::post('/email/resend', [TenantEmailVerificationController::class, 'resend'
 Route::get('/email/verify/{id}/{hash}', [TenantEmailVerificationController::class, 'verify'])
     ->middleware('tenant.access')
     ->name('tenant.verification.verify');
+
+
+Route::domain('delivery.mypwa.ru')->group(function () {
+    Route::get('/', function () {
+        return redirect('/delivery');
+    });
+});
+
+Route::domain('agents.mypwa.ru')->group(function () {
+    Route::get('/', function () {
+        return redirect('/agents');
+    });
+});
+

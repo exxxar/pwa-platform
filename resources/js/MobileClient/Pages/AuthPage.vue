@@ -229,24 +229,57 @@ export default {
             mode: 'login',
             showLoginPassword: false,
             showRegisterPassword: false,
+            redirectTo: '/pwa', // Значение по умолчанию
             form: {
                 identifier: '',
                 name: '',
                 phone: '',
                 password: '',
                 password_confirm: '',
-                agreeToPolicies: false, // 🆕 Новое поле для согласия
+                agreeToPolicies: false,
             }
         };
     },
 
+    mounted() {
+        // 🎯 Определяем целевой редирект при загрузке страницы
+        this.detectRedirectTarget();
+    },
+
     methods: {
+        // 🆕 Умное определение редиректа на основе slug тенанта
+        detectRedirectTarget() {
+            const route = this.$route;
+
+            // 1. Высший приоритет: явный параметр ?from= (если нужно перенаправить на конкретную внутреннюю страницу)
+            if (route.query.from) {
+                this.redirectTo = route.query.from;
+                return;
+            }
+
+            // 2. 🎯 ГЛАВНЫЙ КРИТЕРИЙ: Проверяем slug текущего тенанта
+            const tenant = window.Tenant;
+            if (tenant && tenant.slug) {
+                if (tenant.slug === 'agents') {
+                    this.redirectTo = '/agents';
+                    return;
+                }
+                if (tenant.slug === 'delivery') {
+                    this.redirectTo = '/delivery';
+                    return;
+                }
+            }
+
+            // 3. Fallback: если slug не 'agents' и не 'delivery', редиректим в основной клиентский интерфейс
+            this.redirectTo = '/pwa';
+        },
+
         switchMode(newMode) {
             this.mode = newMode;
             this.clearError();
             this.showLoginPassword = false;
             this.showRegisterPassword = false;
-            this.form.agreeToPolicies = false; // Сбрасываем согласие при переключении
+            this.form.agreeToPolicies = false;
         },
 
         generatePassword() {
@@ -269,7 +302,6 @@ export default {
         async submitForm() {
             this.clearError();
 
-            // 🆕 Строгая валидация для регистрации
             if (this.mode === 'register') {
                 if (!this.form.agreeToPolicies) {
                     this.errorMessage = 'Необходимо принять все условия использования';
@@ -299,7 +331,8 @@ export default {
                     });
                 }
 
-                this.$router.push('/menu');
+                // 🚀 Выполняем редирект на основе определенного ранее пути
+                this.$router.push(this.redirectTo);
 
             } catch (error) {
                 console.error('Auth error:', error);
@@ -308,6 +341,8 @@ export default {
     }
 };
 </script>
+
+
 <style scoped>
 /* Фон страницы с легким градиентом */
 .auth-page {

@@ -5,11 +5,12 @@ const AvailableShops = defineAsyncComponent(() => import('@/MobileClient/Pages/D
 
 
 export default [
+    { path: '/delivery', redirect: { name: 'DeliverymanDashboard' } },
     {
         path: '/delivery/delivery-main',
         name: 'DeliverymanDashboard',
         component: DeliveryMain,
-        meta: { auth: true, roles: ['admin', 'super_admin'] }
+        meta: { auth: false }
     },
     {
         path: '/delivery/shops',
