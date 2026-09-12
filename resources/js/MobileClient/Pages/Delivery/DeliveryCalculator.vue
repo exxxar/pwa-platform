@@ -11,6 +11,22 @@
             </div>
         </div>
 
+        <!-- 🆕 Поиск по названию -->
+        <div class="search-container">
+            <div class="search-input-wrapper">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input
+                    type="text"
+                    v-model="searchQuery"
+                    placeholder="Поиск по названию..."
+                    class="search-input"
+                >
+                <button v-if="searchQuery" class="clear-search" @click="searchQuery = ''" title="Очистить поиск">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Состояние загрузки -->
         <div v-if="isLoading" class="loading-state">
             <div class="spinner"></div>
@@ -20,23 +36,11 @@
         <!-- Список заведений (стиль PartnerCard) -->
         <div v-else class="shops-list">
             <div
-                v-for="shop in shops"
+                v-for="shop in filteredShops"
                 :key="shop.id"
                 class="partner-card"
                 @click="openCalculator(shop)"
             >
-                <!-- Изображение -->
-                <div class="card-image-wrapper">
-                    <img
-                        v-lazy="shop.image || '/images/partner-placeholder.png'"
-                        :alt="shop.name"
-                        class="card-image"
-                    >
-                    <button class="calc-hint-btn" title="Рассчитать доставку">
-                        <i class="fa-solid fa-calculator"></i>
-                    </button>
-                </div>
-
                 <!-- Контент -->
                 <div class="card-content">
                     <div class="card-header">
@@ -45,12 +49,7 @@
                     <p v-if="shop.description" class="card-description">
                         {{ shop.description }}
                     </p>
-                    <div class="card-meta">
-                        <div v-if="shop.address" class="meta-item">
-                            <i class="fa-solid fa-location-dot"></i>
-                            <span>{{ shortAddress(shop.address) }}</span>
-                        </div>
-                    </div>
+
                     <div class="card-action">
                         <span>Рассчитать доставку</span>
                         <i class="fa-solid fa-arrow-right"></i>
@@ -59,9 +58,9 @@
             </div>
 
             <!-- Пустое состояние -->
-            <div v-if="shops.length === 0" class="empty-state">
+            <div v-if="filteredShops.length === 0" class="empty-state">
                 <i class="fa-solid fa-store-slash"></i>
-                <p>Нет доступных заведений для расчета</p>
+                <p>{{ searchQuery ? 'Ничего не найдено по вашему запросу' : 'Нет доступных заведений для расчета' }}</p>
             </div>
         </div>
 
@@ -86,10 +85,23 @@ export default {
     data() {
         return {
             shops: [],
+            searchQuery: '', // 🆕 Строка поиска
             isLoading: true,
             showModal: false,
             currentShop: null
         };
+    },
+    computed: {
+        // 🆕 Фильтрация списка по названию в реальном времени
+        filteredShops() {
+            if (!this.searchQuery.trim()) {
+                return this.shops;
+            }
+            const query = this.searchQuery.toLowerCase();
+            return this.shops.filter(shop =>
+                shop.name && shop.name.toLowerCase().includes(query)
+            );
+        }
     },
     mounted() {
         this.fetchShops();
@@ -98,7 +110,6 @@ export default {
         async fetchShops() {
             this.isLoading = true;
             try {
-                // Используем тот же эндпоинт, что и на странице настроек
                 const response = await axios.get('/deliveryman/shops');
                 if (response.data.success) {
                     this.shops = response.data.data.shops;
@@ -148,6 +159,72 @@ $card-bg: #ffffff;
         &:hover { background: $border; }
     }
     .header-text { flex: 1; h2 { margin: 0; font-size: 1.15rem; font-weight: 700; color: $text; } p { margin: 2px 0 0; font-size: 0.8rem; color: $text-muted; } }
+}
+
+// 🆕 Стили для блока поиска
+.search-container {
+    padding: 12px 16px;
+    background: $card-bg;
+    border-bottom: 1px solid $border;
+    position: sticky;
+    top: 72px; // Высота хедера, чтобы поиск прилипал сразу под ним
+    z-index: 9;
+}
+
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .search-icon {
+        position: absolute;
+        left: 14px;
+        color: $text-muted;
+        font-size: 0.9rem;
+        pointer-events: none;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 12px 40px 12px 40px;
+        border: 1px solid $border;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        background: $bg;
+        color: $text;
+        transition: all 0.2s;
+
+        &:focus {
+            outline: none;
+            border-color: $primary;
+            box-shadow: 0 0 0 3px rgba($primary, 0.1);
+        }
+
+        &::placeholder {
+            color: $text-muted;
+        }
+    }
+
+    .clear-search {
+        position: absolute;
+        right: 10px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: transparent;
+        border: none;
+        color: $text-muted;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+
+        &:hover {
+            background: rgba($text-muted, 0.1);
+            color: $text;
+        }
+    }
 }
 
 .loading-state, .empty-state {
@@ -208,5 +285,10 @@ $card-bg: #ffffff;
     .card-image-wrapper { width: 110px; min-height: 120px; }
     .card-title { font-size: 0.9rem; }
     .card-description { font-size: 0.75rem; -webkit-line-clamp: 1; }
+
+    // На мобильных поиск тоже должен быть удобным
+    .search-container {
+        top: 68px; // Чуть меньше высота хедера на мобильных
+    }
 }
 </style>

@@ -11,9 +11,9 @@
                         </div>
                         <div class="shop-header-text">
                             <h3>{{ shop?.name || shop?.title || 'Заведение' }}</h3>
-                            <div class="shop-address-badge" :title="shop?.address">
+                            <div class="shop-address-badge" :title="shop?.shop_coords">
                                 <i class="fa-solid fa-location-dot"></i>
-                                <span>{{ shop?.address || 'Адрес не указан' }}</span>
+                                <span>{{ shop?.shop_coords || 'Адрес не указан' }}</span>
                             </div>
                         </div>
                     </div>

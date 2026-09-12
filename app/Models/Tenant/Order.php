@@ -67,6 +67,7 @@ class Order extends Model
     ];
 
     protected $with = ["location"];
+
     protected static function booted()
     {
         static::observe(OrderObserver::class);

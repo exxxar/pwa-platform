@@ -65,7 +65,7 @@ class DeliverymanController extends Controller
                     'name' => $user->name ?? 'Курьер',
                     'phone' => $user->phone,
                     'status' => $user->is_online ? 'online' : 'offline',
-                    'earned' => (float) $earned,
+                    'earned' => (float)$earned,
                     'active_orders_count' => $activeOrdersCount,
                     'available_orders_count' => $availableOrdersCount,
                     'completed_orders_count' => $completedOrdersCount,
@@ -230,7 +230,7 @@ class DeliverymanController extends Controller
         /** @var TenantUser $user */
         $user = Auth::guard('tenant')->user();
 
-        $order = Order::where('id', $orderId)->where('deliveryman_id', $user->id)->first();
+        $order = Order::where('id', $orderId)->first();
         if (!$order) return response()->json(['error' => 'Заказ не найден'], 404);
         if (!$order->dialog_id) return response()->json(['error' => 'У этого заказа нет привязанного чата'], 400);
 
@@ -248,7 +248,6 @@ class DeliverymanController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Сообщение отправлено клиенту', 'data' => $message]);
     }
-
 
 
     /**
@@ -281,7 +280,7 @@ class DeliverymanController extends Controller
                 'description' => $request->description,
                 'name' => $order->receiver_name,
                 'phone' => $order->receiver_phone,
-                'customer_key' => (string) $order->tenant_user_id,
+                'customer_key' => (string)$order->tenant_user_id,
             ];
 
             // 🆕 Используем новый метод, который ТОЛЬКО генерирует ссылку
@@ -389,7 +388,7 @@ class DeliverymanController extends Controller
         $request->validate(['amount' => 'required|numeric|min:100']);
         /** @var TenantUser $user */
         $user = Auth::guard('tenant')->user();
-        $amount = (float) $request->amount;
+        $amount = (float)$request->amount;
 
         if (($user->balance ?? 0) < $amount) {
             return response()->json(['error' => 'Недостаточно средств на балансе'], 400);
@@ -422,12 +421,14 @@ class DeliverymanController extends Controller
         $request->validate(['message' => 'required|string|max:1000']);
         /** @var TenantUser $user */
         $user = Auth::guard('tenant')->user();
-        $order = Order::where('dialog_id', $dialogId)->where('deliveryman_id', $user->id)->first();
+        $order = Order::where('dialog_id', $dialogId)->first();
 
         if (!$order) return response()->json(['error' => 'Доступ к этому чату запрещен'], 403);
 
         $message = TenantMessage::create([
-            'tenant_id' => $order->tenant_id, 'dialog_id' => $dialogId, 'sender_type' => 'deliveryman', 'sender_id' => $user->id,
+            'tenant_id' => $order->tenant_id,
+            'dialog_id' => $dialogId,
+            'sender_type' => 'deliveryman', 'sender_id' => $user->id,
             'message' => $request->message, 'meta' => ['order_id' => $order->id, 'sender_name' => $user->name ?? 'Курьер', 'type' => 'deliveryman_message'], 'is_read' => false,
         ]);
 
@@ -442,30 +443,21 @@ class DeliverymanController extends Controller
         $user = Auth::guard('tenant')->user();
 
         $shops = Tenant::where('is_active', true)
-            ->select('id', 'name', 'slug', 'description') // 🆕 Добавили 'address'
             ->orderBy('name')
             ->get()
             ->map(function ($shop) {
-                $settings = $shop->settings ?? [];
-                // 🆕 Собираем полный адрес из доступных полей
-                $city = $shop->city ?? ($settings['city'] ?? ($settings['shop']['city'] ?? ''));
-                $address = $shop->full_address ;
-                $shopCoords  = $shop->shop_coords ?? $settings['shop_coords'] ?? '0,0' ;
 
-
-                $fullAddress = '';
-                if ($city) $fullAddress .= $city . ', ';
-                $fullAddress .= $address;
-                $fullAddress = trim($fullAddress, ', ') ?: 'Адрес не указан';
+                $config = $shop->settings ?? [];
+                $shopCoords = $config["shop_coords"] ?? ($config["shop"]["shop_coords"] ?? null);
 
                 return [
                     'id' => $shop->id,
                     'name' => $shop->name,
                     'slug' => $shop->slug,
+                    'address' => $shop->full_address ?? '',
                     'description' => $shop->description ?? 'Доставка заказов',
                     'image' => $shop->image,
                     'shop_coords' => $shopCoords,
-                    'address' => $fullAddress, // 🆕 Явно отдаем собранный адрес
                     'settings' => [
                         'shop_coords' => $settings['shop_coords'] ?? ($settings['shop']['shop_coords'] ?? null)
                     ]
