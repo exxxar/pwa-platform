@@ -113,6 +113,7 @@ class DeliverymanController extends Controller
                 'product_details' => $order->product_details,
                 'receiver_name' => $order->receiver_name,
                 'receiver_phone' => $order->receiver_phone,
+                'dialog_id' => $order->dialog_id,
                 'info' => $order->delivery_note,
             ];
         });
@@ -200,6 +201,7 @@ class DeliverymanController extends Controller
                 'summary_price' => $order->summary_price,
                 'delivery_price' => $order->delivery_price ?? 0,
                 'created_at' => $order->created_at,
+                'dialog_id' => $order->dialog_id,
                 'delivered_at' => $order->delivered_at ?? $order->updated_at,
                 'info' => $order->delivery_note,
             ];
