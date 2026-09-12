@@ -163,6 +163,8 @@ function routes()
         Route::get('/orders/available', [DeliverymanController::class, 'availableOrders']); // Новые заказы рядом
         Route::get('/orders/active', [DeliverymanController::class, 'activeOrders']);       // Текущие доставки
         Route::get('/orders/completed', [DeliverymanController::class, 'completedOrders']);       // Текущие доставки
+        Route::put('/orders/{id}/details', [DeliverymanController::class, 'updateOrderDetails']);
+        Route::post('/orders/{id}/request-payment', [DeliverymanController::class, 'requestDeliveryPayment']);
         Route::post('/orders/{id}/accept', [DeliverymanController::class, 'acceptOrder']);  // Взять заказ
         Route::post('/orders/{id}/confirm-delivery', [DeliverymanController::class, 'confirmDelivery']);  // Взять заказ
         Route::post('/orders/{id}/status', [DeliverymanController::class, 'changeStatus']);  // Взять заказ

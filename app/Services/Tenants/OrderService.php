@@ -188,8 +188,9 @@ class OrderService
 
         $order = Order::query()
             ->where("id", $orderId)
-            ->where("tenant_id", $tenant->id)
+           // ->where("tenant_id", $tenant->id)
             ->first();
+
 
         if (is_null($order)) {
             return false;

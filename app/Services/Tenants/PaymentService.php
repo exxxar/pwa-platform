@@ -47,6 +47,51 @@ class PaymentService
     }
 
     /**
+     * 🆕 Генерирует ссылку на оплату БЕЗ отправки уведомлений (идеально для курьеров)
+     */
+    public function generateSimplePaymentLink(array $data): string
+    {
+        $tenant = app('tenant');
+        $config = $this->getCurrentBankConfig();
+        $paymentGateway = $this->getPaymentGateway($config['bank_key'], $config);
+
+        $amount = (float)($data['amount'] ?? 0);
+        $description = $data['description'] ?? 'Оплата доставки';
+        $orderId = $data['order_id'] ?? 'DEL_' . \Illuminate\Support\Str::random(8);
+
+        $items = [[
+            'Name' => $description,
+            'Quantity' => 1,
+            'Price' => $amount,
+            'NDS' => $config['vat'],
+        ]];
+
+        $payment = [
+            'OrderId' => (string) $orderId,
+            'Amount' => $amount,
+            'Language' => 'ru',
+            'Description' => $description,
+            'Email' => $data['email'] ?? '',
+            'Phone' => $this->normalizePhone($data['phone'] ?? ''),
+            'Name' => $data['name'] ?? 'Клиент',
+            'Taxation' => $config['tax'],
+            'CustomerKey' => $data['customer_key'] ?? 'deliveryman',
+            'ReturnUrl' => route('home'),
+        ];
+
+        $paymentURL = $paymentGateway->paymentURL($payment, $items);
+
+        if (!$paymentURL) {
+            throw new \Symfony\Component\HttpKernel\Exception\HttpException(
+                500,
+                "Ошибка формирования ссылки: " . $paymentGateway->getError()
+            );
+        }
+
+        return $paymentURL;
+    }
+
+    /**
      * 🆕 Нормализует номер телефона к формату, который принимают банки
      * Убирает все символы, кроме цифр. Если пусто - возвращает дефолтный валидный номер.
      */

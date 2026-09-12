@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\OrderStatusEnum;
+use App\Facades\PaymentService;
 use App\Models\Tenant\Order;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantDialog;
@@ -15,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DeliverymanController extends Controller
 {
@@ -245,6 +247,61 @@ class DeliverymanController extends Controller
         return response()->json(['success' => true, 'message' => 'Сообщение отправлено клиенту', 'data' => $message]);
     }
 
+
+
+    /**
+     * POST /api/deliveryman/orders/{id}/request-payment
+     * Курьер запрашивает ссылку на оплату доставки (без отправки в чат)
+     */
+    public function requestDeliveryPayment(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'amount' => 'required|numeric|min:1',
+            'description' => 'required|string|max:255',
+        ]);
+
+        /** @var TenantUser $user */
+        $user = Auth::guard('tenant')->user();
+
+        // Строгая проверка: заказ должен принадлежать этому курьеру
+        $order = Order::where('id', $id)
+            ->where('deliveryman_id', $user->id)
+            ->first();
+
+        if (!$order) {
+            return response()->json(['error' => 'Заказ не найден или не принадлежит вам'], 404);
+        }
+
+        try {
+            $paymentData = [
+                'order_id' => $order->id,
+                'amount' => $request->amount,
+                'description' => $request->description,
+                'name' => $order->receiver_name,
+                'phone' => $order->receiver_phone,
+                'customer_key' => (string) $order->tenant_user_id,
+            ];
+
+            // 🆕 Используем новый метод, который ТОЛЬКО генерирует ссылку
+            $paymentUrl = \App\Services\Tenants\PaymentService::call()->generateSimplePaymentLink($paymentData);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ссылка на оплату успешно сформирована',
+                'data' => [
+                    'url' => $paymentUrl,
+                    'amount' => $request->amount,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Ошибка генерации ссылки курьером: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Не удалось сформировать ссылку. Проверьте настройки эквайринга.'
+            ], 500);
+        }
+    }
+
     public function acceptOrder(Request $request, int $id): JsonResponse
     {
         /** @var TenantUser $user */
@@ -252,6 +309,7 @@ class DeliverymanController extends Controller
 
         try {
             $result = OrderService::call()->acceptOrder($id);
+
             if (!$result) {
                 return response()->json(['error' => 'Не удалось принять заказ. Возможно, его уже забрали.'], 400);
             }
@@ -495,6 +553,36 @@ class DeliverymanController extends Controller
             'success' => true,
             'message' => 'Настройки успешно сохранены',
             'data' => $meta['delivery_settings']
+        ]);
+    }
+
+    /**
+     * PUT /api/deliveryman/orders/{id}/details
+     * Обновление расстояния и стоимости доставки для заказа
+     */
+    public function updateOrderDetails(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'distance_km' => 'nullable|numeric|min:0',
+            'delivery_price' => 'nullable|numeric|min:0',
+        ]);
+
+        $order = Order::findOrFail($id);
+
+        // Опционально: можно добавить проверку, что заказ еще доступен (deliveryman_id == null),
+        // но если это делает диспетчер/админ, то разрешаем редактировать в любом случае.
+
+        $order->delivery_range = $request->distance_km; // или distance_km, в зависимости от названия колонки в БД
+        $order->delivery_price = $request->delivery_price;
+        $order->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Данные заказа успешно обновлены',
+            'data' => [
+                'distance_km' => $order->delivery_range,
+                'delivery_price' => $order->delivery_price
+            ]
         ]);
     }
 }

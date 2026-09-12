@@ -10,11 +10,17 @@
                     <div class="deliveryman-info">
                         <div class="deliveryman-details">
                             <h1 class="deliveryman-name">{{ deliveryman.name || 'Курьер' }}</h1>
-                            <!-- 🆕 Только кнопка настроек -->
-                            <button class="settings-btn-header" @click="showSettingsModal = true" title="Настройки автообновления">
-                                <i class="fa-solid fa-gear"></i>
-                                <span>Настройки</span>
-                            </button>
+                            <!-- 🆕 Группа кнопок действий -->
+                            <div class="header-actions">
+                                <button class="action-btn-header acquiring" @click="showAcquiringModal = true" title="Настройки эквайринга">
+                                    <i class="fa-solid fa-credit-card"></i>
+                                    <span>Эквайринг</span>
+                                </button>
+                                <button class="action-btn-header settings" @click="showSettingsModal = true" title="Настройки дашборда">
+                                    <i class="fa-solid fa-gear"></i>
+                                    <span>Настройки</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -147,7 +153,13 @@
                                 <span>+{{ formatPrice(order.delivery_price) }} ₽</span>
                             </div>
                         </div>
-                        <div class="order-actions" @click.stop>
+                        <div class="order-actions available-actions" @click.stop>
+                            <button class="btn-action btn-edit" @click="openEditModal(order)" title="Редактировать цену и расстояние">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button class="btn-action btn-status" @click="openStatusModal(order)" title="Сменить статус">
+                                <i class="fa-solid fa-rotate"></i>
+                            </button>
                             <button class="btn-action btn-accept" @click="handleAcceptOrder(order.id)">
                                 <i class="fa-solid fa-bolt"></i> Взять заказ
                             </button>
@@ -224,19 +236,38 @@
                                 <span>+{{ formatPrice(order.delivery_price) }} ₽</span>
                             </div>
                         </div>
-                        <div class="order-actions" @click.stop>
-                            <a :href="'tel:' + order.receiver_phone" class="btn-action btn-call" v-if="order.receiver_phone">
-                                <i class="fa-solid fa-phone"></i> Позвонить
-                            </a>
-                            <button class="btn-action btn-chat" @click="openChatModal(order)">
-                                <i class="fa-solid fa-comments"></i> Чат
+                        <div class="order-actions-wrapper" @click.stop>
+                            <button
+                                class="btn-action btn-menu-toggle"
+                                :class="{ 'is-active': activeActionMenu === order.id }"
+                                @click="toggleActionMenu(order.id)"
+                            >
+                                <i class="fa-solid fa-ellipsis-vertical"></i>
+                                <span>Действия</span>
                             </button>
-                            <button class="btn-action btn-status" @click="openStatusModal(order)">
-                                <i class="fa-solid fa-rotate"></i> Статус
-                            </button>
-                            <button class="btn-action btn-complete" @click="handleConfirmDelivery(order.id)">
-                                <i class="fa-solid fa-check"></i> Доставлен
-                            </button>
+
+                            <transition name="dropdown-fade">
+                                <div v-if="activeActionMenu === order.id" class="action-dropdown">
+                                    <a v-if="order.receiver_phone" :href="'tel:' + order.receiver_phone" class="dropdown-item" @click="closeActionMenu">
+                                        <i class="fa-solid fa-phone"></i> Позвонить
+                                    </a>
+                                    <button class="dropdown-item" @click="openChatModal(order); closeActionMenu()">
+                                        <i class="fa-solid fa-comments"></i> Чат с клиентом
+                                    </button>
+                                    <button class="dropdown-item" @click="openStatusModal(order); closeActionMenu()">
+                                        <i class="fa-solid fa-rotate"></i> Изменить статус
+                                    </button>
+                                    <button class="dropdown-item" @click="openPaymentModal(order)">
+                                        <i class="fa-solid fa-credit-card"></i> Запросить оплату
+                                    </button>
+
+                                    <div class="dropdown-divider"></div>
+
+                                    <button class="dropdown-item dropdown-item-success" @click="handleConfirmDelivery(order.id); closeActionMenu()">
+                                        <i class="fa-solid fa-check"></i> Отметить как доставленный
+                                    </button>
+                                </div>
+                            </transition>
                         </div>
                     </div>
                 </div>
@@ -298,6 +329,16 @@
             </div>
         </div>
 
+        <!-- ========================================== -->
+        <!-- 🆕 МОДАЛКА: НАСТРОЙКИ ЭКВАЙРИНГА -->
+        <!-- ========================================== -->
+        <AcquiringSettingsModal
+            :is-visible="showAcquiringModal"
+            :initial-data="realAcquiringSettings"
+            @close="showAcquiringModal = false"
+            @save="handleSaveAcquiring"
+            @test-payment="handleTestPayment"
+        />
         <!-- ========================================== -->
         <!-- 🆕 МОДАЛКА: НАСТРОЙКИ АВТООБНОВЛЕНИЯ -->
         <!-- ========================================== -->
@@ -539,6 +580,59 @@
                 </div>
             </div>
         </transition>
+
+        <!-- ========================================== -->
+        <!-- 🆕 МОДАЛКА: РЕДАКТИРОВАНИЕ ЗАКАЗА -->
+        <!-- ========================================== -->
+        <transition name="modal-fade">
+            <div v-if="showEditModal && editingOrder" class="modal-overlay" @click.self="closeEditModal">
+                <div class="modal-container">
+                    <div class="modal-header">
+                        <h3>Редактирование заказа #{{ editingOrder.id }}</h3>
+                        <button class="modal-close" @click="closeEditModal"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="section-label">Расстояние (км)</label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                v-model.number="editForm.distance_km"
+                                class="modern-select"
+                                placeholder="0.0"
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label class="section-label">Стоимость доставки (₽)</label>
+                            <input
+                                type="number"
+                                step="10"
+                                min="0"
+                                v-model.number="editForm.delivery_price"
+                                class="modern-select"
+                                placeholder="0"
+                            >
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary-modern" @click="closeEditModal">Отмена</button>
+                        <button class="btn-primary-modern" @click="saveOrderDetails" :disabled="isSavingEdit">
+                            <span v-if="isSavingEdit"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                            <span v-else>Сохранить изменения</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- В конце шаблона дашборда -->
+        <DeliveryPaymentModal
+            :is-visible="showPaymentModal"
+            :order="currentOrder"
+            @close="showPaymentModal = false"
+            @success="fetchDashboard"
+        />
     </div>
 
     <div v-else class="d-flex justify-content-center align-items-center" style="height: 100vh; background: #f9fafb;">
@@ -554,24 +648,26 @@ import { mapState, mapActions } from 'pinia';
 import { useDeliverymanStore } from '@/MobileClient/stores/deliveryman';
 import { usePermissions } from '@/MobileClient/composables/usePermissions.js';
 import axios from 'axios';
+import DeliveryPaymentModal from '@/MobileClient/Components/Delivery/DeliveryPaymentModal.vue';
+import AcquiringSettingsModal from '@/MobileClient/Components/Delivery/AcquiringSettingsModal.vue';
 
 export default {
     name: 'DeliverymanDashboard',
+    components: {
+        DeliveryPaymentModal,AcquiringSettingsModal
+    },
     setup() {
         const { isAdmin } = usePermissions();
         return { isAdmin };
     },
 
     data() {
-        // 🆕 Получаем сегодняшнюю дату в формате YYYY-MM-DD для input type="date"
         const today = new Date().toISOString().split('T')[0];
-        // 🆕 Загружаем даты из localStorage или используем сегодня
         const savedDateFrom = localStorage.getItem('delivery_dateFrom');
         const savedDateTo = localStorage.getItem('delivery_dateTo');
+
         return {
             activeTab: 'available',
-
-            // 🆕 Переменные для фильтра дат
             dateFrom: savedDateFrom || today,
             dateTo: savedDateTo || today,
             isLoadingTab: false,
@@ -582,17 +678,25 @@ export default {
                 refresh_interval: 30,
                 sound_enabled: true
             },
+
+            showEditModal: false,
+            editingOrder: null,
+            editForm: { distance_km: 0, delivery_price: 0 },
+            isSavingEdit: false,
             isSavingSettings: false,
+            showAcquiringModal: false,
+
             refreshTimer: null,
             previousAvailableCount: 0,
 
             showDetailsModal: false,
             showChatModal: false,
+            showPaymentModal: false,
             showProfileModal: false,
             showStatusModal: false,
+
             currentOrder: null,
             currentChatOrder: null,
-
             chatMessages: [],
             isChatLoading: false,
             newChatMessage: '',
@@ -603,6 +707,7 @@ export default {
             isChangingStatus: false,
             quickMessage: '',
             isSendingMessage: false,
+            activeActionMenu: null,
 
             tabs: [
                 { id: 'available', label: 'Доступные', icon: 'fa-solid fa-list' },
@@ -620,7 +725,25 @@ export default {
             'completedOrders',
             'isOnline'
         ]),
+        realAcquiringSettings() {
+            const tenantSettings = window.Tenant?.settings || {};
+            const shopSettings = tenantSettings.shop || {};
 
+            // Базовая структура для безопасности (если настроек еще нет)
+            const defaultBanks = {
+                tinkoff: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'vat20' },
+                sber: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'vat20' },
+                vtb: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'vat20' },
+                yandex: { enabled: false, terminal_key: '', terminal_password: '', tax: 'osn', vat: 'vat20' },
+            };
+
+            return {
+                sbp_banks: {
+                    ...defaultBanks,
+                    ...(shopSettings.sbp_banks || {}) // Перезаписываем дефолтные значения реальными из БД
+                }
+            };
+        },
         deliverymanInitials() {
             return this.deliveryman.name ? this.deliveryman.name.substring(0, 2).toUpperCase() : 'КУ';
         },
@@ -633,18 +756,18 @@ export default {
             },
             deep: true
         },
-        // 🆕 При смене вкладки автоматически применяем текущий фильтр дат
-        activeTab() {
+        activeTab(newTab) {
+            console.log('[DEBUG] Вкладка изменена на:', newTab);
             this.reloadCurrentTab();
         },
-        // 🆕 Сохраняем даты в localStorage при изменении
-        dateFrom(newVal) { localStorage.setItem('delivery_dateFrom', newVal); },
-        dateTo(newVal) { localStorage.setItem('delivery_dateTo', newVal); },
-
-        // 🆕 Перезапускаем таймер при изменении настроек
+        dateFrom(newVal) {
+            localStorage.setItem('delivery_dateFrom', newVal);
+        },
+        dateTo(newVal) {
+            localStorage.setItem('delivery_dateTo', newVal);
+        },
         'deliverySettings.auto_refresh'() { this.manageAutoRefresh(); },
         'deliverySettings.refresh_interval'() { this.manageAutoRefresh(); },
-
     },
 
     created() {
@@ -663,7 +786,6 @@ export default {
             'stopLocationTracking'
         ]),
 
-        // 🆕 Загрузка настроек с бэкенда
         async loadSettings() {
             try {
                 const response = await axios.get('/deliveryman/settings');
@@ -675,18 +797,15 @@ export default {
             }
         },
 
-        // 🆕 Сохранение настроек на бэкенд
         async saveSettings() {
-            // Принудительно ставим минимум 30 секунд
             if (this.deliverySettings.refresh_interval < 30) {
                 this.deliverySettings.refresh_interval = 30;
             }
-
             this.isSavingSettings = true;
             try {
                 await axios.post('/deliveryman/settings', this.deliverySettings);
                 this.$notify?.({ title: 'Успех', text: 'Настройки сохранены', type: 'success' });
-                this.manageAutoRefresh(); // Перезапускаем таймер с новыми значениями
+                this.manageAutoRefresh();
             } catch (e) {
                 this.$notify?.({ title: 'Ошибка', text: 'Не удалось сохранить настройки', type: 'error' });
             } finally {
@@ -694,13 +813,11 @@ export default {
             }
         },
 
-        // 🆕 Управление автообновлением
         manageAutoRefresh() {
             if (this.refreshTimer) {
                 clearInterval(this.refreshTimer);
                 this.refreshTimer = null;
             }
-
             if (this.deliverySettings.auto_refresh) {
                 const intervalMs = Math.max(30, this.deliverySettings.refresh_interval) * 1000;
                 this.refreshTimer = setInterval(() => {
@@ -709,14 +826,11 @@ export default {
             }
         },
 
-        // 🆕 Проверка новых заказов и обновление
         async checkForNewOrders() {
             const store = useDeliverymanStore();
             const oldCount = this.previousAvailableCount || store.availableOrders.length;
+            await this.reloadCurrentTab();
 
-            await this.reloadCurrentTab(); // Обновляем текущую вкладку
-
-            // Если включен звук и появились новые заказы в "Доступных"
             if (this.deliverySettings.sound_enabled && this.activeTab === 'available') {
                 const newCount = store.availableOrders.length;
                 if (newCount > oldCount) {
@@ -726,52 +840,39 @@ export default {
             this.previousAvailableCount = store.availableOrders.length;
         },
 
-        // 🆕 Простой звуковой сигнал через Web Audio API (не требует внешних файлов)
-        // 🆕 Воспроизведение вашего кастомного звука
         playNotificationSound() {
             if (!this.deliverySettings.sound_enabled) return;
-
             try {
-                // 🎵 УКАЖИТЕ ЗДЕСЬ ПУТЬ К ВАШЕМУ ФАЙЛУ
-                // Если файл лежит в public/sounds/new_order.mp3, путь будет '/sounds/new_order.mp3'
                 const audio = new Audio('/sounds/new_order.mp3');
-
-                // Можно настроить громкость (от 0.0 до 1.0)
                 audio.volume = 0.6;
-
-                // Запускаем воспроизведение
-                audio.play().catch(e => {
-                    // Браузеры иногда блокируют автовоспроизведение звука, если пользователь еще не взаимодействовал со страницей
-                    console.warn('Не удалось воспроизвести звук (возможно, блокировка автовоспроизведения браузером):', e);
-                });
+                audio.play().catch(e => console.warn('Звук заблокирован браузером:', e));
             } catch (e) {
-                console.error('Ошибка при попытке воспроизвести звук:', e);
+                console.error('Ошибка звука:', e);
             }
         },
 
+        // 🆕 ИСПРАВЛЕНО: Используем store.$patch для гарантированной реактивности
         async reloadCurrentTab() {
+            console.log('[DEBUG] reloadCurrentTab вызван. Текущая вкладка:', this.activeTab);
             this.isLoadingTab = true;
             try {
-                const params = {
-                    date_from: this.dateFrom,
-                    date_to: this.dateTo
-                };
-
+                const params = { date_from: this.dateFrom, date_to: this.dateTo };
                 const store = useDeliverymanStore();
                 let response;
 
                 if (this.activeTab === 'available') {
                     response = await axios.get('/deliveryman/orders/available', { params });
-                    store.availableOrders = response.data.data;
+                    store.$patch({ availableOrders: response.data.data || [] });
                 } else if (this.activeTab === 'active') {
                     response = await axios.get('/deliveryman/orders/active', { params });
-                    store.activeOrders = response.data.data;
+                    store.$patch({ activeOrders: response.data.data || [] });
                 } else if (this.activeTab === 'completed') {
                     response = await axios.get('/deliveryman/orders/completed', { params });
-                    store.completedOrders = response.data.data;
+                    store.$patch({ completedOrders: response.data.data || [] });
                 }
             } catch (error) {
                 console.error('Ошибка загрузки заказов:', error);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось обновить список', type: 'error' });
             } finally {
                 this.isLoadingTab = false;
             }
@@ -784,7 +885,28 @@ export default {
             this.reloadCurrentTab();
         },
 
+        // 🆕 ИСПРАВЛЕНО: Строгая проверка orderId перед отправкой
+        async handleAcceptOrder(orderId) {
+            console.log('[DEBUG] handleAcceptOrder вызван с orderId:', orderId, 'Тип:', typeof orderId);
 
+            if (!orderId) {
+                this.$notify?.({ title: 'Ошибка', text: 'ID заказа не определен', type: 'error' });
+                return;
+            }
+
+            try {
+                await this.acceptOrder(orderId);
+                this.$notify?.({ title: 'Успех', text: 'Заказ принят в работу', type: 'success' });
+                this.activeTab = 'active';
+            } catch (e) {
+                console.error('[DEBUG] Ошибка при принятии заказа:', e);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: e.response?.data?.error || e.message || 'Не удалось принять заказ',
+                    type: 'error'
+                });
+            }
+        },
 
         async openChatModal(order) {
             if (!order.dialog_id) {
@@ -814,7 +936,7 @@ export default {
                 }
             } catch (e) {
                 console.error('Ошибка загрузки чата:', e);
-                this.$notify?.({ title: 'Ошибка', text: 'Не удалось загрузить историю сообщений', type: 'error' });
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось загрузить историю', type: 'error' });
             } finally {
                 this.isChatLoading = false;
             }
@@ -822,7 +944,6 @@ export default {
 
         async sendChatMessage() {
             if (!this.newChatMessage.trim() || !this.currentChatOrder?.dialog_id) return;
-
             const textToSend = this.newChatMessage;
             this.newChatMessage = '';
             this.isSendingChatMessage = true;
@@ -831,13 +952,12 @@ export default {
                 const response = await axios.post(`/deliveryman/dialogs/${this.currentChatOrder.dialog_id}/messages`, {
                     message: textToSend
                 });
-
                 if (response.data.success) {
                     this.chatMessages.push(response.data.data);
                     this.$notify?.({ title: 'Отправлено', text: 'Сообщение доставлено', type: 'success' });
                 }
             } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: e.response?.data?.error || 'Не удалось отправить сообщение', type: 'error' });
+                this.$notify?.({ title: 'Ошибка', text: e.response?.data?.error || 'Не удалось отправить', type: 'error' });
                 this.newChatMessage = textToSend;
             } finally {
                 this.isSendingChatMessage = false;
@@ -846,14 +966,10 @@ export default {
 
         scrollToBottom() {
             const container = this.$refs.chatMessagesContainer;
-            if (container) {
-                container.scrollTop = container.scrollHeight;
-            }
+            if (container) container.scrollTop = container.scrollHeight;
         },
 
-        isMyMessage(msg) {
-            return msg.sender_type === 'deliveryman';
-        },
+        isMyMessage(msg) { return msg.sender_type === 'deliveryman'; },
 
         getSenderName(msg) {
             if (msg.sender_type === 'system') return 'Система';
@@ -908,6 +1024,47 @@ export default {
             if (!order.lat || !order.lng) return '#';
             return `https://yandex.ru/maps/?pt=${order.lng},${order.lat}&z=16&l=map`;
         },
+        // 🆕 Обработчики для модалки эквайринга
+        // 🆕 Обработчик сохранения настроек эквайринга
+        async handleSaveAcquiring(updatedData) {
+            try {
+                // Отправляем обновленные sbp_banks на бэкенд
+                // (Убедитесь, что у вас есть такой роут, или используйте существующий для обновления shop settings)
+                const response = await axios.put('/admin/tenant-settings/shop', {
+                    sbp_banks: updatedData.sbp_banks
+                });
+
+                // 🔄 Обновляем глобальный объект Tenant, чтобы изменения отобразились мгновенно
+                if (window.Tenant && window.Tenant.settings) {
+                    if (!window.Tenant.settings.shop) window.Tenant.settings.shop = {};
+                    window.Tenant.settings.shop.sbp_banks = updatedData.sbp_banks;
+                }
+
+                this.$notify?.({
+                    title: 'Успех',
+                    text: 'Настройки банков успешно сохранены',
+                    type: 'success'
+                });
+                this.showAcquiringModal = false;
+            } catch (error) {
+                console.error('Ошибка сохранения настроек:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: error.response?.data?.message || 'Не удалось сохранить настройки',
+                    type: 'error'
+                });
+            }
+        },
+
+        handleTestPayment({ bankKey, amount }) {
+            this.$notify?.({
+                title: 'Тестирование',
+                text: `Формируется тестовая ссылка для ${bankKey}...`,
+                type: 'info'
+            });
+
+        },
+
 
         openOrderDetails(order) {
             this.currentOrder = order;
@@ -974,6 +1131,20 @@ export default {
             return map[status] || { label: 'Неизвестно', class: 'new' };
         },
 
+        toggleActionMenu(orderId) {
+            this.activeActionMenu = this.activeActionMenu === orderId ? null : orderId;
+        },
+
+        closeActionMenu() {
+            this.activeActionMenu = null;
+        },
+
+        openPaymentModal(order) {
+            this.currentOrder = order;
+            this.showPaymentModal = true;
+            this.closeActionMenu();
+        },
+
         async handleToggleOnline() {
             const newStatus = !this.isOnline;
             const success = await this.toggleStatus(newStatus);
@@ -988,22 +1159,12 @@ export default {
             }
         },
 
-        async handleAcceptOrder(orderId) {
-            try {
-                await this.acceptOrder(orderId);
-                this.$notify?.({ title: 'Успех', text: 'Заказ принят в работу', type: 'success' });
-                this.activeTab = 'active';
-            } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: e.response?.data?.error || 'Не удалось принять заказ', type: 'error' });
-            }
-        },
-
         async handleConfirmDelivery(orderId) {
             if (!confirm('Подтвердить доставку заказа?')) return;
             try {
                 await this.confirmDelivery(orderId);
                 this.closeOrderDetails();
-                this.$notify?.({ title: 'Отлично!', text: 'Доставка подтверждена, средства начислены', type: 'success' });
+                this.$notify?.({ title: 'Отлично!', text: 'Доставка подтверждена', type: 'success' });
             } catch (e) {
                 this.$notify?.({ title: 'Ошибка', text: e.response?.data?.error || 'Ошибка подтверждения', type: 'error' });
             }
@@ -1017,20 +1178,60 @@ export default {
                 this.$notify?.({ title: 'Отправлено', text: 'Сообщение доставлено клиенту', type: 'success' });
                 this.quickMessage = '';
             } catch (e) {
-                this.$notify?.({ title: 'Ошибка', text: e.response?.data?.error || 'Не удалось отправить сообщение', type: 'error' });
+                this.$notify?.({ title: 'Ошибка', text: e.response?.data?.error || 'Не удалось отправить', type: 'error' });
             } finally {
                 this.isSendingMessage = false;
             }
-        }
+        },
+
+        openEditModal(order) {
+            this.editingOrder = order;
+            this.editForm = {
+                distance_km: order.distance_km || 0,
+                delivery_price: order.delivery_price || 0
+            };
+            this.showEditModal = true;
+        },
+
+        closeEditModal() {
+            this.showEditModal = false;
+            this.editingOrder = null;
+        },
+
+        async saveOrderDetails() {
+            this.isSavingEdit = true;
+            try {
+                const response = await axios.put(`/deliveryman/orders/${this.editingOrder.id}/details`, {
+                    distance_km: this.editForm.distance_km,
+                    delivery_price: this.editForm.delivery_price
+                });
+
+                if (response.data.success) {
+                    const index = this.availableOrders.findIndex(o => o.id === this.editingOrder.id);
+                    if (index !== -1) {
+                        this.availableOrders[index].distance_km = this.editForm.distance_km;
+                        this.availableOrders[index].delivery_price = this.editForm.delivery_price;
+                    }
+                    this.$notify?.({ title: 'Успех', text: 'Данные заказа обновлены', type: 'success' });
+                    this.closeEditModal();
+                }
+            } catch (e) {
+                this.$notify?.({ title: 'Ошибка', text: e.response?.data?.message || 'Не удалось сохранить', type: 'error' });
+            } finally {
+                this.isSavingEdit = false;
+            }
+        },
     },
 
     mounted() {
         this.fetchDashboard();
         if (this.isOnline) this.startLocationTracking();
+        window.addEventListener('click', this.closeActionMenu);
     },
 
     beforeUnmount() {
         this.stopLocationTracking();
+        window.removeEventListener('click', this.closeActionMenu);
     }
 };
 </script>
@@ -1568,8 +1769,8 @@ $card-bg: #ffffff;
 .metric-card {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 16px;
+    gap: 8px;
+    padding: 6px;
     background: rgba(255, 255, 255, 0.12);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -3154,6 +3355,186 @@ chat-modal-overlay {
             width: 100%;
             justify-content: center;
         }
+    }
+}
+
+// 🆕 Сетка действий для доступных заказов (3 кнопки)
+.available-actions {
+    grid-template-columns: 1fr 1fr 2fr;
+    gap: 6px;
+}
+
+.btn-action.btn-edit {
+    background: rgba($warning, 0.1);
+    color: $warning;
+    border: 1px solid rgba($warning, 0.2);
+
+    &:hover {
+        background: $warning;
+        color: white;
+    }
+}
+
+// ==========================================
+// 🆕 ВЫПАДАЮЩЕЕ МЕНЮ ДЕЙСТВИЙ
+// ==========================================
+.order-actions-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.btn-menu-toggle {
+    width: 100%;
+    background: $bg;
+    color: $text;
+    border: 1px solid $border;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+
+    &:hover {
+        background: $border;
+    }
+
+    &.is-active {
+        background: $primary;
+        color: white;
+        border-color: $primary;
+    }
+}
+
+.action-dropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    width: 100%;
+    background: $card-bg;
+    border: 1px solid $border;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    padding: 6px;
+    z-index: 50;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: $text;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    text-decoration: none;
+    transition: all 0.2s;
+
+    &:hover {
+        background: rgba($primary, 0.08);
+        color: $primary;
+    }
+
+    i {
+        width: 20px;
+        text-align: center;
+        font-size: 0.9rem;
+    }
+}
+
+.dropdown-item-success {
+    color: $success;
+    font-weight: 600;
+
+    &:hover {
+        background: rgba($success, 0.1);
+        color: $success;
+    }
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: $border;
+    margin: 6px 0;
+}
+
+// Анимация появления/исчезновения меню
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dropdown-fade-enter-from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+}
+
+.dropdown-fade-leave-to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+}
+
+// 🆕 Стили для группы кнопок в шапке
+.header-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.action-btn-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+
+    &.acquiring {
+        background: rgba(16, 185, 129, 0.2); // Зеленый оттенок для эквайринга
+        color: #6ee7b7;
+        border-color: rgba(16, 185, 129, 0.3);
+
+        &:hover {
+            background: rgba(16, 185, 129, 0.3);
+            transform: translateY(-1px);
+        }
+    }
+
+    &.settings {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-1px);
+        }
+    }
+}
+
+@media (max-width: 640px) {
+    .header-actions {
+        width: 100%;
+    }
+    .action-btn-header {
+        justify-content: center;
     }
 }
 </style>
