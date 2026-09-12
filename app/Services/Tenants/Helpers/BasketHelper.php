@@ -692,6 +692,7 @@ trait BasketHelper
             'product_count' => (int) $basketData['summary_count'],
             'summary_price' => (float) $basketData['final_price'],
             'delivery_price' => (float) ($context['delivery_price'] ?? 0),
+            'delivery_range' => (float) ($context['delivery_range'] ?? $this->safeFloat($context['distance'] ?? 0)),
             'receiver_name' => $context['customer_name'] ?? 'Не указано',
             'receiver_phone' => $context['customer_phone'] ?? '',
 
