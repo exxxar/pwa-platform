@@ -3,7 +3,6 @@
         <div v-if="isVisible" class="modal-overlay" @click.self="close">
             <div class="modal-container">
                 <!-- Шапка -->
-                <!-- Шапка -->
                 <div class="modal-header">
                     <div class="header-shop-info">
                         <div class="shop-avatar-small">
@@ -12,7 +11,6 @@
                         </div>
                         <div class="shop-header-text">
                             <h3>{{ shop?.name || shop?.title || 'Заведение' }}</h3>
-                            <!-- 🆕 Красивый бейдж с адресом заведения -->
                             <div class="shop-address-badge" :title="shop?.address">
                                 <i class="fa-solid fa-location-dot"></i>
                                 <span>{{ shop?.address || 'Адрес не указан' }}</span>
@@ -23,15 +21,57 @@
                 </div>
 
                 <div class="modal-body">
-                    <!-- 🆕 Блок выбора на карте -->
+                    <!-- 🆕 Блок поиска адреса -->
+                    <div class="address-search-block">
+                        <label class="form-label">
+                            <i class="fa-solid fa-magnifying-glass-location"></i> Поиск адреса доставки
+                        </label>
+                        <div class="search-input-group">
+                            <input
+                                type="text"
+                                v-model="searchQuery"
+                                @keyup.enter="searchAddress"
+                                class="form-input"
+                                placeholder="Город, улица, дом..."
+                                :disabled="isSearching"
+                            >
+                            <button
+                                type="button"
+                                class="btn-search"
+                                @click="searchAddress"
+                                :disabled="isSearching || !searchQuery.trim()"
+                            >
+                                <span v-if="isSearching" class="spinner-small"></span>
+                                <i v-else class="fa-solid fa-magnifying-glass"></i>
+                            </button>
+                        </div>
+
+                        <!-- 🆕 Чипы ближайших городов (как в вашем примере) -->
+                        <div v-if="nearestCitiesList.length > 0" class="city-chips">
+                            <button
+                                v-for="city in nearestCitiesList"
+                                :key="city"
+                                type="button"
+                                class="city-chip"
+                                :class="{ 'active': selectedCity === city }"
+                                @click="selectCityForSearch(city)"
+                            >
+                                {{ city }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Карта -->
                     <div class="map-selection-block">
                         <label class="form-label">
                             <i class="fa-solid fa-map-location-dot"></i> Точка доставки
                         </label>
 
+
                         <MapLocationPicker
-                            :shop-coords="shop?.settings?.shop_coords"
+                            :shop-coords="shop?.shop_coords || shop?.settings?.shop_coords"
                             :map-key="mapTilerKey"
+                            :external-location="externalLocation"
                             @update:location="handleMapLocationUpdate"
                         />
 
@@ -52,7 +92,7 @@
                         <span>{{ isCalculating ? 'Считаем...' : 'Рассчитать стоимость' }}</span>
                     </button>
 
-                    <!-- Результаты расчета (без изменений) -->
+                    <!-- Результаты расчета -->
                     <transition name="slide-up">
                         <div v-if="calcResult" class="calculation-result">
                             <div class="result-grid">
@@ -83,7 +123,7 @@
                                 </div>
                             </div>
 
-                            <!-- Генерация ссылки на оплату (без изменений) -->
+                            <!-- Генерация ссылки -->
                             <div class="payment-action-block">
                                 <button
                                     v-if="!paymentUrl"
@@ -121,12 +161,12 @@
 
 <script>
 import axios from 'axios';
-import MapLocationPicker from '@/MobileClient/Components/Delivery/MapLocationPicker.vue'; // 🆕 Импорт компонента карты
+import MapLocationPicker from '@/MobileClient/Components/Delivery/MapLocationPicker.vue';
 
 export default {
     name: 'DeliveryCalculatorModal',
     components: {
-        MapLocationPicker // 🆕 Регистрация компонента
+        MapLocationPicker
     },
     props: {
         isVisible: { type: Boolean, default: false },
@@ -135,20 +175,35 @@ export default {
     emits: ['close'],
     data() {
         return {
+            // 🆕 Поиск адреса
+            searchQuery: '',
+            selectedCity: '',
+            isSearching: false,
+            // Координаты и адрес
             selectedAddress: '',
             lat: null,
             lng: null,
+            externalLocation: null, // 🆕 Для синхронизации с картой
+            // Расчет и оплата
             isCalculating: false,
             calcResult: null,
             isGeneratingLink: false,
             paymentUrl: null,
             isCopied: false,
-            mapTilerKey: window.Tenant?.settings?.map_tiler || 'l7t0HU7CqsgOKgS9rtvU' // 🆕 Ключ для карты
+            mapTilerKey: window.Tenant?.settings?.map_tiler || 'l7t0HU7CqsgOKgS9rtvU'
         };
     },
     computed: {
         canCalculate() {
             return this.lat && this.lng && this.selectedAddress.trim().length > 5;
+        },
+        // 🆕 Список ближайших городов из настроек магазина
+        nearestCitiesList() {
+            const rawCities = this.shop?.settings?.nearest_cities
+                || window.Tenant?.settings?.nearest_cities
+                || '';
+            if (!rawCities) return [];
+            return rawCities.split(/[,\n]+/).map(c => c.trim()).filter(c => c.length > 0);
         }
     },
     watch: {
@@ -163,9 +218,12 @@ export default {
             this.$emit('close');
         },
         resetState() {
+            this.searchQuery = '';
+            this.selectedCity = '';
             this.selectedAddress = '';
             this.lat = null;
             this.lng = null;
+            this.externalLocation = null;
             this.calcResult = null;
             this.paymentUrl = null;
             this.isCopied = false;
@@ -179,17 +237,85 @@ export default {
             return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(price || 0);
         },
 
-        // 🆕 Обработчик обновления координат из компонента карты
+        // 🆕 Выбор города из чипов (как в MapPickerVector)
+        selectCityForSearch(city) {
+            if (this.selectedCity === city) {
+                this.selectedCity = '';
+                return;
+            }
+            this.selectedCity = city;
+
+            if (!this.searchQuery.trim()) {
+                this.searchQuery = city;
+            } else if (!this.searchQuery.toLowerCase().includes(city.toLowerCase())) {
+                this.searchQuery = `${city}, ${this.searchQuery}`;
+            }
+
+            this.searchAddress();
+        },
+
+        // 🆕 Поиск адреса через Nominatim (OpenStreetMap)
+        async searchAddress() {
+            if (!this.searchQuery.trim() || this.isSearching) return;
+
+            this.isSearching = true;
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.searchQuery)}&addressdetails=1&limit=1`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data && data.length > 0) {
+                    const { lat, lon } = data[0];
+                    const latNum = parseFloat(lat);
+                    const lngNum = parseFloat(lon);
+
+                    // Обновляем состояние
+                    this.lat = latNum;
+                    this.lng = lngNum;
+                    this.selectedAddress = this.formatAddress(data[0].address);
+
+                    // 🆕 Передаем координаты карте — она сама переместит маркер
+                    this.externalLocation = { lat: latNum, lng: lngNum };
+
+                    // Сбрасываем предыдущий расчет
+                    this.calcResult = null;
+                    this.paymentUrl = null;
+                } else {
+                    this.$notify?.({
+                        title: 'Не найдено',
+                        text: 'Адрес не найден, попробуйте уточнить запрос',
+                        type: 'warning'
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка поиска адреса:', error);
+                this.$notify?.({ title: 'Ошибка', text: 'Не удалось найти адрес', type: 'error' });
+            } finally {
+                this.isSearching = false;
+            }
+        },
+
+        // 🆕 Форматирование адреса из данных Nominatim
+        formatAddress(addr) {
+            if (!addr) return this.searchQuery;
+            const street = [addr.road, addr.house_number].filter(Boolean).join(", ");
+            const city = addr.city || addr.town || addr.village || "";
+            this.selectedCity = city;
+            return [street, city].filter(Boolean).join(", ") || this.searchQuery;
+        },
+
+        // Обработчик обновления координат из компонента карты
         handleMapLocationUpdate(locationData) {
             this.lat = locationData.lat;
             this.lng = locationData.lng;
             this.selectedAddress = locationData.address;
-            // Сбрасываем предыдущий результат при изменении точки
+            // Обновляем поисковое поле, чтобы оно соответствовало точке на карте
+            this.searchQuery = locationData.address;
             this.calcResult = null;
             this.paymentUrl = null;
         },
 
-        // 🧮 Расчет доставки
+        // Расчет доставки
         async calculateDelivery() {
             this.isCalculating = true;
             this.calcResult = null;
@@ -216,7 +342,7 @@ export default {
             }
         },
 
-        // 💳 Генерация ссылки
+        // Генерация ссылки
         async generatePaymentLink() {
             if (!this.calcResult) return;
             this.isGeneratingLink = true;
@@ -241,7 +367,7 @@ export default {
             }
         },
 
-        // 📋 Копирование ссылки
+        // Копирование ссылки
         async copyLink() {
             try {
                 await navigator.clipboard.writeText(this.paymentUrl);
@@ -281,46 +407,22 @@ $card-bg: #ffffff;
 .modal-header {
     display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 20px;
     border-bottom: 1px solid $border; flex-shrink: 0;
-
     .header-shop-info { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0; }
-
     .shop-avatar-small {
         width: 48px; height: 48px; border-radius: 12px; background: $bg;
         display: flex; align-items: center; justify-content: center; color: $text-muted; flex-shrink: 0; overflow: hidden;
         img { width: 100%; height: 100%; object-fit: cover; }
     }
-
-    // 🆕 Новые стили для текста и адреса
-    .shop-header-text {
-        flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;
-    }
-
-    h3 {
-        font-size: 1.05rem; font-weight: 700; margin: 0; color: $text;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-
+    .shop-header-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    h3 { font-size: 1.05rem; font-weight: 700; margin: 0; color: $text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .shop-address-badge {
         display: inline-flex; align-items: center; gap: 5px;
-        font-size: 0.75rem; color: $text-muted;
-        background: rgba($text-muted, 0.08);
-        padding: 3px 10px; border-radius: 8px;
-        width: fit-content;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        max-width: 100%;
-        transition: all 0.2s;
-
-        &:hover {
-            background: rgba($primary, 0.1);
-            color: $primary;
-        }
-
-        i {
-            color: $primary; font-size: 0.7rem; flex-shrink: 0;
-        }
+        font-size: 0.75rem; color: $text-muted; background: rgba($text-muted, 0.08);
+        padding: 3px 10px; border-radius: 8px; width: fit-content;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        i { color: $primary; font-size: 0.7rem; flex-shrink: 0; }
     }
 }
-
 .modal-close {
     width: 36px; height: 36px; border-radius: 50%; background: $bg; border: none; color: $text-muted;
     cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -329,8 +431,58 @@ $card-bg: #ffffff;
 
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
 
+// ==========================================
+// 🆕 БЛОК ПОИСКА АДРЕСА
+// ==========================================
+.address-search-block { margin-bottom: 16px; }
+
+.form-label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.85rem; font-weight: 600; color: $text; margin-bottom: 8px;
+    i { color: $primary; }
+}
+
+.search-input-group {
+    display: flex; gap: 8px;
+}
+
+.form-input {
+    flex: 1; padding: 12px 14px; border: 1px solid $border; border-radius: 10px;
+    font-size: 0.9rem; background: $bg; transition: all 0.2s;
+    &:focus { outline: none; border-color: $primary; box-shadow: 0 0 0 3px rgba($primary, 0.1); }
+    &:disabled { opacity: 0.6; }
+}
+
+.btn-search {
+    width: 48px; flex-shrink: 0; border: none; border-radius: 10px;
+    background: $primary; color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    &:hover:not(:disabled) { background: $primary-dark; }
+    &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+.spinner-small {
+    width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+// 🆕 Чипы городов
+.city-chips {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+}
+.city-chip {
+    padding: 5px 12px; background: $bg; border: 1px solid $border;
+    border-radius: 20px; font-size: 0.75rem; color: $text-muted;
+    cursor: pointer; transition: all 0.2s;
+    &:hover { border-color: $primary; color: $primary; background: rgba($primary, 0.05); }
+    &.active {
+        background: $primary; color: white; border-color: $primary;
+    }
+}
+
 .map-selection-block { margin-bottom: 16px; }
-.form-label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600; color: $text; margin-bottom: 8px; i { color: $primary; } }
 
 .selected-address-display {
     display: flex; align-items: flex-start; gap: 8px;

@@ -450,6 +450,7 @@ class DeliverymanController extends Controller
                 // 🆕 Собираем полный адрес из доступных полей
                 $city = $shop->city ?? ($settings['city'] ?? ($settings['shop']['city'] ?? ''));
                 $address = $shop->full_address ;
+                $shopCoords  = $shop->shop_coords ?? $settings['shop_coords'] ?? '0,0' ;
 
 
                 $fullAddress = '';
@@ -463,6 +464,7 @@ class DeliverymanController extends Controller
                     'slug' => $shop->slug,
                     'description' => $shop->description ?? 'Доставка заказов',
                     'image' => $shop->image,
+                    'shop_coords' => $shopCords,
                     'address' => $fullAddress, // 🆕 Явно отдаем собранный адрес
                     'settings' => [
                         'shop_coords' => $settings['shop_coords'] ?? ($settings['shop']['shop_coords'] ?? null)
