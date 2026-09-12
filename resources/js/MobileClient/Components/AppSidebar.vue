@@ -180,6 +180,11 @@ export default {
                     { route: 'AvailableShops', title: 'Доступные магазины', icon: 'fa-solid fa-store' },
                     { route: 'Orders', title: 'Мои доставки', icon: 'fa-solid fa-bag-shopping' },
                     { route: 'Profile', title: 'Профиль', icon: 'fa-solid fa-user' },
+                    {
+                        route: 'DeliveryCalculator', // Замените на актуальное имя роута (например, Catalog или Shops)
+                        title: 'Расчет цены',
+                        icon: 'fa-solid fa-calculator',
+                    },
                 ];
             }
 

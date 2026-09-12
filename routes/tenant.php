@@ -157,6 +157,14 @@ function routes()
 
         Route::get('/shops', [DeliverymanController::class, 'getAvailableShops']);
         Route::post('/shops', [DeliverymanController::class, 'updateDeliveryShops']);
+
+            // 🆕 Расчет доставки от конкретного магазина
+        Route::post('/shops/{id}/calculate', [DeliverymanController::class, 'calculateShopDelivery']);
+
+        // 🆕 Генерация платежной ссылки для доставки
+        Route::post('/shops/{id}/payment-link', [DeliverymanController::class, 'generateShopPaymentLink']);
+
+
         Route::get('/settings', [DeliverymanController::class, 'getSettings']);
         Route::post('/settings', [DeliverymanController::class, 'saveSettings']);
         Route::post('/toggle-status', [DeliverymanController::class, 'toggleStatus']); // Онлайн/Офлайн

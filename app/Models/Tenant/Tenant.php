@@ -39,7 +39,7 @@ class Tenant extends Model
         "is_active" => "boolean",
     ];
 
-    protected $appends = ['settings', 'topics'];
+    protected $appends = ['settings', 'topics','full_address','shop_coords_parsed'];
     protected $with = ['partners', 'tapLinks'];
 
 
@@ -268,5 +268,83 @@ class Tenant extends Model
     public function scopeByAgent($query, Agent $agent)
     {
         return $query->where('agent_id', $agent->id);
+    }
+
+    /**
+     * Аксессор для базового адреса (ищет по всем возможным ключам в settings)
+     */
+    protected function address(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // Безопасное извлечение из многомерного массива settings
+                return $this->attributes['address']
+                    ?? data_get($this->settings, 'company.address')
+                    ?? data_get($this->settings, 'shop.address')
+                    ?? data_get($this->settings, 'address')
+                    ?? 'Адрес не указан';
+            }
+        );
+    }
+
+    protected function shopCoordsParsed(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // 1. Ищем в корне settings
+                $coords = $this->settings['shop_coords'] ?? null;
+                // 2. Если нет, ищем в settings.shop
+                if (!$coords) {
+                    $coords = data_get($this->settings, 'shop.shop_coords');
+                }
+
+                if ($coords && str_contains($coords, ',')) {
+                    $parts = explode(',', $coords);
+                    return [
+                        'lat' => (float) trim($parts[0]),
+                        'lng' => (float) trim($parts[1]),
+                    ];
+                }
+
+                // Дефолт (например, центр Москвы), если координат нет вообще
+                return ['lat' => 55.7558, 'lng' => 37.6173];
+            }
+        );
+    }
+
+    /**
+     * Собираем полный адрес из всех возможных источников
+     */
+    protected function fullAddress(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // 1. Проверяем прямые колонки модели (если они есть в миграции)
+                $city = $this->city ?? '';
+                $address = $this->address ?? '';
+
+                // 2. Если в модели пусто, лезем в settings
+                if (empty($city)) {
+                    $city = data_get($this->settings, 'seo.local.city')
+                        ?: data_get($this->settings, 'shop.city')
+                            ?: data_get($this->settings, 'city');
+                }
+
+                if (empty($address)) {
+                    $address = data_get($this->settings, 'address')
+                        ?: data_get($this->settings, 'shop.address')
+                            ?: data_get($this->settings, 'seo.schema.address.streetAddress');
+                }
+
+                // 3. Формируем итоговую строку
+                $parts = array_filter([$city, $address]);
+
+                if (empty($parts)) {
+                    return 'Адрес не указан в настройках';
+                }
+
+                return implode(', ', $parts);
+            }
+        );
     }
 }

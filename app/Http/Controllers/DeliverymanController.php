@@ -441,15 +441,46 @@ class DeliverymanController extends Controller
         /** @var TenantUser $user */
         $user = Auth::guard('tenant')->user();
 
-        $shops = Tenant::where('is_active', true)->select('id', 'name', 'slug', 'description', 'image')->orderBy('name')->get()->map(function ($shop) {
-            return ['id' => $shop->id, 'name' => $shop->name, 'slug' => $shop->slug, 'description' => $shop->description ?? 'Доставка заказов', 'image' => $shop->image];
-        });
+        $shops = Tenant::where('is_active', true)
+            ->select('id', 'name', 'slug', 'description') // 🆕 Добавили 'address'
+            ->orderBy('name')
+            ->get()
+            ->map(function ($shop) {
+                $settings = $shop->settings ?? [];
+                // 🆕 Собираем полный адрес из доступных полей
+                $city = $shop->city ?? ($settings['city'] ?? ($settings['shop']['city'] ?? ''));
+                $address = $shop->full_address ;
+
+
+                $fullAddress = '';
+                if ($city) $fullAddress .= $city . ', ';
+                $fullAddress .= $address;
+                $fullAddress = trim($fullAddress, ', ') ?: 'Адрес не указан';
+
+                return [
+                    'id' => $shop->id,
+                    'name' => $shop->name,
+                    'slug' => $shop->slug,
+                    'description' => $shop->description ?? 'Доставка заказов',
+                    'image' => $shop->image,
+                    'address' => $fullAddress, // 🆕 Явно отдаем собранный адрес
+                    'settings' => [
+                        'shop_coords' => $settings['shop_coords'] ?? ($settings['shop']['shop_coords'] ?? null)
+                    ]
+                ];
+            });
 
         $meta = $user->meta ?? [];
-        $settings = $meta['settings'] ?? [];
-        $selectedShopIds = $settings['delivery_shops'] ?? [];
+        $userSettings = $meta['settings'] ?? [];
+        $selectedShopIds = $userSettings['delivery_shops'] ?? [];
 
-        return response()->json(['success' => true, 'data' => ['shops' => $shops, 'selected_ids' => $selectedShopIds]]);
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'shops' => $shops,
+                'selected_ids' => $selectedShopIds,
+            ]
+        ]);
     }
 
     /**
@@ -586,5 +617,137 @@ class DeliverymanController extends Controller
                 'delivery_price' => $order->delivery_price
             ]
         ]);
+    }
+
+    /**
+     * POST /api/deliveryman/shops/{id}/calculate-delivery
+     * Расчет расстояния и стоимости доставки от конкретного заведения
+     */
+    public function calculateShopDelivery(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'lat' => 'required|numeric',
+            'lng' => 'required|numeric',
+        ]);
+
+        $shop = Tenant::findOrFail($id);
+        $config = $shop->settings ?? [];
+
+        $shopCoords = $config["shop_coords"] ?? ($config["shop"]["shop_coords"] ?? null);
+
+        if (empty($shopCoords)) {
+            return response()->json(['error' => 'Координаты заведения не указаны в настройках'], 400);
+        }
+
+        // 1. Считаем расстояние через ваш GEOService
+        $distanceInMeters = \App\Services\Tenants\GEOService::call()->getDistance(
+            (float)$request->lat,
+            (float)$request->lng,
+            $shopCoords
+        );
+
+        $distCoef = env("DISTANCE_COEF") ?? 1;
+        $distanceInKm = round(($distanceInMeters / 1000) * $distCoef, 2);
+
+        // 2. Применяем логику зон (как в getDeliveryPriceNew)
+        $pricePerKm = (float)($config["shop"]["price_per_km"] ?? $config["price_per_km"] ?? 80);
+        $deliveryZones = $config['shop']['delivery_zones'] ?? $config['delivery_zones'] ?? [];
+
+        usort($deliveryZones, function ($a, $b) {
+            return ((float)($a['radius'] ?? 0)) <=> ((float)($b['radius'] ?? 0));
+        });
+
+        $parseZonePrice = function ($price) {
+            if (is_numeric($price)) return (float)$price;
+            $priceStr = mb_strtolower((string)$price);
+            if (str_contains($priceStr, 'бесплатно') || str_contains($priceStr, 'free')) return 0.0;
+            preg_match('/\d+([\.,]\d+)?/', $priceStr, $matches);
+            return isset($matches[0]) ? (float)str_replace(',', '.', $matches[0]) : 0.0;
+        };
+
+        $deliveryPrice = 0.0;
+        $appliedZoneName = 'Базовый тариф';
+        $isOutsideZones = false;
+
+        if (!empty($deliveryZones)) {
+            $zoneFound = false;
+            foreach ($deliveryZones as $zone) {
+                $radius = (float)($zone['radius'] ?? 0);
+                if ($distanceInKm <= $radius) {
+                    $zoneBasePrice = $parseZonePrice($zone['price'] ?? 0);
+                    $deliveryPrice = round($zoneBasePrice + ($distanceInKm * $pricePerKm), 2);
+                    $appliedZoneName = $zone['name'] ?? 'Зона';
+                    $zoneFound = true;
+                    break;
+                }
+            }
+
+            if (!$zoneFound) {
+                $isOutsideZones = true;
+                $lastZone = end($deliveryZones);
+                $lastZoneBasePrice = $parseZonePrice($lastZone['price'] ?? 0);
+                $appliedZoneName = ($lastZone['name'] ?? 'Дальняя зона') . ' (сверх лимита)';
+                $deliveryPrice = round($lastZoneBasePrice + ($distanceInKm * $pricePerKm), 2);
+            }
+        } else {
+            $minBaseDeliveryPrice = (float)($config["shop"]["min_base_delivery_price"] ?? $config["min_base_delivery_price"] ?? 100);
+            $deliveryPrice = round($minBaseDeliveryPrice + ($distanceInKm * $pricePerKm), 2);
+            $appliedZoneName = 'Без зон (линейный расчет)';
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'shop_name' => $shop->name ?? $shop->title,
+                'distance_km' => $distanceInKm,
+                'delivery_price' => $deliveryPrice,
+                'is_outside_zones' => $isOutsideZones,
+                'breakdown' => [
+                    'zone_name' => $appliedZoneName,
+                    'distance_km' => $distanceInKm,
+                    'price_per_km' => $pricePerKm,
+                    'distance_cost' => round($distanceInKm * $pricePerKm, 2),
+                    'total' => $deliveryPrice,
+                ]
+            ]
+        ]);
+    }
+
+    /**
+     * POST /api/deliveryman/shops/{id}/payment-link
+     * Генерация платежной ссылки на рассчитанную сумму доставки
+     */
+    public function generateShopPaymentLink(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'amount' => 'required|numeric|min:1',
+            'description' => 'required|string|max:255',
+        ]);
+
+        $shop = Tenant::findOrFail($id);
+
+        try {
+            $paymentData = [
+                'order_id' => 'DELIVERY_' . $shop->id . '_' . time(),
+                'amount' => $request->amount,
+                'description' => $request->description,
+                'name' => 'Клиент доставки',
+                'phone' => '',
+                'customer_key' => 'deliveryman_calc',
+            ];
+
+            $paymentUrl = PaymentService::call()->generateSimplePaymentLink($paymentData);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'url' => $paymentUrl,
+                    'amount' => $request->amount,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Ошибка генерации ссылки доставки: ' . $e->getMessage());
+            return response()->json(['error' => 'Не удалось сформировать ссылку на оплату'], 500);
+        }
     }
 }

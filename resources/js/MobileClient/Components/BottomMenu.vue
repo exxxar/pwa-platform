@@ -100,6 +100,12 @@ export default {
                         icon: 'fa-solid fa-store',
                         badgeKey: null,
                     },
+                    {
+                        route: 'DeliveryCalculator', // Замените на актуальное имя роута (например, Catalog или Shops)
+                        label: 'Расчет цены',
+                        icon: 'fa-solid fa-calculator',
+                        badgeKey: null,
+                    },
                     profileItem
                 ];
             }

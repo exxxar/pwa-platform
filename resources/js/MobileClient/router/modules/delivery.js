@@ -2,6 +2,7 @@ import { defineAsyncComponent } from 'vue';
 
 const DeliveryMain = defineAsyncComponent(() => import('@/MobileClient/Pages/Delivery/DeliverymanDashboard.vue'));
 const AvailableShops = defineAsyncComponent(() => import('@/MobileClient/Pages/Delivery/AvailableShops.vue'));
+const DeliveryCalculator = defineAsyncComponent(() => import('@/MobileClient/Pages/Delivery/DeliveryCalculator.vue'));
 
 
 export default [
@@ -15,6 +16,12 @@ export default [
         path: '/delivery/shops',
         name: 'AvailableShops',
         component: AvailableShops,
+    },
+
+    {
+        path: '/delivery/calc',
+        name: 'DeliveryCalculator',
+        component: DeliveryCalculator,
     },
 
 
