@@ -464,7 +464,7 @@ class DeliverymanController extends Controller
                     'slug' => $shop->slug,
                     'description' => $shop->description ?? 'Доставка заказов',
                     'image' => $shop->image,
-                    'shop_coords' => $shopCords,
+                    'shop_coords' => $shopCoords,
                     'address' => $fullAddress, // 🆕 Явно отдаем собранный адрес
                     'settings' => [
                         'shop_coords' => $settings['shop_coords'] ?? ($settings['shop']['shop_coords'] ?? null)
