@@ -209,7 +209,7 @@ class TenantAuthController extends Controller
         $tenantUser = Auth::guard('tenant')->user();
 
         Inertia::setRootView("mobile");
-        return Inertia::render('AgentDashboard', [
+        return Inertia::render('AgentMain', [
             'tenant' => $tenant,
             'tenant_user' => $tenantUser
         ]);

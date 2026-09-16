@@ -7,7 +7,7 @@
             </div>
         </div>
 
-        <div class="verification-card" :class="'status-' + verificationStatus">
+        <div class="verification-card" :class="'status-' + documents.status">
             <div class="verification-icon"><i :class="verificationIcon"></i></div>
             <div class="verification-info">
                 <h3>{{ verificationTitle }}</h3>
@@ -15,30 +15,31 @@
             </div>
             <div class="verification-progress">
                 <div class="progress-bar">
-                    <div class="progress-fill" :style="{ width: verificationPercent + '%' }"></div>
+                    <div class="progress-fill" :style="{ width: documents.progress.percent + '%' }"></div>
                 </div>
-                <span class="progress-text">{{ uploadedCount }}/{{ requiredCount }} документов</span>
+                <span class="progress-text">{{ documents.progress.uploaded }}/{{ documents.progress.required }} документов</span>
             </div>
         </div>
 
         <div class="documents-grid">
-            <div v-for="doc in documents" :key="doc.id" class="document-card"
-                 :class="{ 'is-uploaded': doc.uploaded, 'is-required': doc.required }">
-                <div class="doc-icon"><i :class="doc.icon"></i></div>
+            <div v-for="doc in documents.list" :key="doc.id" class="document-card"
+                 :class="{ 'is-uploaded': doc.is_uploaded, 'is-required': doc.is_required }">
+                <div class="doc-icon"><i :class="doc.icon || 'fa-solid fa-file'"></i></div>
                 <div class="doc-info">
                     <h4>{{ doc.title }}</h4>
-                    <p>{{ doc.description }}</p>
-                    <div v-if="doc.uploaded" class="doc-status uploaded"><i class="fa-solid fa-circle-check"></i><span>Загружен {{
-                            doc.uploaded_at
-                        }}</span></div>
-                    <div v-else-if="doc.required" class="doc-status required"><i
-                        class="fa-solid fa-circle-exclamation"></i><span>Обязательно</span></div>
+                    <p>{{ doc.description || 'Стандартный документ' }}</p>
+                    <div v-if="doc.is_uploaded" class="doc-status uploaded">
+                        <i class="fa-solid fa-circle-check"></i><span>Загружен</span>
+                    </div>
+                    <div v-else-if="doc.is_required" class="doc-status required">
+                        <i class="fa-solid fa-circle-exclamation"></i><span>Обязательно</span>
+                    </div>
                 </div>
                 <div class="doc-actions">
-                    <button v-if="doc.uploaded" class="btn-secondary-modern small"
-                            @click="$emit('document-uploaded', doc.id)"><i class="fa-solid fa-rotate"></i></button>
-                    <button v-else class="btn-primary-modern small" @click="triggerUpload(doc.id)"><i
-                        class="fa-solid fa-upload"></i> Загрузить
+                    <button v-if="doc.is_uploaded" class="btn-secondary-modern small"
+                            @click="triggerUpload(doc.id)"><i class="fa-solid fa-rotate"></i></button>
+                    <button v-else class="btn-primary-modern small" @click="triggerUpload(doc.id)">
+                        <i class="fa-solid fa-upload"></i> Загрузить
                     </button>
                 </div>
             </div>
@@ -49,51 +50,42 @@
 <script>
 export default {
     name: "AgentDocuments",
-    props: {documents: Array, verificationStatus: String},
-    emits: ['document-uploaded'],
+    // ИСПРАВЛЕНО: documents теперь Object, а не Array
+    props: { documents: Object, verificationStatus: String },
+    emits: ['document-upload-requested'], // ИСПРАВЛЕНО: имя события
     computed: {
         verificationIcon() {
-            const icons = {
-                pending: 'fa-solid fa-hourglass-half',
-                partial: 'fa-solid fa-triangle-exclamation',
-                verified: 'fa-solid fa-circle-check'
-            };
-            return icons[this.verificationStatus];
+            const icons = { not_started: 'fa-solid fa-hourglass-start', partial: 'fa-solid fa-triangle-exclamation', verified: 'fa-solid fa-circle-check' };
+            return icons[this.documents.status] || icons.not_started;
         },
         verificationTitle() {
-            const titles = {
-                pending: 'Документы на проверке',
-                partial: 'Загружены не все документы',
-                verified: 'Верификация пройдена'
-            };
-            return titles[this.verificationStatus];
+            const titles = { not_started: 'Верификация не начата', partial: 'Загружены не все документы', verified: 'Верификация пройдена' };
+            return titles[this.documents.status] || titles.not_started;
         },
         verificationText() {
-            const texts = {
-                pending: 'Проверка занимает 1-2 дня.',
-                partial: 'Загрузите все обязательные документы.',
-                verified: 'Вы можете полноценно работать.'
-            };
-            return texts[this.verificationStatus];
-        },
-        verificationPercent() {
-            return Math.round((this.uploadedCount / this.requiredCount) * 100) || 0;
-        },
-        uploadedCount() {
-            return this.documents.filter(d => d.uploaded).length;
-        },
-        requiredCount() {
-            return this.documents.filter(d => d.required).length;
+            const texts = { not_started: 'Загрузите обязательные документы для начала работы.', partial: 'Доверифицируйте профиль для снятия ограничений.', verified: 'Вы можете полноценно работать и выводить средства.' };
+            return texts[this.documents.status] || texts.not_started;
         }
     },
     methods: {
         triggerUpload(docId) {
-            // Имитация выбора файла
-            this.$emit('document-uploaded', docId);
+            // Создаем невидимый input для выбора файла
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.pdf,.jpg,.jpeg,.png';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    // Передаем ID и сам файл наверх в Dashboard
+                    this.$emit('document-upload-requested', { docId, file });
+                }
+            };
+            input.click();
         }
     }
 };
 </script>
+<!-- Стили остаются без изменений -->
 
 <style lang="scss" scoped>
 .tab-content {

@@ -1,5 +1,5 @@
 <?php
-// app/Http/Controllers/Api/Agent/AgentProfileController.php
+
 namespace App\Http\Controllers\Agent;
 
 use App\DTOs\Agent\UpdateProfileDTO;
@@ -9,6 +9,7 @@ use App\Http\Resources\Agent\AgentResource;
 use App\Services\Agent\AgentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AgentProfileController extends Controller
 {
@@ -22,7 +23,9 @@ class AgentProfileController extends Controller
      */
     public function show(Request $request): JsonResponse
     {
-        $agent = $request->user()->agentProfile;
+        $agent = Auth::guard('tenant')->user()
+            ->agentProfile;
+
 
         if (!$agent) {
             return response()->json([
@@ -35,6 +38,33 @@ class AgentProfileController extends Controller
             'success' => true,
             'data'    => new AgentResource($agent),
         ]);
+    }
+
+    /**
+     * POST /api/agent/profile
+     * Создать агентский профиль (если его нет)
+     */
+    public function store(CreateProfileRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // Если профиль уже есть, возвращаем его (защита от дублей)
+        if ($user->agentProfile) {
+            return response()->json([
+                'success' => true,
+                'data'    => new AgentResource($user->agentProfile),
+                'message' => 'Профиль уже существует',
+            ]);
+        }
+
+        $dto = CreateProfileDTO::fromArray($request->validated());
+        $agent = $this->agentService->createProfileFromDto($user, $dto); // Добавьте этот метод в AgentService
+
+        return response()->json([
+            'success' => true,
+            'data'    => new AgentResource($agent),
+            'message' => 'Агентский профиль успешно создан',
+        ], 201);
     }
 
     /**

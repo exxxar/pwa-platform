@@ -18,6 +18,7 @@ Route::prefix('agent')
 
         // === Профиль ===
         Route::get('profile', [AgentProfileController::class, 'show']);
+        Route::post('profile', [AgentProfileController::class, 'store']);
         Route::put('profile', [AgentProfileController::class, 'update']);
         Route::get('dashboard', [AgentProfileController::class, 'dashboard']);
 

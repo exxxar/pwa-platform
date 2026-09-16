@@ -638,9 +638,8 @@ class TenantUser extends Authenticatable
 
     // Добавьте в существующий TenantUser.php:
 
-    public function agentProfile(): HasOne
-    {
-        return $this->hasOne(Agent::class);
+    public function agentProfile() {
+        return $this->hasOne(Agent::class, 'tenant_user_id'); // или user_id, смотря как у вас в БД
     }
 
     public function isAgent(): bool

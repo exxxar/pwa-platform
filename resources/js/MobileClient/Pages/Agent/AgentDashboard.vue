@@ -1,5 +1,7 @@
 <template>
-    <div class="agent-dashboard">
+
+
+    <div v-if="isAdmin&& hasProfile" class="agent-dashboard">
         <!-- HERO СЕКЦИЯ -->
         <div class="agent-hero">
             <div class="hero-background"></div>
@@ -30,7 +32,7 @@
                         </div>
                     </div>
                     <div class="metric-card" @click="activeTab = 'tenants'">
-                        <div class="metric-icon"><i class="fa-solid fa-rotenant"></i></div>
+                        <div class="metric-icon"><i class="fa-solid fa-robot"></i></div>
                         <div class="metric-info">
                             <div class="metric-label">Создано приложений</div>
                             <div class="metric-value">{{ agent.tenant_count }}</div>
@@ -108,7 +110,7 @@
 
             <AgentDocuments
                 v-if="activeTab === 'documents'"
-                :documents="requiredDocuments"
+                :documents="documents"
                 :verification-status="verificationStatus"
                 @document-uploaded="handleDocumentUpload"
             />
@@ -120,7 +122,6 @@
                 @download="downloadMaterial"
                 @copy-referral="copyReferralLink"
             />
-
 
             <!-- ========================================== -->
             <!-- МОДАЛКА: НАСТРОЙКИ ПРОФИЛЯ -->
@@ -259,16 +260,17 @@
                 </div>
             </transition>
         </div>
-
-
+    </div>
+    <div v-else class="d-flex justify-content-center align-items-center" style="height: 100vh; background: #f9fafb;">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="text-muted">Проверка доступа...</p>
+        </div>
     </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useAgent } from '@/MobileClient/composables/useAgent.js';
-
-// Импорт компонентов
+<script>
+// Импорты компонентов
 import AgentOverview from '@/MobileClient/Components/Agent/AgentOverview.vue';
 import AgentTenants from '@/MobileClient/Components/Agent/AgentTenants.vue';
 import AgentFinance from '@/MobileClient/Components/Agent/AgentFinance.vue';
@@ -277,157 +279,228 @@ import AgentMarketing from '@/MobileClient/Components/Agent/AgentMarketing.vue';
 import AgentIncomeForecast from '@/MobileClient/Components/Agent/AgentIncomeForecast.vue';
 import AgentProfileSettings from '@/MobileClient/Components/Agent/AgentProfileSettings.vue';
 
-// Инициализация композабла — теперь agent доступен напрямую!
-const {
-    store,
-    agent,
-    tenants,
-    transactions,
-    documents,
-    marketingCategories,
-    verificationStatus,
-    notifications,
-    agentInitials,
-    statusText,
-    recentActivities,
-    formatPrice,
-    notify
-} = useAgent();
 
-// --- Локальное UI-состояние ---
-const activeTab = ref('overview');
-const showProfileModal = ref(false);
-const showInvoiceModal = ref(false);
-const showAllTransactionsModal = ref(false);
-const modalTransactionFilter = ref('all');
+// Импорт композабла
+import { useAgent } from '@/MobileClient/composables/useAgent.js';
+import {usePermissions} from "@/MobileClient/composables/usePermissions";
 
-const invoiceForm = ref({
-    client_name: '', client_email: '', service_type: 'bot', amount: null, description: ''
-});
+export default {
+    name: 'AgentDashboard',
 
-const tabs = [
-    { id: 'overview', label: 'Обзор', icon: 'fa-solid fa-chart-pie' },
-    { id: 'tenants', label: 'Мои приложения', icon: 'fa-solid fa-robot', badge: 12 },
-    { id: 'forecast', label: 'Прогноз', icon: 'fa-solid fa-chart-line' },
-    { id: 'finance', label: 'Финансы', icon: 'fa-solid fa-wallet' },
-    { id: 'documents', label: 'Документы', icon: 'fa-solid fa-folder-open' },
-    { id: 'marketing', label: 'Маркетинг', icon: 'fa-solid fa-bullhorn' },
-];
+    components: {
 
-// --- Вычисляемые свойства ---
-const filteredModalTransactions = computed(() => {
-    if (modalTransactionFilter.value === 'all') return transactions.value;
-    return transactions.value.filter(t => t.type === modalTransactionFilter.value);
-});
+        AgentOverview,
+        AgentTenants,
+        AgentFinance,
+        AgentDocuments,
+        AgentMarketing,
+        AgentIncomeForecast,
+        AgentProfileSettings
+    },
 
-// --- Методы ---
-const handleProfileSave = async (updatedProfileData) => {
-    try {
-        await store.updateProfile(updatedProfileData);
-        showProfileModal.value = false;
-        notify({ title: 'Успех', text: 'Данные профиля и реквизиты сохранены', type: 'success' });
-    } catch (err) {
-        notify({ title: 'Ошибка', text: 'Не удалось сохранить профиль', type: 'error' });
+    // 🎯 Используем setup() только для инициализации композабла.
+    // Vue 3 автоматически распакует refs, возвращаемые отсюда, в this для Options API.
+    setup() {
+        const agentData = useAgent();
+        const { isAdmin } = usePermissions();
+        return { ...agentData, isAdmin };
+    },
+
+    data() {
+        return {
+            activeTab: 'overview',
+            showProfileModal: false,
+            showInvoiceModal: false,
+            showAllTransactionsModal: false,
+            modalTransactionFilter: 'all',
+
+            invoiceForm: {
+                client_name: '',
+                client_email: '',
+                service_type: 'bot',
+                amount: null,
+                description: ''
+            },
+
+            tabs: [
+                { id: 'overview', label: 'Обзор', icon: 'fa-solid fa-chart-pie' },
+                { id: 'tenants', label: 'Мои приложения', icon: 'fa-solid fa-robot', badge: 12 },
+                { id: 'forecast', label: 'Прогноз', icon: 'fa-solid fa-chart-line' },
+                { id: 'finance', label: 'Финансы', icon: 'fa-solid fa-wallet' },
+                { id: 'documents', label: 'Документы', icon: 'fa-solid fa-folder-open' },
+                { id: 'marketing', label: 'Маркетинг', icon: 'fa-solid fa-bullhorn' },
+            ]
+        };
+    },
+
+    computed: {
+        filteredModalTransactions() {
+            // this.transactions автоматически распаковывается из ref благодаря возврату из setup()
+            if (this.modalTransactionFilter === 'all') {
+                return this.transactions;
+            }
+            return this.transactions.filter(t => t.type === this.modalTransactionFilter);
+        }
+    },
+    created() {
+        if (!this.isAdmin) {
+            this.$router.push({ name: 'Auth' }).catch(() => {});
+        }
+
+        if (this.hasProfile === false) {
+            this.$router.push({ name: 'AgentOnboarding' }).catch(() => {});
+        }
+    },
+    methods: {
+        handleProfileSave(updatedProfileData) {
+            // ИСПРАВЛЕНО: используем this.updateProfile вместо this.store.updateProfile
+            this.updateProfile(updatedProfileData)
+                .then(() => {
+                    this.showProfileModal = false;
+                    this.notify('success', 'Данные профиля и реквизиты сохранены');
+                })
+                .catch(() => {
+                    this.notify('error', 'Не удалось сохранить профиль');
+                });
+        },
+
+        submitInvoice() {
+            if (!this.invoiceForm.client_name || !this.invoiceForm.amount) {
+                this.notify('error', 'Заполните название клиента и сумму');
+                return;
+            }
+
+            this.createInvoice(this.invoiceForm)
+                .then(() => {
+                    this.notify('success', `Счёт на ${this.formatPrice(this.invoiceForm.amount)} создан`);
+                    this.showInvoiceModal = false;
+                })
+                .catch(() => {
+                    this.notify('error', 'Не удалось создать счёт');
+                });
+        },
+
+
+        handlePayout(data) {
+            this.requestPayout(data.amount)
+                .then(() => {
+                    this.notify('success', `Заявка на ${this.formatPrice(data.amount)} принята`);
+                })
+                .catch((err) => {
+                    this.notify('error', err.message || 'Ошибка выплаты');
+                });
+        },
+
+        handleDocumentUpload(payload) {
+            // payload теперь содержит { docId, file }
+            this.uploadDocument(payload.docId, payload.file)
+                .then(() => {
+                    this.notify('success', 'Документ успешно загружен');
+                })
+                .catch(() => {
+                    this.notify('error', 'Не удалось загрузить документ');
+                });
+        },
+
+        deleteTenant(tenantId) {
+            this.deleteClient(tenantId) // ИСПРАВЛЕНО: на бэке это клиент/tenant, метод называется deleteClient
+                .then(() => {
+                    this.notify('success', 'Приложение удалено');
+                })
+                .catch(() => {
+                    this.notify('error', 'Не удалось удалить');
+                });
+        },
+
+
+        createNewTenant() {
+            this.notify({ title: 'Создание', text: 'Переход к мастеру', type: 'info' });
+        },
+
+        editTenant(tenant) {
+            this.notify({ title: 'Редактирование', text: `Настройки: ${tenant.name}`, type: 'info' });
+        },
+
+        viewTenant(tenant) {
+            this.notify({ title: 'Просмотр', text: `Открываем: ${tenant.name}`, type: 'info' });
+        },
+
+        downloadMaterial(material) {
+            this.notify({ title: 'Скачивание', text: `Файл "${material.title}" скачивается`, type: 'success' });
+        },
+
+        copyReferralLink() {
+            this.notify({ title: 'Успех', text: 'Ссылка скопирована в буфер обмена', type: 'success' });
+        },
+
+        openProfileSettings() {
+            this.showProfileModal = true;
+        },
+
+        openInvoiceModal() {
+            this.invoiceForm = {
+                client_name: '',
+                client_email: '',
+                service_type: 'bot',
+                amount: null,
+                description: ''
+            };
+            this.showInvoiceModal = true;
+        },
+
+        openAllTransactionsModal() {
+            this.modalTransactionFilter = 'all';
+            this.showAllTransactionsModal = true;
+        },
+
+        // Заглушка для события из AgentFinance, если оно требуется
+        handleInvoice() {
+            this.notify({ title: 'Успех', text: 'Счёт успешно создан', type: 'success' });
+        }
+    },
+
+    mounted() {
+        // Инициализация данных при монтировании компонента
+        if (this.isAdmin)
+            this.fetchInitialData();
+
+        if (!this.hasProfile) {
+            this.$router.push({ name: 'AgentOnboarding' }).catch(() => {});
+        }
     }
 };
-
-const submitInvoice = async () => {
-    if (!invoiceForm.value.client_name || !invoiceForm.value.amount) {
-        notify({ title: 'Ошибка', text: 'Заполните название клиента и сумму', type: 'error' });
-        return;
-    }
-    try {
-        await store.createInvoice(invoiceForm.value);
-        notify({ title: 'Успех', text: `Счёт на ${formatPrice(invoiceForm.value.amount)} отправлен клиенту`, type: 'success' });
-        showInvoiceModal.value = false;
-    } catch (err) {
-        notify({ title: 'Ошибка', text: 'Не удалось создать счёт', type: 'error' });
-    }
-};
-
-const handlePayout = async (data) => {
-    try {
-        await store.requestPayout(data.amount);
-        notify({ title: 'Выплата', text: `Заявка на ${formatPrice(data.amount)} принята`, type: 'success' });
-    } catch (err) {
-        notify({ title: 'Ошибка', text: err.message, type: 'error' });
-    }
-};
-
-const handleDocumentUpload = async (docId) => {
-    try {
-        await store.uploadDocument(docId);
-        notify({ title: 'Успех', text: 'Документ загружен', type: 'success' });
-    } catch (err) {
-        notify({ title: 'Ошибка', text: 'Не удалось загрузить документ', type: 'error' });
-    }
-};
-
-const deleteTenant = async (tenantId) => {
-    try {
-        await store.deleteTenant(tenantId);
-        notify({ title: 'Успех', text: 'Приложение удалено', type: 'success' });
-    } catch (err) {
-        notify({ title: 'Ошибка', text: 'Не удалось удалить', type: 'error' });
-    }
-};
-
-const createNewTenant = () => notify({ title: 'Создание', text: 'Переход к мастеру', type: 'info' });
-const editTenant = (tenant) => notify({ title: 'Редактирование', text: `Настройки: ${tenant.name}`, type: 'info' });
-const viewTenant = (tenant) => notify({ title: 'Просмотр', text: `Открываем: ${tenant.name}`, type: 'info' });
-const downloadMaterial = (material) => notify({ title: 'Скачивание', text: `Файл "${material.title}" скачивается`, type: 'success' });
-const copyReferralLink = () => notify({ title: 'Успех', text: 'Ссылка скопирована в буфер обмена', type: 'success' });
-const openProfileSettings = () => { showProfileModal.value = true; };
-const openInvoiceModal = () => {
-    invoiceForm.value = { client_name: '', client_email: '', service_type: 'bot', amount: null, description: '' };
-    showInvoiceModal.value = true;
-};
-const openAllTransactionsModal = () => {
-    modalTransactionFilter.value = 'all';
-    showAllTransactionsModal.value = true;
-};
-
-// --- Lifecycle ---
-onMounted(async () => {
-    await store.fetchAgentData();
-});
 </script>
 
 <style lang="scss" scoped>
-
 @use 'sass:color';
+
 // ==========================================
 // ЦВЕТОВЫЕ ПЕРЕМЕННЫЕ (Design System)
 // ==========================================
-$primary: #3b82f6;        // Основной синий
-$primary-light: #60a5fa;  // Светло-синий
-$primary-dark: #2563eb;   // Тёмно-синий
+$primary: #3b82f6;
+$primary-light: #60a5fa;
+$primary-dark: #2563eb;
+$success: #10b981;
+$danger: #ef4444;
+$warning: #f59e0b;
+$purple: #8b5cf6;
+$pink: #ec4899;
+$text: #1f2937;
+$text-muted: #6b7280;
+$border: #e5e7eb;
+$bg: #f9fafb;
+$card-bg: #ffffff;
 
-$success: #10b981;        // Зелёный (успех, продления)
-$danger: #ef4444;         // Красный (ошибка, удаление)
-$warning: #f59e0b;        // Оранжевый/Жёлтый (предупреждение)
-
-$purple: #8b5cf6;         // Фиолетовый (прогноз, тренды)
-$pink: #ec4899;           // Розовый (акценты)
-
-$text: #1f2937;           // Основной текст (тёмно-серый)
-$text-muted: #6b7280;     // Второстепенный текст (серый)
-
-$border: #e5e7eb;         // Цвет границ и разделителей
-$bg: #f9fafb;             // Цвет фона страницы (очень светлый серый)
-$card-bg: #ffffff;        // Цвет фона карточек и модалок (белый)
-
-/* Базовые стили для Hero и Навигации (сокращенно, возьмите из предыдущего ответа) */
 .agent-dashboard {
     min-height: 100vh;
-    background: #f9fafb;
+    background: $bg;
     padding-bottom: 40px;
 }
 
 .agent-hero {
     position: relative;
     padding: 32px 24px 40px;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
     color: white;
     overflow: hidden;
 }
@@ -449,7 +522,7 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-tenanttom: 28px;
+    margin-bottom: 28px; // Исправлена опечатка margin-tenanttom
 }
 
 .agent-info {
@@ -504,11 +577,11 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     align-items: center;
     justify-content: center;
     transition: 0.2s;
-}
 
-.settings-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
-    transform: rotate(45deg);
+    &:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: rotate(45deg);
+    }
 }
 
 .metrics-grid {
@@ -528,11 +601,11 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     border-radius: 14px;
     cursor: pointer;
     transition: 0.2s;
-}
 
-.metric-card:hover {
-    background: rgba(255, 255, 255, 0.18);
-    transform: translateY(-2px);
+    &:hover {
+        background: rgba(255, 255, 255, 0.18);
+        transform: translateY(-2px);
+    }
 }
 
 .metric-icon {
@@ -565,7 +638,7 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
 
 .nav-wrapper {
     background: white;
-    border-tenanttom: 1px solid #e5e7eb;
+    border-bottom: 1px solid $border; // Исправлена опечатка border-tenanttom
     position: sticky;
     top: 0;
     z-index: 100;
@@ -579,10 +652,10 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     margin: 0 auto;
     padding: 8px 24px;
     overflow-x: auto;
-}
 
-.nav-tabs::-webkit-scrollbar {
-    display: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
 }
 
 .nav-tab {
@@ -593,27 +666,27 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     background: transparent;
     border: none;
     border-radius: 10px;
-    color: #6b7280;
+    color: $text-muted;
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
     transition: 0.2s;
     white-space: nowrap;
-}
 
-.nav-tab:hover {
-    background: rgba(59, 130, 246, 0.05);
-    color: #3b82f6;
-}
+    &:hover {
+        background: rgba($primary, 0.05);
+        color: $primary;
+    }
 
-.nav-tab.is-active {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
+    &.is-active {
+        background: rgba($primary, 0.1);
+        color: $primary;
+    }
 }
 
 .nav-badge {
     padding: 2px 8px;
-    background: #3b82f6;
+    background: $primary;
     color: white;
     border-radius: 10px;
     font-size: 0.7rem;
@@ -632,8 +705,8 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(31, 41, 55, 0.6); // Темный полупрозрачный фон
-    backdrop-filter: blur(4px);        // Размытие фона под модалкой
+    background: rgba(31, 41, 55, 0.6);
+    backdrop-filter: blur(4px);
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -705,7 +778,6 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     padding: 24px;
     overflow-y: auto;
 
-    // Скроллбар для красоты
     &::-webkit-scrollbar {
         width: 6px;
     }
@@ -774,7 +846,7 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     }
 
     &::placeholder {
-        color:  color.adjust($text-muted, $lightness: 10%);
+        color: color.adjust($text-muted, $lightness: 10%);
     }
 
     &.textarea {
@@ -784,7 +856,7 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
 }
 
 // ==========================================
-// КНОПКИ (Дублируем для надежности, если их нет в глобальных стилях)
+// КНОПКИ
 // ==========================================
 .btn-primary-modern, .btn-secondary-modern {
     display: inline-flex;
@@ -811,7 +883,7 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     color: white;
 
     &:hover:not(:disabled) {
-        background:  color.adjust($primary, $lightness: -5%);
+        background: color.adjust($primary, $lightness: -5%);
         transform: translateY(-1px);
     }
 }
@@ -829,7 +901,7 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
 }
 
 // ==========================================
-// АНИМАЦИИ ПОЯВЛЕНИЯ/ИСЧЕЗНОВЕНИЯ
+// АНИМАЦИИ
 // ==========================================
 .modal-fade-enter-active,
 .modal-fade-leave-active {
@@ -847,7 +919,7 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
 @media (max-width: 640px) {
     .modal-overlay {
         padding: 0;
-        align-items: flex-end; // Модалка выезжает снизу на мобильных
+        align-items: flex-end;
     }
 
     .modal-container {
@@ -863,21 +935,21 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     }
 
     .form-row {
-        grid-template-columns: 1fr; // Поля в одну колонку на телефоне
+        grid-template-columns: 1fr;
         gap: 0;
     }
 
     .modal-footer {
-        flex-direction: column-reverse; // Кнопка "Отправить" сверху на мобильном
+        flex-direction: column-reverse;
         gap: 8px;
     }
 }
 
-/* ==========================================
-   МОДАЛКА: ВСЕ ОПЕРАЦИИ
-   ========================================== */
+// ==========================================
+// МОДАЛКА: ВСЕ ОПЕРАЦИИ
+// ==========================================
 .transactions-modal {
-    max-width: 700px; // Делаем её чуть шире, чем модалку счёта
+    max-width: 700px;
 }
 
 .modal-filters {
@@ -922,9 +994,8 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
     gap: 8px;
     max-height: 400px;
     overflow-y: auto;
-    padding-right: 8px; // Место для скроллбара
+    padding-right: 8px;
 
-    // Кастомный скроллбар
     &::-webkit-scrollbar {
         width: 6px;
     }
@@ -1028,6 +1099,4 @@ $card-bg: #ffffff;        // Цвет фона карточек и модало�
 .w-100 {
     width: 100%;
 }
-
-
 </style>

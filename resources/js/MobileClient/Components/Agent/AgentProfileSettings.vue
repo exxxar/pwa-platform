@@ -114,7 +114,7 @@
                                 <label class="upload-btn">
                                     <i class="fa-solid fa-cloud-arrow-up"></i>
                                     <span>{{ doc.fileName ? 'Заменить' : 'Загрузить' }}</span>
-                                    <input type="file" class="hidden-input" accept=".pdf,.jpg,.png"
+                                    <input type="file" class="hidden-input" accept=".pdf,.jpg,.jpeg,.png"
                                            @change="handleFileUpload(doc.id, $event)">
                                 </label>
                             </div>
@@ -200,27 +200,22 @@ export default {
         handleFileUpload(docId, event) {
             const file = event.target.files[0];
             if (file) {
+                // Обновляем локально для UI
                 const doc = this.documents.find(d => d.id === docId);
-                if (doc) {
-                    doc.fileName = file.name;
-                    // Здесь можно добавить логику загрузки файла на сервер
-                }
+                if (doc) doc.fileName = file.name;
+
+                // ИСПРАВЛЕНО: Сразу отдаем файл наверх, чтобы Dashboard вызвал store.uploadDocument
+                this.$emit('document-upload-requested', { docId, file });
             }
         },
         saveProfile() {
-            // Базовая валидация
             if (!this.formData.name || !this.formData.inn) {
-                this.$notify?.({title: 'Ошибка', text: 'Заполните ФИО и ИНН', type: 'error'});
+                // Используем глобальный notify из композабла, если он проброшен, или просто emit ошибки
+                this.$emit('validation-error', 'Заполните ФИО и ИНН');
                 return;
             }
-
-            // Собираем итоговые данные
-            const payload = {
-                ...this.formData,
-                documents: this.documents.map(d => ({id: d.id, fileName: d.fileName}))
-            };
-
-            this.$emit('save', payload);
+            // Отправляем только текстовые данные, файлы ушли через событие выше
+            this.$emit('save', { ...this.formData });
         }
     }
 };

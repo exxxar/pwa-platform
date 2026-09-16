@@ -2,9 +2,10 @@
 
 namespace App\Services\Agent;
 
-use App\Models\Agent;
-use App\Models\AgentClient;
-use App\Models\TenantUser;
+use App\Models\Agent\Agent;
+use App\Models\Agent\AgentClient;
+use App\Models\Tenant\TenantUser;
+
 
 class AgentClientService
 {

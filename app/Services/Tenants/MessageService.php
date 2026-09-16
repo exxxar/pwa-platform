@@ -230,13 +230,22 @@ class MessageService
         $threadId = $data['telegram_thread_id'] ?? $tgSettings['thread_id']      ?? null;
 
         if (!$token || !$chatId) {
-            Log::debug('[MessageService] Telegram не настроен для tenant #' . $this->tenant->id);
+            // 🎯 ИЗМЕНЕНО: Log::warning вместо Log::debug, чтобы видеть проблему в продакшене
+            Log::warning('[MessageService] Telegram не настроен для tenant #' . $this->tenant->id . ' (отсутствует token или chat_id)');
             return ['status' => 'skipped', 'reason' => 'no telegram config'];
+        }
+
+        $text = $data['message'] ?? '';
+
+        // 🎯 ДОБАВЛЕНО: Защита от превышения лимита Telegram в 4096 символов
+        if (mb_strlen($text) > 4000) {
+            $text = mb_substr($text, 0, 3900) . "\n\n⚠️ <i>(Сообщение обрезано из-за лимита Telegram в 4096 символов)</i>";
+            Log::warning('[MessageService] Сообщение для Telegram обрезано из-за превышения лимита длины. Order ID: ' . ($data['meta']['order_id'] ?? 'unknown'));
         }
 
         $payload = [
             'chat_id'                  => $chatId,
-            'text'                     => $data['message'] ?? '',
+            'text'                     => $text,
             'parse_mode'               => $data['parse_mode'] ?? 'HTML',
             'disable_web_page_preview' => true,
         ];
@@ -245,7 +254,6 @@ class MessageService
             $payload['message_thread_id'] = (int) $threadId;
         }
 
-        // 📎 Если есть файл — отправляем как документ
         if (!empty($data['file_path'])) {
             return $this->sendTelegramFile($token, $payload, $data['file_path']);
         }
@@ -303,7 +311,7 @@ class MessageService
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15); // 🎯 УВЕЛИЧЕНО с 10 до 15 секунд для стабильности
 
         if ($multipart) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
@@ -317,7 +325,17 @@ class MessageService
         curl_close($ch);
 
         if ($httpCode !== 200) {
-            Log::warning("[MessageService] Telegram {$method} error. HTTP: {$httpCode} | Error: {$curlError} | Response: {$response}");
+            // 🎯 ДОБАВЛЕНО: Декодирование ответа Telegram для понимания точной причины
+            $decodedResponse = json_decode($response, true);
+            $errorMsg = $decodedResponse['description'] ?? $curlError;
+
+            Log::warning("[MessageService] Telegram {$method} error.", [
+                'http_code' => $httpCode,
+                'error' => $errorMsg,
+                'raw_response' => $response,
+                'chat_id' => $payload['chat_id'] ?? 'unknown',
+                'text_length' => mb_strlen($payload['text'] ?? '')
+            ]);
             return false;
         }
 

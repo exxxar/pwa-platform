@@ -706,17 +706,16 @@ trait BasketHelper
     {
         $addr = $this->getResolvedAddress();
         $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
-        $addressText = $context['need_pickup'] ? 'Не требуется' : $addr['address'];
+        $addressText = $context['need_pickup'] ? 'Не требуется' : e($addr['address'] ?? '');
 
         $persons = $context["persons"] ?? 1;
         $money   = $context["money"]   ?? 'Не указано';
         $cash    = defined('self::PAYMENT_TYPES') ? (self::PAYMENT_TYPES[$context["payment_type"] ?? 0] ?? 'Не указан') : 'Не указан';
 
-        $clientName = $context['customer_name'] ?? $order->receiver_name ?? 'Клиент';
+        $clientName = e($context['customer_name'] ?? $order->receiver_name ?? 'Клиент');
         $phone = $this->cleanPhone($context['customer_phone'] ?? $order->receiver_phone ?? '');
         $baseUrl = request()->getSchemeAndHttpHost() ?? 'не указано';
 
-        // 🎯 ИСПРАВЛЕНО: Явный вывод времени доставки
         $whenReady = ($this->data["when_ready"] ?? "false") === "true";
         $time = $this->data["time"] ?? null;
         $timeText = $whenReady ? "По готовности" : ($time ? Carbon::parse($time)->format('d.m.Y H:i') : 'Не указано');
@@ -726,7 +725,7 @@ trait BasketHelper
         $message .= "👤 <b>Клиент:</b> {$clientName}\n";
         $message .= "📞 <b>Телефон:</b> {$phone}\n";
         $message .= "📦 <b>Способ:</b> {$orderType}\n";
-        $message .= "⏰ <b>Время:</b> {$timeText}\n"; // 🎯 ДОБАВЛЕНО
+        $message .= "⏰ <b>Время:</b> {$timeText}\n";
         $message .= "💳 <b>Оплата:</b> {$cash}\n";
         $message .= "💵 <b>Сдачи с:</b> {$money}\n";
         $message .= "👥 <b>Персон:</b> {$persons}\n";
@@ -734,72 +733,96 @@ trait BasketHelper
 
         if (!$context['need_pickup']) {
             $message .= "📍 <b>Адрес:</b> {$addressText}\n";
-            if (!empty($addr['entrance_number'])) $message .= "🚪 Подъезд: {$addr['entrance_number']}\n";
-            if (!empty($addr['floor_number']))    $message .= "🏢 Этаж: {$addr['floor_number']}\n";
-            if (!empty($addr['flat_number']))     $message .= "🏠 Кв/Офис: {$addr['flat_number']}\n";
+            if (!empty($addr['entrance_number'])) $message .= "🚪 Подъезд: " . e($addr['entrance_number']) . "\n";
+            if (!empty($addr['floor_number']))    $message .= "🏢 Этаж: " . e($addr['floor_number']) . "\n";
+            if (!empty($addr['flat_number']))     $message .= "🏠 Кв/Офис: " . e($addr['flat_number']) . "\n";
         }
 
-        // 🎯 ИСПРАВЛЕНО: Явный вывод ограничений по здоровью
         $disabilitiesText = $this->fsPrepareDisabilities();
         if ($disabilitiesText) {
             $message .= "\n⚠️ <b>Ограничения:</b>\n" . trim($disabilitiesText) . "\n";
         }
 
         $message .= "\n🛒 <b>Состав заказа:</b>\n";
+
+        // 🎯 ЗАЩИТА ОТ ПРЕВЫШЕНИЯ ЛИМИТА 4096 СИМВОЛОВ
+        $maxProductsToShow = 15;
+        $productsShownCount = 0;
+        $hiddenItemsCount = 0;
+
         foreach ($basketData['partner_boxes'] as $box) {
-            $message .= "\n🏪 <b>{$box['name']}:</b>\n";
+            $message .= "\n🏪 <b>" . e($box['name']) . ":</b>\n";
+
             foreach ($box['products'] as $product) {
-                $priceFormatted = number_format($product['price'], 0, '.', ' ');
-                $message .= "  • {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
+                // Если лимит достигнут, считаем скрытые позиции и пропускаем рендер
+                if ($productsShownCount >= $maxProductsToShow) {
+                    $hiddenItemsCount += (int)($product['count'] ?? 1);
+                    continue;
+                }
+
+                $priceFormatted = number_format((float)$product['price'], 0, '.', ' ');
+                $message .= "  • " . e($product['name']) . " x{$product['count']} = {$priceFormatted} ₽\n";
 
                 if (!empty($product['is_composite']) && !empty($product['components'])) {
                     $message .= "    <b>Состав:</b>\n";
                     foreach ($product['components'] as $comp) {
-                        $compTotal = number_format($comp['price'] * $comp['count'], 0, '.', ' ');
-                        $message .= "      ├─ {$comp['name']} x{$comp['count']} = {$compTotal} ₽\n";
+                        $compTotal = number_format((float)$comp['price'] * (int)$comp['count'], 0, '.', ' ');
+                        $message .= "      ├─ " . e($comp['name']) . " x{$comp['count']} = {$compTotal} ₽\n";
                     }
                 }
 
                 if (!empty($product['ingredients'])) {
                     foreach ($product['ingredients'] as $ing) {
-                        $ingText = $ing['price'] > 0 ? "      ├─ {$ing['name']} (+{$ing['price']} ₽)\n" : "      ├─ {$ing['name']}\n";
+                        $ingText = ((float)$ing['price'] > 0)
+                            ? "      ├─ " . e($ing['name']) . " (+{$ing['price']} ₽)\n"
+                            : "      ├─ " . e($ing['name']) . "\n";
                         $message .= $ingText;
                     }
                 }
+
                 if (!empty($product['comment'])) {
-                    $message .= "  💬 <i>{$product['comment']}</i>\n";
+                    $message .= "  💬 <i>" . e($product['comment']) . "</i>\n";
                 }
+
+                $productsShownCount++;
             }
 
-            $boxSubtotal = number_format($box['summary_price'], 0, '.', ' ');
+            $boxSubtotal = number_format((float)$box['summary_price'], 0, '.', ' ');
             $message .= "  └─ <b>Итого по заведению:</b> {$boxSubtotal} ₽\n";
 
-            if (!$context['need_pickup'] && ($box['delivery_price'] ?? 0) > 0) {
-                $boxDelivery = number_format($box['delivery_price'], 0, '.', ' ');
-                $distText = ($box['distance'] > 0) ? " ({$box['distance']} км)" : "";
+            if (!$context['need_pickup'] && ((float)($box['delivery_price'] ?? 0)) > 0) {
+                $boxDelivery = number_format((float)$box['delivery_price'], 0, '.', ' ');
+                $distText = ((float)($box['distance'] ?? 0) > 0) ? " ({$box['distance']} км)" : "";
                 $message .= "  └─ <b>Доставка:</b> {$boxDelivery} ₽{$distText}\n";
             }
         }
 
-        $totalToPay = $order->summary_price + $order->delivery_price;
+        // 🎯 АККУРАТНОЕ УВЕДОМЛЕНИЕ, ЕСЛИ ЧАСТЬ ТОВАРОВ СКРЫТА
+        if ($hiddenItemsCount > 0) {
+            $message .= "\n⚠️ <i>... и ещё {$hiddenItemsCount} позиций. Полный список доступен в чеке или CRM.</i>\n";
+        }
+
+        $totalToPay = (float)$order->summary_price + (float)$order->delivery_price;
         $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "💰 <b>ВСЕГО К ОПЛАТЕ:</b> " . number_format($totalToPay, 0, '.', ' ') . " ₽\n";
 
-        if ($order->delivery_price > 0 && !$context['need_pickup']) {
-            $message .= "🚚 <b>Общая доставка:</b> " . number_format($order->delivery_price, 0, '.', ' ') . " ₽";
-            if ($context['distance'] > 0) $message .= " ({$context['distance']} км)";
+        if ((float)$order->delivery_price > 0 && !$context['need_pickup']) {
+            $message .= "🚚 <b>Общая доставка:</b> " . number_format((float)$order->delivery_price, 0, '.', ' ') . " ₽";
+            if ((float)($context['distance'] ?? 0) > 0) $message .= " ({$context['distance']} км)";
             $message .= "\n";
         }
 
         if (!empty($this->data['info'])) {
-            $message .= "\n📝 <b>Комментарий:</b> {$this->data['info']}\n";
+            $message .= "\n📝 <b>Комментарий:</b> " . e($this->data['info']) . "\n";
         }
 
         if ($baseUrl) {
             $chatUrl = "{$baseUrl}/pwa#/chat/{$order->dialog_id}";
             $message .= "🔗 <a href=\"{$chatUrl}\">Открыть чат</a>\n";
+
             $client = TenantUser::query()->where("id", $order->tenant_user_id)->first();
             $clientInfo = $client ? $client->getTelegramInfo() : ['name' => 'Неизвестный клиент', 'phone' => 'Не указан', 'id' => $order->tenant_user_id];
+
             if (!empty($clientInfo['profile_url'])) {
                 $message .= "👤 <a href=\"{$clientInfo['profile_url']}\">Профиль клиента</a>\n";
             }

@@ -31,29 +31,27 @@
             </button>
         </div>
 
+        <!-- В секции <template> исправьте v-for и emits -->
         <div v-else class="tenants-grid">
-            <div v-for="tenant in filteredTenants" :key="tenants.id" class="bot-card" :class="'status-' + tenants.status">
+            <!-- ИСПРАВЛЕНО: key="tenant.id" и переменная tenant -->
+            <div v-for="tenant in filteredTenants" :key="tenant.id" class="bot-card" :class="'status-' + tenant.status">
                 <div class="bot-header">
-                    <div class="bot-avatar" :style="{ background: tenants.color }"><i :class="tenants.icon"></i></div>
-                    <div class="bot-status-badge" :class="'status-' + tenants.status">{{ tenants.statusText }}</div>
+                    <div class="bot-avatar" :style="{ background: tenant.color }"><i :class="tenant.icon"></i></div>
+                    <div class="bot-status-badge" :class="'status-' + tenant.status">{{ tenant.statusText }}</div>
                 </div>
                 <div class="bot-info">
-                    <h4 class="bot-name">{{ tenants.name }}</h4>
-                    <p class="bot-client"><i class="fa-solid fa-user"></i> {{ tenants.client_name || 'Не назначен' }}</p>
+                    <h4 class="bot-name">{{ tenant.name }}</h4>
+                    <p class="bot-client"><i class="fa-solid fa-user"></i> {{ tenant.client_name || 'Не назначен' }}</p>
                 </div>
                 <div class="bot-stats">
-                    <div class="bot-stat"><span class="stat-label">Создан</span><span
-                        class="stat-value">{{ tenants.created_at }}</span></div>
-                    <div class="bot-stat"><span class="stat-label">Доход</span><span
-                        class="stat-value">{{ formatPrice(tenants.earnings) }}</span></div>
+                    <div class="bot-stat"><span class="stat-label">Создан</span><span class="stat-value">{{ tenant.created_at }}</span></div>
+                    <div class="bot-stat"><span class="stat-label">Доход</span><span class="stat-value">{{ formatPrice(tenant.earnings) }}</span></div>
                 </div>
                 <div class="bot-actions">
-                    <button class="action-btn" @click="$emit('edit-bot', bot)" title="Настроить"><i
-                        class="fa-solid fa-gear"></i></button>
-                    <button class="action-btn" @click="$emit('view-bot', bot)" title="Просмотр"><i
-                        class="fa-solid fa-eye"></i></button>
-                    <button class="action-btn danger" @click="$emit('delete-bot', tenants.id)" title="Удалить"><i
-                        class="fa-solid fa-trash"></i></button>
+                    <!-- ИСПРАВЛЕНО: имена событий совпадают с AgentDashboard -->
+                    <button class="action-btn" @click="$emit('edit-tenant', tenant)" title="Настроить"><i class="fa-solid fa-gear"></i></button>
+                    <button class="action-btn" @click="$emit('view-tenant', tenant)" title="Просмотр"><i class="fa-solid fa-eye"></i></button>
+                    <button class="action-btn danger" @click="$emit('delete-tenant', tenant.id)" title="Удалить"><i class="fa-solid fa-trash"></i></button>
                 </div>
             </div>
         </div>
@@ -64,7 +62,7 @@
 export default {
     name: "Agenttenants",
     props: {tenants: Array},
-    emits: ['create-bot', 'edit-bot', 'view-bot', 'delete-bot'],
+    emits: ['create-tenant', 'edit-tenant', 'view-tenant', 'delete-tenant'],
     data() {
         return {
             search: '',
