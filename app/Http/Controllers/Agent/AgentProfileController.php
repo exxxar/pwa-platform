@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Agent;
 
+use App\DTOs\Agent\CreateProfileDTO;
 use App\DTOs\Agent\UpdateProfileDTO;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Agent\CreateProfileRequest;
 use App\Http\Requests\Agent\UpdateProfileRequest;
 use App\Http\Resources\Agent\AgentResource;
 use App\Services\Agent\AgentService;
@@ -40,29 +42,34 @@ class AgentProfileController extends Controller
         ]);
     }
 
+
+
     /**
      * POST /api/agent/profile
-     * Создать агентский профиль (если его нет)
+     * Создать агентский профиль (онбординг)
      */
     public function store(CreateProfileRequest $request): JsonResponse
     {
-        $user = $request->user();
+        $user = Auth::guard('tenant')->user();
 
-        // Если профиль уже есть, возвращаем его (защита от дублей)
+        // Защита от повторного создания, если профиль уже есть
         if ($user->agentProfile) {
+
             return response()->json([
-                'success' => true,
-                'data'    => new AgentResource($user->agentProfile),
-                'message' => 'Профиль уже существует',
-            ]);
+                'success' => false,
+                'message' => 'Агентский профиль уже существует',
+            ], 409); // 409 Conflict
         }
 
-        $dto = CreateProfileDTO::fromArray($request->validated());
-        $agent = $this->agentService->createProfileFromDto($user, $dto); // Добавьте этот метод в AgentService
+        // 🆕 ИСПРАВЛЕНО: используем fromRequest вместо fromArray
+        $dto = CreateProfileDTO::fromRequest($request);
+
+        // Вызываем сервис для создания
+        $agent = $this->agentService->createProfile($user, $dto);
 
         return response()->json([
             'success' => true,
-            'data'    => new AgentResource($agent),
+            'data' => new AgentResource($agent),
             'message' => 'Агентский профиль успешно создан',
         ], 201);
     }

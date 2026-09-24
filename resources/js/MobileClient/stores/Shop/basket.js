@@ -25,6 +25,7 @@ export const useBasketStore = defineStore('basket', {
     // GETTERS
     // ==========================================
     getters: {
+        anonymousBoxes: (state) => state.basket_items.filter(i => i.type === 'anonymous_box'),
         getProductsInBasket: (state) => state.basket_items || [],
         getBasketPaginateObject: (state) => state.basket_items_paginate_object || null,
 
@@ -63,30 +64,49 @@ export const useBasketStore = defineStore('basket', {
          * 🆕 Обновленный подсчет общего количества позиций в корзине
          * Теперь корректно учитывает и обычные товары, и коллекции
          */
+        /**
+         * 🆕 Подсчёт общего количества позиций в корзине
+         * Учитывает: товары, коллекции, анонимные боксы
+         */
         cartTotalCount: (state) => {
             if (!state.basket_items?.length) return 0;
+
             return state.basket_items.reduce((sum, item) => {
-                // Для весового товара считаем как 1 позицию (или можно item.count, зависит от вашей бизнес-логики)
+                // 🎁 АНОНИМНЫЙ БОКС: просто берем count
+                if (item.type === 'anonymous_box') {
+                    return sum + (item.count || 1);
+                }
+
+                // 📦 Весовой товар: считаем как 1 позицию
                 if (item.product?.is_weight_product) {
                     return sum + 1;
                 }
-                // Для обычных товаров и коллекций прибавляем количество
+
+                // 🛍️ Обычный товар или коллекция
                 return sum + (item.count || 1);
             }, 0);
         },
 
         /**
-         * 🆕 Обновленный расчёт общей суммы корзины
-         * Приоритет отдается цене, которую посчитал бэкенд (total_price / final_price)
+         * 🆕 Расчёт общей суммы корзины
+         * Учитывает: товары, коллекции, анонимные боксы
          */
         cartTotalPrice: (state, getters) => {
             if (!state.basket_items?.length) return 0;
 
             return state.basket_items.reduce((sum, item) => {
-                if (item.product || item.product_id) { // 🆕 Добавлена проверка product_id
+                // 🎁 АНОНИМНЫЙ БОКС: используем box_amount * count
+                if (item.type === 'anonymous_box') {
+                    const boxPrice = item.box_amount || item.price || 0;
+                    const count = item.count || 1;
+                    return sum + (boxPrice * count);
+                }
+
+                // 🛍️ ОБЫЧНЫЙ ТОВАР
+                if (item.product || item.product_id) {
                     const currentPrice = item.params?.discount_price
                         ? item.params.discount_price
-                        : (item.product?.price || item.price || 0); // 🆕 Fallback на item.price
+                        : (item.product?.price || item.price || 0);
 
                     const count = item.product?.is_weight_product ? 1 : (item.count || 1);
                     const price = item.product?.is_weight_product
@@ -96,6 +116,7 @@ export const useBasketStore = defineStore('basket', {
                     return sum + (price * count);
                 }
 
+                // 📦 КОЛЛЕКЦИЯ
                 if (item.type === 'collection' || item.collection_id) {
                     if (item.total_price > 0) {
                         return sum + item.total_price;
@@ -196,7 +217,216 @@ export const useBasketStore = defineStore('basket', {
                 throw error;
             }
         },
+        /**
+         * 🎁 Удаление анонимного бокса
+         */
+        /**
+         * 🎁 Удаление анонимного бокса
+         */
+        async removeAnonymousBox(basketId) {
+            if (!basketId) return { success: false, message: 'Нет ID' };
 
+            const actionKey = `anon-remove-${basketId}`;
+            if (this.productActions[actionKey]) return { success: true };
+            this.productActions[actionKey] = 'remove';
+
+            // ✅ Оптимистичное удаление: сразу убираем из UI
+            const removedIndex = this.basket_items.findIndex(
+                i => i.basket_id === basketId && i.type === 'anonymous_box'
+            );
+            const removedItem = removedIndex !== -1 ? this.basket_items[removedIndex] : null;
+
+            if (removedIndex !== -1) {
+                this.basket_items.splice(removedIndex, 1);
+            }
+
+            try {
+                const response = await axios.post('/basket/anonymous-box/remove', {
+                    basket_id: basketId,
+                });
+                this._updateBasketStateFromResponse(response.data);
+                return { success: true };
+            } catch (error) {
+                // ❌ Откат: возвращаем элемент обратно
+                if (removedItem && removedIndex !== -1) {
+                    this.basket_items.splice(removedIndex, 0, removedItem);
+                }
+                console.error('[BasketStore] Ошибка удаления бокса:', error);
+                return {
+                    success: false,
+                    message: error.response?.data?.message || 'Ошибка удаления'
+                };
+            } finally {
+                delete this.productActions[actionKey];
+            }
+        },
+
+        /**
+         * 🎁 Увеличение количества анонимного бокса
+         */
+        async incrementAnonymousBox(basketId) {
+            if (!basketId) return { success: false, message: 'Нет ID' };
+
+            const actionKey = `anon-inc-${basketId}`;
+            if (this.productActions[actionKey]) return { success: true };
+            this.productActions[actionKey] = 'inc';
+
+            // ✅ Оптимистичное обновление: меняем count in-place
+            const cartItem = this.basket_items.find(
+                i => i.basket_id === basketId && i.type === 'anonymous_box'
+            );
+            if (cartItem) {
+                cartItem.count++;
+                // Пересчитываем total_price локально для мгновенного отклика
+                if (cartItem.box_amount) {
+                    cartItem.total_price = cartItem.box_amount * cartItem.count;
+                }
+            }
+
+            try {
+                const response = await axios.post('/basket/anonymous-box/increment', {
+                    basket_id: basketId,
+                });
+                // ✅ Умный merge вместо полной замены
+                this._updateBasketStateFromResponse(response.data);
+                return { success: true };
+            } catch (error) {
+                // ❌ Откат
+                if (cartItem) {
+                    cartItem.count--;
+                    if (cartItem.box_amount) {
+                        cartItem.total_price = cartItem.box_amount * cartItem.count;
+                    }
+                }
+                console.error('[BasketStore] Ошибка инкремента бокса:', error);
+                return {
+                    success: false,
+                    message: error.response?.data?.message || 'Ошибка'
+                };
+            } finally {
+                delete this.productActions[actionKey];
+            }
+        },
+
+        /**
+         * 🎁 Уменьшение количества анонимного бокса
+         */
+        async decrementAnonymousBox(basketId) {
+            if (!basketId) return { success: false, message: 'Нет ID' };
+
+            const actionKey = `anon-dec-${basketId}`;
+            if (this.productActions[actionKey]) return { success: true };
+            this.productActions[actionKey] = 'dec';
+
+            // ✅ Оптимистичное обновление
+            const cartItem = this.basket_items.find(
+                i => i.basket_id === basketId && i.type === 'anonymous_box'
+            );
+
+            let wasRemoved = false;
+            let removedIndex = -1;
+
+            if (cartItem) {
+                if (cartItem.count > 1) {
+                    cartItem.count--;
+                    if (cartItem.box_amount) {
+                        cartItem.total_price = cartItem.box_amount * cartItem.count;
+                    }
+                } else {
+                    // Последний — удаляем
+                    removedIndex = this.basket_items.indexOf(cartItem);
+                    this.basket_items.splice(removedIndex, 1);
+                    wasRemoved = true;
+                }
+            }
+
+            try {
+                const response = await axios.post('/basket/anonymous-box/decrement', {
+                    basket_id: basketId,
+                });
+                this._updateBasketStateFromResponse(response.data);
+                return { success: true };
+            } catch (error) {
+                // ❌ Откат
+                if (wasRemoved && cartItem && removedIndex !== -1) {
+                    this.basket_items.splice(removedIndex, 0, cartItem);
+                } else if (cartItem) {
+                    cartItem.count++;
+                    if (cartItem.box_amount) {
+                        cartItem.total_price = cartItem.box_amount * cartItem.count;
+                    }
+                }
+                console.error('[BasketStore] Ошибка декремента бокса:', error);
+                return {
+                    success: false,
+                    message: error.response?.data?.message || 'Ошибка'
+                };
+            } finally {
+                delete this.productActions[actionKey];
+            }
+        },
+
+        /**
+         * 🎁 Добавление анонимного бокса (с оптимистичным добавлением)
+         */
+        async addAnonymousBox(payload) {
+            const amount = payload.amount || 1
+            const partnerId = payload.partner_id || null
+            try {
+                this.isLoading = true;
+
+                // ✅ Оптимистичное добавление: временный элемент
+                const optimisticItem = {
+                    basket_id: `temp_anon_${Date.now()}`,
+                    id: `temp_anon_${Date.now()}`,
+                    type: 'anonymous_box',
+                    name: '🎁 Анонимный бокс',
+                    box_amount: amount,
+                    price: amount,
+                    final_price: amount,
+                    total_price: amount,
+                    count: 1,
+                    image: null,
+                    params: {
+                        type: 'anonymous_box',
+                        amount: amount,
+                    },
+                };
+                this.basket_items.push(optimisticItem);
+
+                const response = await axios.post('/basket/anonymous-box', {
+                    amount: amount,
+                    table_id: null,
+                    partner_id: partnerId,
+                });
+
+                if (response.data?.success) {
+                    this._updateBasketStateFromResponse(response.data);
+                    return { success: true, data: response.data };
+                } else {
+                    // Откат
+                    const idx = this.basket_items.indexOf(optimisticItem);
+                    if (idx !== -1) this.basket_items.splice(idx, 1);
+                    await this.loadProductsInBasket();
+                    return { success: true };
+                }
+            } catch (error) {
+                // Откат: удаляем временный элемент
+                const tempIdx = this.basket_items.findIndex(
+                    i => String(i.basket_id).startsWith('temp_anon_')
+                );
+                if (tempIdx !== -1) this.basket_items.splice(tempIdx, 1);
+
+                console.error('[BasketStore] Ошибка добавления бокса:', error);
+                return {
+                    success: false,
+                    message: error.response?.data?.message || 'Не удалось добавить бокс',
+                    errors: error.response?.data?.errors || null,
+                };
+            } finally {
+                this.isLoading = false;
+            }
+        },
         setInitialData(data) {
             if (!data) return;
             this.items = data.items || [];
@@ -753,6 +983,74 @@ export const useBasketStore = defineStore('basket', {
                 this.basket_items_paginate_object = previousPaginate;
                 console.error('[Basket Store] Ошибка очистки корзины:', err);
                 throw err;
+            }
+        },
+
+        /**
+         * 🎯 Умное обновление корзины in-place
+         * НЕ пересоздает массив — обновляет только изменившиеся элементы.
+         * Это сохраняет ссылки на неизменные объекты, и Vue не перерисовывает их.
+         */
+        _mergeBasketItems(newItems) {
+            if (!Array.isArray(newItems)) return;
+
+            const current = this.basket_items;
+
+            // Если массивы радикально отличаются — полная замена
+            if (!current?.length || newItems.length === 0 ||
+                Math.abs(current.length - newItems.length) > 3) {
+                this.basket_items = [...newItems];
+                return;
+            }
+
+            // Карта текущих элементов по ключу
+            const currentMap = new Map();
+            current.forEach((item, idx) => {
+                const key = item.basket_id || item.id || `idx-${idx}`;
+                currentMap.set(key, { item, idx });
+            });
+
+            // Обрабатываем новые элементы
+            const newKeys = new Set();
+            newItems.forEach((newItem) => {
+                const key = newItem.basket_id || newItem.id;
+                newKeys.add(key);
+
+                const existing = currentMap.get(key);
+                if (existing) {
+                    // ✅ In-place обновление — сохраняем ссылку на объект!
+                    // Vue увидит изменения только в этом конкретном объекте
+                    Object.assign(existing.item, newItem);
+                } else {
+                    // Новый элемент — добавляем
+                    current.push(newItem);
+                }
+            });
+
+            // Удаляем элементы, которых больше нет в ответе
+            for (let i = current.length - 1; i >= 0; i--) {
+                const key = current[i].basket_id || current[i].id;
+                if (!newKeys.has(key)) {
+                    current.splice(i, 1);
+                }
+            }
+        },
+
+        /**
+         * 🎁 Универсальный метод обновления состояния боксов
+         */
+        _updateBasketStateFromResponse(responseData) {
+            if (!responseData) return;
+
+            const basket = responseData.basket || responseData;
+            const items = basket.items || basket.data || responseData.items || responseData.data;
+
+            if (items) {
+                this._mergeBasketItems(items);
+            }
+
+            if (basket.items_count !== undefined) {
+                this.itemsCount = basket.items_count;
             }
         },
 

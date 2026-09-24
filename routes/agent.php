@@ -29,6 +29,9 @@ Route::prefix('agent')
             Route::get('payouts', [AgentFinanceController::class, 'payouts']);
         });
 
+        // 🆕 Добавляем этот маршрут ПЕРЕД apiResource, чтобы он не перехватывался как {invoice}
+        Route::post('invoices/create-and-send', [AgentInvoiceController::class, 'createAndSend']);
+
         // === Счета ===
         Route::apiResource('invoices', AgentInvoiceController::class)->only(['index', 'store']);
         Route::post('invoices/{invoice}/send', [AgentInvoiceController::class, 'send']);
@@ -37,9 +40,12 @@ Route::prefix('agent')
         Route::get('documents', [AgentDocumentController::class, 'index']);
         Route::post('documents/upload', [AgentDocumentController::class, 'upload']);
 
+        Route::get('calculator/config', [\App\Http\Controllers\Agent\AgentCalculatorController::class, 'getConfig']);
+        Route::post('calculator/send-estimate', [\App\Http\Controllers\Agent\AgentCalculatorController::class, 'sendEstimate']);
+
         // === Приложения ===
         Route::get('tenants', [AgentTenantController::class, 'index']);
-
+        Route::post('tenants', [AgentTenantController::class, 'store']);
         // === Клиенты ===
         Route::apiResource('clients', AgentClientController::class)->only(['index', 'store', 'destroy']);
 

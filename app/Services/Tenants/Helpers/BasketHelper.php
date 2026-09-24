@@ -389,6 +389,8 @@ trait BasketHelper
             $context = $this->prepareCheckoutContext();
             $basketData = $this->processBasketAndCalculateTotals($context);
 
+
+
             $scheduleErrors = $this->validateSchedule($basketData);
             if (!empty($scheduleErrors)) {
                 return ['success' => false, 'message' => 'Некоторые заведения или служба доставки сейчас закрыты', 'schedule_errors' => $scheduleErrors];
@@ -452,6 +454,149 @@ trait BasketHelper
         ];
     }
 
+    /**
+     * 🎁 Генерирует случайный набор товаров для Анонимного бокса
+     *
+     * Алгоритм:
+     * 1. ФАЗА "РАЗНООБРАЗИЕ": по 1 товару из каждой категории
+     * 2. ФАЗА "ДОБОР": добираем случайными товарами до целевой суммы
+     *
+     * Гарантии:
+     * - Товары никогда не повторяются
+     * - Максимальное разнообразие по категориям
+     * - Учитываются флаги: is_active, in_stop_list
+     * - Итоговая сумма в пределах [targetAmount, targetAmount * 1.15]
+     */
+    private function generateBoxProducts(int $tenantId, float $targetAmount): array
+    {
+        if ($targetAmount <= 0) return [];
+
+        // 📦 Получаем пул товаров с учётом Many-to-Many категорий
+        $products = $this->getBoxProductPool($tenantId);
+
+        if ($products->isEmpty()) {
+            Log::warning("[MysteryBox] Нет доступных товаров для tenant_id={$tenantId}");
+            return [];
+        }
+
+        $maxLimit = $targetAmount * 1.15;
+        $minItems = 3;
+
+        $selected = [];
+        $usedIds = [];
+        $currentSum = 0.0;
+
+        // ============================================================
+        // ФАЗА 1: РАЗНООБРАЗИЕ — по одному товару из каждой категории
+        // ============================================================
+        // Группируем по category_id (у каждого товара может быть несколько категорий,
+        // но для разнообразия берём первую)
+        $byCategory = $products->groupBy('main_category_id');
+        $categoryIds = $byCategory->keys()->shuffle();
+
+        foreach ($categoryIds as $categoryId) {
+            if ($currentSum >= $maxLimit) break;
+
+            $candidates = $byCategory[$categoryId]->whereNotIn('id', $usedIds);
+            if ($candidates->isEmpty()) continue;
+
+            $product = $candidates->random();
+            $price = (float) $product->price;
+
+            if ($currentSum + $price > $maxLimit) continue;
+
+            $selected[] = $this->buildBoxItem($product, 1);
+            $usedIds[] = $product->id;
+            $currentSum += $price;
+        }
+
+        // ============================================================
+        // ФАЗА 2: ДОБОР — случайные товары из оставшегося пула
+        // ============================================================
+        $remainingPool = $products->whereNotIn('id', $usedIds)->values();
+        $maxAttempts = 50;
+        $attempts = 0;
+
+        while (
+            ($currentSum < $targetAmount || count($selected) < $minItems) &&
+            $remainingPool->isNotEmpty() &&
+            $currentSum < $maxLimit &&
+            $attempts < $maxAttempts
+        ) {
+            $attempts++;
+            $product = $remainingPool->random();
+            $price = (float) $product->price;
+
+            if ($currentSum + $price > $maxLimit) {
+                $remainingPool = $remainingPool->where('id', '!=', $product->id)->values();
+                continue;
+            }
+
+            $selected[] = $this->buildBoxItem($product, 1);
+            $usedIds[] = $product->id;
+            $currentSum += $price;
+            $remainingPool = $remainingPool->where('id', '!=', $product->id)->values();
+        }
+
+        // ============================================================
+        // ФИНАЛ: логирование
+        // ============================================================
+        Log::info("[MysteryBox] Сгенерирован бокс на {$targetAmount}₽", [
+            'tenant_id' => $tenantId,
+            'items_count' => count($selected),
+            'total_sum' => round($currentSum, 2),
+            'categories_used' => collect($selected)->pluck('category_name')->unique()->count(),
+            'items' => collect($selected)->map(fn($i) => $i['name'])->toArray(),
+        ]);
+
+        return $selected;
+    }
+
+    /**
+     * 🛒 Получает пул товаров, подходящих для бокса
+     *
+     * Учитывает Many-to-Many связь с категориями (pivot product_categories)
+     */
+    private function getBoxProductPool(int $tenantId)
+    {
+        $products = \App\Models\Tenant\Product::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_weight_product', false)
+            ->where('is_composite', false)
+            ->where('price', '>', 0)
+            ->where('is_active', true)         // ✅ Только активные
+            ->where('in_stop_list', false)     // ✅ Не в стоп-листе
+            ->whereHas('categories')          // ✅ Только товары с категориями
+            ->with(['categories:id,name'])    // Подгружаем категории
+            ->inRandomOrder()
+            ->limit(200)
+            ->get(['id', 'name', 'price']);
+
+        // 🎯 "Сплющиваем" категории: каждому товару назначаем main_category_id
+        // для группировки. Берём первую категорию из списка.
+        return $products->map(function ($product) {
+            $firstCategory = $product->categories->first();
+            $product->main_category_id = $firstCategory?->id ?? 0;
+            $product->main_category_name = $firstCategory?->name ?? 'Без категории';
+            return $product;
+        });
+    }
+
+    /**
+     * 🏷️ Формирует элемент бокса
+     */
+    private function buildBoxItem($product, int $count): array
+    {
+        return [
+            'id' => $product->id,
+            'name' => $product->name,
+            'price' => (float) $product->price,
+            'count' => $count,
+            'category_id' => $product->main_category_id ?? null,
+            'category_name' => $product->main_category_name ?? 'Без категории',
+        ];
+    }
+
     private function processBasketAndCalculateTotals(array $context): array
     {
         $basket = Basket::query()->with(['collection', 'product.ingredientGroups.ingredients', 'product.components'])
@@ -466,6 +611,72 @@ trait BasketHelper
         $tmpOrderProductInfo = []; $partnerProductBox = []; $basketIds = []; $filteredItems = [];
 
         foreach ($basket as $item) {
+
+
+            if ($item->isAnonymousBox()) {
+                $amount = $this->safeFloat($item->params['amount'] ?? 0);
+                if ($amount <= 0) continue;
+
+                $count = max(1, (int) $item->count);
+                $price = $amount * $count;
+
+                // 🎁 Генерируем реальное содержимое бокса
+                $boxProducts = $this->generateBoxProducts((int) $item->getAnonymousBoxPartnerId(), $amount);
+                $componentsInfo = [];
+                foreach ($boxProducts as $bp) {
+                    $componentsInfo[] = [
+                        'id' => $bp['id'],
+                        'name' => $bp['name'],
+                        'price' => $bp['price'],
+                        'count' => $bp['count'],
+                    ];
+                }
+
+                $productInfo = [
+                    'basket_id' => $item->id,
+                    'product_id' => null, // Виртуальный товар
+                    'tenant_id' => (int) $item->tenant_id,
+                    'name' => "🎁 Анонимный бокс (Сюрприз на " . number_format($amount, 0, '.', ' ') . " ₽)",
+                    'price' => $price,
+                    'unit_price' => $amount,
+                    'count' => $count,
+                    'is_weight_product' => false,
+                    'is_composite' => true, // Важно! Чтобы система думала, что есть компоненты
+                    'comment' => $item->comment,
+                    'params' => $item->params ?? [],
+                    'components' => $componentsInfo, // Реальные товары для сборщика
+                    'ingredients' => [],
+                    'discount' => 0,
+                    'is_anonymous_box' => true, // 🎯 ФЛАГ-НЕВИДИМКА ДЛЯ КЛИЕНТА
+                ];
+
+                $tmpOrderProductInfo[] = $productInfo;
+
+                $productTenantId = $item->tenant_partner_id ?: $this->tenant->id;
+                $partnerKey = implode(':', [$productTenantId, (int) ($item->tenant_partner_id ?? 0)]);
+
+                if (!isset($partnerProductBox[$partnerKey])) {
+                    $partnerTenant = Tenant::query()->find($productTenantId);
+                    $partnerProductBox[$partnerKey] = [
+                        'id' => $productTenantId, 'tenant_id' => $productTenantId, 'tenant_partner_id' => $item->tenant_partner_id,
+                        'name' => $partnerTenant?->name ?? $partnerTenant?->title ?? 'Магазин',
+                        'thread' => $partnerTenant?->topics['orders'] ?? null,
+                        'delivery_price' => $this->safeFloat($context['delivery_price'] ?? 0) ?? 0.0,
+                        'distance' => $this->safeFloat($context['distance'] ?? 0) ?? 0.0,
+                        'products' => [], 'summary_count' => 0, 'summary_price' => 0.0, 'summary_discount' => 0.0,
+                    ];
+                }
+
+                $partnerProductBox[$partnerKey]['products'][] = $productInfo;
+                $partnerProductBox[$partnerKey]['summary_count'] += $count;
+                $partnerProductBox[$partnerKey]['summary_price'] += $price;
+
+                $summaryCount += $count;
+                $summaryPrice += $price;
+                $basketIds[] = $item->id;
+                continue;
+            }
+
             if ($item->product_id) {
                 $product = $item->product;
                 if (!$product) {
@@ -763,7 +974,7 @@ trait BasketHelper
                 $priceFormatted = number_format((float)$product['price'], 0, '.', ' ');
                 $message .= "  • " . e($product['name']) . " x{$product['count']} = {$priceFormatted} ₽\n";
 
-                if (!empty($product['is_composite']) && !empty($product['components'])) {
+                if (!empty($product['is_composite']) && !empty($product['components']) && empty($product['is_anonymous_box'])) {
                     $message .= "    <b>Состав:</b>\n";
                     foreach ($product['components'] as $comp) {
                         $compTotal = number_format((float)$comp['price'] * (int)$comp['count'], 0, '.', ' ');
@@ -965,7 +1176,7 @@ trait BasketHelper
                 $priceFormatted = number_format($product['price'] ?? 0, 0, '.', ' ');
                 $message .= "  • {$product['name']} x{$product['count']} = {$priceFormatted} ₽\n";
 
-                if (!empty($product['components'])) {
+                if (!empty($product['components']) && empty($product['is_anonymous_box'])) {
                     foreach ($product['components'] as $comp) {
                         $message .= "    └─ {$comp['name']} x{$comp['count']}\n";
                     }
@@ -1016,6 +1227,11 @@ trait BasketHelper
                 $productMessage .= "• <b>{$productName}</b> × {$productCount} — " . number_format($productPrice, 2, '.', ' ') . " руб.\n";
 
                 if (!empty($product['components'])) {
+
+                    if (!empty($product['is_anonymous_box'])) {
+                        $productMessage .= "  <b>📦 СОСТАВ БОКСА (для сборки):</b>\n";
+                    }
+
                     foreach ($product['components'] as $component) {
                         $productMessage .= "  └─ {$component['name']} × {$component['count']} — " . number_format($component['price'] ?? 0, 2, '.', ' ') . " руб.\n";
                     }

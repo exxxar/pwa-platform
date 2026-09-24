@@ -2,6 +2,8 @@
 
 namespace App\Models\Agent;
 
+use App\Models\Tenant\Tenant;
+use App\Models\Tenant\Transaction;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Models\Tenant\TenantUser;
 
 class Agent extends Model
 {

@@ -59,7 +59,13 @@
                     </div>
                 </div>
 
+
                 <div class="form-actions">
+                    <!-- 🆕 Подсказка валидации (показываем, если форма не валидна и пользователь уже начал вводить данные) -->
+                    <div v-if="!isFormValid && (form.inn || form.bank_account)" class="validation-hint mb-3">
+                        {{ validationHint }}
+                    </div>
+
                     <button type="submit" class="btn-primary-modern btn-large" :disabled="isLoading || !isFormValid">
                         <i v-if="isLoading" class="fa-solid fa-circle-notch fa-spin"></i>
                         <span v-else><i class="fa-solid fa-rocket"></i> Завершить регистрацию</span>
@@ -87,25 +93,73 @@ const form = ref({
     bank_name: ''
 });
 
+// 🆕 УЛУЧШЕННАЯ ВАЛИДАЦИЯ: убираем пробелы и проверяем точные длины
 const isFormValid = computed(() => {
-    const baseValid = form.value.inn.length >= 10 && form.value.bank_account.length === 20 && form.value.bik.length === 9 && form.value.bank_name.length > 3;
+    const inn = form.value.inn.replace(/\s/g, '');
+    const bankAccount = form.value.bank_account.replace(/\s/g, '');
+    const bik = form.value.bik.replace(/\s/g, '');
+    const bankName = form.value.bank_name.trim();
+    const ogrn = form.value.ogrn.replace(/\s/g, '');
+
+    // Проверки длин (ИНН: 10 или 12, Счет: ровно 20, БИК: ровно 9)
+    const isInnValid = inn.length === 10 || inn.length === 12;
+    const isAccountValid = bankAccount.length === 20;
+    const isBikValid = bik.length === 9;
+    const isBankNameValid = bankName.length >= 4;
+
+    let isValid = isInnValid && isAccountValid && isBikValid && isBankNameValid;
+
     if (form.value.legal_type !== 'self_employed') {
-        return baseValid && form.value.ogrn.length >= 13;
+        // ОГРН: 13, ОГРНИП: 15
+        const isOgrnValid = ogrn.length === 13 || ogrn.length === 15;
+        isValid = isValid && isOgrnValid;
     }
-    return baseValid;
+
+    return isValid;
+});
+
+// 🆕 ПОДСКАЗКА: чтобы пользователь понимал, почему кнопка серая
+const validationHint = computed(() => {
+    const hints = [];
+    const inn = form.value.inn.replace(/\s/g, '');
+    if (inn.length > 0 && inn.length !== 10 && inn.length !== 12) hints.push(`ИНН: нужно 10 или 12 цифр (сейчас ${inn.length})`);
+
+    const acc = form.value.bank_account.replace(/\s/g, '');
+    if (acc.length > 0 && acc.length !== 20) hints.push(`Счет: нужно ровно 20 цифр (сейчас ${acc.length})`);
+
+    const bik = form.value.bik.replace(/\s/g, '');
+    if (bik.length > 0 && bik.length !== 9) hints.push(`БИК: нужно ровно 9 цифр (сейчас ${bik.length})`);
+
+    if (form.value.legal_type !== 'self_employed') {
+        const ogrn = form.value.ogrn.replace(/\s/g, '');
+        if (ogrn.length > 0 && ogrn.length !== 13 && ogrn.length !== 15) hints.push(`ОГРН(ИП): нужно 13 или 15 цифр`);
+    }
+
+    return hints.length > 0 ? '⚠️ ' + hints.join('; ') : 'Все данные заполнены верно';
 });
 
 const submitForm = async () => {
+    if (!isFormValid.value) return; // Дополнительная защита
+
     try {
-        await createProfile(form.value);
+        // Очищаем данные от пробелов перед отправкой на бэк
+        const payload = {
+            ...form.value,
+            inn: form.value.inn.replace(/\s/g, ''),
+            bank_account: form.value.bank_account.replace(/\s/g, ''),
+            bik: form.value.bik.replace(/\s/g, ''),
+            ogrn: form.value.ogrn.replace(/\s/g, ''),
+        };
+
+        await createProfile(payload);
         notify('success', 'Профиль успешно создан! Перенаправляем в панель...');
 
-        // 🆕 РЕДИРЕКТ НА ДАШБОРД ПОСЛЕ УСПЕШНОГО СОЗДАНИЯ
         setTimeout(() => {
             router.push({ name: 'AgentDashboard' });
-        }, 1000); // Небольшая задержка, чтобы пользователь увидел уведомление
+        }, 1000);
     } catch (e) {
-        notify('error', 'Проверьте правильность введенных данных');
+        console.error('Ошибка создания профиля:', e);
+        notify('error', e.message || 'Проверьте правильность введенных данных');
     }
 };
 </script>
@@ -309,5 +363,16 @@ $card-bg: #ffffff;
     .form-row { grid-template-columns: 1fr; }
     .onboarding-header { padding: 32px 20px 20px; }
     .onboarding-form { padding: 24px 20px; }
+}
+
+.validation-hint {
+    font-size: 0.85rem;
+    color: #f59e0b; /* Оранжевый цвет внимания */
+    background: rgba(245, 158, 11, 0.1);
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    text-align: center;
+    animation: fadeIn 0.3s ease;
 }
 </style>

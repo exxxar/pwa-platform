@@ -1,7 +1,7 @@
 <template>
 
 
-    <div v-if="isAdmin&& hasProfile" class="agent-dashboard">
+    <div v-if="isAdmin&& isAgentProfileExists" class="agent-dashboard">
         <!-- HERO СЕКЦИЯ -->
         <div class="agent-hero">
             <div class="hero-background"></div>
@@ -128,7 +128,6 @@
             <!-- ========================================== -->
             <AgentProfileSettings
                 :is-open="showProfileModal"
-                :agent="agent"
                 @close="showProfileModal = false"
                 @save="handleProfileSave"
             />
@@ -161,6 +160,7 @@
                                 <div class="form-group">
                                     <label>Тип услуги</label>
                                     <select v-model="invoiceForm.service_type" class="form-input">
+                                        <option value="app">Создание приложения</option>
                                         <option value="bot">Создание бота</option>
                                         <option value="setup">Настройка и интеграция</option>
                                         <option value="support">Техническая поддержка</option>
@@ -180,8 +180,14 @@
                         </div>
                         <div class="modal-footer">
                             <button class="btn-secondary-modern" @click="showInvoiceModal = false">Отмена</button>
-                            <button class="btn-primary-modern" @click="submitInvoice" :disabled="!invoiceForm.client_name || !invoiceForm.amount">
-                                <i class="fa-solid fa-paper-plane"></i> Отправить счёт
+                            <button
+                                class="btn-primary-modern"
+                                @click="submitInvoice"
+                                :disabled="isLoading || !invoiceForm.client_name.trim() || !invoiceForm.client_email.trim() || !invoiceForm.amount || invoiceForm.amount <= 0"
+                            >
+                                <i v-if="isLoading" class="fa-solid fa-circle-notch fa-spin"></i>
+                                <i v-else class="fa-solid fa-paper-plane"></i>
+                                {{ isLoading ? 'Отправка...' : 'Отправить счёт' }}
                             </button>
                         </div>
                     </div>
@@ -334,20 +340,27 @@ export default {
     },
 
     computed: {
+        self() {
+            return window.TenantUser || null;
+        },
         filteredModalTransactions() {
             // this.transactions автоматически распаковывается из ref благодаря возврату из setup()
             if (this.modalTransactionFilter === 'all') {
                 return this.transactions;
             }
             return this.transactions.filter(t => t.type === this.modalTransactionFilter);
-        }
+        },
+        isAgentProfileExists() {
+            return !!this.self?.agent_profile;
+        },
+
     },
     created() {
         if (!this.isAdmin) {
             this.$router.push({ name: 'Auth' }).catch(() => {});
         }
 
-        if (this.hasProfile === false) {
+        if (!this.isAgentProfileExists) {
             this.$router.push({ name: 'AgentOnboarding' }).catch(() => {});
         }
     },
@@ -365,19 +378,48 @@ export default {
         },
 
         submitInvoice() {
-            if (!this.invoiceForm.client_name || !this.invoiceForm.amount) {
-                this.notify('error', 'Заполните название клиента и сумму');
-                return;
+            // 1. Строгая валидация на фронтенде
+            if (!this.invoiceForm.client_name.trim()) {
+                return this.notify('error', 'Введите название клиента или компании');
+            }
+            if (!this.invoiceForm.client_email.trim() || !this.invoiceForm.client_email.includes('@')) {
+                return this.notify('error', 'Введите корректный Email клиента');
+            }
+            if (!this.invoiceForm.amount || this.invoiceForm.amount <= 0) {
+                return this.notify('error', 'Сумма счёта должна быть больше 0');
             }
 
-            this.createInvoice(this.invoiceForm)
+            // 2. Вызываем метод из стора (он должен быть деструктурирован в setup())
+            this.createAndSendInvoice(this.invoiceForm)
                 .then(() => {
-                    this.notify('success', `Счёт на ${this.formatPrice(this.invoiceForm.amount)} создан`);
+                    this.notify('success', `Счёт на ${this.formatPrice(this.invoiceForm.amount)} успешно создан и отправлен на ${this.invoiceForm.client_email}`);
                     this.showInvoiceModal = false;
+
+                    // 3. Полный сброс формы для следующего использования
+                    this.invoiceForm = {
+                        client_name: '',
+                        client_email: '',
+                        service_type: 'app',
+                        amount: null,
+                        description: ''
+                    };
                 })
-                .catch(() => {
-                    this.notify('error', 'Не удалось создать счёт');
+                .catch((err) => {
+                    console.error('Ошибка при создании счёта:', err);
+                    // Ошибка уже показана пользователю через notify внутри стора
                 });
+        },
+
+        openInvoiceModal() {
+            // Сбрасываем форму при открытии модалки
+            this.invoiceForm = {
+                client_name: '',
+                client_email: '',
+                service_type: 'app',
+                amount: null,
+                description: ''
+            };
+            this.showInvoiceModal = true;
         },
 
 
@@ -414,7 +456,8 @@ export default {
 
 
         createNewTenant() {
-            this.notify({ title: 'Создание', text: 'Переход к мастеру', type: 'info' });
+            // Вместо заглушки делаем реальный переход
+            this.$router.push({ name: 'AgentTenantCreate' }).catch(() => {});
         },
 
         editTenant(tenant) {
@@ -437,16 +480,7 @@ export default {
             this.showProfileModal = true;
         },
 
-        openInvoiceModal() {
-            this.invoiceForm = {
-                client_name: '',
-                client_email: '',
-                service_type: 'bot',
-                amount: null,
-                description: ''
-            };
-            this.showInvoiceModal = true;
-        },
+
 
         openAllTransactionsModal() {
             this.modalTransactionFilter = 'all';
@@ -461,11 +495,13 @@ export default {
 
     mounted() {
         // Инициализация данных при монтировании компонента
-        if (this.isAdmin)
+        if (this.isAgentProfileExists) {
             this.fetchInitialData();
 
-        if (!this.hasProfile) {
-            this.$router.push({ name: 'AgentOnboarding' }).catch(() => {});
+            // 4. 🆕 Дополнительная страховка: если после запроса к API выяснилось, что профиля всё же нет
+            if (!this.hasProfile) {
+                this.$router.push({ name: 'AgentOnboarding' }).catch(() => {});
+            }
         }
     }
 };

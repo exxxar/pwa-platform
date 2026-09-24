@@ -15,6 +15,7 @@ use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\Tenant\AchievementAdminController;
 use App\Http\Controllers\Tenant\AchievementController;
+use App\Http\Controllers\Tenant\AdController;
 use App\Http\Controllers\Tenant\BillingController;
 use App\Http\Controllers\Tenant\CashBackController;
 use App\Http\Controllers\Tenant\ClientsController;
@@ -111,6 +112,9 @@ function routes()
         ->where('any', '.*')
         ->name("shop.landing");
 
+    Route::get('/test/{domain}/pwa/{any?}', [TenantAuthController::class, 'handlerTest'])
+        ->where('any', '.*');
+
     Route::get('/agents/{any?}', [TenantAuthController::class, 'handlerAgent'])
         ->where('any', '.*')
         ->name("shop.agent");
@@ -151,6 +155,12 @@ function routes()
 
     Route::get("/tables-qr", [ProductController::class, "generateTablesQR"]);
 
+    Route::prefix('promotions')->group(function () {
+        Route::get('/', [AdController::class, 'clientIndex'])->name('index');
+    });
+
+
+
     Route::prefix('deliveryman')->group(function () {
         // Профиль и статистика
         Route::get('/dashboard', [DeliverymanController::class, 'dashboard']);
@@ -158,7 +168,7 @@ function routes()
         Route::get('/shops', [DeliverymanController::class, 'getAvailableShops']);
         Route::post('/shops', [DeliverymanController::class, 'updateDeliveryShops']);
 
-            // 🆕 Расчет доставки от конкретного магазина
+        // 🆕 Расчет доставки от конкретного магазина
         Route::post('/shops/{id}/calculate', [DeliverymanController::class, 'calculateShopDelivery']);
 
         // 🆕 Генерация платежной ссылки для доставки
@@ -180,8 +190,6 @@ function routes()
         Route::post('/orders/{id}/message', [DeliverymanController::class, 'sendMessage']);
         Route::get('/dialogs/{dialogId}/messages', [DeliverymanController::class, 'getDialogMessages']);
         Route::post('/dialogs/{dialogId}/messages', [DeliverymanController::class, 'sendDialogMessage']);
-
-
 
 
         Route::get('/finance', [DeliverymanController::class, 'finance']);
@@ -211,6 +219,16 @@ function routes()
 
     Route::prefix('admin')->group(function () {
 
+        Route::prefix('promotions')->name('admin.promotions.')->group(function () {
+            Route::get('/',        [AdController::class, 'index'])->name('index');
+            Route::post('/',       [AdController::class, 'store'])->name('store');
+            Route::patch('/{ad}',  [AdController::class, 'update'])->name('update');
+            Route::delete('/{ad}', [AdController::class, 'destroy'])->name('destroy');
+            Route::post('/reorder',[AdController::class, 'reorder'])->name('reorder');
+        });
+
+        Route::post('/upload-image', [\App\Http\Controllers\Admin\Global\MediaController::class, 'uploadImage'])
+            ->name('admin.upload-image');
 
         Route::prefix('tenant')->group(function () {
 
@@ -436,6 +454,12 @@ function routes()
         ->controller(BasketController::class)
         ->group(function () {
             Route::post('/', "loadProductsInBasket");
+
+            Route::post('/anonymous-box', [BasketController::class, 'addAnonymousBox']);
+            Route::post('/anonymous-box/increment', [BasketController::class, 'incrementAnonymousBox']);
+            Route::post('/anonymous-box/decrement', [BasketController::class, 'decrementAnonymousBox']);
+            Route::post('/anonymous-box/remove', [BasketController::class, 'removeAnonymousBox']);
+
             Route::post('/checkout', "checkout")->middleware(['track.order']);
             Route::post("/get-delivery-price-new", [ProductController::class, "getDeliveryPriceNew"]);
             Route::post('/checkout-link', "checkoutLink");
@@ -603,6 +627,7 @@ function routes()
             Route::post("/", "index");
             Route::post("/full-partners", "fullIndex");
             Route::post("/store", "store");
+
             Route::post("/toggle-favorite", "togglePartnersInFavorites");
             Route::post("/update-settings", "updateSettings");
             Route::post("/update-active-status", "updateActiveStatus");

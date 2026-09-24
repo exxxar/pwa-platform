@@ -86,6 +86,13 @@ export function useAgent() {
         }
     };
 
+    /**
+     * 🆕 Создание счёта с генерацией ссылки на оплату и отправкой на email
+     */
+
+
+
+
     // ==========================================
     // ACTIONS (Пробрасываем методы стора для чистоты интерфейса)
     // ==========================================
@@ -93,6 +100,7 @@ export function useAgent() {
     const actions = {
         fetchInitialData: store.fetchInitialData,
         updateProfile: store.updateProfile,
+        createProfile: store.createProfile,        // <--- ДОБАВИТЬ ЭТУ СТРОКУ
         uploadDocument: store.uploadDocument,
         fetchDocuments: store.fetchDocuments,
         requestPayout: store.requestPayout,
@@ -100,10 +108,13 @@ export function useAgent() {
         createClient: store.createClient,
         deleteClient: store.deleteClient,
         createInvoice: store.createInvoice,
+        createAndSendInvoice: store.createAndSendInvoice,
         sendInvoice: store.sendInvoice,
         downloadMarketingMaterial: store.downloadMarketingMaterial,
         clearError: () => { store.error = null; }
     };
+
+    const hasProfile = computed(() => store.hasProfile);
 
     return {
         store, // <--- ДОБАВЛЕНО: теперь this.store будет работать
@@ -132,7 +143,7 @@ export function useAgent() {
         // Utils
         formatPrice,
         notify,
-
+        hasProfile,
         // Actions (распаковываем, чтобы можно было писать this.fetchInitialData)
         ...actions
     };

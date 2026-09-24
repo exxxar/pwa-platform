@@ -217,6 +217,8 @@ class TenantAuthController extends Controller
     }
 
 
+
+
     public function handler(
         Request $request, // 🆕 Добавляем Request
                 $tenant,

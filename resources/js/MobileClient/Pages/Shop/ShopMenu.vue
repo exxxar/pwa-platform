@@ -79,6 +79,38 @@
                         </div>
                     </div>
 
+                    <!-- 🎁 НОВЫЙ БЛОК: АНОНИМНЫЙ БОКС -->
+                    <div class="mystery-box-banner-wrapper mt-3 mb-3">
+                        <div class="container g-2">
+                            <div class="mystery-box-banner" @click="openMysteryBoxModal">
+                                <div class="mystery-box-glow"></div>
+                                <div class="mystery-box-content">
+                                    <div class="mystery-box-icon-wrapper">
+                                        <div class="mystery-box-icon">
+                                            <span class="gift-emoji">🎁</span>
+                                        </div>
+                                        <div class="sparkles">
+                                            <span class="sparkle s1">✨</span>
+                                            <span class="sparkle s2">⭐</span>
+                                            <span class="sparkle s3">✨</span>
+                                        </div>
+                                    </div>
+                                    <div class="mystery-box-text">
+                                        <div class="mystery-box-label">Эксклюзив</div>
+                                        <h3 class="mystery-box-title">Анонимный бокс</h3>
+                                        <p class="mystery-box-description">
+                                            Соберем пакет случайных товаров на выбранную сумму.
+                                            Состав — сюрприз до момента получения!
+                                        </p>
+                                    </div>
+                                    <div class="mystery-box-cta">
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Товары по категориям -->
                     <ProductGrid
                         :categories="filteredProducts"
@@ -103,6 +135,16 @@
         <div v-else-if="currentMode === 'booking'" class="booking-section p-0">
             <TableBookingPlanner />
         </div>
+
+        <!-- ========================================== -->
+        <!-- 🎁 МОДАЛКА: АНОНИМНЫЙ БОКС -->
+        <!-- ========================================== -->
+        <MysteryBoxModal
+
+            :is-visible="showMysteryBoxModal"
+            @close="showMysteryBoxModal = false"
+            @add-to-cart="handleAddMysteryBoxToCart"
+        />
 
         <!-- ========================================== -->
         <!-- МОДАЛКА: КОФЕ -->
@@ -172,6 +214,7 @@ import AppDivider from '@/MobileClient/Components/AppDivider.vue';
 import CoffeeProgress from '@/MobileClient/Components/Shop/CoffeeProgress.vue';
 import FloatingMenu from '@/MobileClient/Components/Shop/FloatingMenu.vue';
 import FavoritesModal from '@/MobileClient/Components/Shop/Favorites/FavoritesModal.vue';
+import MysteryBoxModal from '@/MobileClient/Components/Shop/MysteryBoxModal.vue';
 
 export default {
     name: 'ShopMenu',
@@ -187,6 +230,7 @@ export default {
         CoffeeProgress,
         FloatingMenu,
         FavoritesModal,
+        MysteryBoxModal,
     },
 
     setup() {
@@ -212,7 +256,6 @@ export default {
         const favoritesStore = useFavorites();
 
         return {
-            // Товары
             filteredProducts,
             selectedPartner,
             storiesStore,
@@ -225,8 +268,6 @@ export default {
             clearMenuData,
             setSearch,
             loadMoreProducts,
-
-            // Корзина и избранное
             basketStore,
             favoritesStore,
         };
@@ -238,6 +279,8 @@ export default {
             currentMode: 'shop',
             coffeeModal: null,
             showFavoritesModal: false,
+            showMysteryBoxModal: false,
+            isAddingBoxToCart: false,
         };
     },
 
@@ -291,7 +334,6 @@ export default {
     },
 
     mounted() {
-        // 🆕 Guard: если партнёры включены, но не выбраны — редирект
         if (this.hasPartners && !this.selectedPartner) {
             this.$router.replace({ name: 'Partners' });
             return;
@@ -301,7 +343,6 @@ export default {
         this.loadBasketData();
         this.initCoffeeModal();
 
-        // Проверка расписания работы
         if (!this.canBuy) {
             this.$nextTick(() => {
                 const modalEl = document.querySelector('#schedule-list-display');
@@ -347,6 +388,63 @@ export default {
         },
 
         // ==========================================
+        // 🎁 АНОНИМНЫЙ БОКС
+        // ==========================================
+        openMysteryBoxModal() {
+            if (!this.canBuy) {
+                this.$notify?.({
+                    title: 'Магазин закрыт',
+                    text: 'Сейчас нельзя оформить заказ',
+                    type: 'warning',
+                });
+                return;
+            }
+            this.showMysteryBoxModal = true;
+        },
+
+// В methods компонента ShopMenu.vue
+
+        async handleAddMysteryBoxToCart(amount) {
+            if (this.isAddingBoxToCart) return;
+            this.isAddingBoxToCart = true;
+
+            try {
+                const result = await this.basketStore.addAnonymousBox({
+                    amount: amount,
+                    partner_id: this.selectedPartner?.tenant_partner_id,
+                });
+
+                if (result.success) {
+                    this.showMysteryBoxModal = false;
+
+                    this.$notify?.({
+                        title: '🎁 Бокс добавлен!',
+                        text: `Анонимный бокс на ${amount} ₽ в корзине. Состав — сюрприз!`,
+                        type: 'success',
+                    });
+
+                    // Небольшая анимация иконки корзины (если у вас есть floating cart)
+                    this.$emit('basket-updated');
+                } else {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: result.message || 'Не удалось добавить бокс',
+                        type: 'error',
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка добавления анонимного бокса:', error);
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: 'Произошла непредвиденная ошибка',
+                    type: 'error',
+                });
+            } finally {
+                this.isAddingBoxToCart = false;
+            }
+        },
+
+        // ==========================================
         // МОДАЛКИ
         // ==========================================
         initCoffeeModal() {
@@ -367,9 +465,7 @@ export default {
             this.showFavoritesModal = true;
         },
 
-        handleMenuClick(item) {
-            // Действия уже выполняются через item.action
-        },
+        handleMenuClick(item) {},
 
         // ==========================================
         // НАВИГАЦИЯ И ВЗАИМОДЕЙСТВИЕ
@@ -557,6 +653,205 @@ export default {
 }
 
 /* ==========================================
+   🎁 БАННЕР АНОНИМНОГО БОКСА
+   ========================================== */
+.mystery-box-banner-wrapper {
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.mystery-box-banner {
+    position: relative;
+    border-radius: 20px;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+    color: white;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 8px 24px rgba(118, 75, 162, 0.35);
+    isolation: isolate;
+}
+
+.mystery-box-banner:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(118, 75, 162, 0.45);
+}
+
+.mystery-box-banner:active {
+    transform: translateY(0);
+}
+
+.mystery-box-glow {
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: floatGlow 6s ease-in-out infinite;
+    z-index: -1;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes floatGlow {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+    50% { transform: translate(-20px, 20px) scale(1.15); opacity: 0.9; }
+}
+
+.mystery-box-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    z-index: 2;
+}
+
+.mystery-box-icon-wrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.mystery-box-icon {
+    width: 64px;
+    height: 64px;
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    animation: pulseGift 2.5s ease-in-out infinite;
+}
+
+@keyframes pulseGift {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.08) rotate(-5deg); }
+}
+
+.gift-emoji {
+    font-size: 32px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.sparkles {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    right: -6px;
+    bottom: -6px;
+    pointer-events: none;
+}
+
+.sparkle {
+    position: absolute;
+    font-size: 14px;
+    animation: twinkle 2s ease-in-out infinite;
+}
+
+.sparkle.s1 {
+    top: -8px;
+    right: -8px;
+    animation-delay: 0s;
+}
+
+.sparkle.s2 {
+    top: 50%;
+    left: -10px;
+    animation-delay: 0.7s;
+}
+
+.sparkle.s3 {
+    bottom: -8px;
+    right: 50%;
+    animation-delay: 1.4s;
+}
+
+@keyframes twinkle {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+.mystery-box-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.mystery-box-label {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.25);
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 6px;
+    backdrop-filter: blur(5px);
+}
+
+.mystery-box-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 4px 0;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.mystery-box-description {
+    font-size: 0.82rem;
+    margin: 0;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.92);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mystery-box-cta {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    background: white;
+    border-radius: 50%;
+    color: #764ba2;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease;
+}
+
+.mystery-box-banner:hover .mystery-box-cta {
+    transform: translateX(3px);
+}
+
+.cta-text {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.mystery-box-cta i {
+    font-size: 0.8rem;
+}
+
+/* ==========================================
    МОДАЛКА КОФЕ
    ========================================== */
 .coffee-modal {
@@ -600,6 +895,38 @@ export default {
 
     .switcher-btn i {
         font-size: 1.2rem;
+    }
+
+    .mystery-box-banner {
+        padding: 16px;
+    }
+
+    .mystery-box-icon {
+        width: 56px;
+        height: 56px;
+    }
+
+    .gift-emoji {
+        font-size: 28px;
+    }
+
+    .mystery-box-title {
+        font-size: 1.1rem;
+    }
+
+    .mystery-box-description {
+        font-size: 0.78rem;
+    }
+
+    .mystery-box-cta {
+        width: 46px;
+        height: 46px;
+    }
+}
+
+@media (max-width: 380px) {
+    .mystery-box-content {
+        gap: 12px;
     }
 }
 </style>

@@ -6,6 +6,7 @@ use App\Models\Tenant\Basket;
 use App\Services\Tenants\BasketService;
 use Exception;
 use HttpException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -24,7 +25,112 @@ class BasketController extends Controller
         return response()->json($cartData);
     }
 
-    // app/Http/Controllers/BasketController.php
+    public function addAnonymousBox(Request $request): JsonResponse
+    {
+        try {
+            BasketService::call()->addAnonymousBox($request->all());
+
+            // Возвращаем обновленную корзину для синхронизации с фронтом
+            $updatedBasket = BasketService::call()->productsInBasket();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Анонимный бокс добавлен в корзину',
+                'basket' => $updatedBasket,
+            ]);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибка валидации',
+                'errors' => $e->errors(),
+            ], 422);
+
+        } catch (HttpException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $e->getStatusCode());
+
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[AnonymousBox] Ошибка: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Не удалось добавить бокс в корзину',
+            ], 500);
+        }
+    }
+
+    /**
+     * 🎁 Увеличение количества анонимного бокса
+     */
+    public function incrementAnonymousBox(Request $request): JsonResponse
+    {
+        try {
+            $basketId = (int) $request->input('basket_id');
+            BasketService::call()->incrementAnonymousBox($basketId);
+
+            $updatedBasket = BasketService::call()->productsInBasket();
+
+            return response()->json([
+                'success' => true,
+                'basket' => $updatedBasket,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $e instanceof HttpException ? $e->getStatusCode() : 500);
+        }
+    }
+
+    /**
+     * 🎁 Уменьшение количества анонимного бокса
+     */
+    public function decrementAnonymousBox(Request $request): JsonResponse
+    {
+        try {
+            $basketId = (int) $request->input('basket_id');
+            BasketService::call()->decrementAnonymousBox($basketId);
+
+            $updatedBasket = BasketService::call()->productsInBasket();
+
+            return response()->json([
+                'success' => true,
+                'basket' => $updatedBasket,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $e instanceof HttpException ? $e->getStatusCode() : 500);
+        }
+    }
+
+    /**
+     * 🎁 Удаление анонимного бокса
+     */
+    public function removeAnonymousBox(Request $request): JsonResponse
+    {
+        try {
+            $basketId = (int) $request->input('basket_id');
+            BasketService::call()->removeAnonymousBox($basketId);
+
+            $updatedBasket = BasketService::call()->productsInBasket();
+
+            return response()->json([
+                'success' => true,
+                'basket' => $updatedBasket,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $e instanceof HttpException ? $e->getStatusCode() : 500);
+        }
+    }
+
     public function addProduct(Request $request)
     {
         try {

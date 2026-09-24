@@ -338,6 +338,21 @@ export const useAgentStore = defineStore('agent', () => {
         }
     };
 
+    const createAndSendInvoice = async (payload) => {
+        isLoading.value = true;
+        try {
+            const response = await axios.post(`${API_BASE}/invoices/create-and-send`, payload);
+            addNotification('success', response.data.message || 'Счёт создан и отправлен клиенту');
+            return response.data.data; // Вернет { order_id, payment_url }
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Ошибка создания и отправки счёта';
+            addNotification('error', msg);
+            throw new Error(msg);
+        } finally {
+            isLoading.value = false;
+        }
+    };
+
     /**
      * Трекинг скачивания маркетингового материала
      */
@@ -388,6 +403,7 @@ export const useAgentStore = defineStore('agent', () => {
         deleteClient,
         createInvoice,
         sendInvoice,
+        createAndSendInvoice,
         downloadMarketingMaterial,
         addNotification
     };

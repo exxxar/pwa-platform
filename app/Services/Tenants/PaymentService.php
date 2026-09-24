@@ -47,6 +47,93 @@ class PaymentService
     }
 
     /**
+     * 🆕 Генерация ссылки на оплату для коммерческого предложения (Калькулятор)
+     *
+     * @param array $data ['amount' => float, 'description' => string, 'clientName' => string, 'clientPhone' => string, 'clientEmail' => string]
+     * @return string URL для оплаты
+     * @throws HttpException
+     */
+    public function generateEstimatePaymentLink(array $data): string
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        if (!$tenant || !$tenantUser) {
+            throw new HttpException(404, "Пользователь или тенант не найдены!");
+        }
+
+        $config = $this->getCurrentBankConfig();
+        $paymentGateway = $this->getPaymentGateway($config['bank_key'], $config);
+
+        $amount = (float)($data['amount'] ?? 0);
+        $description = $data['description'] ?? 'Оплата по коммерческому предложению';
+        $clientName = $data['clientName'] ?? 'Клиент';
+        $clientPhone = $data['clientPhone'] ?? '';
+        $clientEmail = $data['clientEmail'] ?? '';
+
+        // Создаем легкий заказ для трекинга оплаты КП (не мешает основной статистике магазина)
+        $order = Order::query()->create([
+            'tenant_id' => $tenant->id,
+            'tenant_user_id' => $tenantUser->id,
+            'product_count' => 1,
+            'summary_price' => $amount,
+            'delivery_price' => 0,
+            'delivery_note' => "КП: {$description}",
+            'receiver_name' => $clientName,
+            'receiver_phone' => $clientPhone,
+            'status' => \App\Enums\OrderStatusEnum::NewOrder->value,
+            'order_type' => 'estimate_payment', // Специальная метка
+            'meta' => ['is_estimate' => true, 'client_email' => $clientEmail],
+        ]);
+
+        $items = [[
+            'Name' => $description,
+            'Quantity' => 1,
+            'Price' => $amount,
+            'NDS' => $config['vat'],
+        ]];
+
+        $payment = [
+            'OrderId' => (string) $order->id,
+            'Amount' => $amount,
+            'Language' => 'ru',
+            'Description' => $description,
+            'Email' => $clientEmail,
+            'Phone' => $this->normalizePhone($clientPhone),
+            'Name' => $clientName,
+            'Taxation' => $config['tax'],
+            'CustomerKey' => (string) $tenantUser->id,
+            'ReturnUrl' => route('home'), // Или ваша страница "Спасибо за оплату"
+        ];
+
+        $paymentURL = $paymentGateway->paymentURL($payment, $items);
+
+        if (!$paymentURL) {
+            $order->delete(); // Откат, если банк вернул ошибку
+            throw new HttpException(500, "Ошибка формирования ссылки: " . $paymentGateway->getError());
+        }
+
+        // Создаем запись в транзакциях для корректного вебхука
+        if (class_exists(\App\Services\Tenants\TransactionService::class)) {
+            \App\Services\Tenants\TransactionService::call()->createPending(
+                tenantId: $tenant->id,
+                tenantUserId: $tenantUser->id,
+                orderId: $order->id,
+                externalPaymentId: $paymentGateway->payment_id ?? \Illuminate\Support\Str::uuid()->toString(),
+                amount: $amount,
+                metaData: [
+                    'type' => 'estimate_payment',
+                    'client_email' => $clientEmail,
+                    'description' => $description
+                ],
+                provider: $config['bank_key']
+            );
+        }
+
+        return $paymentURL;
+    }
+
+    /**
      * 🆕 Генерирует ссылку на оплату БЕЗ отправки уведомлений (идеально для курьеров)
      */
     public function generateSimplePaymentLink(array $data): string

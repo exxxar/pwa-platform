@@ -17,7 +17,7 @@ class Basket extends Model
         'tenant_user_id',
         'tenant_id',
         'ordered_at',
-     //   'container_id',
+        //   'container_id',
         'params',
         'table_id',
         'table_approved_at',
@@ -56,18 +56,37 @@ class Basket extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-  /*  public function productCollection()
-    {
-        return $this->belongsTo(ProductCollection::class);
-    }*/
+    /*  public function productCollection()
+      {
+          return $this->belongsTo(ProductCollection::class);
+      }*/
 
-   /* public function table()
-    {
-        return $this->belongsTo(Table::class);
-    }*/
+    /* public function table()
+     {
+         return $this->belongsTo(Table::class);
+     }*/
 
-   /* public function partner()
+    /* public function partner()
+     {
+         return $this->belongsTo(Partner::class, 'tenant_partner_id');
+     }*/
+
+    /* |-------------------------------------------------------------------------- | Anonymous box |-------------------------------------------------------------------------- */
+    public function isAnonymousBox(): bool
     {
-        return $this->belongsTo(Partner::class, 'tenant_partner_id');
-    }*/
+        $params = is_array($this->params) ? $this->params : (json_decode($this->params, true) ?? []);
+        return ($params['type'] ?? null) === 'anonymous_box';
+    }
+
+    public function getAnonymousBoxAmount(): float
+    {
+        $params = is_array($this->params) ? $this->params : (json_decode($this->params, true) ?? []);
+        return (float) ($params['amount'] ?? 0);
+    }
+
+    public function getAnonymousBoxPartnerId()
+    {
+        $params = is_array($this->params) ? $this->params : (json_decode($this->params, true) ?? []);
+        return $params['partner_id'] ?? null;
+    }
 }

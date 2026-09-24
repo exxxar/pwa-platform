@@ -30,22 +30,13 @@
         <!-- ========================================== -->
         <div v-if="activeMainTab === 'establishments'">
             <!-- HERO SECTION -->
-            <div v-if="isHeroEnabled" class="hero-section" :style="heroBackgroundStyle">
-                <div class="hero-orb orb-1"></div>
-                <div class="hero-orb orb-2"></div>
-
-                <div class="hero-images">
-                    <div class="food-image food-image-1"><img v-lazy="dynamicHeroImages.image1" alt="Food 1"></div>
-                    <div class="food-image food-image-2"><img v-lazy="dynamicHeroImages.image2" alt="Food 2"></div>
-                    <div class="food-image food-image-3"><img v-lazy="dynamicHeroImages.image3" alt="Food 3"></div>
-                    <div class="food-image food-image-4"><img v-lazy="dynamicHeroImages.image4" alt="Food 4"></div>
-                </div>
-
-                <div class="hero-content">
-                    <h2 class="hero-title">{{ dynamicHeroSettings.title }}</h2>
-                    <p class="hero-subtitle">{{ dynamicHeroSettings.subtitle }}</p>
-                </div>
-            </div>
+            <HeroPromoSlider
+                v-if="isHeroEnabled"
+                :hero-settings="dynamicHeroSettings"
+                :hero-images="dynamicHeroImages"
+                :partners="activePartners"
+                @select-partner="selectPartner"
+            />
 
 
 
@@ -118,7 +109,7 @@
                 </button>
             </transition>
 
-            <div class="container px-3">
+            <div class="container p-2">
                 <div v-if="isPartnersLoading" class="loading-state">
                     <div v-for="i in 4" :key="i" class="skeleton-card">
                         <div class="skeleton-image"></div>
@@ -144,7 +135,7 @@
                 </div>
 
                 <div v-else class="partners-list">
-                    <div class="partners-grid mb-3" :class="{ 'grid-view': viewMode === 'grid' }">
+                    <div class="partners-grid mb-2" :class="{ 'grid-view': viewMode === 'grid' }">
                         <div v-for="partner in filteredPartners" :key="partner.id">
                             <PartnerCard
                                 :partner="partner"
@@ -163,7 +154,8 @@
         <!-- ========================================== -->
         <!-- ВКЛАДКА: ЗАКАЗЫ -->
         <!-- ========================================== -->
-        <div v-else-if="activeMainTab === 'orders'" class="orders-tab-content">
+        <div v-else-if="activeMainTab === 'orders'" class="orders-tab-content p-2">
+
             <div class="orders-hero">
                 <div class="hero-background"></div>
                 <div class="hero-content-orders">
@@ -188,7 +180,7 @@
                 </div>
             </div>
 
-            <div class="container px-3">
+            <div class="container p-1">
                 <div v-if="ordersTab === 0" class="info-banner">
                     <div class="info-icon"><i class="fa-solid fa-circle-info"></i></div>
                     <div class="info-text"><strong>Повторный заказ</strong> — товары из стоп-листа заведения будут
@@ -534,10 +526,10 @@ import {useOrders} from "@/MobileClient/composables/useOrders.js";
 import PartnerCard from "@/MobileClient/Components/Partners/PartnerCard.vue";
 import ReviewCard from "@/MobileClient/Components/Shop/Reviews/ReviewCard.vue";
 import PartnerLocationModal from "@/MobileClient/Components/Partners/PartnerLocationModal.vue";
-
+import HeroPromoSlider from "@/MobileClient/Components/Partners/HeroPromoSlider.vue";
 export default {
     name: "PartnerListModern",
-    components: {PartnerLocationModal, PartnerCard, ReviewCard},
+    components: {PartnerLocationModal, PartnerCard, ReviewCard, HeroPromoSlider},
     emits: ['select'],
 
     setup() {
@@ -2399,7 +2391,7 @@ $info: #3b82f6;
 
 .partners-grid {
     display: grid;
-    gap: 16px;
+    gap: 8px;
     grid-template-columns: 1fr;
 
     &.grid-view {

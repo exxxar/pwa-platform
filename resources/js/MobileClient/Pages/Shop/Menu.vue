@@ -452,6 +452,7 @@ export default {
                 { key: 'clients', route: 'AdminClients', text: 'Пользователи', desc: 'База посетителей', icon: 'fa-solid fa-users', permission: 'manage_users' },
                 { key: 'roles', route: 'AdminRoles', text: 'Роли и доступы', desc: 'Управление разрешениями', icon: 'fa-solid fa-user-shield', permission: 'manage_settings' },
                 { key: 'partners', route: 'AdminPartners', text: 'Партнеры', desc: 'Сотрудничество и интеграции', icon: 'fa-solid fa-handshake', permission: 'manage_partners' },
+                { key: 'ads', route: 'AdminAds', text: 'Реклама', desc: 'Рекламные банеры', icon: 'fa-solid fa-rectangle-ad', permission: 'manage_partners' },
                 { key: 'transactions', route: 'AdminTransactions', text: 'Транзакции', desc: 'История платежей и статусы', icon: 'fa-solid fa-money-bill-transfer', permission: 'view_statistics' },
                 { key: 'achievements', route: 'AdminAchievements', text: 'Достижения', desc: 'Ачивки и система наград', icon: 'fa-solid fa-trophy', permission: 'manage_achievements' },
                 { key: 'mailing', route: 'AdminBroadcastsPage', text: 'Рассылки', desc: 'Уведомления и акции', icon: 'fa-solid fa-envelope', permission: 'manage_broadcasts' },

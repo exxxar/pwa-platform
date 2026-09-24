@@ -7,6 +7,7 @@ use App\Models\Tenant\Collection;
 use App\Models\Tenant\Partner;
 use App\Models\Tenant\Product;
 use App\Models\Tenant\Table;
+use App\Models\Tenant\Tenant;
 use App\Services\Tenants\Helpers\BasketHelper;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -104,6 +105,29 @@ class BasketService
                 'tenant_partner_id' => $item->tenant_partner_id,
                 'extra_charge' => $extraCharge,
             ];
+
+            if ($item->isAnonymousBox()) {
+                $amount = $item->getAnonymousBoxAmount();
+                $partnerId = $item->getAnonymousBoxPartnerId();
+
+                $boxTenant = Tenant::query()->find($partnerId);
+                $tenantName = $boxTenant?->name ?? $boxTenant?->title ?? 'Магазин';
+
+                return array_merge($baseData, [
+                    'type' => 'anonymous_box',
+                    'name' => '🎁 Анонимный бокс',
+                    'image' => null,
+                    'tenant_name' => $tenantName, // 🆕 ДОБАВИТЬ
+                    'price' => $amount,
+                    'final_price' => $amount,
+                    'total_price' => $amount * $item->count,
+
+                    'count' => $item->count,
+
+                    'box_amount' => $amount,
+                    'products' => null,
+                ]);
+            }
 
             if ($item->product_id && $item->product) {
                 $product = $item->product;
@@ -441,7 +465,7 @@ class BasketService
             $params = is_array($pib->params) ? (object)$pib->params : $pib->params;
 
             if (!is_null($variantId) && ($params->variant_id ?? null) == $variantId) {
-                    $pib->delete();
+                $pib->delete();
                 break;
             }
         }
@@ -661,7 +685,6 @@ class BasketService
             "selected_components.*.id" => "required|integer",
             "selected_components.*.quantity" => "required|integer|min:1",
         ]);
-
 
 
         if ($validator->fails()) {
@@ -1037,4 +1060,172 @@ class BasketService
 
         return $totalPrice;
     }
+
+
+    /**
+     * Добавление анонимного бокса в корзину
+     *
+     * Состав бокса не раскрывается клиенту.
+     * Реальные товары подбираются при оформлении заказа.
+     *
+     * @throws ValidationException|HttpException
+     */
+    public function addAnonymousBox(array $data): void
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+
+        $validator = Validator::make($data, [
+            'amount' => 'required|integer|in:1000,2000,3000,5000',
+            'table_id' => 'nullable|integer',
+            'partner_id' => 'nullable|integer',
+        ]);
+
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
+        }
+
+        $amount = (int)$data['amount'];
+        $tableId = $data['table_id'] ?? null;
+        $partnerId = $data['partner_id'] ?? null;
+
+        // Проверяем существующий открытый бокс такого типа
+        $existingBox = Basket::query()
+            ->whereNull('product_id')
+            ->whereNull('collection_id')
+            ->where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $tenantUser->id)
+            ->whereNull('ordered_at')
+            ->whereNull('table_approved_at')
+            ->where('params->partner_id', $partnerId)
+            ->where('params->type', 'anonymous_box')
+            ->where('params->amount', $amount)
+            ->first();
+
+        if ($existingBox) {
+            $existingBox->count++;
+            $existingBox->save();
+
+            return;
+        }
+
+        $tableWithClient = null;
+
+        if ($tableId) {
+            $tableWithClient = Table::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('id', $tableId)
+                ->whereNull('closed_at')
+                ->first();
+        } else {
+            $tableWithClient = Table::query()
+                ->where('tenant_id', $tenant->id)
+                ->whereNull('closed_at')
+                ->whereHas('clients', function ($query) use ($tenantUser) {
+                    $query->where('tenant_users.id', $tenantUser->id);
+                })
+                ->first();
+        }
+
+        Basket::query()->create([
+            'product_id' => null,
+            'collection_id' => null,
+            'count' => 1,
+
+            'tenant_user_id' => $tenantUser->id,
+            'tenant_id' => $tenant->id,
+
+            'table_id' => $tableWithClient?->id,
+
+            'ordered_at' => null,
+            'table_approved_at' => null,
+
+            'params' => [
+                'type' => 'anonymous_box',
+                'amount' => $amount,
+                'partner_id' => $partnerId,
+                'box_uuid' => Str::uuid()->toString(),
+            ],
+        ]);
+    }
+
+    /**
+     * 🎁 Увеличение количества анонимного бокса (через basket_id)
+     * @throws HttpException
+     */
+    public function incrementAnonymousBox(int $basketId): void
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        $item = Basket::query()
+            ->where('id', $basketId)
+            ->where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $tenantUser->id)
+            ->whereNull('ordered_at')
+            ->whereNull('table_approved_at')
+            ->first();
+
+        if (is_null($item) || !$item->isAnonymousBox()) {
+            throw new HttpException(404, "Анонимный бокс не найден!");
+        }
+
+        $item->count++;
+        $item->save();
+    }
+
+    /**
+     * 🎁 Уменьшение количества анонимного бокса (через basket_id)
+     * @throws HttpException
+     */
+    public function decrementAnonymousBox(int $basketId): void
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        $item = Basket::query()
+            ->where('id', $basketId)
+            ->where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $tenantUser->id)
+            ->whereNull('ordered_at')
+            ->whereNull('table_approved_at')
+            ->first();
+
+        if (is_null($item) || !$item->isAnonymousBox()) {
+            throw new HttpException(404, "Анонимный бокс не найден!");
+        }
+
+        if ($item->count > 1) {
+            $item->count--;
+            $item->save();
+        } else {
+            $item->delete();
+        }
+    }
+
+    /**
+     * 🎁 Удаление анонимного бокса из корзины (через basket_id)
+     * @throws HttpException
+     */
+    public function removeAnonymousBox(int $basketId): void
+    {
+        $tenant = app('tenant');
+        $tenantUser = Auth::guard('tenant')->user();
+
+        $item = Basket::query()
+            ->where('id', $basketId)
+            ->where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $tenantUser->id)
+            ->whereNull('ordered_at')
+            ->whereNull('table_approved_at')
+            ->first();
+
+        if (is_null($item) || !$item->isAnonymousBox()) {
+            throw new HttpException(404, "Анонимный бокс не найден!");
+        }
+
+        $item->delete();
+    }
+
 }

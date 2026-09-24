@@ -6,22 +6,32 @@ export function useApi() {
     const router = useRouter()
     const authStore = useAuthStore()
 
-    // Создаем экземпляр axios с базовой конфигурацией
+    // Создаем экземпляр axios БЕЗ жёсткого Content-Type
     const apiClient = axios.create({
-        baseURL: '/admin', // Базовый URL для всех запросов
+        baseURL: '/admin',
         headers: {
-            'Content-Type': 'application/json',
             'Accept': 'application/json',
+            // Убираем Content-Type отсюда — axios сам определит нужный
         },
     })
 
-    // Interceptor для добавления токена авторизации
+    // Interceptor для добавления токена и обработки FormData
     apiClient.interceptors.request.use(
         (config) => {
             const token = authStore.token
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`
             }
+
+            // 🎯 ВАЖНО: если это FormData, удаляем Content-Type
+            // чтобы axios сам добавил multipart/form-data с правильным boundary
+            if (config.data instanceof FormData) {
+                delete config.headers['Content-Type']
+            } else {
+                // Для обычных JSON-запросов ставим application/json
+                config.headers['Content-Type'] = 'application/json'
+            }
+
             return config
         },
         (error) => {
@@ -38,18 +48,15 @@ export function useApi() {
             if (error.response) {
                 const { status, data } = error.response
 
-                // Обработка ошибки авторизации
                 if (status === 401) {
                     authStore.logout()
                     router.push('/admin/login')
                 }
 
-                // Обработка ошибки доступа
                 if (status === 403) {
                     console.error('Доступ запрещен:', data.message)
                 }
 
-                // Обработка ошибки валидации
                 if (status === 422) {
                     console.error('Ошибка валидации:', data.errors)
                 }
@@ -62,9 +69,9 @@ export function useApi() {
     /**
      * GET запрос
      */
-    const get = async (url, params = {}) => {
+    const get = async (url, params = {}, config = {}) => {
         try {
-            const response = await apiClient.get(url, { params })
+            const response = await apiClient.get(url, { params, ...config })
             return response.data
         } catch (error) {
             throw error
@@ -74,9 +81,9 @@ export function useApi() {
     /**
      * POST запрос
      */
-    const post = async (url, data = {}) => {
+    const post = async (url, data = {}, config = {}) => {
         try {
-            const response = await apiClient.post(url, data)
+            const response = await apiClient.post(url, data, config)
             return response.data
         } catch (error) {
             throw error
@@ -86,9 +93,9 @@ export function useApi() {
     /**
      * PUT запрос
      */
-    const put = async (url, data = {}) => {
+    const put = async (url, data = {}, config = {}) => {
         try {
-            const response = await apiClient.put(url, data)
+            const response = await apiClient.put(url, data, config)
             return response.data
         } catch (error) {
             throw error
@@ -98,9 +105,9 @@ export function useApi() {
     /**
      * PATCH запрос
      */
-    const patch = async (url, data = {}) => {
+    const patch = async (url, data = {}, config = {}) => {
         try {
-            const response = await apiClient.patch(url, data)
+            const response = await apiClient.patch(url, data, config)
             return response.data
         } catch (error) {
             throw error
@@ -110,9 +117,9 @@ export function useApi() {
     /**
      * DELETE запрос
      */
-    const del = async (url) => {
+    const del = async (url, config = {}) => {
         try {
-            const response = await apiClient.delete(url)
+            const response = await apiClient.delete(url, config)
             return response.data
         } catch (error) {
             throw error

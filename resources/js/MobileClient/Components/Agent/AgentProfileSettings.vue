@@ -124,8 +124,10 @@
 
                 <div class="modal-footer">
                     <button class="btn-secondary-modern" @click="$emit('close')">Отмена</button>
-                    <button class="btn-primary-modern" @click="saveProfile">
-                        <i class="fa-solid fa-check"></i> Сохранить изменения
+                    <button class="btn-primary-modern" @click="saveProfile" :disabled="isSaving">
+                        <i v-if="isSaving" class="fa-solid fa-circle-notch fa-spin"></i>
+                        <i v-else class="fa-solid fa-check"></i>
+                        {{ isSaving ? 'Сохраняем...' : 'Сохранить изменения' }}
                     </button>
                 </div>
             </div>
@@ -137,17 +139,19 @@
 export default {
     name: "AgentProfileSettings",
     props: {
-        isOpen: {type: Boolean, default: false},
-        agent: {type: Object, required: true}
+        isOpen: { type: Boolean, default: false }
+        // 🆕 Убрали пропс agent — теперь работаем через window.TenantUser
     },
-    emits: ['close', 'save'],
+    emits: ['close', 'save', 'document-upload-requested', 'validation-error'],
+
     data() {
         return {
+            isSaving: false,
             formData: {
                 name: '',
                 phone: '',
                 email: '',
-                legal_type: 'self_employed', // self_employed, ip, legal_entity
+                legal_type: 'self_employed',
                 inn: '',
                 ogrn: '',
                 bank_account: '',
@@ -179,24 +183,66 @@ export default {
             ]
         };
     },
+
+    computed: {
+        // 🆕 Доступ к глобальному объекту пользователя
+        self() {
+            return window.TenantUser || null;
+        },
+
+        // 🆕 Удобный алиас для agent_profile
+        agentProfile() {
+            return this.self?.agent_profile || {};
+        }
+    },
+
     watch: {
-        agent: {
+        // 🆕 Следим за открытием модалки, чтобы заполнить форму актуальными данными
+        isOpen(newVal) {
+            if (newVal) {
+                this.loadFormData();
+            }
+        },
+
+        // 🆕 Дополнительно следим за изменениями agent_profile (если данные обновятся извне)
+        agentProfile: {
             immediate: true,
-            handler(newVal) {
-                if (newVal) {
-                    this.formData = {...this.formData, ...newVal.profile};
-                    // Имитация загруженных документов из пропсов
-                    if (newVal.profile?.documents) {
-                        this.documents = this.documents.map(d => {
-                            const saved = newVal.profile.documents.find(s => s.id === d.id);
-                            return saved ? {...d, fileName: saved.fileName} : d;
-                        });
-                    }
+            handler() {
+                if (this.isOpen) {
+                    this.loadFormData();
                 }
             }
         }
     },
+
     methods: {
+        // 🆕 Метод загрузки данных из глобального объекта
+        loadFormData() {
+            const profile = this.agentProfile;
+            const user = this.self || {};
+
+            // Заполняем форму данными из agent_profile и TenantUser
+            this.formData = {
+                name: user.name || profile.name || '',
+                phone: user.phone || profile.phone || '',
+                email: user.email || profile.email || '',
+                legal_type: profile.legal_type || 'self_employed',
+                inn: profile.inn || '',
+                ogrn: profile.ogrn || '',
+                bank_account: profile.bank_account || '',
+                bik: profile.bik || '',
+                bank_name: profile.bank_name || ''
+            };
+
+            // Обновляем статус загруженных документов
+            if (profile.documents && Array.isArray(profile.documents)) {
+                this.documents = this.documents.map(doc => {
+                    const saved = profile.documents.find(d => d.id === doc.id);
+                    return saved ? { ...doc, fileName: saved.file_name || saved.fileName } : doc;
+                });
+            }
+        },
+
         handleFileUpload(docId, event) {
             const file = event.target.files[0];
             if (file) {
@@ -204,18 +250,28 @@ export default {
                 const doc = this.documents.find(d => d.id === docId);
                 if (doc) doc.fileName = file.name;
 
-                // ИСПРАВЛЕНО: Сразу отдаем файл наверх, чтобы Dashboard вызвал store.uploadDocument
+                // Отдаем файл наверх в Dashboard
                 this.$emit('document-upload-requested', { docId, file });
             }
         },
-        saveProfile() {
+
+        async saveProfile() {
             if (!this.formData.name || !this.formData.inn) {
-                // Используем глобальный notify из композабла, если он проброшен, или просто emit ошибки
                 this.$emit('validation-error', 'Заполните ФИО и ИНН');
+                this.$notify?.({ title: 'Ошибка', text: 'Заполните ФИО и ИНН', type: 'error' });
                 return;
             }
-            // Отправляем только текстовые данные, файлы ушли через событие выше
-            this.$emit('save', { ...this.formData });
+
+            this.isSaving = true;
+            try {
+                // Отдаем данные родителю (Dashboard), который вызовет store.updateProfile
+                this.$emit('save', { ...this.formData });
+            } finally {
+                // Родитель сам закроет модалку после успешного сохранения через @close
+                setTimeout(() => {
+                    this.isSaving = false;
+                }, 1000);
+            }
         }
     }
 };
@@ -292,10 +348,9 @@ $card-bg: #ffffff;
     }
 }
 
-// Выбор типа лица
 .legal-types {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr); // 🆕 Исправлено на 3 колонки (у вас 3 варианта)
     gap: 12px;
     margin-bottom: 16px;
 }
@@ -345,7 +400,6 @@ $card-bg: #ffffff;
     text-transform: uppercase;
 }
 
-// Загрузка документов
 .documents-list {
     display: flex;
     flex-direction: column;
@@ -431,6 +485,7 @@ $card-bg: #ffffff;
 .btn-primary-modern, .btn-secondary-modern {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     padding: 10px 18px;
     border-radius: 8px;
@@ -439,6 +494,11 @@ $card-bg: #ffffff;
     border: none;
     cursor: pointer;
     transition: all 0.2s;
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
 }
 
 .btn-primary-modern {
@@ -446,7 +506,7 @@ $card-bg: #ffffff;
     color: white;
 }
 
-.btn-primary-modern:hover {
+.btn-primary-modern:hover:not(:disabled) {
     background: #2563eb;
 }
 
@@ -460,60 +520,42 @@ $card-bg: #ffffff;
     background: $bg;
 }
 
-@media (max-width: 640px) {
-    .form-row {
-        grid-template-columns: 1fr;
-    }
-    .document-upload-item {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .upload-btn {
-        width: 100%;
-        justify-content: center;
-    }
-}
-
 /* ==========================================
    УНИВЕРСАЛЬНЫЕ СТИЛИ ДЛЯ ВСЕХ МОДАЛОК
-   (Исправляет прозрачность и отсутствие шапки)
    ========================================== */
 
-// Затемнение фона
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6); // Гарантированно непрозрачный темный фон
-    backdrop-filter: blur(6px);      // Красивое размытие заднего плана
-    z-index: 9999;                   // Поверх всего, включая хедеры
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    z-index: 9999;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 20px;
 }
 
-// Само окно модалки
 .modal-container {
-    background: #ffffff;             // Явный белый фон
+    background: #ffffff;
     border-radius: 20px;
     width: 100%;
-    max-height: 90vh;                // Не выше 90% экрана
-    overflow: hidden;                // Обрезает всё, что вылезает за скругления
+    max-height: 90vh;
+    overflow: hidden;
     display: flex;
-    flex-direction: column;          // Вертикальное расположение: шапка, тело, подвал
+    flex-direction: column;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
     animation: modalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-// Шапка модалки (чтобы не пропадала)
 .modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px;
     border-bottom: 1px solid #e5e7eb;
-    background: #ffffff;             // Явный фон шапки
-    flex-shrink: 0;                  // Запрещаем шапке сжиматься
+    background: #ffffff;
+    flex-shrink: 0;
 }
 
 .modal-header h3 {
@@ -523,7 +565,6 @@ $card-bg: #ffffff;
     color: #1f2937;
 }
 
-// Кнопка закрытия (крестик)
 .modal-close {
     width: 36px;
     height: 36px;
@@ -544,14 +585,12 @@ $card-bg: #ffffff;
     transform: rotate(90deg);
 }
 
-// Тело модалки (скроллится, если контента много)
 .modal-body {
     padding: 24px;
     overflow-y: auto;
-    flex: 1;                         // Занимает всё доступное пространство
+    flex: 1;
     background: #ffffff;
 
-    // Стилизация скроллбара внутри модалки
     &::-webkit-scrollbar {
         width: 6px;
     }
@@ -565,17 +604,15 @@ $card-bg: #ffffff;
     }
 }
 
-// Подвал модалки (с кнопками)
 .modal-footer {
     display: flex;
     gap: 12px;
     padding: 16px 24px;
     border-top: 1px solid #e5e7eb;
-    background: #f9fafb;             // Слегка сероватый фон для отделения от тела
-    flex-shrink: 0;                  // Запрещаем подвалу сжиматься
+    background: #f9fafb;
+    flex-shrink: 0;
 }
 
-// Анимации появления
 .modal-fade-enter-active,
 .modal-fade-leave-active {
     transition: opacity 0.3s ease;
@@ -597,11 +634,28 @@ $card-bg: #ffffff;
     }
 }
 
-// Адаптив для мобильных
 @media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .legal-types {
+        grid-template-columns: 1fr; // 🆕 На мобильных одна колонка
+    }
+
+    .document-upload-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .upload-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
     .modal-overlay {
         padding: 0;
-        align-items: flex-end; // Модалка выезжает снизу на телефоне
+        align-items: flex-end;
     }
 
     .modal-container {
@@ -610,7 +664,7 @@ $card-bg: #ffffff;
     }
 
     .modal-footer {
-        flex-direction: column-reverse; // Кнопки друг под другом
+        flex-direction: column-reverse;
         button {
             width: 100%;
         }

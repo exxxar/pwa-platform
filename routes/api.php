@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\TenantController;
 use App\Http\Controllers\Api\V1\TenantExportController;
 use App\Http\Controllers\Api\V1\TenantExportProductsController;
 use Illuminate\Http\Request;
@@ -20,5 +21,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+Route::post('/v1/tenants', [TenantController::class, 'create']);
 Route::get('/v1/tenants/export', TenantExportController::class);
 Route::get('/v1/tenants/{id}/products/export', TenantExportProductsController::class);

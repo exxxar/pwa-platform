@@ -604,14 +604,72 @@
                 <tbody>
                 @foreach($products as $index => $product)
                     @php
-                        $productName = $product->name ?? $product->title ?? 'Не указано';
-                        $productPrice = $product->price ?? 0;
-                        $productCount = $product->count ?? 1;
+                        // 🛡️ Безопасное извлечение данных (поддержка и массивов, и объектов)
+                        $isArr = is_array($product);
+                        $productName = $isArr ? ($product['name'] ?? 'Не указано') : ($product->name ?? 'Не указано');
+                        $productPrice = $isArr ? ($product['price'] ?? 0) : ($product->price ?? 0);
+                        $productCount = $isArr ? ($product['count'] ?? 1) : ($product->count ?? 1);
                         $productTotal = $productPrice * $productCount;
+
+                        $isAnonymous = $isArr ? !empty($product['is_anonymous_box']) : !empty($product->is_anonymous_box);
+                        $isComposite = $isArr ? !empty($product['is_composite']) : !empty($product->is_composite);
+
+                        $components = $isArr ? ($product['components'] ?? []) : ($product->components ?? []);
+                        $ingredients = $isArr ? ($product['ingredients'] ?? []) : ($product->ingredients ?? []);
+                        $comment = $isArr ? ($product['comment'] ?? null) : ($product->comment ?? null);
                     @endphp
                     <tr>
                         <td class="num">{{ $index + 1 }}</td>
-                        <td class="name">{{ $productName }}</td>
+                        <td class="name">
+                            <div style="font-size: 11px; font-weight: 600; color: #2d3748;">
+                                {{ $productName }}
+                            </div>
+
+                            <!-- 🎁 АНОНИМНЫЙ БОКС: Плашка-сюрприз -->
+                            @if($isAnonymous)
+                                <div style="font-size: 9px; color: #b7791f; margin-top: 6px; font-weight: bold; background: #fffff0; padding: 5px 8px; border-radius: 4px; border: 1px dashed #d69e2e; display: inline-block;">
+                                    🎁 Состав — сюрприз! (Вы узнаете его при получении)
+                                </div>
+                            @endif
+
+                            <!-- 📦 СОСТАВ: Для обычных составных товаров -->
+                            @if($isComposite && !empty($components) && !$isAnonymous)
+                                <div style="font-size: 9px; color: #718096; margin-top: 6px; padding-left: 8px; border-left: 2px solid #cbd5e0;">
+                                    <strong style="color: #4a5568;">Состав:</strong><br>
+                                    @foreach($components as $comp)
+                                        @php
+                                            $cName = is_array($comp) ? ($comp['name'] ?? '') : ($comp->name ?? '');
+                                            $cCount = is_array($comp) ? ($comp['count'] ?? 1) : ($comp->count ?? 1);
+                                        @endphp
+                                        <span style="display: inline-block; margin-right: 10px; margin-bottom: 2px;">• {{ $cName }} x{{ $cCount }}</span>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            <!-- 🧅 ИНГРЕДИЕНТЫ: Добавки и модификаторы -->
+                            @if(!empty($ingredients) && !$isAnonymous)
+                                <div style="font-size: 9px; color: #2f855a; margin-top: 6px; padding-left: 8px; border-left: 2px solid #68d391;">
+                                    <strong style="color: #276749;">Добавки:</strong><br>
+                                    @foreach($ingredients as $ing)
+                                        @php
+                                            $iName = is_array($ing) ? ($ing['name'] ?? '') : ($ing->name ?? '');
+                                            $iPrice = is_array($ing) ? ($ing['price'] ?? 0) : ($ing->price ?? 0);
+                                        @endphp
+                                        <span style="display: inline-block; margin-right: 10px; margin-bottom: 2px;">
+                                            • {{ $iName }}
+                                            @if($iPrice > 0)(+{{ number_format($iPrice, 0, '.', ' ') }} ₽)@endif
+                                        </span>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            <!-- 💬 КОММЕНТАРИЙ: Заметка клиента к товару -->
+                            @if(!empty($comment))
+                                <div style="font-size: 9px; color: #4a5568; margin-top: 6px; padding: 4px 8px; background: #edf2f7; border-radius: 4px; display: inline-block;">
+                                    💬 <em>{{ $comment }}</em>
+                                </div>
+                            @endif
+                        </td>
                         <td class="count">{{ $productCount }} шт.</td>
                         <td class="price">{{ number_format($productPrice, 0, '.', ' ') }} руб.</td>
                         <td class="total">{{ number_format($productTotal, 0, '.', ' ') }} руб.</td>

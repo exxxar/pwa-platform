@@ -77,6 +77,15 @@
                         v-for="(item, index) in cartProducts"
                         :key="item.basket_id || 'item-' + index"
                     >
+                        <AnonymousBoxCardSimple
+                            v-if="item.type === 'anonymous_box'"
+                            v-memo="[item.count, item.box_amount, item.total_price]"
+                            :item="item"
+                            @remove="removeAnonymousBox"
+                            @increment="incrementAnonymousBox"
+                            @decrement="decrementAnonymousBox"
+                        />
+
                         <!-- 🆕 Обычный товар: проверяем type или product_id -->
                         <ProductCardSimple
                             v-if="item.type === 'product' || item.product_id"
@@ -318,6 +327,7 @@ import { Carousel, Slide, Pagination, Navigation } from 'vue3-carousel';
 import { useBasketStore } from '@/MobileClient/stores/Shop/basket.js';
 import ProductCardSimple from '@/MobileClient/Components/Shop/ProductCardSimple.vue';
 import CollectionCardSimple from '@/MobileClient/Components/Shop/Collections/CollectionCardSimple.vue';
+import AnonymousBoxCardSimple from '@/MobileClient/Components/Cart/AnonymousBoxCardSimple.vue';
 
 export default {
     name: "CartProductList",
@@ -328,6 +338,7 @@ export default {
         Pagination,
         Navigation,
         ProductCardSimple,
+        AnonymousBoxCardSimple,
         CollectionCardSimple,
     },
 
@@ -444,6 +455,75 @@ export default {
             }
         },
 
+
+        async incrementAnonymousBox(item) {
+            const basketId = item.basket_id || item.id;
+            if (!basketId) return;
+
+            // Защита от повторных кликов
+            const actionKey = `anon-inc-${basketId}`;
+            if (this.basketStore.productActions[actionKey]) return;
+
+            try {
+                const result = await this.basketStore.incrementAnonymousBox(basketId);
+                if (!result.success) {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: result.message || 'Не удалось изменить количество',
+                        type: 'error',
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+            }
+        },
+
+        async decrementAnonymousBox(item) {
+            const basketId = item.basket_id || item.id;
+            if (!basketId) return;
+
+            const actionKey = `anon-dec-${basketId}`;
+            if (this.basketStore.productActions[actionKey]) return;
+
+            try {
+                const result = await this.basketStore.decrementAnonymousBox(basketId);
+                if (!result.success) {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: result.message || 'Не удалось изменить количество',
+                        type: 'error',
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+            }
+        },
+
+        async removeAnonymousBox(item) {
+            if (!confirm('Удалить анонимный бокс из корзины?')) return;
+
+            const basketId = item.basket_id || item.id;
+            if (!basketId) return;
+
+            try {
+                const result = await this.basketStore.removeAnonymousBox(basketId);
+                if (!result.success) {
+                    this.$notify?.({
+                        title: 'Ошибка',
+                        text: result.message || 'Не удалось удалить бокс',
+                        type: 'error',
+                    });
+                } else {
+                    this.$notify?.({
+                        title: '🎁 Бокс удалён',
+                        text: 'Анонимный бокс убран из корзины',
+                        type: 'success',
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка удаления бокса:', error);
+            }
+        },
         async incrementCollectionItem(item) {
             console.log("collection item", item)
             const variantId = item.params?.variant_id;

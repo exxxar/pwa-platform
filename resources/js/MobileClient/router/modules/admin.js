@@ -24,6 +24,7 @@ const AdminTableSettings = defineAsyncComponent(() => import('@/MobileClient/Pag
 const AdminUserDetails = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/UserDetails.vue'));
 const AdminCoffeeScanner = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/CoffeeScanner.vue'));
 const AdminCashbackScanner = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/CashbackScanner.vue'));
+const AdminAds = defineAsyncComponent(() => import('@/MobileClient/Pages/Admin/Ads.vue'));
 
 export default [
     {
@@ -31,6 +32,12 @@ export default [
         name: 'AdminTenant',
         component: AdminTenant,
         meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings' }
+    },
+    {
+        path: '/admin/promotions',
+        name: 'AdminAds',
+        component: AdminAds,
+        meta: { auth: true, roles: ['admin', 'super_admin'], permission: 'manage_settings', title: 'Партнерская реклама' },
     },
     {
         path: '/admin/achievements',

@@ -382,6 +382,131 @@
             </button>
         </div>
 
+        <!-- РЕКЛАМНЫЕ БЛОКИ (СЛАЙДЕР НА ГЛАВНОЙ) -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="fa-solid fa-bullhorn"></i>
+                Рекламные блоки
+                <button type="button" class="add-ad-btn" @click="addAd">
+                    <i class="fa-solid fa-plus"></i> Добавить
+                </button>
+            </div>
+            <p class="form-hint">
+                Блоки показываются слайдером на главной после общего hero-блока.
+                Картинку можно не указывать — подставится из настроек системы.
+            </p>
+
+            <div v-if="!form.config.ads.length" class="ads-empty">
+                <i class="fa-solid fa-rectangle-ad"></i>
+                Пока нет рекламных блоков
+            </div>
+
+            <div
+                v-for="(ad, idx) in form.config.ads"
+                :key="ad.id"
+                class="ad-editor"
+                :class="{ 'is-inactive': !ad.is_active }"
+            >
+                <div class="ad-editor-header">
+                    <span class="ad-index">#{{ idx + 1 }}</span>
+
+                    <!-- Обёртка обязательна: даёт input возможность сжиматься -->
+                    <div class="ad-title-wrap">
+                        <input
+                            v-model="ad.title"
+                            class="form-input ad-title-input"
+                            placeholder="Заголовок акции"
+                        >
+                    </div>
+
+                    <label class="switch-control" :title="ad.is_active ? 'Активен' : 'Выключен'">
+                        <input type="checkbox" v-model="ad.is_active" class="switch-input">
+                        <span class="switch-slider"></span>
+                    </label>
+
+                    <button type="button" class="ad-remove" title="Удалить блок" @click="removeAd(idx)">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+
+                <div class="ad-editor-grid">
+                    <div class="form-group">
+                        <label class="form-label">Короткий текст (на слайде)</label>
+                        <input v-model="ad.short_text" class="form-input" placeholder="Скидка 30% до конца недели">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Текст кнопки</label>
+                        <input v-model="ad.button_text" class="form-input" placeholder="Подробнее">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Бейдж (необязательно)</label>
+                        <input v-model="ad.badge" class="form-input" placeholder="Акция">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Картинка блока</label>
+
+                        <div
+                            class="ad-image-uploader"
+                            :class="{ 'has-image': !!ad.image, 'is-dragging': dragAdId === ad.id }"
+                            @dragover.prevent="dragAdId = ad.id"
+                            @dragleave.prevent="dragAdId = null"
+                            @drop.prevent="onAdImageDrop($event, ad)"
+                        >
+                            <!-- Есть картинка: превью + кнопка убрать -->
+                            <template v-if="ad.image">
+                                <img :src="ad.image" class="ad-image-preview" alt="Превью рекламы">
+                                <button
+                                    type="button"
+                                    class="ad-image-remove"
+                                    title="Убрать картинку (подставится из настроек системы)"
+                                    :disabled="isLoading || adUploading[ad.id]"
+                                    @click="ad.image = ''"
+                                >
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </template>
+
+                            <!-- Нет картинки: зона загрузки -->
+                            <label v-else class="ad-image-prompt">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    class="ad-image-input"
+                                    :disabled="isLoading || adUploading[ad.id]"
+                                    @change="onAdImageChange($event, ad)"
+                                >
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                                <span class="ad-image-prompt-title">Перетащите картинку или выберите файл</span>
+                                <span class="ad-image-prompt-hint">PNG, JPG, WEBP до 5 МБ</span>
+                            </label>
+
+                            <!-- Оверлей загрузки -->
+                            <div v-if="adUploading[ad.id]" class="ad-image-loading">
+                                <div class="ad-image-spinner"></div>
+                                <span>Загрузка...</span>
+                            </div>
+                        </div>
+
+                        <span class="form-hint">Если картинки нет — подставится из настроек системы</span>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Полный текст (в модалке)</label>
+                        <textarea v-model="ad.full_text" class="form-textarea" rows="3" placeholder="Условия акции..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Действие по кнопке</label>
+                        <select v-model="ad.action_type" class="form-input">
+                            <option value="partner">Открыть заведение</option>
+                            <option value="url">Внешняя ссылка</option>
+                        </select>
+                    </div>
+                    <div class="form-group" v-if="ad.action_type === 'url'">
+                        <label class="form-label">URL перехода</label>
+                        <input v-model="ad.action_value" class="form-input" placeholder="https://...">
+                    </div>
+                </div>
+            </div>
+        </div>
         <!-- Финансы -->
         <div class="form-section">
             <div class="section-title">
@@ -438,6 +563,7 @@
 
 <script>
 import { usePartners } from '@/MobileClient/Composables/usePartners.js'
+import { useApi } from '@/AdminPanel/Composables/useApi.js'
 
 export default {
     name: 'ConfigPartnerForm',
@@ -453,8 +579,10 @@ export default {
 
     setup() {
         const partners = usePartners()
+        const api = useApi()
         return {
             updatePartner: partners.updatePartner,
+            api,
         }
     },
 
@@ -465,6 +593,9 @@ export default {
             preview: null,
             isDragging: false,
             tagInput: '',
+
+            adUploading: {},   // { [adId]: true } — идёт загрузка картинки конкретного блока
+            dragAdId: null,    // id блока, над которым держат файл
 
             // 🆕 Поля для управления ссылкой
             urlInput: '',
@@ -494,6 +625,7 @@ export default {
                     telegram_token: '',
                     telegram_channel_id: '',
                     telegram_thread_id: '',
+                    ads: [],   // 🆕
                 },
             }
         }
@@ -552,6 +684,7 @@ export default {
                 telegram_token: parsedConfig.telegram_token || '',
                 telegram_channel_id: parsedConfig.telegram_channel_id || '',
                 telegram_thread_id: parsedConfig.telegram_thread_id || '',
+                ads: Array.isArray(parsedConfig.ads) ? parsedConfig.ads.map(this.normalizeAd) : [],
             }
 
             // 🆕 Восстанавливаем текущую ссылку, если она есть в initialData
@@ -569,6 +702,69 @@ export default {
     },
 
     methods: {
+        async onAdImageChange(event, ad) {
+            const file = event.target.files?.[0]
+            event.target.value = ''          // сбрасываем, чтобы можно было выбрать тот же файл повторно
+            if (file) await this.uploadAdImage(file, ad)
+        },
+
+        async onAdImageDrop(event, ad) {
+            this.dragAdId = null
+            const file = event.dataTransfer?.files?.[0]
+            if (file) await this.uploadAdImage(file, ad)
+        },
+
+        async uploadAdImage(file, ad) {
+            if (!file.type.startsWith('image/')) {
+                this.$notify?.({ title: 'Ошибка', text: 'Можно загружать только изображения', type: 'error' })
+                return
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                this.$notify?.({ title: 'Ошибка', text: 'Файл больше 5 МБ', type: 'error' })
+                return
+            }
+
+            const data = new FormData()
+            data.append('file', file)
+
+            try {
+                this.adUploading[ad.id] = true
+                const response = await this.api.post('/admin/upload-image', data)
+                const payload = response.data ?? response
+                ad.image = payload.url || payload.path
+                this.$notify?.({ title: 'Готово', text: 'Картинка загружена', type: 'success' })
+            } catch (err) {
+                console.error('Ошибка загрузки картинки:', err)
+                this.$notify?.({
+                    title: 'Ошибка',
+                    text: err.response?.data?.message || 'Не удалось загрузить картинку',
+                    type: 'error',
+                })
+            } finally {
+                this.adUploading[ad.id] = false
+            }
+        },
+        normalizeAd(ad) {
+            return {
+                id: ad.id || ('ad_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)),
+                is_active: ad.is_active !== false,
+                title: ad.title || '',
+                short_text: ad.short_text || '',
+                full_text: ad.full_text || '',
+                image: ad.image || '',
+                button_text: ad.button_text || '',
+                badge: ad.badge || '',
+                action_type: ad.action_type === 'url' ? 'url' : 'partner',
+                action_value: ad.action_value || '',
+            };
+        },
+
+        addAd() {
+            this.form.config.ads.push(this.normalizeAd({ title: '' }));
+        },
+        removeAd(idx) {
+            this.form.config.ads.splice(idx, 1);
+        },
         addGlobalTag(tag) {
             const normalizedTag = tag.trim().toLowerCase();
             if (!normalizedTag) return;
@@ -1403,5 +1599,258 @@ $admin-danger: #ef4444;
             color: $admin-success;
         }
     }
+}
+
+.add-ad-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba($admin-primary, 0.1);
+    color: $admin-primary;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    &:hover { background: rgba($admin-primary, 0.2); }
+}
+
+.ads-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px;
+    color: $admin-text-muted;
+    background: $admin-bg;
+    border: 2px dashed $admin-border;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    i { font-size: 1.6rem; color: $admin-primary; }
+}
+
+// ==========================================
+// РЕДАКТОР РЕКЛАМНЫХ БЛОКОВ
+// (фикс «плавающего» переключателя и кнопки удаления)
+// ==========================================
+.ad-editor {
+    border: 1px solid $admin-border;
+    border-radius: 12px;
+    padding: 12px;
+    background: $admin-bg;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    &.is-inactive {
+        opacity: 0.6;
+        background: $admin-card-bg;
+    }
+}
+
+.ad-editor-header {
+    display: flex;
+    align-items: center;   // ← вертикальное центрирование всей строки
+    gap: 10px;
+    flex-wrap: nowrap;     // ← никто не переносится на новую строку
+    min-width: 0;
+}
+
+.ad-index {
+    flex: 0 0 auto;        // ← не сжимается
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: $admin-primary;
+    background: rgba($admin-primary, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+// Обёртка input: ключевой фикс — min-width: 0,
+// иначе input распирает строку и выталкивает switch и корзину
+.ad-title-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.ad-title-input {
+    width: 100%;
+    min-height: 40px !important;
+    padding: 8px 12px !important;
+    font-size: 0.9rem;
+}
+
+// ПЕРЕКЛЮЧАТЕЛЬ: label по умолчанию inline — width/height игнорируются.
+// display: block + flex-basis фиксируют его на месте
+.ad-editor-header .switch-control {
+    display: block;
+    flex: 0 0 48px;
+    width: 48px;
+    height: 28px;
+    margin: 0;
+    align-self: center;
+    position: relative;
+}
+
+// КНОПКА УДАЛЕНИЯ: фикс-квадрат, сбрасываем padding,
+// иначе высота «плывёт» от содержимого иконы
+.ad-remove {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: rgba($admin-danger, 0.1);
+    color: $admin-danger;
+    cursor: pointer;
+    align-self: center;
+    transition: all 0.2s;
+
+    &:hover {
+        background: $admin-danger;
+        color: #fff;
+    }
+
+    i { font-size: 0.85rem; }
+}
+
+// На очень узких экранах убираем номер блока, чтобы строка дышала
+@media (max-width: 480px) {
+    .ad-index { display: none; }
+}
+
+.ad-remove {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: rgba($admin-danger, 0.1);
+    color: $admin-danger;
+    cursor: pointer;
+    flex-shrink: 0;
+    &:hover { background: $admin-danger; color: #fff; }
+}
+
+.ad-editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    .full { grid-column: 1 / -1; }
+    @media (max-width: 560px) { grid-template-columns: 1fr; }
+}
+
+// ==========================================
+// ЗАГРУЗЧИК КАРТИНКИ РЕКЛАМНОГО БЛОКА
+// ==========================================
+.ad-image-uploader {
+    position: relative;
+    border: 2px dashed $admin-border;
+    border-radius: 12px;
+    background: $admin-bg;
+    overflow: hidden;
+    min-height: 120px;
+    transition: border-color 0.2s, background 0.2s;
+
+    &.is-dragging {
+        border-color: $admin-primary;
+        background: rgba($admin-primary, 0.05);
+    }
+
+    &.has-image {
+        border-style: solid;
+    }
+}
+
+.ad-image-preview {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+}
+
+.ad-image-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: rgba($admin-danger, 0.9);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+
+    &:hover { background: $admin-danger; transform: scale(1.08); }
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.ad-image-prompt {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 24px 16px;
+    cursor: pointer;
+    text-align: center;
+    color: $admin-text-muted;
+
+    i { font-size: 1.8rem; color: $admin-primary; }
+}
+
+.ad-image-prompt-title { font-size: 0.9rem; font-weight: 600; color: $admin-text; }
+.ad-image-prompt-hint  { font-size: 0.75rem; }
+
+.ad-image-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+
+    &:disabled { cursor: not-allowed; }
+}
+
+.ad-image-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(2px);
+    font-size: 0.85rem;
+    color: $admin-text;
+}
+
+.ad-image-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba($admin-primary, 0.2);
+    border-top-color: $admin-primary;
+    border-radius: 50%;
+    animation: ad-spin 0.8s linear infinite;
+}
+
+@keyframes ad-spin {
+    to { transform: rotate(360deg); }
 }
 </style>

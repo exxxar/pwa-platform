@@ -1,14 +1,43 @@
 <template>
-    <div class=" py-3 pb-5" v-if="self">
+    <div class="py-3 pb-5" v-if="self">
 
-        <!-- Карточка профиля -->
-        <ProfileCard v-on:profile-edit="openEditModal"/>
+        <!-- 🆕 Кнопка переключения режима (видна только если пользователь агент) -->
+        <div v-if="isAgent" class="d-flex justify-content-end mb-3 px-3">
+            <button
+                type="button"
+                style="border-radius: 15px;"
+                class="btn btn-sm d-flex align-items-center gap-2"
+                :class="showAgentMode ? 'btn-primary' : 'btn-outline-primary'"
+                @click="showAgentMode = !showAgentMode"
+            >
+                <span>{{ showAgentMode ? '🔙 Обычный профиль' : '🕶️ Режим агента' }}</span>
+            </button>
+        </div>
 
-        <!-- Модалка редактирования -->
-        <EditProfileModal
-            ref="editModal"
-            @saved="onProfileSaved"
-        />
+        <!-- 🆕 ВЕТВЛЕНИЕ: Если включен режим агента -->
+        <template v-if="isAgent && showAgentMode">
+            <AgentProfileCard
+                :user="self"
+                @edit="openAgentEditModal"
+            />
+
+            <AgentEditProfileModal
+                ref="agentEditModal"
+                :user="self"
+                @saved="onProfileSaved"
+            />
+        </template>
+
+        <!-- 🆕 ВЕТВЛЕНИЕ: Обычный пользователь ИЛИ агент в обычном режиме -->
+        <template v-else>
+            <ProfileCard @profile-edit="openEditModal"/>
+
+            <EditProfileModal
+                ref="editModal"
+                @saved="onProfileSaved"
+            />
+        </template>
+
     </div>
 
     <!-- Состояние загрузки -->
@@ -20,9 +49,13 @@
 </template>
 
 <script>
+// Обычные компоненты
 import ProfileCard from "@/MobileClient/Components/Shop/ProfileCard.vue";
-
 import EditProfileModal from "@/MobileClient/Components/Shop/EditProfileModal.vue";
+
+// 🆕 Агентские компоненты
+import AgentProfileCard from "@/MobileClient/Components/Agent/AgentProfileCard.vue";
+import AgentEditProfileModal from "@/MobileClient/Components/Agent/AgentEditProfileModal.vue";
 
 export default {
     name: "ProfilePage",
@@ -30,29 +63,45 @@ export default {
     components: {
         ProfileCard,
         EditProfileModal,
+        AgentProfileCard,
+        AgentEditProfileModal,
+    },
+
+    // 🆕 Добавляем локальное состояние для переключения режима
+    data() {
+        return {
+            showAgentMode: false, // По умолчанию показываем обычный профиль
+        };
     },
 
     computed: {
         self() {
             return window.TenantUser || null;
         },
-
         tenant() {
             return window.Tenant || null;
         },
+        // Проверяем, есть ли у пользователя агентский профиль
+        isAgent() {
+            return !!this.self?.agent_profile && this.isAgentDomain;
+        },
+        isAgentDomain() {
+            return window.location.hostname === 'agents.mypwa.ru';
+        }
     },
 
     methods: {
         openEditModal() {
-            if (this.$refs.editModal) {
-                this.$refs.editModal.show();
-            }
+            this.$refs.editModal?.show();
         },
 
+        openAgentEditModal() {
+            this.$refs.agentEditModal?.show();
+        },
 
         onProfileSaved(updatedUser) {
-            // Обновляем глобальный объект пользователя
             if (window.TenantUser && updatedUser) {
+                // Глубокое слияние, чтобы не потерять вложенные объекты типа agent_profile
                 Object.assign(window.TenantUser, updatedUser);
             }
 
@@ -67,9 +116,6 @@ export default {
 </script>
 
 <style scoped>
-
-
-/* Состояние загрузки */
 .loading-state {
     min-height: 100vh;
     display: flex;

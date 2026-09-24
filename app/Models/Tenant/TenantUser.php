@@ -83,7 +83,7 @@ class TenantUser extends Authenticatable
     ];
 
 
-    protected $with = ["cashbacks", "addresses"];
+    protected $with = ["cashbacks", "addresses",'agentProfile'];
 
    /* protected $attributes = [
         'is_active' => true,
@@ -636,7 +636,6 @@ class TenantUser extends Authenticatable
         return $this->hasMany(TenantDialog::class);
     }
 
-    // Добавьте в существующий TenantUser.php:
 
     public function agentProfile() {
         return $this->hasOne(Agent::class, 'tenant_user_id'); // или user_id, смотря как у вас в БД

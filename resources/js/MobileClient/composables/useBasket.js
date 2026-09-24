@@ -75,6 +75,18 @@ export function useBasket() {
     const createCheckoutLink = (payload) => store.createCheckoutLink(payload);
     const addProductWithOptions = (payload) => store.addProductWithOptions(payload);
 
+    // --- 🎁 АНОНИМНЫЕ БОКСЫ ---
+    const addAnonymousBox = (amount) => store.addAnonymousBox(amount);
+    const incrementAnonymousBox = withLoadingGuard(
+        (basketId) => store.incrementAnonymousBox(basketId)
+    );
+    const decrementAnonymousBox = withLoadingGuard(
+        (basketId) => store.decrementAnonymousBox(basketId)
+    );
+    const removeAnonymousBox = withLoadingGuard(
+        (basketId) => store.removeAnonymousBox(basketId)
+    );
+
     // ==========================================
     // 4. ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
     // ==========================================
@@ -135,6 +147,10 @@ export function useBasket() {
         startCheckout,
         createCheckoutLink,
         clearCart,
+
+        addAnonymousBox,
+        incrementAnonymousBox,
+        decrementAnonymousBox,
 
         // Прямые ссылки
         useWheelOfFortunePrize: store.useWheelOfFortunePrize.bind(store),
