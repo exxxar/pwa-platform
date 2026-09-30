@@ -132,13 +132,45 @@ return [
 
     // Настройки СБП (Система Быстрых Платежей)
     'sbp_banks' => [
-        // 'tinkoff' => [
-        //     'enabled' => false,
-        //     'terminal_key' => '',
-        //     'terminal_password' => '',
-        //     'tax' => 'osn', // osn, usn, usn_income, envd, esn, patent
-        //     'vat' => 'none', // none, vat0, vat10, vat20, vat110, vat120
-        // ],
+        'tinkoff' => [
+            'enabled' => false,
+            'terminal_key' => '',
+            'terminal_password' => '',
+            'tax' => 'osn',
+            'vat' => 'none',
+        ],
+
+        'sber' => [
+            'enabled' => false,
+            'terminal_key' => '',
+            'terminal_password' => '',
+            'tax' => 'osn',
+            'vat' => 'none',
+        ],
+
+        'psb' => [
+            'enabled' => false,
+            'terminal_key' => '',
+            'terminal_password' => '',
+            'tax' => 'osn',
+            'vat' => 'none',
+        ],
+
+        'vtb' => [
+            'enabled' => false,
+            'terminal_key' => '',
+            'terminal_password' => '',
+            'tax' => 'osn',
+            'vat' => 'none',
+        ],
+
+        'yandex' => [
+            'enabled' => false,
+            'terminal_key' => '',
+            'terminal_password' => '',
+            'tax' => 'osn',
+            'vat' => 'none',
+        ],
     ],
 
     // ==========================================
