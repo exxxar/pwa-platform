@@ -620,8 +620,8 @@ trait BasketHelper
                 $count = max(1, (int) $item->count);
                 $price = $amount * $count;
 
-                // 🎁 Генерируем реальное содержимое бокса
-                $boxProducts = $this->generateBoxProducts((int) $item->getAnonymousBoxPartnerId(), $amount);
+                // 🎁 Генерируем реальное содержимое бокса из tenant_id корзины
+                $boxProducts = $this->generateBoxProducts((int) $item->tenant_id, $amount);
                 $componentsInfo = [];
                 foreach ($boxProducts as $bp) {
                     $componentsInfo[] = [
@@ -629,41 +629,50 @@ trait BasketHelper
                         'name' => $bp['name'],
                         'price' => $bp['price'],
                         'count' => $bp['count'],
+                        'category_name' => $bp['category_name'] ?? '',
                     ];
                 }
 
+                // 🎯 Для бокса используем tenant_id корзины как источник товаров
+                $productTenantId = (int) $item->tenant_id;
+
                 $productInfo = [
                     'basket_id' => $item->id,
-                    'product_id' => null, // Виртуальный товар
-                    'tenant_id' => (int) $item->tenant_id,
+                    'product_id' => null,
+                    'tenant_id' => $productTenantId,
                     'name' => "🎁 Анонимный бокс (Сюрприз на " . number_format($amount, 0, '.', ' ') . " ₽)",
                     'price' => $price,
                     'unit_price' => $amount,
                     'count' => $count,
                     'is_weight_product' => false,
-                    'is_composite' => true, // Важно! Чтобы система думала, что есть компоненты
+                    'is_composite' => true,
                     'comment' => $item->comment,
                     'params' => $item->params ?? [],
-                    'components' => $componentsInfo, // Реальные товары для сборщика
+                    'components' => $componentsInfo,
                     'ingredients' => [],
                     'discount' => 0,
-                    'is_anonymous_box' => true, // 🎯 ФЛАГ-НЕВИДИМКА ДЛЯ КЛИЕНТА
+                    'is_anonymous_box' => true,
                 ];
 
                 $tmpOrderProductInfo[] = $productInfo;
 
-                $productTenantId = $item->tenant_partner_id ?: $this->tenant->id;
+                // 🎯 Ключ для группировки — tenant_id корзины (основной магазин)
                 $partnerKey = implode(':', [$productTenantId, (int) ($item->tenant_partner_id ?? 0)]);
 
                 if (!isset($partnerProductBox[$partnerKey])) {
                     $partnerTenant = Tenant::query()->find($productTenantId);
                     $partnerProductBox[$partnerKey] = [
-                        'id' => $productTenantId, 'tenant_id' => $productTenantId, 'tenant_partner_id' => $item->tenant_partner_id,
+                        'id' => $productTenantId,
+                        'tenant_id' => $productTenantId,
+                        'tenant_partner_id' => $item->tenant_partner_id,
                         'name' => $partnerTenant?->name ?? $partnerTenant?->title ?? 'Магазин',
                         'thread' => $partnerTenant?->topics['orders'] ?? null,
                         'delivery_price' => $this->safeFloat($context['delivery_price'] ?? 0) ?? 0.0,
                         'distance' => $this->safeFloat($context['distance'] ?? 0) ?? 0.0,
-                        'products' => [], 'summary_count' => 0, 'summary_price' => 0.0, 'summary_discount' => 0.0,
+                        'products' => [],
+                        'summary_count' => 0,
+                        'summary_price' => 0.0,
+                        'summary_discount' => 0.0,
                     ];
                 }
 
@@ -974,7 +983,16 @@ trait BasketHelper
                 $priceFormatted = number_format((float)$product['price'], 0, '.', ' ');
                 $message .= "  • " . e($product['name']) . " x{$product['count']} = {$priceFormatted} ₽\n";
 
-                if (!empty($product['is_composite']) && !empty($product['components']) && empty($product['is_anonymous_box'])) {
+                // 🎁 АНОНИМНЫЙ БОКС: показываем состав для сборщиков
+                if (!empty($product['is_anonymous_box']) && !empty($product['components'])) {
+                    $message .= "    <b>📦 СОСТАВ БОКСА (для сборки):</b>\n";
+                    foreach ($product['components'] as $comp) {
+                        $compTotal = number_format((float)$comp['price'] * (int)$comp['count'], 0, '.', ' ');
+                        $message .= "      ├─ " . e($comp['name']) . " x{$comp['count']} = {$compTotal} ₽\n";
+                    }
+                }
+
+                elseif (!empty($product['is_composite']) && !empty($product['components'])) {
                     $message .= "    <b>Состав:</b>\n";
                     foreach ($product['components'] as $comp) {
                         $compTotal = number_format((float)$comp['price'] * (int)$comp['count'], 0, '.', ' ');
@@ -1041,6 +1059,7 @@ trait BasketHelper
 
         return $message;
     }
+
 
     private function notifyStakeholders(Order $order, array $context, array $basketData): ?string
     {
@@ -1279,6 +1298,20 @@ trait BasketHelper
 
             foreach (($box['products'] ?? []) as $product) {
                 $message .= "  • {$product['name']} x{$product['count']} = " . number_format($product['price'] ?? 0, 2, '.', ' ') . " руб.\n";
+
+                // 🎁 Состав для анонимных боксов (CRM должен видеть всё)
+                if (!empty($product['is_anonymous_box']) && !empty($product['components'])) {
+                    $message .= "    <b>📦 СОСТАВ БОКСА (для сборки):</b>\n";
+                    foreach ($product['components'] as $comp) {
+                        $message .= "    └─ {$comp['name']} x{$comp['count']} = " . number_format($comp['price'] ?? 0, 2, '.', ' ') . " руб.\n";
+                    }
+                }
+                // Обычные составные товары
+                elseif (!empty($product['components'])) {
+                    foreach ($product['components'] as $comp) {
+                        $message .= "    └─ {$comp['name']} x{$comp['count']}\n";
+                    }
+                }
             }
 
             $message .= "\nСкидка: <b>-" . ($box["summary_discount"] ?? 0) . " руб.</b>";
