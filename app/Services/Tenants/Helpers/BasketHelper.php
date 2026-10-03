@@ -620,8 +620,13 @@ trait BasketHelper
                 $count = max(1, (int) $item->count);
                 $price = $amount * $count;
 
-                // 🎁 Генерируем реальное содержимое бокса из tenant_id корзины
-                $boxProducts = $this->generateBoxProducts((int) $item->tenant_id, $amount);
+                // 🎯 ОПРЕДЕЛЯЕМ ЗАВЕДЕНИЕ-ИСТОЧНИК
+                // Если есть tenant_partner_id — берем его (конкретное заведение)
+                // Иначе — основной tenant (агрегатор)
+                $sourceTenantId = (int) ($item->tenant_partner_id ?: $item->tenant_id);
+
+                // 🎁 Генерируем товары ИМЕННО из этого заведения
+                $boxProducts = $this->generateBoxProducts($sourceTenantId, $amount);
                 $componentsInfo = [];
                 foreach ($boxProducts as $bp) {
                     $componentsInfo[] = [
@@ -633,8 +638,8 @@ trait BasketHelper
                     ];
                 }
 
-                // 🎯 Для бокса используем tenant_id корзины как источник товаров
-                $productTenantId = (int) $item->tenant_id;
+                // 🎯 Используем tenant_id источника
+                $productTenantId = $sourceTenantId;
 
                 $productInfo = [
                     'basket_id' => $item->id,
@@ -656,10 +661,11 @@ trait BasketHelper
 
                 $tmpOrderProductInfo[] = $productInfo;
 
-                // 🎯 Ключ для группировки — tenant_id корзины (основной магазин)
+                // 🎯 КЛЮЧ ГРУППИРОВКИ — используем tenant_partner_id если есть
                 $partnerKey = implode(':', [$productTenantId, (int) ($item->tenant_partner_id ?? 0)]);
 
                 if (!isset($partnerProductBox[$partnerKey])) {
+                    // 🎯 Берем название именно этого заведения
                     $partnerTenant = Tenant::query()->find($productTenantId);
                     $partnerProductBox[$partnerKey] = [
                         'id' => $productTenantId,

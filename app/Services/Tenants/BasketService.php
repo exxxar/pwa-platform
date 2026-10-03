@@ -1075,11 +1075,10 @@ class BasketService
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
-
         $validator = Validator::make($data, [
             'amount' => 'required|integer|in:1000,2000,3000,5000',
+            'partner_id' => 'nullable|integer', // 🎁 НОВОЕ: ID заведения-партнера
             'table_id' => 'nullable|integer',
-            'partner_id' => 'nullable|integer',
         ]);
 
         if ($validator->fails()) {
@@ -1088,30 +1087,35 @@ class BasketService
 
         $amount = (int)$data['amount'];
         $tableId = $data['table_id'] ?? null;
-        $partnerId = $data['partner_id'] ?? null;
+        $partnerId = $data['partner_id'] ?? null; // 🎁 Получаем ID партнера
 
-        // Проверяем существующий открытый бокс такого типа
-        $existingBox = Basket::query()
+        // Проверяем существующий открытый бокс такого типа И для этого партнера
+        $existingBoxQuery = Basket::query()
             ->whereNull('product_id')
             ->whereNull('collection_id')
             ->where('tenant_id', $tenant->id)
             ->where('tenant_user_id', $tenantUser->id)
             ->whereNull('ordered_at')
             ->whereNull('table_approved_at')
-            ->where('params->partner_id', $partnerId)
             ->where('params->type', 'anonymous_box')
-            ->where('params->amount', $amount)
-            ->first();
+            ->where('params->amount', $amount);
+
+        // 🎁 Если передан партнер — ищем бокс именно для него
+        if ($partnerId) {
+            $existingBoxQuery->where('tenant_partner_id', $partnerId);
+        } else {
+            $existingBoxQuery->whereNull('tenant_partner_id');
+        }
+
+        $existingBox = $existingBoxQuery->first();
 
         if ($existingBox) {
             $existingBox->count++;
             $existingBox->save();
-
             return;
         }
 
         $tableWithClient = null;
-
         if ($tableId) {
             $tableWithClient = Table::query()
                 ->where('tenant_id', $tenant->id)
@@ -1135,6 +1139,7 @@ class BasketService
 
             'tenant_user_id' => $tenantUser->id,
             'tenant_id' => $tenant->id,
+            'tenant_partner_id' => $partnerId, // 🎁 СОХРАНЯЕМ ID ПАРТНЕРА
 
             'table_id' => $tableWithClient?->id,
 
@@ -1144,8 +1149,8 @@ class BasketService
             'params' => [
                 'type' => 'anonymous_box',
                 'amount' => $amount,
-                'partner_id' => $partnerId,
                 'box_uuid' => Str::uuid()->toString(),
+                'partner_id' => $partnerId, // 🎁 Дублируем в params для удобства
             ],
         ]);
     }
