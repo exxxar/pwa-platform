@@ -458,20 +458,21 @@ trait BasketHelper
      * 🎁 Генерирует случайный набор товаров для Анонимного бокса
      *
      * Алгоритм:
-     * 1. ФАЗА "РАЗНООБРАЗИЕ": по 1 товару из каждой категории
-     * 2. ФАЗА "ДОБОР": добираем случайными товарами до целевой суммы
+     * 1. Группируем товары по категориям
+     * 2. Сортируем категории по количеству товаров (от большего к меньшему)
+     * 3. 80% суммы набираем из "богатых" категорий (с большим кол-вом товаров)
+     * 4. 20% суммы набираем из "бедных" категорий (с меньшим кол-вом товаров)
      *
      * Гарантии:
      * - Товары никогда не повторяются
-     * - Максимальное разнообразие по категориям
-     * - Учитываются флаги: is_active, in_stop_list
-     * - Итоговая сумма в пределах [targetAmount, targetAmount * 1.15]
+     * - Итоговая сумма НЕ превышает targetAmount
+     * - Разнообразие по категориям
      */
     private function generateBoxProducts(int $tenantId, float $targetAmount): array
     {
         if ($targetAmount <= 0) return [];
 
-        // 📦 Получаем пул товаров с учётом Many-to-Many категорий
+        // 📦 Получаем пул товаров
         $products = $this->getBoxProductPool($tenantId);
 
         if ($products->isEmpty()) {
@@ -479,63 +480,92 @@ trait BasketHelper
             return [];
         }
 
-        $maxLimit = $targetAmount * 1.15;
-        $minItems = 3;
+        // Группируем товары по категориям
+        $byCategory = $products->groupBy('main_category_id');
+
+        // Сортируем категории по количеству товаров (по убыванию)
+        $sortedCategories = $byCategory->sortByDesc(fn($items) => $items->count())->values();
+
+        // Разделяем на "богатые" (80%) и "бедные" (20%) категории
+        $totalCategories = $sortedCategories->count();
+        $richCount = max(1, (int) ceil($totalCategories * 0.7)); // 70% категорий = богатые
+        $poorCount = $totalCategories - $richCount;
+
+        $richCategories = $sortedCategories->take($richCount);
+        $poorCategories = $sortedCategories->slice($richCount);
+
+        // Целевые суммы
+        $richTarget = $targetAmount * 0.8; // 80% от общей суммы
+        $poorTarget = $targetAmount * 0.2; // 20% от общей суммы
 
         $selected = [];
         $usedIds = [];
         $currentSum = 0.0;
 
         // ============================================================
-        // ФАЗА 1: РАЗНООБРАЗИЕ — по одному товару из каждой категории
+        // ФАЗА 1: "БОГАТЫЕ" КАТЕГОРИИ (80% суммы)
         // ============================================================
-        // Группируем по category_id (у каждого товара может быть несколько категорий,
-        // но для разнообразия берём первую)
-        $byCategory = $products->groupBy('main_category_id');
-        $categoryIds = $byCategory->keys()->shuffle();
+        foreach ($richCategories as $categoryId => $categoryProducts) {
+            if ($currentSum >= $richTarget) break;
 
-        foreach ($categoryIds as $categoryId) {
-            if ($currentSum >= $maxLimit) break;
+            // Перемешиваем товары в этой категории
+            $candidates = $categoryProducts->whereNotIn('id', $usedIds)->shuffle();
 
-            $candidates = $byCategory[$categoryId]->whereNotIn('id', $usedIds);
-            if ($candidates->isEmpty()) continue;
+            foreach ($candidates as $product) {
+                if ($currentSum >= $richTarget) break;
+                if ($currentSum >= $targetAmount) break; // Общая защита
 
-            $product = $candidates->random();
-            $price = (float) $product->price;
+                $price = (float) $product->price;
 
-            if ($currentSum + $price > $maxLimit) continue;
+                // Проверяем, что не превысим общий лимит
+                if ($currentSum + $price > $targetAmount) continue;
 
-            $selected[] = $this->buildBoxItem($product, 1);
-            $usedIds[] = $product->id;
-            $currentSum += $price;
+                $selected[] = $this->buildBoxItem($product, 1, 'rich');
+                $usedIds[] = $product->id;
+                $currentSum += $price;
+            }
         }
 
         // ============================================================
-        // ФАЗА 2: ДОБОР — случайные товары из оставшегося пула
+        // ФАЗА 2: "БЕДНЫЕ" КАТЕГОРИИ (20% суммы)
         // ============================================================
-        $remainingPool = $products->whereNotIn('id', $usedIds)->values();
-        $maxAttempts = 50;
+        foreach ($poorCategories as $categoryId => $categoryProducts) {
+            if ($currentSum >= $targetAmount) break;
+
+            $candidates = $categoryProducts->whereNotIn('id', $usedIds)->shuffle();
+
+            foreach ($candidates as $product) {
+                if ($currentSum >= $targetAmount) break;
+
+                $price = (float) $product->price;
+
+                if ($currentSum + $price > $targetAmount) continue;
+
+                $selected[] = $this->buildBoxItem($product, 1, 'poor');
+                $usedIds[] = $product->id;
+                $currentSum += $price;
+            }
+        }
+
+        // ============================================================
+        // ФАЗА 3: ДОБОР (если не набрали нужную сумму)
+        // ============================================================
+        $remainingPool = $products->whereNotIn('id', $usedIds)->shuffle();
+        $maxAttempts = 30;
         $attempts = 0;
 
-        while (
-            ($currentSum < $targetAmount || count($selected) < $minItems) &&
-            $remainingPool->isNotEmpty() &&
-            $currentSum < $maxLimit &&
-            $attempts < $maxAttempts
-        ) {
+        while ($currentSum < $targetAmount && $remainingPool->isNotEmpty() && $attempts < $maxAttempts) {
             $attempts++;
-            $product = $remainingPool->random();
+            $product = $remainingPool->first();
             $price = (float) $product->price;
 
-            if ($currentSum + $price > $maxLimit) {
-                $remainingPool = $remainingPool->where('id', '!=', $product->id)->values();
-                continue;
+            if ($currentSum + $price <= $targetAmount) {
+                $selected[] = $this->buildBoxItem($product, 1, 'filler');
+                $usedIds[] = $product->id;
+                $currentSum += $price;
             }
 
-            $selected[] = $this->buildBoxItem($product, 1);
-            $usedIds[] = $product->id;
-            $currentSum += $price;
-            $remainingPool = $remainingPool->where('id', '!=', $product->id)->values();
+            $remainingPool = $remainingPool->slice(1);
         }
 
         // ============================================================
@@ -545,11 +575,36 @@ trait BasketHelper
             'tenant_id' => $tenantId,
             'items_count' => count($selected),
             'total_sum' => round($currentSum, 2),
+            'target_amount' => $targetAmount,
+            'difference' => round($targetAmount - $currentSum, 2),
             'categories_used' => collect($selected)->pluck('category_name')->unique()->count(),
-            'items' => collect($selected)->map(fn($i) => $i['name'])->toArray(),
+            'rich_categories_count' => $richCategories->count(),
+            'poor_categories_count' => $poorCategories->count(),
+            'items' => collect($selected)->map(fn($i) => [
+                'name' => $i['name'],
+                'price' => $i['price'],
+                'category' => $i['category_name'],
+                'source' => $i['source'] ?? 'unknown',
+            ])->toArray(),
         ]);
 
         return $selected;
+    }
+
+    /**
+     * 🏷️ Формирует элемент бокса с указанием источника
+     */
+    private function buildBoxItem($product, int $count, string $source = 'unknown'): array
+    {
+        return [
+            'id' => $product->id,
+            'name' => $product->name,
+            'price' => (float) $product->price,
+            'count' => $count,
+            'category_id' => $product->main_category_id ?? null,
+            'category_name' => $product->main_category_name ?? 'Без категории',
+            'source' => $source, // rich/poor/filler - для отладки
+        ];
     }
 
     /**
@@ -582,20 +637,7 @@ trait BasketHelper
         });
     }
 
-    /**
-     * 🏷️ Формирует элемент бокса
-     */
-    private function buildBoxItem($product, int $count): array
-    {
-        return [
-            'id' => $product->id,
-            'name' => $product->name,
-            'price' => (float) $product->price,
-            'count' => $count,
-            'category_id' => $product->main_category_id ?? null,
-            'category_name' => $product->main_category_name ?? 'Без категории',
-        ];
-    }
+
 
     private function processBasketAndCalculateTotals(array $context): array
     {
