@@ -12,7 +12,7 @@ return [
         'bolshoyjohn.ru' => 'bigjohn', // Обязательно добавляем www-версию
         'www.bolshoyjohn.ru' => 'bigjohn', // Обязательно добавляем www-версию
         'старый-шансон.рф' => 'stariy-shanson', // Обязательно добавляем www-версию
-        'xn----7sbb8awaglhge0fsb.xn--p1ai/' => 'stariy-shanson', // Обязательно добавляем www-версию
+        'xn----7sbb8awaglhge0fsb.xn--p1ai' => 'stariy-shanson', // Обязательно добавляем www-версию
 
         // В будущем можно добавлять другие домены:
         // 'another-client.com' => 'client_slug',
