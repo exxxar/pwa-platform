@@ -453,6 +453,288 @@
             </div>
         </div>
 
+        <!-- 11. 🎁 Анонимный бокс -->
+        <div class="form-section">
+            <h3 class="section-title"><i class="fa-solid fa-gift"></i> Анонимный бокс (Сюрприз-бокс)</h3>
+
+            <div class="alert-info" style="margin-bottom: 16px;">
+                <i class="fa-solid fa-circle-info"></i>
+                Функция позволяет клиентам заказать "коробку-сюрприз" на выбранную сумму.
+                Состав бокса автоматически подбирается из товаров разных категорий.
+            </div>
+
+            <!-- ✅ ГЛОБАЛЬНАЯ ЗАЩИТА: v-if гарантирует существование объекта -->
+            <template v-if="form.anonymous_box">
+
+                <!-- Toggle включения -->
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <h4>Включить анонимные боксы</h4>
+                        <p>Показывать баннер в каталоге и разрешать добавление в корзину</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <!-- ✅ Без ?. внутри v-if защиты -->
+                        <input
+                            type="checkbox"
+                            v-model="form.anonymous_box.enabled"
+                            @change="emitDirty"
+                        >
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <template v-if="form.anonymous_box.enabled">
+                    <!-- Суммы и подписи -->
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 12px; font-size: 1rem; color: var(--text);">
+                            <i class="fa-solid fa-coins" style="color: var(--primary); margin-right: 8px;"></i>
+                            Доступные суммы
+                        </h4>
+                        <p class="field-hint" style="margin-bottom: 12px;">
+                            Добавьте варианты сумм, на которые клиент может заказать бокс
+                        </p>
+
+                        <div class="dynamic-list">
+                            <div v-for="(amount, index) in form.anonymous_box.amounts"
+                                 :key="amount.id"
+                                 class="list-item-card">
+                                <div class="list-item-header">
+                                    <span class="list-item-badge">Вариант {{ index + 1 }}</span>
+                                    <button type="button" class="btn-icon-danger"
+                                            @click="removeBoxAmount(amount.id)"
+                                            :disabled="form.anonymous_box.amounts.length <= 1">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-field">
+                                        <label>Сумма (₽)</label>
+                                        <input type="number"
+                                               v-model.number="amount.value"
+                                               min="100"
+                                               step="100"
+                                               placeholder="1000"
+                                               @input="emitDirty">
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Подпись (необязательно)</label>
+                                        <input type="text"
+                                               v-model="amount.label"
+                                               placeholder="Базовый, Оптимальный..."
+                                               @input="emitDirty">
+                                        <span class="field-hint">Оставьте пустым — покажется "На {сумма} ₽"</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn-add-item" @click="addBoxAmount">
+                            <i class="fa-solid fa-plus"></i> Добавить сумму
+                        </button>
+                    </div>
+
+                    <!-- Тексты -->
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 12px; font-size: 1rem; color: var(--text);">
+                            <i class="fa-solid fa-pen" style="color: var(--primary); margin-right: 8px;"></i>
+                            Тексты
+                        </h4>
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label>Заголовок баннера</label>
+                                <input type="text"
+                                       v-model="form.anonymous_box.banner_title"
+                                       placeholder="Анонимный бокс"
+                                       @input="emitDirty">
+                            </div>
+                            <div class="form-field">
+                                <label>Подзаголовок (плашка)</label>
+                                <input type="text"
+                                       v-model="form.anonymous_box.banner_subtitle"
+                                       placeholder="Эксклюзив"
+                                       @input="emitDirty">
+                            </div>
+                            <div class="form-field">
+                                <label>Эмодзи</label>
+                                <input type="text"
+                                       v-model="form.anonymous_box.emoji"
+                                       placeholder="🎁"
+                                       maxlength="4"
+                                       @input="emitDirty">
+                            </div>
+                            <div class="form-field">
+                                <label>Позиция баннера</label>
+                                <select v-model="form.anonymous_box.banner_position" @change="emitDirty">
+                                    <option value="top">Вверху (перед товарами)</option>
+                                    <option value="middle">В середине</option>
+                                    <option value="bottom">Внизу</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-field full-width" style="margin-top: 12px;">
+                            <label>Описание (в модалке)</label>
+                            <textarea
+                                v-model="form.anonymous_box.description"
+                                rows="3"
+                                maxlength="500"
+                                placeholder="Хочешь сюрприз? Мы соберем для тебя..."
+                                @input="emitDirty"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Визуал -->
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 12px; font-size: 1rem; color: var(--text);">
+                            <i class="fa-solid fa-palette" style="color: var(--primary); margin-right: 8px;"></i>
+                            Оформление
+                        </h4>
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label>Цвет градиента (начало)</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color"
+                                           v-model="form.anonymous_box.gradient_from"
+                                           @input="emitDirty"
+                                           style="width: 50px; height: 40px; border: none; cursor: pointer;">
+                                    <input type="text"
+                                           v-model="form.anonymous_box.gradient_from"
+                                           placeholder="#667eea"
+                                           @input="emitDirty"
+                                           style="flex: 1;">
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label>Цвет градиента (конец)</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color"
+                                           v-model="form.anonymous_box.gradient_to"
+                                           @input="emitDirty"
+                                           style="width: 50px; height: 40px; border: none; cursor: pointer;">
+                                    <input type="text"
+                                           v-model="form.anonymous_box.gradient_to"
+                                           placeholder="#f093fb"
+                                           @input="emitDirty"
+                                           style="flex: 1;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Алгоритм генерации -->
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 12px; font-size: 1rem; color: var(--text);">
+                            <i class="fa-solid fa-sliders" style="color: var(--primary); margin-right: 8px;"></i>
+                            Алгоритм генерации
+                        </h4>
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label>% из "богатых" категорий</label>
+                                <input type="number"
+                                       v-model.number="form.anonymous_box.rich_percent"
+                                       min="0"
+                                       max="100"
+                                       @input="emitDirty">
+                                <span class="field-hint">Категории с большим количеством товаров</span>
+                            </div>
+                            <div class="form-field">
+                                <label>% из "бедных" категорий</label>
+                                <input type="number"
+                                       v-model.number="form.anonymous_box.poor_percent"
+                                       min="0"
+                                       max="100"
+                                       @input="emitDirty">
+                                <span class="field-hint">Категории с меньшим количеством товаров</span>
+                            </div>
+                            <div class="form-field">
+                                <label>Мин. товаров в боксе</label>
+                                <input type="number"
+                                       v-model.number="form.anonymous_box.min_items"
+                                       min="1"
+                                       max="20"
+                                       @input="emitDirty">
+                            </div>
+                            <div class="form-field">
+                                <label>Макс. недобор (%)</label>
+                                <input type="number"
+                                       v-model.number="form.anonymous_box.max_tolerance"
+                                       min="0"
+                                       max="50"
+                                       @input="emitDirty">
+                                <span class="field-hint">Если нет подходящих товаров</span>
+                            </div>
+                        </div>
+                        <div class="alert-info" style="margin-top: 12px;">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            Сумма процентов должна быть 100%. Текущая:
+                            <strong>{{ (form.anonymous_box.rich_percent || 0) + (form.anonymous_box.poor_percent || 0) }}%</strong>
+                        </div>
+                    </div>
+
+                    <!-- Ограничения -->
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 12px; font-size: 1rem; color: var(--text);">
+                            <i class="fa-solid fa-shield-halved" style="color: var(--primary); margin-right: 8px;"></i>
+                            Ограничения
+                        </h4>
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label>Макс. боксов в день на юзера</label>
+                                <input type="number"
+                                       v-model.number="form.anonymous_box.max_per_user_per_day"
+                                       min="0"
+                                       @input="emitDirty">
+                                <span class="field-hint">0 — без ограничений</span>
+                            </div>
+                            <div class="form-field">
+                                <label>Мин. сумма заказа для показа</label>
+                                <input type="number"
+                                       v-model.number="form.anonymous_box.min_order_amount"
+                                       min="0"
+                                       @input="emitDirty">
+                                <span class="field-hint">0 — показывать всегда</span>
+                            </div>
+                        </div>
+
+                        <div class="form-field full-width" style="margin-top: 12px;">
+                            <label>ID исключенных категорий (через запятую)</label>
+                            <textarea
+                                v-model="form.anonymous_box.excluded_categories_text"
+                                rows="2"
+                                placeholder="15, 23, 42"
+                                @input="onExcludedCategoriesChange"></textarea>
+                            <span class="field-hint">
+                        Товары из этих категорий не попадут в бокс (например: "Алкоголь", "Табак")
+                    </span>
+                        </div>
+                    </div>
+
+                    <!-- Превью -->
+                    <div style="margin-top: 24px;">
+                        <h4 style="margin-bottom: 12px; font-size: 1rem; color: var(--text);">
+                            <i class="fa-solid fa-eye" style="color: var(--primary); margin-right: 8px;"></i>
+                            Предпросмотр
+                        </h4>
+                        <div class="mystery-box-preview"
+                             :style="{
+                         background: `linear-gradient(135deg, ${form.anonymous_box.gradient_from || '#667eea'} 0%, ${form.anonymous_box.gradient_to || '#f093fb'} 100%)`
+                     }">
+                            <div class="preview-emoji">{{ form.anonymous_box.emoji || '🎁' }}</div>
+                            <div class="preview-content">
+                                <div class="preview-subtitle">{{ form.anonymous_box.banner_subtitle || 'Эксклюзив' }}</div>
+                                <div class="preview-title">{{ form.anonymous_box.banner_title || 'Анонимный бокс' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </template>
+
+            <!-- Fallback если объект ещё не создан (показывает загрузку) -->
+            <div v-else class="alert-info">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                Настройки анонимных боксов загружаются...
+            </div>
+        </div>
+
         <!-- Кнопка сохранения -->
         <button type="submit" class="save-button" :disabled="isSaving">
             <i v-if="isSaving" class="fa-solid fa-spinner fa-spin"></i>
@@ -470,7 +752,7 @@ export default {
     name: 'TabShop',
 
     props: {
-        activeTab: {type: [Number, String], default: null}, // Добавлен для поддержки v-if из первого файла
+        activeTab: {type: [Number, String], default: null},
         form: {type: Object, required: true},
         isSaving: {type: Boolean, default: false},
         extraProps: {type: Object, default: () => ({})},
@@ -486,7 +768,135 @@ export default {
         };
     },
 
+    watch: {
+        'form': {
+            handler() {
+                this.initAnonymousBoxConfig();
+            },
+            deep: false,
+            immediate: false,
+        },
+    },
+
+    mounted() {
+        this.initAnonymousBoxConfig();
+    },
+
     methods: {
+        /**
+         * 🎁 Инициализация конфига анонимного бокса
+         * Гарантирует, что form.anonymous_box всегда существует
+         */
+        initAnonymousBoxConfig() {
+            if (!this.form) return;
+
+            // Создаем объект, если его нет
+            if (!this.form.anonymous_box || typeof this.form.anonymous_box !== 'object') {
+                // ✅ Прямое присваивание БЕЗ опциональной цепочки
+                this.form.anonymous_box = this.getDefaultAnonymousBoxConfig();
+                return;
+            }
+
+            // Дополняем недостающие поля дефолтами
+            const defaults = this.getDefaultAnonymousBoxConfig();
+            for (const key in defaults) {
+                if (this.form.anonymous_box[key] === undefined) {
+                    this.form.anonymous_box[key] = defaults[key];
+                }
+            }
+
+            // Гарантируем что amounts - массив
+            if (!Array.isArray(this.form.anonymous_box.amounts)) {
+                this.form.anonymous_box.amounts = [...defaults.amounts];
+            }
+
+            // Конвертация excluded_categories в текст (для textarea)
+            if (Array.isArray(this.form.anonymous_box.excluded_categories)) {
+                this.form.anonymous_box.excluded_categories_text =
+                    this.form.anonymous_box.excluded_categories.join(', ');
+            } else {
+                this.form.anonymous_box.excluded_categories = [];
+                this.form.anonymous_box.excluded_categories_text = '';
+            }
+
+            // Конвертация amounts в объекты с id
+            this.form.anonymous_box.amounts = this.form.anonymous_box.amounts.map((a, idx) => {
+                if (typeof a === 'object' && a !== null && a.id) return a;
+                return {
+                    id: Date.now() + idx + Math.random(),
+                    value: typeof a === 'number' ? a : (a?.value || 1000),
+                    label: typeof a === 'object' ? (a?.label || '') : '',
+                };
+            });
+        },
+
+        getDefaultAnonymousBoxConfig() {
+            return {
+                enabled: false,
+                amounts: [
+                    { id: 1, value: 1000, label: 'Базовый' },
+                    { id: 2, value: 2000, label: 'Оптимальный' },
+                    { id: 3, value: 3000, label: 'Премиум' },
+                    { id: 4, value: 5000, label: 'Максимальный' },
+                ],
+                description: 'Хочешь сюрприз? Мы соберем для тебя случайный пакет из вкусных товаров ровно на выбранную сумму. Состав бокса ты узнаешь только в момент получения!',
+                banner_title: 'Анонимный бокс',
+                banner_subtitle: 'Эксклюзив',
+                banner_position: 'top',
+                gradient_from: '#667eea',
+                gradient_to: '#f093fb',
+                emoji: '🎁',
+                rich_percent: 80,
+                poor_percent: 20,
+                min_items: 3,
+                max_tolerance: 10,
+                max_per_user_per_day: 0,
+                min_order_amount: 0,
+                excluded_categories: [],
+                excluded_categories_text: '',
+            };
+        },
+
+        // --- Методы для Анонимного бокса ---
+        addBoxAmount() {
+            // ✅ Гарантируем наличие массива
+            if (!this.form.anonymous_box) {
+                this.form.anonymous_box = this.getDefaultAnonymousBoxConfig();
+            }
+            if (!Array.isArray(this.form.anonymous_box.amounts)) {
+                this.form.anonymous_box.amounts = [];
+            }
+
+            // ✅ Прямое обращение без опциональной цепочки
+            this.form.anonymous_box.amounts.push({
+                id: Date.now() + Math.random(),
+                value: 1000,
+                label: '',
+            });
+            this.emitDirty();
+        },
+
+        removeBoxAmount(id) {
+            if (!this.form.anonymous_box?.amounts) return;
+            if (this.form.anonymous_box.amounts.length <= 1) return;
+
+            // ✅ Прямое присваивание
+            this.form.anonymous_box.amounts = this.form.anonymous_box.amounts.filter(a => a.id !== id);
+            this.emitDirty();
+        },
+
+        onExcludedCategoriesChange() {
+            if (!this.form.anonymous_box) return;
+
+            const text = this.form.anonymous_box.excluded_categories_text || '';
+            // ✅ Прямое присваивание
+            this.form.anonymous_box.excluded_categories = text
+                .split(',')
+                .map(s => parseInt(s.trim()))
+                .filter(n => !isNaN(n));
+            this.emitDirty();
+        },
+
         emitDirty() {
             this.$emit('mark-dirty', 'shop');
         },
@@ -495,14 +905,13 @@ export default {
             this.$emit('save', this.form);
         },
 
-        // --- Методы для Зон доставки и Сервисов (из версии 2) ---
         // --- Методы для Зон доставки и Сервисов ---
         addZone() {
             if (!this.form.delivery_zones) this.form.delivery_zones = [];
             this.form.delivery_zones.push({
                 id: Date.now(),
                 name: '',
-                radius: 5, // 🆕 Добавляем радиус по умолчанию (5 км)
+                radius: 5,
                 time: '',
                 price: '',
                 minOrder: 0
@@ -528,7 +937,6 @@ export default {
             this.emitDirty();
         },
 
-        // --- Методы из версии 1 ---
         countTags(tagsString) {
             if (!tagsString) return 0;
             const tags = tagsString.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
@@ -545,13 +953,13 @@ export default {
         },
 
         getBankName(bankKey) {
-            // Заглушка для маппинга ключей банков в названия.
-            // Замените на реальный словарь или импорт из констант при необходимости.
             const bankNames = {
                 'tinkoff': 'Тинькофф',
                 'sber': 'Сбербанк',
                 'alfa': 'Альфа-Банк',
-                'vtb': 'ВТБ'
+                'vtb': 'ВТБ',
+                'psb': 'Промсвязьбанк',
+                'yandex': 'Яндекс Pay',
             };
             return bankNames[bankKey] || bankKey.toUpperCase();
         },
@@ -559,11 +967,7 @@ export default {
         testSbpPayment(bankKey) {
             this.isTestingPayment = true;
             this.testingBank = bankKey;
-
-            // Эмулируем запрос или вызываем событие для родителя
             this.$emit('test-payment', {bankKey, amount: 100});
-
-            // Сброс состояния через 3 секунды (заглушка, замените на реальную логику после запроса)
             setTimeout(() => {
                 this.isTestingPayment = false;
                 this.testingBank = null;
@@ -664,5 +1068,38 @@ export default {
 .btn-test-payment:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+}
+
+.mystery-box-preview {
+    padding: 16px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.preview-emoji {
+    font-size: 2rem;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.preview-content {
+    flex: 1;
+}
+
+.preview-subtitle {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.9;
+    margin-bottom: 2px;
+}
+
+.preview-title {
+    font-size: 1.1rem;
+    font-weight: 700;
 }
 </style>

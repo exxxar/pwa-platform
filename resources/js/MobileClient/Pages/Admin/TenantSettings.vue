@@ -187,7 +187,32 @@ export default {
                     { id: 1, title: 'Термосумки', description: 'Сохраняем температуру блюд' },
                     { id: 2, title: 'Бесплатная доставка', description: 'При заказе от 2000 ₽' },
                     { id: 3, title: 'Отслеживание', description: 'Курьер на карте в реальном времени' }
-                ]
+                ],
+
+                anonymous_box: {
+                    enabled: false,
+                    amounts: [
+                        { id: 1, value: 1000, label: 'Базовый' },
+                        { id: 2, value: 2000, label: 'Оптимальный' },
+                        { id: 3, value: 3000, label: 'Премиум' },
+                        { id: 4, value: 5000, label: 'Максимальный' },
+                    ],
+                    description: 'Хочешь сюрприз? Мы соберем для тебя случайный пакет из вкусных товаров ровно на выбранную сумму. Состав бокса ты узнаешь только в момент получения!',
+                    banner_title: 'Анонимный бокс',
+                    banner_subtitle: 'Эксклюзив',
+                    banner_position: 'top',
+                    gradient_from: '#667eea',
+                    gradient_to: '#f093fb',
+                    emoji: '🎁',
+                    rich_percent: 80,
+                    poor_percent: 20,
+                    min_items: 3,
+                    max_tolerance: 10,
+                    max_per_user_per_day: 0,
+                    min_order_amount: 0,
+                    excluded_categories: [],
+                    excluded_categories_text: '',
+                },
             },
             // 🆕 ДОБАВЬТЕ ЭТОТ БЛОК
             seoForm: {
@@ -350,6 +375,9 @@ export default {
             if (companyMeta.schedule?.length >= 7) this.companyForm.schedule = companyMeta.schedule;
 
             this.shopForm = { ...this.shopForm, ...(settings.shop || {}), ...(settings || {}) };
+
+            this.normalizeAnonymousBoxConfig();
+
             if (typeof this.shopForm.manager === 'string' || !this.shopForm.manager.name) {
                 this.shopForm.manager = { name: '', phone: '', email: '', social_link: this.shopForm.manager?.link || '' };
             }
@@ -392,6 +420,8 @@ export default {
                 thread_id: tgSettings.thread_id || ''
             };
 
+
+
             const seoSettings = settings.seo || {};
             this.seoForm = {
                 meta: { ...this.seoForm.meta, ...(seoSettings.meta || {}) },
@@ -417,6 +447,85 @@ export default {
             }
 
 
+        },
+
+        /**
+         * 🎁 Нормализация конфига анонимного бокса
+         * Гарантирует корректную структуру данных после слияния с сервером
+         */
+        normalizeAnonymousBoxConfig() {
+            // Дефолтные значения
+            const defaults = {
+                enabled: false,
+                amounts: [
+                    { id: 1, value: 1000, label: 'Базовый' },
+                    { id: 2, value: 2000, label: 'Оптимальный' },
+                    { id: 3, value: 3000, label: 'Премиум' },
+                    { id: 4, value: 5000, label: 'Максимальный' },
+                ],
+                description: 'Хочешь сюрприз? Мы соберем для тебя случайный пакет из вкусных товаров ровно на выбранную сумму. Состав бокса ты узнаешь только в момент получения!',
+                banner_title: 'Анонимный бокс',
+                banner_subtitle: 'Эксклюзив',
+                banner_position: 'top',
+                gradient_from: '#667eea',
+                gradient_to: '#f093fb',
+                emoji: '🎁',
+                rich_percent: 80,
+                poor_percent: 20,
+                min_items: 3,
+                max_tolerance: 10,
+                max_per_user_per_day: 0,
+                min_order_amount: 0,
+                excluded_categories: [],
+                excluded_categories_text: '',
+            };
+
+            // Если вообще нет — создаем с нуля
+            if (!this.shopForm.anonymous_box || typeof this.shopForm.anonymous_box !== 'object') {
+                this.shopForm.anonymous_box = { ...defaults };
+                return;
+            }
+
+            // Дополняем недостающие поля дефолтами
+            for (const key in defaults) {
+                if (this.shopForm.anonymous_box[key] === undefined) {
+                    this.shopForm.anonymous_box[key] = defaults[key];
+                }
+            }
+
+            // Нормализация amounts: конвертируем массив чисел в массив объектов
+            if (Array.isArray(this.shopForm.anonymous_box.amounts)) {
+                this.shopForm.anonymous_box.amounts = this.shopForm.anonymous_box.amounts.map((a, idx) => {
+                    // Уже объект с id — оставляем
+                    if (typeof a === 'object' && a !== null && a.id) return a;
+                    // Число — оборачиваем в объект
+                    if (typeof a === 'number') {
+                        return { id: Date.now() + idx + Math.random(), value: a, label: '' };
+                    }
+                    // Объект без id — добавляем id
+                    if (typeof a === 'object' && a !== null) {
+                        return {
+                            id: a.id || (Date.now() + idx + Math.random()),
+                            value: a.value || 1000,
+                            label: a.label || ''
+                        };
+                    }
+                    // Fallback
+                    return { id: Date.now() + idx + Math.random(), value: 1000, label: '' };
+                });
+            } else {
+                this.shopForm.anonymous_box.amounts = defaults.amounts;
+            }
+
+            // Нормализация excluded_categories
+            const exc = this.shopForm.anonymous_box.excluded_categories;
+            if (!Array.isArray(exc)) {
+                this.shopForm.anonymous_box.excluded_categories = [];
+            }
+
+            // Генерируем текст для textarea
+            this.shopForm.anonymous_box.excluded_categories_text =
+                this.shopForm.anonymous_box.excluded_categories.join(', ');
         },
     },
 };

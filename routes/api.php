@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\TenantController;
 use App\Http\Controllers\Api\V1\TenantExportController;
 use App\Http\Controllers\Api\V1\TenantExportProductsController;
+use App\Models\Tenant\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +20,18 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
+});
+
+Route::get('/widget/products', function (Request $request) {
+    return response()->json([
+        [
+            'id' => 1,
+            'name' => 'Тестовый товар',
+            'price' => '1 500 ₽',
+            'image' => 'https://via.placeholder.com/300x200',
+            'link' => 'http://localhost:8000/product/1'
+        ]
+    ]);
 });
 
 Route::post('/v1/tenants', [TenantController::class, 'create']);

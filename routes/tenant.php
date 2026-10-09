@@ -39,6 +39,7 @@ use App\Http\Controllers\Tenant\TenantTapLinkController;
 use App\Http\Controllers\Tenant\WebhookReceiverController;
 use App\Http\Controllers\TenantDialogController;
 use App\Http\Controllers\TenantSettingsController;
+use App\Models\Tenant\Product;
 use App\Models\Tenant\Tenant;
 use App\Models\Tenant\TenantUser;
 use App\Notifications\NewOrderNotification;
@@ -71,6 +72,24 @@ Route::domain('mypwa.ru')->group(function () {
 
 function routes()
 {
+
+
+
+
+
+    Route::get('/widget-chat.js', function () {
+        $path = public_path('widget-chat.js');
+
+        if (!file_exists($path)) {
+            abort(404);
+        }
+
+        return response()->file($path, [
+            'Content-Type' => 'application/javascript; charset=utf-8',
+            'Cache-Control' => 'public, max-age=3600', // Кэшируем на 1 час
+            'Access-Control-Allow-Origin' => '*', // На всякий случай дублируем CORS для самого скрипта
+        ]);
+    });
 
     Route::get('sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
 

@@ -79,15 +79,22 @@
                         </div>
                     </div>
 
-                    <!-- 🎁 НОВЫЙ БЛОК: АНОНИМНЫЙ БОКС -->
-                    <div class="mystery-box-banner-wrapper mt-3 mb-3">
+                    <!-- 🎁 НОВЫЙ БЛОК: АНОНИМНЫЙ БОКС (только если включен) -->
+                    <div
+                        v-if="isMysteryBoxEnabled"
+                        class="mystery-box-banner-wrapper mt-3 mb-3"
+                    >
                         <div class="container g-2">
-                            <div class="mystery-box-banner" @click="openMysteryBoxModal">
+                            <div
+                                class="mystery-box-banner"
+                                @click="openMysteryBoxModal"
+                                :style="mysteryBoxGradientStyle"
+                            >
                                 <div class="mystery-box-glow"></div>
                                 <div class="mystery-box-content">
                                     <div class="mystery-box-icon-wrapper">
-                                        <div class="mystery-box-icon">
-                                            <span class="gift-emoji">🎁</span>
+                                        <div class="mystery-box-icon" :style="mysteryBoxGradientStyle">
+                                            <span class="gift-emoji">{{ mysteryBoxConfig.emoji || '🎁' }}</span>
                                         </div>
                                         <div class="sparkles">
                                             <span class="sparkle s1">✨</span>
@@ -96,8 +103,12 @@
                                         </div>
                                     </div>
                                     <div class="mystery-box-text">
-                                        <div class="mystery-box-label">Эксклюзив</div>
-                                        <h3 class="mystery-box-title">Анонимный бокс</h3>
+                                        <div class="mystery-box-label">
+                                            {{ mysteryBoxConfig.banner_subtitle || 'Эксклюзив' }}
+                                        </div>
+                                        <h3 class="mystery-box-title">
+                                            {{ mysteryBoxConfig.banner_title || 'Анонимный бокс' }}
+                                        </h3>
                                         <p class="mystery-box-description">
                                             Соберем пакет случайных товаров на выбранную сумму.
                                             Состав — сюрприз до момента получения!
@@ -140,8 +151,8 @@
         <!-- 🎁 МОДАЛКА: АНОНИМНЫЙ БОКС -->
         <!-- ========================================== -->
         <MysteryBoxModal
-
             :is-visible="showMysteryBoxModal"
+            :config="mysteryBoxConfig"
             @close="showMysteryBoxModal = false"
             @add-to-cart="handleAddMysteryBoxToCart"
         />
@@ -310,7 +321,37 @@ export default {
             if (!window.isCorrectSchedule(this.settings?.schedule)) return true;
             return this.settings?.is_work || this.settings?.can_buy_after_closing;
         },
+        mysteryBoxConfig() {
+            const config = this.settings?.anonymous_box || {};
+            return {
+                enabled: config.enabled ?? false,
+                amounts: (config.amounts || []).map(a => ({
+                    value: typeof a === 'object' ? a.value : a,
+                    label: typeof a === 'object' ? a.label : '',
+                })),
+                description: config.description || 'Хочешь сюрприз? Мы соберем для тебя случайный пакет из вкусных товаров ровно на выбранную сумму. Состав бокса ты узнаешь только в момент получения!',
+                banner_title: config.banner_title || 'Анонимный бокс',
+                banner_subtitle: config.banner_subtitle || 'Эксклюзив',
+                gradient_from: config.gradient_from || '#667eea',
+                gradient_to: config.gradient_to || '#f093fb',
+                emoji: config.emoji || '🎁',
+            };
+        },
 
+        isMysteryBoxEnabled() {
+            if (!this.mysteryBoxConfig.enabled) return false;
+            if (this.mysteryBoxConfig.amounts.length === 0) return false;
+            if (!this.canBuy) return false;
+            return true;
+        },
+
+        mysteryBoxGradientStyle() {
+            const from = this.mysteryBoxConfig.gradient_from;
+            const to = this.mysteryBoxConfig.gradient_to;
+            return {
+                background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`,
+            };
+        },
         menuItems() {
             return [
                 {

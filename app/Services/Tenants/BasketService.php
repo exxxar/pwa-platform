@@ -12,6 +12,7 @@ use App\Services\Tenants\Helpers\BasketHelper;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -1075,9 +1076,27 @@ class BasketService
         $tenant = app('tenant');
         $tenantUser = Auth::guard('tenant')->user();
 
+        // 🎁 Читаем настройки
+        $boxConfig = $tenant->settings['anonymous_box'] ?? [];
+        $enabled = $boxConfig['enabled'] ?? false;
+
+        if (!$enabled) {
+            throw new HttpException(403, "Функция анонимных боксов отключена");
+        }
+
+        // Получаем разрешенные суммы
+        $rawAmounts = $boxConfig['amounts'] ?? [];
+        $allowedAmounts = collect($rawAmounts)->map(function ($a) {
+            return is_array($a) ? (int)($a['value'] ?? 0) : (int)$a;
+        })->filter(fn($v) => $v > 0)->values()->toArray();
+
+        if (empty($allowedAmounts)) {
+            $allowedAmounts = [1000, 2000, 3000, 5000];
+        }
+
         $validator = Validator::make($data, [
-            'amount' => 'required|integer|in:1000,2000,3000,5000',
-            'partner_id' => 'nullable|integer', // 🎁 НОВОЕ: ID заведения-партнера
+            'amount' => ['required', 'integer', Rule::in($allowedAmounts)],
+            'partner_id' => 'nullable|integer',
             'table_id' => 'nullable|integer',
         ]);
 
