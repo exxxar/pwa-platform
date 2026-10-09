@@ -161,22 +161,42 @@ export default {
 
 <style scoped>
 .app-footer {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    color: #e0e0e0;
+    /* 🆕 ГЛАВНОЕ: Темный фон с явным оттенком базового цвета темы */
+    /* Современные браузеры: смешиваем цвет темы с черным */
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--bs-primary), black 60%) 0%,
+        color-mix(in srgb, var(--bs-primary), black 85%) 100%
+    );
+
+    /* Фоллбэк для старых браузеров: полупрозрачный цвет темы поверх почти черного */
+    background: linear-gradient(
+        180deg,
+        rgba(var(--bs-primary-rgb, 13, 110, 253), 0.8) 0%,
+        #0a0a0a 100%
+    );
+
+    color: #ffffff;
     padding: 0;
     position: relative;
     overflow: hidden;
 }
 
-/* Декоративный градиент сверху */
+/* Декоративная светящаяся полоса сверху */
 .app-footer::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
+    height: 3px;
+    background: linear-gradient(90deg,
+    transparent 0%,
+    var(--bs-primary) 20%,
+    var(--bs-primary-hover, var(--bs-primary)) 80%,
+    transparent 100%
+    );
+    box-shadow: 0 4px 15px rgba(var(--bs-primary-rgb, 13, 110, 253), 0.5);
 }
 
 .footer-content {
@@ -185,12 +205,10 @@ export default {
     padding: 30px 20px 20px;
 }
 
-/* Секции футера */
 .footer-section {
     margin-bottom: 24px;
 }
 
-/* Информация о компании */
 .company-info {
     text-align: center;
 }
@@ -205,7 +223,7 @@ export default {
 
 .company-header i {
     font-size: 2rem;
-    color: var(--bs-primary-hover);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .company-header h5 {
@@ -216,7 +234,7 @@ export default {
 }
 
 .company-description {
-    color: #b0b0b0;
+    color: rgba(255, 255, 255, 0.65);
     font-size: 0.9rem;
     line-height: 1.6;
     margin-bottom: 16px;
@@ -236,30 +254,35 @@ export default {
 .company-address i,
 .company-phone i,
 .company-email i {
-    color: var(--bs-primary);
+    color: #ffffff;
     width: 20px;
 }
 
 .company-phone a,
 .company-email a {
-    color: #e0e0e0;
+    color: rgba(255, 255, 255, 0.85);
     text-decoration: none;
-    transition: color 0.2s ease;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid transparent;
 }
 
 .company-phone a:hover,
 .company-email a:hover {
-    color: var(--bs-primary);
+    color: #ffffff;
+    border-bottom-color: var(--bs-primary);
 }
 
-/* Разделитель */
 .footer-divider {
     height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.15) 50%,
+        transparent 100%
+    );
     margin: 24px 0;
 }
 
-/* Заголовки секций */
 .section-title {
     display: flex;
     align-items: center;
@@ -272,10 +295,9 @@ export default {
 }
 
 .section-title i {
-    color: var(--bs-primary);
+    color: rgba(255, 255, 255, 0.7);
 }
 
-/* Юридические ссылки */
 .legal-links {
     list-style: none;
     padding: 0;
@@ -290,18 +312,18 @@ export default {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: #b0b0b0;
+    color: rgba(255, 255, 255, 0.7);
     text-decoration: none;
     padding: 10px 16px;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.25s ease;
     font-size: 0.9rem;
 }
 
 .legal-links a:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.1);
     border-color: var(--bs-primary);
     color: #ffffff;
     transform: translateX(4px);
@@ -313,17 +335,15 @@ export default {
     text-align: center;
 }
 
-/* Секция "Поделиться" */
 .share-section {
     text-align: center;
 }
 
-/* Кнопка обратной связи */
 .btn-feedback {
     width: 100%;
     padding: 14px 20px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 2px solid var(--bs-primary);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 12px;
     color: #ffffff;
     font-size: 1rem;
@@ -334,19 +354,21 @@ export default {
     align-items: center;
     justify-content: center;
     gap: 10px;
+    backdrop-filter: blur(4px);
 }
 
 .btn-feedback:hover {
-    background: var(--bs-primary);
+    background: #ffffff;
+    color: var(--bs-primary);
+    border-color: #ffffff;
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(var(--bs-primary-rgb), 0.3);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
 }
 
 .btn-feedback i {
     font-size: 1.2rem;
 }
 
-/* Копирайт */
 .footer-copyright {
     text-align: center;
     margin-top: 24px;
@@ -356,30 +378,27 @@ export default {
 
 .footer-copyright p {
     margin: 0;
-    color: #808080;
+    color: rgba(255, 255, 255, 0.4);
     font-size: 0.85rem;
 }
 
-/* 🆕 ДОБАВЛЕНО: Стиль для версии приложения */
 .app-version {
     margin-top: 8px;
     font-size: 0.75rem;
-    color: #505050; /* Еще более приглушенный цвет, чем у копирайта */
-    font-family: monospace; /* Моноширинный шрифт для технического вида */
+    color: rgba(255, 255, 255, 0.25);
+    font-family: monospace;
     letter-spacing: 0.5px;
-    opacity: 0.8;
 }
 
-/* Кнопка наверх */
 .footer-scroll-top {
     text-align: center;
     margin-top: 20px;
 }
 
 .btn-scroll-top {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #b0b0b0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.7);
     padding: 10px 20px;
     border-radius: 20px;
     cursor: pointer;
@@ -391,17 +410,8 @@ export default {
 }
 
 .btn-scroll-top:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.15);
     border-color: var(--bs-primary);
     color: #ffffff;
-}
-
-/* Адаптив для тёмной темы */
-:root[data-bs-theme="dark"] .app-footer {
-    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%);
-}
-
-:root[data-bs-theme="dark"] .app-version {
-    color: #404040;
 }
 </style>

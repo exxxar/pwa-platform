@@ -900,16 +900,15 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-@use 'sass:color';
-
 // ==========================================
-// ПЕРЕМЕННЫЕ
+// ПЕРЕМЕННЫЕ (используются только как fallback)
 // ==========================================
 $primary: #3b82f6;
-$primary-dark: #2563eb;
+$primary-rgb: 59, 130, 246; // RGB-эквивалент fallback-цвета
 $success: #10b981;
-$success-dark: #059669;
+$success-rgb: 16, 185, 129;
 $danger: #ef4444;
+$danger-rgb: 239, 68, 68;
 $text: #1f2937;
 $text-muted: #6b7280;
 $border: #e5e7eb;
@@ -921,7 +920,7 @@ $card-bg: #ffffff;
 // ==========================================
 .cart-page {
     min-height: 100vh;
-    background: $bg;
+    background: var(--bs-body-bg, #{$bg});
     padding-bottom: 120px;
 }
 
@@ -947,22 +946,16 @@ $card-bg: #ffffff;
 }
 
 @keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .empty-icon {
     width: 100px;
     height: 100px;
     border-radius: 50%;
-    background: rgba($primary, 0.1);
-    color: $primary;
+    background: rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.1);
+    color: var(--bs-primary, #{$primary});
     display: flex;
     align-items: center;
     justify-content: center;
@@ -972,24 +965,20 @@ $card-bg: #ffffff;
 }
 
 @keyframes float {
-    0%, 100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-10px);
-    }
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
 }
 
 .empty-title {
     font-weight: 700;
     font-size: 1.4rem;
     margin: 0 0 8px 0;
-    color: $text;
+    color: var(--bs-body-color, #{$text});
 }
 
 .empty-text {
     font-size: 0.95rem;
-    color: $text-muted;
+    color: var(--bs-secondary-color, #{$text-muted});
     margin: 0 0 28px 0;
     line-height: 1.5;
 }
@@ -1000,7 +989,7 @@ $card-bg: #ffffff;
     justify-content: center;
     gap: 8px;
     padding: 14px 32px;
-    background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
+    background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
     border: none;
     border-radius: 14px;
     color: white;
@@ -1008,21 +997,21 @@ $card-bg: #ffffff;
     font-size: 1rem;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 16px rgba($primary, 0.3);
+    box-shadow: 0 4px 16px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.3);
 
     &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba($primary, 0.4);
+        box-shadow: 0 8px 24px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.4);
     }
 }
 
 // ==========================================
-// 🆕 STEPPER (С адаптацией под глобальную тему)
+// STEPPER
 // ==========================================
 .checkout-stepper {
-    background: var(--bs-body-bg, $card-bg);
+    background: var(--bs-body-bg, #{$card-bg});
     padding: 20px 16px;
-    border-bottom: 1px solid var(--bs-border-color, $border);
+    border-bottom: 1px solid var(--bs-border-color, #{$border});
     position: sticky;
     top: 0;
     z-index: 100;
@@ -1050,9 +1039,9 @@ $card-bg: #ffffff;
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--bs-body-bg, $bg);
-    border: 2px solid var(--bs-border-color, $border);
-    color: var(--bs-secondary-color, $text-muted);
+    background: var(--bs-body-bg, #{$bg});
+    border: 2px solid var(--bs-border-color, #{$border});
+    color: var(--bs-secondary-color, #{$text-muted});
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1062,20 +1051,17 @@ $card-bg: #ffffff;
     z-index: 2;
 }
 
-// Активный шаг: берем главный цвет темы
 .step-item.active .step-circle {
-    background: var(--bs-primary, $primary);
-    border-color: var(--bs-primary, $primary);
+    background: var(--bs-primary, #{$primary});
+    border-color: var(--bs-primary, #{$primary});
     color: #ffffff;
-    // Используем RGB-вариант переменной для тени, чтобы она тоже меняла цвет
-    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb, 59, 130, 246), 0.4);
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.4);
     transform: scale(1.1);
 }
 
-// Пройденный шаг: берем цвет успеха темы
 .step-item.completed .step-circle {
-    background: var(--bs-success, $success);
-    border-color: var(--bs-success, $success);
+    background: var(--bs-success, #{$success});
+    border-color: var(--bs-success, #{$success});
     color: #ffffff;
 }
 
@@ -1083,17 +1069,17 @@ $card-bg: #ffffff;
     margin-top: 8px;
     font-size: 0.7rem;
     font-weight: 600;
-    color: var(--bs-secondary-color, $text-muted);
+    color: var(--bs-secondary-color, #{$text-muted});
     text-align: center;
     transition: color 0.3s ease;
 }
 
 .step-item.active .step-label {
-    color: var(--bs-primary, $primary);
+    color: var(--bs-primary, #{$primary});
 }
 
 .step-item.completed .step-label {
-    color: var(--bs-success, $success);
+    color: var(--bs-success, #{$success});
 }
 
 .step-connector {
@@ -1102,35 +1088,12 @@ $card-bg: #ffffff;
     left: calc(50% + 20px);
     right: calc(-50% + 20px);
     height: 2px;
-    background: var(--bs-border-color, $border);
+    background: var(--bs-border-color, #{$border});
     transition: background 0.3s ease;
     z-index: 1;
 
     &.filled {
-        background: var(--bs-success, $success);
-    }
-}
-
-// ==========================================
-// ЗАГОЛОВОК ШАГА (тоже адаптируем иконку)
-// ==========================================
-.step-header {
-    padding: 20px 16px 12px;
-    text-align: center;
-}
-
-.step-title {
-    font-weight: 700;
-    font-size: 1.2rem;
-    margin: 0 0 4px 0;
-    color: var(--bs-body-color, $text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-
-    i {
-        color: var(--bs-primary, $primary); // 🆕 Иконка тоже меняет цвет
+        background: var(--bs-success, #{$success});
     }
 }
 
@@ -1146,21 +1109,21 @@ $card-bg: #ffffff;
     font-weight: 700;
     font-size: 1.2rem;
     margin: 0 0 4px 0;
-    color: $text;
+    color: var(--bs-body-color, #{$text});
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
 
     i {
-        color: $primary;
+        color: var(--bs-primary, #{$primary});
     }
 }
 
 .step-subtitle {
     margin: 0;
     font-size: 0.85rem;
-    color: $text-muted;
+    color: var(--bs-secondary-color, #{$text-muted});
 }
 
 // ==========================================
@@ -1186,8 +1149,8 @@ $card-bg: #ffffff;
 }
 
 .section-card {
-    background: $card-bg;
-    border: 1px solid $border;
+    background: var(--bs-body-bg, #{$card-bg});
+    border: 1px solid var(--bs-border-color, #{$border});
     border-radius: 16px;
     padding: 16px;
 }
@@ -1197,7 +1160,7 @@ $card-bg: #ffffff;
     align-items: center;
     gap: 10px;
     margin-bottom: 14px;
-    color: $primary;
+    color: var(--bs-primary, #{$primary});
 
     i {
         font-size: 1.1rem;
@@ -1218,17 +1181,17 @@ $card-bg: #ffffff;
     gap: 8px;
     padding: 14px;
     background: transparent;
-    border: 2px solid $border;
+    border: 2px solid var(--bs-border-color, #{$border});
     border-radius: 12px;
-    color: $text;
+    color: var(--bs-body-color, #{$text});
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
 
     &:hover {
-        border-color: $primary;
-        color: $primary;
-        background: rgba($primary, 0.03);
+        border-color: var(--bs-primary, #{$primary});
+        color: var(--bs-primary, #{$primary});
+        background: rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.05);
     }
 }
 
@@ -1240,8 +1203,8 @@ $card-bg: #ffffff;
     bottom: 0;
     left: 0;
     right: 0;
-    background: $card-bg;
-    border-top: 1px solid $border;
+    background: var(--bs-body-bg, #{$card-bg});
+    border-top: 1px solid var(--bs-border-color, #{$border});
     padding: 12px 16px;
     z-index: 1000;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
@@ -1263,13 +1226,13 @@ $card-bg: #ffffff;
 
 .summary-label {
     font-size: 0.85rem;
-    color: $text-muted;
+    color: var(--bs-secondary-color, #{$text-muted});
 }
 
 .summary-value {
     font-size: 1.2rem;
     font-weight: 700;
-    color: $primary;
+    color: var(--bs-primary, #{$primary});
 }
 
 .action-btn {
@@ -1279,7 +1242,7 @@ $card-bg: #ffffff;
     justify-content: center;
     gap: 10px;
     padding: 16px 24px;
-    background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
+    background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
     border: none;
     border-radius: 14px;
     color: white;
@@ -1287,11 +1250,11 @@ $card-bg: #ffffff;
     font-size: 1rem;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 16px rgba($primary, 0.3);
+    box-shadow: 0 4px 16px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.3);
 
     &:hover:not(:disabled) {
         transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba($primary, 0.4);
+        box-shadow: 0 8px 24px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.4);
     }
 
     &:active:not(:disabled) {
@@ -1305,6 +1268,7 @@ $card-bg: #ffffff;
     }
 
     &.tbank-btn {
+        // Брендированная кнопка Т-Банка остается желтой, это исключение
         background: linear-gradient(135deg, #ffdd2d 0%, #ffcc00 100%);
         color: #1a1a1a;
         box-shadow: 0 4px 16px rgba(255, 221, 45, 0.4);
@@ -1332,13 +1296,11 @@ $card-bg: #ffffff;
 }
 
 @keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
 }
 
 // ==========================================
-// 🆕 КОМПАКТНОЕ ОКНО УСПЕШНОГО ЗАКАЗА
+// ОКНО УСПЕШНОГО ЗАКАЗА (Теперь в цветах темы)
 // ==========================================
 .order-success-overlay {
     position: fixed;
@@ -1360,18 +1322,17 @@ $card-bg: #ffffff;
     background: var(--bs-body-bg, #ffffff);
     border-radius: 24px;
     overflow: hidden;
-    box-shadow: 0 20px 60px rgba(102, 126, 234, 0.25),
+    box-shadow: 0 20px 60px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.25),
     0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
-// 🆕 Компактный декоративный фон
 .success-bg {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     height: 120px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
     overflow: hidden;
 }
 
@@ -1391,42 +1352,21 @@ $card-bg: #ffffff;
     animation: circleFloat 6s ease-in-out infinite;
 }
 
-.circle-1 {
-    width: 80px;
-    height: 80px;
-    top: -30px;
-    right: -20px;
-}
-
-.circle-2 {
-    width: 60px;
-    height: 60px;
-    top: 20px;
-    left: -15px;
-    animation-delay: 2s;
-}
-
-.circle-3 {
-    display: none; // Скрываем для компактности
-}
+.circle-1 { width: 80px; height: 80px; top: -30px; right: -20px; }
+.circle-2 { width: 60px; height: 60px; top: 20px; left: -15px; animation-delay: 2s; }
+.circle-3 { display: none; }
 
 @keyframes circleFloat {
-    0%, 100% {
-        transform: translate(0, 0) scale(1);
-    }
-    50% {
-        transform: translate(10px, -10px) scale(1.1);
-    }
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(10px, -10px) scale(1.1); }
 }
 
-// Контент
 .success-content {
     position: relative;
     padding: 24px 20px 20px;
     text-align: center;
 }
 
-// 🆕 Компактная иконка
 .success-icon-wrapper {
     position: relative;
     width: 72px;
@@ -1439,54 +1379,40 @@ $card-bg: #ffffff;
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.8rem;
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5),
+    box-shadow: 0 6px 20px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.5),
     inset 0 1px 1px rgba(255, 255, 255, 0.3);
     animation: iconBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
     z-index: 2;
 }
 
 @keyframes iconBounce {
-    0% {
-        transform: scale(0) rotate(-180deg);
-        opacity: 0;
-    }
-    100% {
-        transform: scale(1) rotate(0deg);
-        opacity: 1;
-    }
+    0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
 .success-icon-ring {
     position: absolute;
     inset: -8px;
     border-radius: 50%;
-    border: 2px solid rgba(102, 126, 234, 0.4);
+    border: 2px solid rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.4);
     animation: ringExpand 2s ease-out infinite;
 }
 
 .success-icon-ring.ring-2 {
     animation-delay: 1s;
-    border-color: rgba(118, 75, 162, 0.4);
 }
 
 @keyframes ringExpand {
-    0% {
-        transform: scale(0.8);
-        opacity: 1;
-    }
-    100% {
-        transform: scale(1.5);
-        opacity: 0;
-    }
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
 }
 
-// 🆕 Минимальные конфетти
 .confetti {
     position: absolute;
     width: 6px;
@@ -1495,49 +1421,21 @@ $card-bg: #ffffff;
     animation: confettiFall 3s ease-in-out infinite;
 }
 
-.confetti-1 {
-    top: 5%;
-    left: 15%;
-    background: #fbbf24;
-    animation-delay: 0s;
-}
-
-.confetti-2 {
-    top: 10%;
-    right: 20%;
-    background: #f093fb;
-    animation-delay: 0.5s;
-}
-
-.confetti-3 {
-    top: 0%;
-    left: 40%;
-    background: #667eea;
-    animation-delay: 1s;
-}
-
-.confetti-4,
-.confetti-5 {
-    display: none; // Скрываем лишние
-}
+.confetti-1 { top: 5%; left: 15%; background: #fbbf24; animation-delay: 0s; }
+.confetti-2 { top: 10%; right: 20%; background: #f093fb; animation-delay: 0.5s; }
+.confetti-3 { top: 0%; left: 40%; background: var(--bs-primary, #{$primary}); animation-delay: 1s; }
+.confetti-4, .confetti-5 { display: none; }
 
 @keyframes confettiFall {
-    0%, 100% {
-        transform: translateY(0) rotate(0deg);
-        opacity: 1;
-    }
-    50% {
-        transform: translateY(15px) rotate(180deg);
-        opacity: 0.6;
-    }
+    0%, 100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    50% { transform: translateY(15px) rotate(180deg); opacity: 0.6; }
 }
 
-// 🆕 Компактный заголовок
 .success-title {
     font-size: 1.3rem;
     font-weight: 800;
     margin: 50px 0 4px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -1545,14 +1443,8 @@ $card-bg: #ffffff;
 }
 
 @keyframes titleSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(15px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .success-subtitle {
@@ -1562,7 +1454,7 @@ $card-bg: #ffffff;
     animation: subtitleFadeIn 0.6s ease-out 0.4s backwards;
 
     strong {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -1571,15 +1463,10 @@ $card-bg: #ffffff;
 }
 
 @keyframes subtitleFadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-// 🆕 Компактная карточка информации
 .order-info-card {
     background: var(--bs-secondary-bg, #f8f9fa);
     border: 1px solid var(--bs-border-color, #e5e7eb);
@@ -1590,14 +1477,8 @@ $card-bg: #ffffff;
 }
 
 @keyframes cardSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(15px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .info-row {
@@ -1607,9 +1488,7 @@ $card-bg: #ffffff;
     padding: 6px 0;
     border-bottom: 1px solid var(--bs-border-color-translucent, rgba(0, 0, 0, 0.05));
 
-    &:last-child {
-        border-bottom: none;
-    }
+    &:last-child { border-bottom: none; }
 }
 
 .info-label {
@@ -1623,7 +1502,7 @@ $card-bg: #ffffff;
     color: var(--bs-body-color, #1f2937);
 
     &.price {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -1632,7 +1511,7 @@ $card-bg: #ffffff;
     }
 
     &.status {
-        color: #667eea;
+        color: var(--bs-primary, #{$primary});
         display: flex;
         align-items: center;
         gap: 4px;
@@ -1640,12 +1519,11 @@ $card-bg: #ffffff;
 
         i {
             font-size: 0.75rem;
-            color: #667eea;
+            color: var(--bs-primary, #{$primary});
         }
     }
 }
 
-// 🆕 Компактные кнопки
 .success-actions {
     display: flex;
     flex-direction: column;
@@ -1655,14 +1533,8 @@ $card-bg: #ffffff;
 }
 
 @keyframes actionsSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(15px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .success-btn {
@@ -1679,22 +1551,17 @@ $card-bg: #ffffff;
     border: none;
 
     &.primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
         color: white;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.4);
 
         &:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+            box-shadow: 0 6px 20px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.5);
         }
 
-        i:last-child {
-            transition: transform 0.3s ease;
-        }
-
-        &:hover i:last-child {
-            transform: translateX(4px);
-        }
+        i:last-child { transition: transform 0.3s ease; }
+        &:hover i:last-child { transform: translateX(4px); }
     }
 
     &.secondary {
@@ -1704,14 +1571,13 @@ $card-bg: #ffffff;
         padding: 10px 18px;
 
         &:hover {
-            border-color: #667eea;
-            color: #667eea;
-            background: rgba(102, 126, 234, 0.04);
+            border-color: var(--bs-primary, #{$primary});
+            color: var(--bs-primary, #{$primary});
+            background: rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.05);
         }
     }
 }
 
-// 🆕 Компактная подсказка
 .auto-close-hint {
     display: flex;
     align-items: center;
@@ -1722,93 +1588,36 @@ $card-bg: #ffffff;
     animation: hintFadeIn 0.6s ease-out 0.7s backwards;
 
     i {
-        color: #667eea;
+        color: var(--bs-primary, #{$primary});
         font-size: 0.7rem;
     }
 }
 
 @keyframes hintFadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-// Анимации появления/исчезновения
 .order-success-enter-active {
     transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-
-    .order-success-sheet {
-        animation: sheetPopIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
+    .order-success-sheet { animation: sheetPopIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
 }
 
-.order-success-leave-active {
-    transition: all 0.3s ease-in;
-}
-
-.order-success-enter-from {
-    opacity: 0;
-
-    .order-success-sheet {
-        transform: scale(0.8);
-    }
-}
-
-.order-success-leave-to {
-    opacity: 0;
-
-    .order-success-sheet {
-        transform: scale(0.9);
-    }
-}
+.order-success-leave-active { transition: all 0.3s ease-in; }
+.order-success-enter-from { opacity: 0; .order-success-sheet { transform: scale(0.8); } }
+.order-success-leave-to { opacity: 0; .order-success-sheet { transform: scale(0.9); } }
 
 @keyframes sheetPopIn {
-    from {
-        transform: scale(0.8);
-        opacity: 0;
-    }
-    to {
-        transform: scale(1);
-        opacity: 1;
-    }
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
 // ==========================================
-// АДАПТИВ
+// МОДАЛКА ОШИБКИ МИНИМАЛЬНОЙ СУММЫ
 // ==========================================
-@media (max-width: 400px) {
-    .order-success-overlay {
-        padding: 16px;
-    }
-
-    .order-success-sheet {
-        max-width: 100%;
-    }
-
-    .success-content {
-        padding: 20px 16px 16px;
-    }
-
-    .success-title {
-        font-size: 1.2rem;
-    }
-
-    .success-btn {
-        font-size: 0.85rem;
-        padding: 11px 16px;
-    }
-}
-
-/* 🆕 МОДАЛКА ОШИБКИ МИНИМАЛЬНОЙ СУММЫ */
 .min-order-error-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
     display: flex;
@@ -1819,7 +1628,7 @@ $card-bg: #ffffff;
 }
 
 .min-order-error-modal {
-    background: white;
+    background: var(--bs-body-bg, #ffffff);
     border-radius: 20px;
     max-width: 500px;
     width: 100%;
@@ -1830,18 +1639,12 @@ $card-bg: #ffffff;
 }
 
 @keyframes modalSlideUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .error-header {
-    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    background: linear-gradient(135deg, var(--bs-danger, #{$danger}) 0%, rgba(var(--bs-danger-rgb, #{$danger-rgb}), 0.8) 100%);
     color: white;
     padding: 24px;
     text-align: center;
@@ -1860,33 +1663,16 @@ $card-bg: #ffffff;
     font-size: 28px;
 }
 
-.modal-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin: 0 0 8px;
-}
-
-.modal-subtitle {
-    font-size: 0.9rem;
-    opacity: 0.9;
-    margin: 0;
-}
-
-.modal-body {
-    padding: 20px;
-}
-
-.error-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
+.modal-title { font-size: 1.5rem; font-weight: 700; margin: 0 0 8px; }
+.modal-subtitle { font-size: 0.9rem; opacity: 0.9; margin: 0; }
+.modal-body { padding: 20px; }
+.error-list { display: flex; flex-direction: column; gap: 16px; }
 
 .error-item {
-    background: #f8f9fa;
+    background: var(--bs-secondary-bg, #f8f9fa);
     border-radius: 12px;
     overflow: hidden;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--bs-border-color, #e9ecef);
 }
 
 .error-item-header {
@@ -1894,20 +1680,16 @@ $card-bg: #ffffff;
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    background: white;
-    border-bottom: 1px solid #e9ecef;
+    background: var(--bs-body-bg, #ffffff);
+    border-bottom: 1px solid var(--bs-border-color, #e9ecef);
 }
 
-.partner-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
+.partner-info { display: flex; align-items: center; gap: 12px; }
 
 .partner-icon {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -1916,93 +1698,26 @@ $card-bg: #ffffff;
     font-size: 18px;
 }
 
-.partner-details {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
+.partner-details { display: flex; flex-direction: column; gap: 2px; }
+.partner-name { font-size: 1rem; font-weight: 600; margin: 0; color: var(--bs-body-color, #2c3e50); }
+.partner-badge { font-size: 0.75rem; color: var(--bs-secondary-color, #6c757d); font-weight: 500; }
+.error-badge { color: var(--bs-danger, #{$danger}); font-size: 24px; }
+.error-item-body { padding: 16px; }
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.info-cell { display: flex; flex-direction: column; gap: 4px; }
+.info-label { font-size: 0.75rem; color: var(--bs-secondary-color, #6c757d); text-transform: uppercase; font-weight: 600; }
+.info-value { font-size: 1.1rem; font-weight: 700; }
+.current-amount { color: var(--bs-secondary-color, #6c757d); }
+.required-amount { color: var(--bs-danger, #{$danger}); }
 
-.partner-name {
-    font-size: 1rem;
-    font-weight: 600;
-    margin: 0;
-    color: #2c3e50;
-}
-
-.partner-badge {
-    font-size: 0.75rem;
-    color: #6c757d;
-    font-weight: 500;
-}
-
-.error-badge {
-    color: #dc3545;
-    font-size: 24px;
-}
-
-.error-item-body {
-    padding: 16px;
-}
-
-.info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 16px;
-}
-
-.info-cell {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.info-label {
-    font-size: 0.75rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    font-weight: 600;
-}
-
-.info-value {
-    font-size: 1.1rem;
-    font-weight: 700;
-}
-
-.current-amount {
-    color: #6c757d;
-}
-
-.required-amount {
-    color: #dc3545;
-}
-
-.progress-section {
-    margin-bottom: 16px;
-}
-
-.progress-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-.progress-label {
-    font-size: 0.85rem;
-    color: #6c757d;
-    font-weight: 500;
-}
-
-.progress-percent {
-    font-size: 0.85rem;
-    color: #dc3545;
-    font-weight: 700;
-}
+.progress-section { margin-bottom: 16px; }
+.progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.progress-label { font-size: 0.85rem; color: var(--bs-secondary-color, #6c757d); font-weight: 500; }
+.progress-percent { font-size: 0.85rem; color: var(--bs-danger, #{$danger}); font-weight: 700; }
 
 .progress-bar-wrapper {
     height: 8px;
-    background: #e9ecef;
+    background: var(--bs-border-color, #e9ecef);
     border-radius: 4px;
     overflow: hidden;
 }
@@ -2015,7 +1730,7 @@ $card-bg: #ffffff;
 }
 
 .progress-bar-danger {
-    background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+    background: linear-gradient(90deg, var(--bs-danger, #{$danger}) 0%, rgba(var(--bs-danger-rgb, #{$danger-rgb}), 0.8) 100%);
 }
 
 .shortage-message {
@@ -2023,28 +1738,21 @@ $card-bg: #ffffff;
     align-items: center;
     gap: 8px;
     padding: 12px;
-    background: #fff3cd;
+    background: rgba(255, 193, 7, 0.15);
     border-left: 4px solid #ffc107;
     border-radius: 6px;
     color: #856404;
     font-size: 0.9rem;
 }
 
-.shortage-message i {
-    font-size: 16px;
-}
-
-.error-divider {
-    height: 1px;
-    background: #e9ecef;
-    margin: 0;
-}
+.shortage-message i { font-size: 16px; }
+.error-divider { height: 1px; background: var(--bs-border-color, #e9ecef); margin: 0; }
 
 .modal-footer {
     padding: 20px;
     display: flex;
     gap: 12px;
-    border-top: 1px solid #e9ecef;
+    border-top: 1px solid var(--bs-border-color, #e9ecef);
 }
 
 .modal-btn {
@@ -2063,62 +1771,33 @@ $card-bg: #ffffff;
 }
 
 .primary-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary}) 100%);
     color: white;
-}
 
-.primary-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(var(--bs-primary-rgb, #{$primary-rgb}), 0.3);
+    }
 }
 
 .secondary-btn {
-    background: #f8f9fa;
-    color: #6c757d;
-}
+    background: var(--bs-secondary-bg, #f8f9fa);
+    color: var(--bs-secondary-color, #6c757d);
 
-.secondary-btn:hover {
-    background: #e9ecef;
-}
-
-/* Анимация появления/исчезновения */
-.min-order-error-enter-active,
-.min-order-error-leave-active {
-    transition: opacity 0.3s ease;
-}
-
-.min-order-error-enter-from,
-.min-order-error-leave-to {
-    opacity: 0;
-}
-
-/* Адаптивность */
-@media (max-width: 576px) {
-    .min-order-error-modal {
-        max-width: 100%;
-        border-radius: 16px;
-    }
-
-    .modal-title {
-        font-size: 1.3rem;
-    }
-
-    .info-value {
-        font-size: 1rem;
-    }
-
-    .modal-footer {
-        flex-direction: column;
+    &:hover {
+        background: var(--bs-border-color, #e9ecef);
     }
 }
 
-/* 🆕 МОДАЛКА ОШИБКИ ГРАФИКА РАБОТЫ */
+.min-order-error-enter-active, .min-order-error-leave-active { transition: opacity 0.3s ease; }
+.min-order-error-enter-from, .min-order-error-leave-to { opacity: 0; }
+
+// ==========================================
+// МОДАЛКА ОШИБКИ ГРАФИКА РАБОТЫ
+// ==========================================
 .schedule-error-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
     display: flex;
@@ -2129,7 +1808,7 @@ $card-bg: #ffffff;
 }
 
 .schedule-error-modal {
-    background: white;
+    background: var(--bs-body-bg, #ffffff);
     border-radius: 20px;
     max-width: 450px;
     width: 100%;
@@ -2169,7 +1848,7 @@ $card-bg: #ffffff;
     align-items: flex-start;
     gap: 10px;
     padding: 12px;
-    background: #f1f5f9;
+    background: var(--bs-secondary-bg, #f1f5f9);
     border-left: 4px solid #64748b;
     border-radius: 6px;
     color: #334155;
@@ -2182,24 +1861,31 @@ $card-bg: #ffffff;
     align-items: center;
     gap: 8px;
     padding: 10px 12px;
-    background: #fffbeb;
+    background: rgba(245, 158, 11, 0.1);
     border-left: 4px solid #f59e0b;
     border-radius: 6px;
     color: #92400e;
     font-size: 0.85rem;
 
-    strong {
-        font-weight: 700;
-    }
+    strong { font-weight: 700; }
 }
 
-.schedule-error-enter-active,
-.schedule-error-leave-active {
-    transition: opacity 0.3s ease;
-}
+.schedule-error-enter-active, .schedule-error-leave-active { transition: opacity 0.3s ease; }
+.schedule-error-enter-from, .schedule-error-leave-to { opacity: 0; }
 
-.schedule-error-enter-from,
-.schedule-error-leave-to {
-    opacity: 0;
+// ==========================================
+// АДАПТИВ
+// ==========================================
+@media (max-width: 576px) {
+    .min-order-error-modal { max-width: 100%; border-radius: 16px; }
+    .modal-title { font-size: 1.3rem; }
+    .info-value { font-size: 1rem; }
+    .modal-footer { flex-direction: column; }
+
+    .order-success-overlay { padding: 16px; }
+    .order-success-sheet { max-width: 100%; }
+    .success-content { padding: 20px 16px 16px; }
+    .success-title { font-size: 1.2rem; }
+    .success-btn { font-size: 0.85rem; padding: 11px 16px; }
 }
 </style>

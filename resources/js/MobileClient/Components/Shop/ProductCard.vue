@@ -559,12 +559,12 @@ export default {
 
 <style lang="scss" scoped>
 @use 'sass:color';
+
 // ==========================================
-// SCSS-ПЕРЕМЕННЫЕ (для функций lighten/darken)
+// SCSS-ПЕРЕМЕННЫЕ (используются как fallback)
 // ==========================================
 $primary: #3b82f6;
 $primary-dark: #2563eb;
-$primary-light: #60a5fa;
 $danger: #dc3545;
 $danger-dark: #c82333;
 $warning: #ffc107;
@@ -846,21 +846,22 @@ $bg-secondary: #f8f9fa;
     padding: 0 5px 5px;
 }
 
+// 🆕 КНОПКА "В КОРЗИНУ" (теперь динамическая)
 .add-btn {
     width: 100%;
     padding: 10px 12px;
-    background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
+    background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary-dark}) 100%);
     border: none;
     border-radius: 12px;
     color: white;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba($primary, 0.25);
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb, 59, 130, 246), 0.25);
     overflow: hidden;
 
     &:hover:not(:disabled) {
         transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba($primary, 0.35);
+        box-shadow: 0 6px 18px rgba(var(--bs-primary-rgb, 59, 130, 246), 0.35);
     }
 
     &:active:not(:disabled) {
@@ -877,8 +878,7 @@ $bg-secondary: #f8f9fa;
     }
 
     &.is-loading {
-        background: linear-gradient(135deg, color.adjust($primary, $lightness: 15%) 0%,
-            color.adjust($primary, $lightness: 25%) 100%);
+        background: linear-gradient(135deg, rgba(var(--bs-primary-rgb, 59, 130, 246), 0.8) 0%, rgba(var(--bs-primary-rgb, 59, 130, 246), 0.6) 100%);
     }
 }
 
@@ -938,6 +938,9 @@ $bg-secondary: #f8f9fa;
     opacity: 0.7;
 }
 
+// ==========================================
+// СЧЁТЧИК КОЛИЧЕСТВА
+// ==========================================
 .quantity-stepper {
     display: flex;
     align-items: center;
@@ -948,8 +951,8 @@ $bg-secondary: #f8f9fa;
     transition: all 0.2s ease;
 
     &.is-updating {
-        border-color: color.adjust($primary, $lightness: 20%);
-        background: rgba($primary, 0.03);
+        border-color: var(--bs-primary-hover, #{$primary-dark});
+        background: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.05);
     }
 }
 
@@ -1006,6 +1009,7 @@ $bg-secondary: #f8f9fa;
     font-weight: 500;
 }
 
+// 🆕 КНОПКА "ВЫБРАТЬ" (теперь динамическая)
 .select-btn {
     width: 100%;
     display: flex;
@@ -1018,21 +1022,21 @@ $bg-secondary: #f8f9fa;
     border-radius: 12px;
     color: var(--bs-body-color, #{$text});
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s ease;
 
     &:hover:not(:disabled) {
         border-color: var(--bs-primary, #{$primary});
         color: var(--bs-primary, #{$primary});
-        background: rgba($primary, 0.03);
+        background: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.05);
     }
 
     &.selected {
-        background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
-        border-color: $primary;
+        background: linear-gradient(135deg, var(--bs-primary, #{$primary}) 0%, var(--bs-primary-hover, #{$primary-dark}) 100%);
+        border-color: var(--bs-primary, #{$primary});
         color: white;
-        box-shadow: 0 4px 12px rgba($primary, 0.3);
+        box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb, 59, 130, 246), 0.3);
     }
 
     &:disabled {
@@ -1091,17 +1095,15 @@ $bg-secondary: #f8f9fa;
 }
 
 // ==========================================
-// НОВЫЕ СТИЛИ ДЛЯ ВЕСОВЫХ ТОВАРОВ
+// СТИЛИ ДЛЯ ВЕСОВЫХ ТОВАРОВ
 // ==========================================
-
-// Подсказка о весе под счётчиком
 .weight-info {
     margin-top: 6px;
     padding: 4px 8px;
-    background: rgba($primary, 0.05);
+    background: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.05);
     border-radius: 6px;
     font-size: 0.7rem;
-    color: $text-muted;
+    color: var(--bs-secondary-color, #{$text-muted});
     text-align: center;
 }
 
@@ -1111,7 +1113,7 @@ $bg-secondary: #f8f9fa;
     opacity: 0.85;
     margin-left: 2px;
 }
-// Подсказка "от X ₽ / Y г" на кнопке
+
 .weight-hint {
     font-size: 0.5rem;
     font-weight: 500;
@@ -1119,14 +1121,12 @@ $bg-secondary: #f8f9fa;
     margin-left: 2px;
 }
 
-// Счётчик для весовых товаров — чуть шире для отображения граммов
 .quantity-stepper.is-weight {
     .stepper-value {
         min-width: 60px;
     }
 }
 
-// Заблокированная кнопка — особый стиль
 .stepper-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
@@ -1134,41 +1134,6 @@ $bg-secondary: #f8f9fa;
     &:hover {
         background: transparent;
         color: inherit;
-    }
-}
-
-.select-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px;
-    background: var(--bs-body-bg, #{$bg});
-    border: 2px solid var(--bs-border-color, #{$border});
-    border-radius: 12px;
-    color: var(--bs-body-color, #{$text});
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover:not(:disabled) {
-        border-color: var(--bs-primary, #{$primary});
-        color: var(--bs-primary, #{$primary});
-        background: rgba($primary, 0.03);
-    }
-
-    &.selected {
-        background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 10%) 100%);
-        border-color: $primary;
-        color: white;
-        box-shadow: 0 4px 12px rgba($primary, 0.3);
-    }
-
-    &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
     }
 }
 </style>
