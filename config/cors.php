@@ -20,13 +20,13 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
+        'http://stariy-shanson.mypwa.ru', // Старый-шансон (Punycode)
+        'https://stariy-shanson.mypwa.ru', // Старый-шансон (Punycode)
         'https://xn--80aacbuczbw9a6a.xn--p1ai', // Старый-шансон (Punycode)
         'http://xn--80aacbuczbw9a6a.xn--p1ai',
         'http://localhost',          // Для тестов с localhost
-        'http://sms.local',          // Для тестов с localhost
         'http://127.0.0.1',          // Для тестов с 127.0.0.1
         'http://localhost:8000',          // Для тестов с 127.0.0.1
-        'http://pwa-platform.test',  // ВАШ локальный домен OpenServer (замените на свой, если он другой)
     ],
 
     'allowed_origins_patterns' => [],
