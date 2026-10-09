@@ -1108,7 +1108,6 @@ trait BasketHelper
         return $message;
     }
 
-
     private function notifyStakeholders(Order $order, array $context, array $basketData): ?string
     {
         $kanbanTaskId = null;
@@ -1128,6 +1127,13 @@ trait BasketHelper
         $partnerMessages = $this->buildPartnerMessages($order, $basketData['partner_boxes'], $basketData['cashback'], $context['need_pickup']);
         $telegramMessage = $this->buildTelegramOrderNotification($order, $context, $basketData);
 
+        // 🛡️ 1. ЗАЩИТА ОТ ЛИМИТА TELEGRAM (4096 символов)
+        // Если сообщение слишком длинное, Telegram его отклонит. Генерируем урезанную версию.
+        if (mb_strlen($telegramMessage) > 4000) {
+            Log::warning("[Telegram] Сообщение для заказа #{$order->id} слишком длинное (" . mb_strlen($telegramMessage) . " символов). Используем короткий формат.");
+            $telegramMessage = $this->buildShortTelegramNotification($order, $context, $basketData);
+        }
+
         $kanbanCustomData = [
             'tenant_id' => $this->tenant?->id, 'tenant_name' => $this->tenant?->name ?? $this->tenant?->uuid,
             'tenant_user_id' => $this->tenantUser->id, 'last_order_id' => $order->id, 'last_order_date' => now()->toIso8601String(),
@@ -1137,22 +1143,29 @@ trait BasketHelper
             'payment_status' => $paymentStatusText, 'summary_price' => $basketData['final_price'],
         ];
 
-        $crmResult = MessageService::call()->sendMessage([
-            'client_message' => $clientMessage, 'telegram_message' => $telegramMessage, 'crm_message' => $crmMessage, 'dialog_id' => $dialog?->id,
-            'title' => "Заказ #{$order->id} — {$context['customer_name']}",
-            'meta' => [
-                'order_id' => $order->id, 'payment_status' => $paymentStatusText, 'is_system' => false,
-                'tenant_user_id' => $this->tenantUser->id, 'dialog_id' => $dialog?->id,
-                'customer_name' => $context['customer_name'], 'customer_phone' => $context['customer_phone'],
-                'summary_price' => $basketData['final_price'], 'need_pickup' => $context['need_pickup'],
-                'delivery_note' => $this->fsPrepareDeliveryNote(), 'kanban_board_uuid' => $context['kanban_board_uuid'],
-                'kanban_thread' => $context['kanban_thread'], 'kanban_custom_data' => $kanbanCustomData,
-                'kanban_payload' => array_merge($kanbanCustomData, ['source' => 'foodshop', 'type' => 'new_order']),
-            ],
-            'recipients' => ['client' => true, 'crm' => (bool) $context['kanban_enabled'], 'telegram' => true],
-        ]);
+        $crmResult = null;
+        try {
+            $crmResult = MessageService::call()->sendMessage([
+                'client_message' => $clientMessage, 'telegram_message' => $telegramMessage, 'crm_message' => $crmMessage, 'dialog_id' => $dialog?->id,
+                'title' => "Заказ #{$order->id} — {$context['customer_name']}",
+                'meta' => [
+                    'order_id' => $order->id, 'payment_status' => $paymentStatusText, 'is_system' => false,
+                    'tenant_user_id' => $this->tenantUser->id, 'dialog_id' => $dialog?->id,
+                    'customer_name' => $context['customer_name'], 'customer_phone' => $context['customer_phone'],
+                    'summary_price' => $basketData['final_price'], 'need_pickup' => $context['need_pickup'],
+                    'delivery_note' => $this->fsPrepareDeliveryNote(), 'kanban_board_uuid' => $context['kanban_board_uuid'],
+                    'kanban_thread' => $context['kanban_thread'], 'kanban_custom_data' => $kanbanCustomData,
+                    'kanban_payload' => array_merge($kanbanCustomData, ['source' => 'foodshop', 'type' => 'new_order']),
+                ],
+                'recipients' => ['client' => true, 'crm' => (bool) $context['kanban_enabled'], 'telegram' => true],
+            ]);
+        } catch (\Throwable $e) {
+            // 🚨 2. FALLBACK: Если отправка всё равно упала (сбой API, сети и т.д.)
+            Log::error('[Notify] Ошибка отправки основного уведомления: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            $this->sendFallbackTelegramNotification($order, $context, $basketData, $e);
+        }
 
-        if (!empty($crmResult['crm']['task_id'])) {
+        if ($crmResult && !empty($crmResult['crm']['task_id'])) {
             $kanbanTaskId = $crmResult['crm']['task_id'];
             $order->updateQuietly(['meta' => array_merge($order->meta ?? [], ['kanban_task_id' => $kanbanTaskId, 'kanban_message_id' => $crmResult['crm']['message_id'] ?? null, 'kanban_board_uuid' => $context['kanban_board_uuid']])]);
         }
@@ -1167,6 +1180,72 @@ trait BasketHelper
         }
 
         return $kanbanTaskId;
+    }
+
+    /**
+     * 📉 Генерирует урезанное сообщение для Telegram, если основное превышает 4096 символов
+     */
+    private function buildShortTelegramNotification(Order $order, array $context, array $basketData): string
+    {
+        $addr = $this->getResolvedAddress();
+        $orderType = $context['need_pickup'] ? '🏪 Самовывоз' : '🚚 Доставка';
+        $addressText = $context['need_pickup'] ? 'Не требуется' : e($addr['address'] ?? '');
+        $clientName = e($context['customer_name'] ?? $order->receiver_name ?? 'Клиент');
+        $phone = $this->cleanPhone($context['customer_phone'] ?? $order->receiver_phone ?? '');
+        $totalToPay = (float)$order->summary_price + (float)$order->delivery_price;
+
+        $message  = "🔔 <b>ЗАКАЗ #{$order->id}</b> ⚠️ (Состав скрыт из-за размера)\n";
+        $message .= "📅 " . now("+3:00")->format('d.m.Y H:i') . "\n\n";
+        $message .= "👤 <b>Клиент:</b> {$clientName}\n";
+        $message .= "📞 <b>Телефон:</b> {$phone}\n";
+        $message .= "📦 <b>Способ:</b> {$orderType}\n";
+
+        if (!$context['need_pickup']) {
+            $message .= "📍 <b>Адрес:</b> {$addressText}\n";
+        }
+
+        $message .= "🛒 <b>Товаров:</b> {$basketData['summary_count']} шт.\n";
+        $message .= "💰 <b>Сумма:</b> " . number_format($totalToPay, 0, '.', ' ') . " ₽\n\n";
+        $message .= "⚠️ <i>Полный состав заказа доступен в CRM или в чеке.</i>\n";
+
+        $baseUrl = request()->getSchemeAndHttpHost() ?? '';
+        if ($baseUrl && $order->dialog_id) {
+            $chatUrl = "{$baseUrl}/pwa#/chat/{$order->dialog_id}";
+            $message .= "🔗 <a href=\"{$chatUrl}\">Открыть чат</a>\n";
+        }
+
+        return $message;
+    }
+
+    /**
+     * 🚨 Экстренный маячок: отправляется, если MessageService упал с фатальной ошибкой
+     */
+    private function sendFallbackTelegramNotification(Order $order, array $context, array $basketData, \Throwable $exception): void
+    {
+        $phone = $this->cleanPhone($context['customer_phone'] ?? $order->receiver_phone ?? '');
+        $totalToPay = (float)$order->summary_price + (float)$order->delivery_price;
+
+        $fallbackMessage  = "🚨 <b>СБОЙ УВЕДОМЛЕНИЯ</b> (Заказ создан в БД)\n";
+        $fallbackMessage .= "🔔 <b>Заказ #{$order->id}</b> не отправился в Telegram.\n";
+        $fallbackMessage .= "👤 {$context['customer_name']} | 📞 {$phone}\n";
+        $fallbackMessage .= "💰 Сумма: " . number_format($totalToPay, 0, '.', ' ') . " ₽\n\n";
+        $fallbackMessage .= "❗️ <i>Пожалуйста, проверьте заказ вручную в системе доставки/CRM!</i>\n";
+        $fallbackMessage .= "🐞 <code>" . e(mb_substr($exception->getMessage(), 0, 150)) . "</code>";
+
+        try {
+            MessageService::call()->sendMessage([
+                'telegram_message' => $fallbackMessage,
+                'meta' => [
+                    'order_id' => $order->id,
+                    'is_system' => true,
+                    'type' => 'fallback_notification',
+                    'original_error' => $exception->getMessage()
+                ],
+                'recipients' => ['telegram' => true], // Шлём только в телеграм (админам)
+            ]);
+        } catch (\Throwable $fallbackEx) {
+            Log::critical('[Checkout] Fallback-уведомление тоже не отправилось: ' . $fallbackEx->getMessage());
+        }
     }
 
     private function processPaymentAndReceipt(Order $order, array $context, array $basketData, ?string $kanbanTaskId): ?array
