@@ -1,6 +1,5 @@
 <template>
-    <div class="app-layout">
-
+    <div class="app-layout" :class="{ 'is-embedded': isEmbedded }">
 
         <Head :title="pageTitle" />
 
@@ -13,10 +12,11 @@
                 <span>Нет подключения к интернету. Данные сохраняются локально.</span>
             </div>
         </transition>
+
         <!-- ========================================== -->
-        <!-- MODERN HEADER -->
+        <!-- MODERN HEADER (Скрываем в режиме виджета) -->
         <!-- ========================================== -->
-        <header class="modern-header">
+        <header v-if="!isEmbedded" class="modern-header">
             <div class="header-container">
 
                 <!-- 1. Кнопка меню (Гамбургер) -->
@@ -36,8 +36,6 @@
                     <i class="fa-solid fa-chevron-down brand-arrow"></i>
                 </div>
 
-
-
                 <!-- 3. Кэшбэк (Премиальный бейдж) -->
                 <a
                     v-if="loadedCashback"
@@ -54,9 +52,9 @@
         </header>
 
         <!-- ========================================== -->
-        <!-- 🆕 QUEUE PILL (Вынесен под хедер, по центру) -->
+        <!-- 🆕 QUEUE PILL (Скрываем в режиме виджета) -->
         <!-- ========================================== -->
-        <transition name="fade-scale">
+        <transition v-if="!isEmbedded" name="fade-scale">
             <div v-if="queue.hasTasks" class="queue-pill-wrapper">
                 <button
                     class="queue-pill"
@@ -88,13 +86,15 @@
         <!-- ProductInfo модалка (если нужна глобально) -->
         <ProductInfo/>
 
-        <!-- BottomMenu -->
-        <BottomMenu :user-type="'client'"/>
+        <!-- BottomMenu (Скрываем в режиме виджета) -->
+        <BottomMenu v-if="!isEmbedded" :user-type="'client'"/>
 
-        <!-- FOOTER -->
-        <Footer/>
+        <!-- FOOTER (Скрываем в режиме виджета) -->
+        <Footer v-if="!isEmbedded"/>
 
-        <AppSidebar id="sidebar-menu" @close="toggleSidebar"/>
+        <!-- AppSidebar (Скрываем в режиме виджета) -->
+        <AppSidebar v-if="!isEmbedded" id="sidebar-menu" @close="toggleSidebar"/>
+
         <ShopInfoModal/>
 
         <!-- MODAL: График работы -->
@@ -289,7 +289,7 @@
 </template>
 
 <script>
-import { Head } from '@inertiajs/vue3'; // Обязательно импортируем
+import { Head } from '@inertiajs/vue3';
 import ScheduleList from "@/MobileClient/Components/Shop/ScheduleList.vue";
 import ProductInfo from "@/MobileClient/Components/Shop/ProductInfo.vue";
 import Preloader from "@/MobileClient/Components/Shop/Preloader.vue";
@@ -325,7 +325,7 @@ export default {
         const favorites = useFavorites();
         const basket = useBasket();
         const chat = useChat();
-        const queue = useQueueStore(); // 🆕
+        const queue = useQueueStore();
 
         return { favorites, basket, chat, queue };
     },
@@ -345,11 +345,17 @@ export default {
     },
 
     computed: {
+        // 🆕 ПРОВЕРКА РЕЖИМА ВИДЖЕТА (Изолированная страница)
+        isEmbedded() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('embedded') === 'true' || params.get('embedded') === '1';
+        },
+
         tenant() {
             return window.Tenant || null;
         },
         pageTitle(){
-          return this.tenant?.name || 'Мини-магазин'
+            return this.tenant?.name || 'Мини-магазин'
         },
         self() {
             return window.TenantUser || null;
@@ -424,7 +430,7 @@ export default {
         this.loadCashback();
         this.applyCurrentTheme();
         this.watchThemeChanges();
-        this.initPWA(); // 🆕 Инициализируем логику PWA
+        this.initPWA();
 
         this.$router.beforeEach((to, from, next) => {
             this.isLoading = true;
@@ -450,59 +456,44 @@ export default {
     },
 
     methods: {
-
-        // 🆕 Полная инициализация PWA
         initPWA() {
-            // 1. Определяем iOS
             this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
             const isStandalone = window.navigator.standalone === true;
 
-            // 2. Если это iOS, не в режиме приложения, и пользователь не скрывал подсказку
             if (this.isIOS && !isStandalone && !localStorage.getItem('ios_prompt_hidden')) {
-                // Показываем модалку с небольшой задержкой, чтобы не мешать первой отрисовке
                 setTimeout(() => {
                     this.showPwaModal = true;
                 }, 1500);
             }
 
-            // 3. Слушаем событие установки для Android/Desktop
             window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault(); // Отменяем стандартный баннер браузера
-                this.deferredPrompt = e; // Сохраняем событие
-
-                // Показываем нашу красивую модалку
+                e.preventDefault();
+                this.deferredPrompt = e;
                 this.showPwaModal = true;
             });
 
-            // 4. Отслеживаем успешную установку
             window.addEventListener('appinstalled', () => {
                 this.deferredPrompt = null;
                 this.showPwaModal = false;
-                localStorage.setItem('ios_prompt_hidden', 'true'); // На всякий случай
+                localStorage.setItem('ios_prompt_hidden', 'true');
                 this.$notify?.({ title: 'Успех', text: 'Приложение успешно установлено!', type: 'success' });
             });
         },
 
-        // 🆕 Логика кнопки "Установить"
         async installPWA() {
             if (this.isIOS) {
-                // Для iOS мы просто закрываем модалку, пользователь должен сделать это вручную
                 this.hidePwaPrompt();
                 return;
             }
 
             if (this.deferredPrompt) {
-                // Показываем нативный диалог установки браузера
                 this.deferredPrompt.prompt();
-
-                // Ждем выбора пользователя
                 const { outcome } = await this.deferredPrompt.userChoice;
                 if (outcome === 'accepted') {
                     console.log('Пользователь принял установку PWA');
                 } else {
                     console.log('Пользователь отклонил установку PWA');
                 }
-
                 this.deferredPrompt = null;
             } else {
                 console.warn('Установка PWA недоступна в этом браузере');
@@ -511,13 +502,11 @@ export default {
             this.showPwaModal = false;
         },
 
-        // 🆕 Логика кнопки "Позже" / "Понятно"
         hidePwaPrompt() {
             this.showPwaModal = false;
-            // Запоминаем, что пользователь не хочет видеть подсказку (для iOS)
             localStorage.setItem('ios_prompt_hidden', 'true');
         },
-        // 🆕 Форматирование числа кэшбэка (например: "1 250")
+
         formatCashback(amount) {
             return new Intl.NumberFormat('ru-RU').format(amount || 0);
         },
@@ -534,8 +523,6 @@ export default {
                 this.applyColor(savedColor);
             }
         },
-
-
 
         toggleSidebar() {
             this.chat.loadUnreadCount();
@@ -670,7 +657,6 @@ export default {
         },
 
         openQueueModal() {
-            // 🛡️ Защита: если инстанс не создался в mounted — создадим сейчас
             if (!this.queueModalInstance) {
                 const el = document.getElementById('queue-modal');
                 if (el && typeof bootstrap !== 'undefined') {
@@ -713,7 +699,6 @@ export default {
     position: sticky;
     top: 0;
     z-index: 1020;
-    /* Эффект стекла (Glassmorphism) */
     background: rgba(var(--bs-body-bg-rgb, 255, 255, 255), 0.85);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -721,7 +706,6 @@ export default {
     transition: all 0.3s ease;
 }
 
-/* Поддержка темной темы для стекла */
 [data-bs-theme="dark"] .modern-header {
     background: rgba(var(--bs-body-bg-rgb, 33, 37, 41), 0.85);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -736,7 +720,6 @@ export default {
     margin: 0 auto;
 }
 
-/* 1. Кнопка меню */
 .menu-btn {
     background: transparent;
     border: none;
@@ -759,7 +742,6 @@ export default {
     transform: scale(0.95);
 }
 
-/* 2. Бренд / Название магазина */
 .brand-area {
     display: flex;
     align-items: center;
@@ -768,7 +750,6 @@ export default {
     padding: 8px 16px;
     border-radius: 99px;
     transition: all 0.25s ease;
-    /* На мобильных центрируем абсолютно */
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
@@ -799,7 +780,6 @@ export default {
     transform: translateY(2px);
 }
 
-/* 3. Кэшбэк (Премиальная пилюля) */
 .cashback-pill {
     display: flex;
     align-items: center;
@@ -831,7 +811,6 @@ export default {
     color: rgba(255, 255, 255, 0.9);
 }
 
-/* Адаптив для маленьких экранов */
 @media (max-width: 576px) {
     .brand-name {
         max-width: 140px;
@@ -844,38 +823,25 @@ export default {
     }
 }
 
-/* ==========================================
-   АДАПТИВ ДЛЯ БОЛЬШИХ ЭКРАНОВ (Десктоп / Планшет)
-   ========================================== */
 @media (min-width: 992px) {
     .modern-header {
-        /* Делаем шапку визуально тоньше */
         padding: 4px 0;
     }
 
     .header-container {
-        /* 1. Ограничиваем ширину, чтобы элементы не разлетались по краям монитора */
-        max-width: 600px; /* Можно изменить на 500px или 700px по вкусу */
-
-        /* 2. Уменьшаем вертикальные отступы */
+        max-width: 600px;
         padding: 6px 20px;
-
-        /* 3. Группируем элементы по центру как единый компактный блок
-              (отлично сочетается с центрированным нижним меню) */
         justify-content: center;
-        gap: 16px; /* Аккуратное расстояние между элементами */
+        gap: 16px;
     }
 
-    /* Отключаем абсолютное позиционирование бренда,
-       чтобы он встал в общий flex-поток рядом с другими элементами */
     .brand-area {
         position: static;
         transform: none;
         left: auto;
-        padding: 6px 12px; /* Чуть компактнее */
+        padding: 6px 12px;
     }
 
-    /* Делаем сами элементы чуть компактнее для десктопа */
     .menu-btn {
         padding: 6px;
     }
@@ -890,11 +856,9 @@ export default {
     }
 }
 
-/* Основной контент */
 .app-content {
     min-height: calc(100vh - 60px);
 }
-
 
 /* ==========================================
    🚀 MODERN PWA INSTALLATION MODAL
@@ -1129,13 +1093,6 @@ export default {
     opacity: 0;
 }
 
-/* ==========================================
-   📱 FLOATING HEADER ДЛЯ iPHONE (iOS Safari)
-   ==========================================
-   Детектор: -webkit-touch-callout работает только в iOS Safari / WebView
-*/
-
-
 @supports (-webkit-touch-callout: none) {
     .app-layout {
         padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
@@ -1144,19 +1101,14 @@ export default {
     .modern-header {
         margin: calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px 12px;
         border-radius: 22px;
-
-        /* Настоящее iOS-стекло */
         background: rgba(var(--bs-body-bg-rgb, 255, 255, 255), 0.72);
         backdrop-filter: saturate(180%) blur(20px);
         -webkit-backdrop-filter: saturate(180%) blur(20px);
-
-        /* Тонкая окантовка в стиле iOS */
         border: 0.5px solid rgba(0, 0, 0, 0.12);
         box-shadow:
             0 1px 0 rgba(255, 255, 255, 0.5) inset,
             0 8px 24px rgba(0, 0, 0, 0.08);
-
-        border-bottom: none; /* Убираем лишний бордер */
+        border-bottom: none;
     }
 
     [data-bs-theme="dark"] .modern-header {
@@ -1167,19 +1119,13 @@ export default {
             0 8px 24px rgba(0, 0, 0, 0.4);
     }
 
-    /* Более тонкие внутренние отступы для компактности */
     .header-container {
         padding: 6px 12px;
     }
 }
 
-/* ==========================================
-   🔧 ДОПОЛНИТЕЛЬНО: Скрываем плавающий стиль
-      на iPad, оставляем только для iPhone (узкие экраны)
-   ========================================== */
 @supports (-webkit-touch-callout: none) {
     @media (min-width: 768px) {
-        /* На iPad возвращаем классический полноэкранный header */
         .modern-header {
             margin: 0;
             border-radius: 0;
@@ -1201,7 +1147,7 @@ export default {
 .offline-banner {
     position: sticky;
     top: 0;
-    z-index: 1030; /* Выше хедера */
+    z-index: 1030;
     background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
     color: white;
     text-align: center;
@@ -1219,7 +1165,6 @@ export default {
     font-size: 1rem;
 }
 
-/* Анимация появления */
 .slide-down-enter-active, .slide-down-leave-active {
     transition: all 0.3s ease;
 }
@@ -1229,17 +1174,17 @@ export default {
 }
 
 /* ==========================================
-   ⏳ QUEUE PILL (Под хедером, по центру, плавающий)
+   ⏳ QUEUE PILL
    ========================================== */
 .queue-pill-wrapper {
     position: sticky;
-    top: 90px; /* Отступ под хедером (зависит от высоты хедера) */
-    z-index: 1015; /* Ниже хедера (1020), но выше контента */
+    top: 90px;
+    z-index: 1015;
     display: flex;
     justify-content: center;
     padding: 8px 16px 0;
-    pointer-events: none; /* Пропускаем клики мимо кнопки */
-    margin-bottom: -36px; /* Подтягиваем следующий контент вверх */
+    pointer-events: none;
+    margin-bottom: -36px;
 }
 
 .queue-pill {
@@ -1259,7 +1204,7 @@ export default {
         0 2px 4px rgba(0, 0, 0, 0.1);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     animation: pulse-warning 2s infinite, float 3s ease-in-out infinite;
-    pointer-events: auto; /* Возвращаем кликабельность самой кнопке */
+    pointer-events: auto;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
@@ -1292,13 +1237,11 @@ export default {
     letter-spacing: 0.02em;
 }
 
-/* Анимация плавания (как будто висит в воздухе) */
 @keyframes float {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-4px); }
 }
 
-/* Анимация пульсации (привлекает внимание) */
 @keyframes pulse-warning {
     0% {
         box-shadow:
@@ -1317,14 +1260,12 @@ export default {
     }
 }
 
-/* Адаптив для iOS с плавающим хедером */
 @supports (-webkit-touch-callout: none) {
     .queue-pill-wrapper {
-        top: 72px; /* Чуть ниже из-за увеличенного хедера на iPhone */
+        top: 72px;
     }
 }
 
-/* На десктопе с более компактным хедером */
 @media (min-width: 992px) {
     .queue-pill-wrapper {
         top: 52px;
@@ -1342,6 +1283,7 @@ export default {
     opacity: 1;
     transform: translateY(0) scale(1);
 }
+
 /* ==========================================
    📋 QUEUE MODAL STYLES
    ========================================== */
@@ -1378,4 +1320,17 @@ export default {
 .queue-icon.type-message { background: rgba(var(--bs-success-rgb), 0.1); color: var(--bs-success); }
 .queue-icon.type-feedback { background: rgba(var(--bs-warning-rgb), 0.1); color: var(--bs-warning); }
 .queue-icon.type-request { background: rgba(var(--bs-secondary-rgb), 0.1); color: var(--bs-secondary); }
+
+/* ==========================================
+   📱 EMBEDDED MODE (Режим виджета - ИЗОЛЯЦИЯ)
+   ========================================== */
+.is-embedded .app-content {
+    min-height: 100vh;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.is-embedded {
+    overflow: hidden;
+}
 </style>

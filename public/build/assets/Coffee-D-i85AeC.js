@@ -1,1 +1,0 @@
-import{C as e}from"./CoffeeProgress-DkMIo22a.js";import{_ as r,r as s,o as t,c as n}from"./app-DGusQvy9.js";import"./usePermissions-BJo8pwlb.js";const c={components:{CoffeeProgress:e}};function f(p,a,_,m,i,C){const o=s("CoffeeProgress");return t(),n(o)}const $=r(c,[["render",f]]);export{$ as default};
