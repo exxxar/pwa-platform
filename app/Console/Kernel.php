@@ -14,11 +14,18 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
 
+
         $schedule->command('tenants:check-balance')
             ->dailyAt('00:05')
             ->withoutOverlapping()
             ->runInBackground()
             ->emailOutputOnFailure(config('app.admin_email'));
+
+        ///* * * * * cd /home/l/likholetov/mypwa.ru/public_html && php artisan schedule:run >> /dev/null 2>&1
+        ///
+        $schedule->command('queue:work --queue=telegram --stops-when-empty --tries=3')
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**

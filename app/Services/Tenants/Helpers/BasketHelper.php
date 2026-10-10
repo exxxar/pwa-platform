@@ -4,6 +4,7 @@ namespace App\Services\Tenants\Helpers;
 
 use App\Enums\OrderStatusEnum;
 use App\Enums\OrderTypeEnum;
+use App\Jobs\SendTelegramNotificationJob;
 use App\Models\Tenant\Basket;
 use App\Models\Tenant\Collection;
 use App\Models\Tenant\Order;
@@ -402,14 +403,9 @@ trait BasketHelper
 
             $order = $this->createOrderRecord($context, $basketData);
 
-            // 🚀 2. БЫСТРОЕ УВЕДОМЛЕНИЕ В TELEGRAM (сразу после создания)
-            try {
-                MessageService::call()
-                    ->sendTelegramOnly(
-                    "⏳ <b>Формируется заказ #{$order->id}</b>\n<i>Полные детали и состав поступят через несколько секунд...</i>");
-            } catch (\Throwable $e) {
-
-            }
+            SendTelegramNotificationJob::dispatch(
+                "⏳ <b>Формируется заказ #{$order->id}</b>\n<i>Полные детали и состав поступят через несколько секунд...</i>"
+            )->onQueue('telegram'); // Используем отдельную очередь 'telegram' для порядка
 
 
             $this->markBasketItemsAsOrdered($basketData['basket_ids']);
@@ -668,8 +664,6 @@ trait BasketHelper
         $filteredItems = [];
 
         foreach ($basket as $item) {
-
-
             if ($item->isAnonymousBox()) {
                 $amount = $this->safeFloat($item->params['amount'] ?? 0);
                 if ($amount <= 0) continue;
@@ -1126,7 +1120,6 @@ trait BasketHelper
         $telegramMessage = $this->buildTelegramOrderNotification($order, $context, $basketData);
 
         // 🛡️ 1. ЗАЩИТА ОТ ЛИМИТА TELEGRAM (4096 символов)
-        // Если сообщение слишком длинное, Telegram его отклонит. Генерируем урезанную версию.
         if (mb_strlen($telegramMessage) > 4000) {
             Log::warning("[Telegram] Сообщение для заказа #{$order->id} слишком длинное (" . mb_strlen($telegramMessage) . " символов). Используем короткий формат.");
             $telegramMessage = $this->buildShortTelegramNotification($order, $context, $basketData);
@@ -1141,45 +1134,59 @@ trait BasketHelper
             'payment_status' => $paymentStatusText, 'summary_price' => $basketData['final_price'],
         ];
 
-        $crmResult = null;
-        try {
-            $crmResult = MessageService::call()->sendMessage([
-                'client_message' => $clientMessage, 'telegram_message' => $telegramMessage, 'crm_message' => $crmMessage, 'dialog_id' => $dialog?->id,
-                'title' => "Заказ #{$order->id} — {$context['customer_name']}",
-                'meta' => [
-                    'order_id' => $order->id, 'payment_status' => $paymentStatusText, 'is_system' => false,
-                    'tenant_user_id' => $this->tenantUser->id, 'dialog_id' => $dialog?->id,
-                    'customer_name' => $context['customer_name'], 'customer_phone' => $context['customer_phone'],
-                    'summary_price' => $basketData['final_price'], 'need_pickup' => $context['need_pickup'],
-                    'delivery_note' => $this->fsPrepareDeliveryNote(), 'kanban_board_uuid' => $context['kanban_board_uuid'],
-                    'kanban_thread' => $context['kanban_thread'], 'kanban_custom_data' => $kanbanCustomData,
-                    'kanban_payload' => array_merge($kanbanCustomData, ['source' => 'foodshop', 'type' => 'new_order']),
-                ],
-                'recipients' => ['client' => true, 'crm' => (bool)$context['kanban_enabled'], 'telegram' => true],
-            ]);
-        } catch (\Throwable $e) {
-            // 🚨 2. FALLBACK: Если отправка всё равно упала (сбой API, сети и т.д.)
-            Log::error('[Notify] Ошибка отправки основного уведомления: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            $this->sendFallbackTelegramNotification($order, $context, $basketData, $e);
+        // 🚀 2. ГИБРИДНАЯ ОТПРАВКА:
+        // Синхронно отправляем только в БД (клиенту) и CRM (Kanban), чтобы получить task_id
+        $crmResult = MessageService::call()->sendMessage([
+            'client_message' => $clientMessage,
+            'crm_message' => $crmMessage,
+            'dialog_id' => $dialog?->id,
+            'title' => "Заказ #{$order->id} — {$context['customer_name']}",
+            'meta' => [
+                'order_id' => $order->id, 'payment_status' => $paymentStatusText, 'is_system' => false,
+                'tenant_user_id' => $this->tenantUser->id, 'dialog_id' => $dialog?->id,
+                'customer_name' => $context['customer_name'], 'customer_phone' => $context['customer_phone'],
+                'summary_price' => $basketData['final_price'], 'need_pickup' => $context['need_pickup'],
+                'delivery_note' => $this->fsPrepareDeliveryNote(), 'kanban_board_uuid' => $context['kanban_board_uuid'],
+                'kanban_thread' => $context['kanban_thread'], 'kanban_custom_data' => $kanbanCustomData,
+                'kanban_payload' => array_merge($kanbanCustomData, ['source' => 'foodshop', 'type' => 'new_order']),
+            ],
+            'recipients' => [
+                'client' => true,
+                'crm' => (bool) $context['kanban_enabled'],
+                'telegram' => false, // 🚫 ОТКЛЮЧАЕМ синхронный Telegram, чтобы не было таймаутов
+            ],
+        ]);
+
+        // 🚀 3. АСИНХРОННАЯ ОТПРАВКА В TELEGRAM (Основной чат)
+        \App\Jobs\SendTelegramNotificationJob::dispatch(
+            $telegramMessage,
+            null, // chatId (возьмет из настроек тенанта)
+            null, // threadId (возьмет из настроек тенанта)
+            null  // token (возьмет из настроек тенанта)
+        )->onQueue('notifications');
+
+        // 🚀 4. АСИНХРОННАЯ ОТПРАВКА ПАРТНЕРАМ (если есть)
+        foreach ($partnerMessages as $partnerData) {
+            \App\Jobs\SendTelegramNotificationJob::dispatch(
+                $partnerData['message'],
+                null,
+                $partnerData['thread'], // Передаем thread_id конкретного партнера
+                null
+            )->onQueue('notifications');
         }
 
+        // Сохраняем ID задачи Kanban (он пришел синхронно и надежно)
         if ($crmResult && !empty($crmResult['crm']['task_id'])) {
             $kanbanTaskId = $crmResult['crm']['task_id'];
-            $order->updateQuietly(['meta' => array_merge($order->meta ?? [], ['kanban_task_id' => $kanbanTaskId, 'kanban_message_id' => $crmResult['crm']['message_id'] ?? null, 'kanban_board_uuid' => $context['kanban_board_uuid']])]);
-        }
-
-        foreach ($partnerMessages as $partnerData) {
-            MessageService::call()->sendMessage([
-                'message' => $partnerData['message'], 'thread_id' => $partnerData['thread'],
-                'title' => "Заказ #{$order->id} — {$partnerData['name']}",
-                'meta' => ['order_id' => $order->id, 'partner_id' => $partnerData['id'] ?? null, 'partner_name' => $partnerData['name'] ?? null, 'type' => 'partner_order', 'is_system' => true],
-                'recipients' => ['partners' => true],
-            ]);
+            $order->updateQuietly(['meta' => array_merge($order->meta ?? [], [
+                'kanban_task_id' => $kanbanTaskId,
+                'kanban_message_id' => $crmResult['crm']['message_id'] ?? null,
+                'kanban_board_uuid' => $context['kanban_board_uuid']
+            ])]);
         }
 
         return $kanbanTaskId;
     }
-
     /**
      * 📉 Генерирует урезанное сообщение для Telegram, если основное превышает 4096 символов
      */
