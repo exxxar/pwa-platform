@@ -32,8 +32,6 @@ class ProcessOrderNotificationsJob implements ShouldQueue
 
     public function handle()
     {
-
-        // 📝 ЛОГИРОВАНИЕ ЗАПУСКА ЗАДАЧИ И ЕЁ ПАРАМЕТРОВ
         Log::info('[Queue Job Started] ProcessOrderNotificationsJob', [
             'order_id' => $this->orderId,
             'tenant_id' => $this->tenantId,
@@ -45,7 +43,6 @@ class ProcessOrderNotificationsJob implements ShouldQueue
         ]);
 
         try {
-            // 🚀 ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА ТЕНАНТА
             $tenant = Tenant::find($this->tenantId);
             if (!$tenant) {
                 Log::error("[Queue] Tenant #{$this->tenantId} not found for ProcessOrderNotificationsJob.");
@@ -78,6 +75,13 @@ class ProcessOrderNotificationsJob implements ShouldQueue
                 'recipients' => ['client' => true, 'crm' => true],
             ]);
 
+            if (isset($crmResult['client']['status']) && $crmResult['client']['status'] === 'failed') {
+                throw new \Exception('Отправка сообщения клиенту вернула статус failed.');
+            }
+            if (isset($crmResult['crm']['status']) && $crmResult['crm']['status'] === 'failed') {
+                throw new \Exception('Отправка сообщения в CRM вернула статус failed.');
+            }
+
             // 2. ОБНОВЛЯЕМ ЗАКАЗ ПОЛУЧЕННЫМ task_id из CRM
             if (!empty($crmResult['crm']['task_id'])) {
                 $order = Order::find($this->orderId);
@@ -92,15 +96,19 @@ class ProcessOrderNotificationsJob implements ShouldQueue
 
             // 3. ОТПРАВКА В TELEGRAM (Основной чат)
             if (!empty($this->telegramMessage)) {
-                MessageService::call()->sendMessage([
+                $tgResult = MessageService::call()->sendMessage([
                     'telegram_message' => $this->telegramMessage,
                     'recipients'       => ['telegram' => true],
                 ]);
+
+                if (isset($tgResult['telegram']['status']) && $tgResult['telegram']['status'] === 'failed') {
+                    throw new \Exception('Отправка в Telegram вернула статус failed.');
+                }
             }
 
             // 4. ОТПРАВКА ПАРТНЕРАМ В TELEGRAM
             foreach ($this->partnerMessages as $partnerData) {
-                MessageService::call()->sendMessage([
+                $partnerResult = MessageService::call()->sendMessage([
                     'message'    => $partnerData['message'],
                     'thread_id'  => $partnerData['thread'],
                     'title'      => "Заказ #{$this->orderId} — {$partnerData['name']}",
@@ -112,10 +120,16 @@ class ProcessOrderNotificationsJob implements ShouldQueue
                     ],
                     'recipients' => ['partners' => true],
                 ]);
+
+                if (isset($partnerResult['partners']['status']) && $partnerResult['partners']['status'] === 'failed') {
+                    throw new \Exception("Отправка партнеру {$partnerData['name']} вернула статус failed.");
+                }
             }
 
+            Log::info('[Queue Job Success] ProcessOrderNotificationsJob completed', ['order_id' => $this->orderId]);
+
         } catch (\Throwable $e) {
-            Log::error('[Queue] Ошибка в ProcessOrderNotificationsJob: ' . $e->getMessage(), [
+            Log::error('[Queue Job Failed] ProcessOrderNotificationsJob: ' . $e->getMessage(), [
                 'tenant_id' => $this->tenantId,
                 'order_id' => $this->orderId,
                 'trace' => $e->getTraceAsString()

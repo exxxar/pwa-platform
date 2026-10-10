@@ -117,22 +117,27 @@
                             <div class="meta-item"><i class="fa-solid fa-calendar"></i> {{ formatDate(order.created_at) }}</div>
                             <div class="meta-item"><i class="fa-solid fa-clock"></i> {{ formatTime(order.created_at) }}</div>
                         </div>
+                        <!-- НАЙДИТЕ ЭТОТ БЛОК ВО ВКЛАДКЕ "active" И ЗАМЕНИТЕ ЕГО: -->
                         <div v-if="getGroupedOrderProducts(order).length > 0" class="order-products">
                             <div class="products-header">
                                 <i class="fa-solid fa-bag-shopping"></i>
                                 <span>Товары ({{ getOrderProducts(order).length }})</span>
                             </div>
+
+                            <!-- Перебираем группы (заведения) -->
                             <div v-for="(group, gIdx) in getGroupedOrderProducts(order)" :key="gIdx" class="tenant-product-group">
                                 <!-- Показываем бейдж заведения ТОЛЬКО если товаров из разных заведений > 1 -->
                                 <div v-if="getGroupedOrderProducts(order).length > 1 && group.tenant_name" class="tenant-name-badge">
                                     <i class="fa-solid fa-store"></i> {{ group.tenant_name }}
                                 </div>
+
                                 <ul class="products-list">
                                     <li v-for="(product, pIdx) in group.products.slice(0, 3)" :key="pIdx">
                                         <span class="prod-qty">{{ product.count }}×</span> {{ product.title || product.name || 'Товар' }}
                                     </li>
                                 </ul>
                             </div>
+
                             <div v-if="getOrderProducts(order).length > 3" class="text-muted small mt-1 ps-3">
                                 и ещё {{ getOrderProducts(order).length - 3 }} товаров...
                             </div>

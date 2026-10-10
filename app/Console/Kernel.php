@@ -21,7 +21,7 @@ class Kernel extends ConsoleKernel
         // 🎯 ИСПРАВЛЕННАЯ НАСТРОЙКА ОЧЕРЕДИ
         // 1. Убрали runInBackground(), чтобы ошибки писались в лог
         // 2. Заменили --once на --stop-when-empty (более корректно для крона)
-        $schedule->command('queue:work database --queue=notifications,telegram --tries=3')
+        $schedule->command('queue:work database --queue=notifications,telegram --tries=3 --stop-when-empty')
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/queue_worker.log')); // 🆕 Пишем ошибки воркера в отдельный файл!
     }

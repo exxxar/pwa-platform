@@ -29,9 +29,11 @@ trait BasketHelper
     private function getResolvedAddress(): array
     {
         $locationId = $this->safeInt($this->data["location_id"] ?? null);
-        $fallback = [
-            'address' => $this->data["address"] ?? '',
-            'city' => $this->data["city"] ?? '',
+
+        // 1. Базовые данные: берем всё, что прислал фронтенд
+        $resolved = [
+            'address' => trim($this->data["address"] ?? ''),
+            'city' => trim($this->data["city"] ?? ''),
             'lat' => $this->safeFloat($this->data["lat"] ?? 0),
             'lng' => $this->safeFloat($this->data["lng"] ?? 0),
             'entrance_number' => $this->data["entrance_number"] ?? null,
@@ -39,21 +41,27 @@ trait BasketHelper
             'flat_number' => $this->data["flat_number"] ?? null,
         ];
 
+        // 2. Если указан ID сохраненного адреса, обогащаем данные из БД
         if ($locationId) {
             $location = \App\Models\Tenant\TenantUserAddress::find($locationId);
             if ($location) {
-                return array_merge($fallback, [
-                    'address' => $location->address ?: $fallback['address'],
-                    'city' => $location->city ?: $fallback['city'],
-                    'lat' => $location->lat ?: $fallback['lat'],
-                    'lng' => $location->lng ?: $fallback['lng'],
-                    'entrance_number' => $this->data["entrance_number"] ?? data_get($location->meta, 'entrance_number'),
-                    'floor_number' => $this->data["floor_number"] ?? data_get($location->meta, 'floor_number'),
-                    'flat_number' => $this->data["flat_number"] ?? data_get($location->meta, 'flat_number'),
-                ]);
+                // Перезаписываем ТОЛЬКО если в БД есть непустые значения
+                if (!empty($location->address)) $resolved['address'] = $location->address;
+                if (!empty($location->city)) $resolved['city'] = $location->city;
+
+                // Для координат 0.0 считается "пустотой" (например, если не определилось по геокодеру)
+                if ($location->lat && $location->lat != 0) $resolved['lat'] = (float)$location->lat;
+                if ($location->lng && $location->lng != 0) $resolved['lng'] = (float)$location->lng;
+
+                // Подтягиваем мета-данные (подъезд, этаж, квартира), если их не было во фронте
+                $meta = $location->meta ?? [];
+                if (empty($resolved['entrance_number']) && !empty($meta['entrance_number'])) $resolved['entrance_number'] = $meta['entrance_number'];
+                if (empty($resolved['floor_number']) && !empty($meta['floor_number'])) $resolved['floor_number'] = $meta['floor_number'];
+                if (empty($resolved['flat_number']) && !empty($meta['flat_number'])) $resolved['flat_number'] = $meta['flat_number'];
             }
         }
-        return $fallback;
+
+        return $resolved;
     }
 
     protected function safeInt($value): ?int
@@ -941,12 +949,21 @@ trait BasketHelper
             throw new \RuntimeException('Невозможно создать заказ: в корзине нет товаров.');
         }
 
+        // 🎯 ПОЛУЧАЕМ ФИНАЛЬНЫЙ АДРЕС (с учетом фронта и БД)
+        $addr = $this->getResolvedAddress();
+
         return Order::query()->create([
             'tenant_id' => $this->tenant->id,
             'tenant_user_id' => $this->tenantUser->id,
-
-            // 🎯 ИСПРАВЛЕНО: Добавляем location_id из контекста
             'location_id' => $context['location_id'] ?? null,
+
+            // 🆕 ЯВНО СОХРАНЯЕМ АДРЕС И КООРДИНАТЫ В ЗАКАЗ
+            // Теперь даже если location_id = null (адрес введен вручную),
+            // курьер и API всё равно увидят адрес и координаты.
+            'address' => !empty($addr['address']) ? $addr['address'] : null,
+            'city' => !empty($addr['city']) ? $addr['city'] : null,
+            'lat' => $addr['lat'] ?? 0,
+            'lng' => $addr['lng'] ?? 0,
 
             'delivery_service_info' => null,
             'deliveryman_info' => null,
@@ -957,9 +974,6 @@ trait BasketHelper
             'delivery_range' => (float)($context['delivery_range'] ?? $this->safeFloat($context['distance'] ?? 0)),
             'receiver_name' => $context['customer_name'] ?? 'Не указано',
             'receiver_phone' => $context['customer_phone'] ?? '',
-
-            // 💡 РЕКОМЕНДАЦИЯ: Сразу сохраняем сформированную заметку для курьера,
-            // так как у вас уже есть готовый метод fsPrepareDeliveryNote()
             'delivery_note' => $this->fsPrepareDeliveryNote(),
         ]);
     }

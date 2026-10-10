@@ -42,6 +42,7 @@ class Order extends Model
         'status',
         'order_type',
         'payed_at',
+        'address', 'city', 'lat', 'lng', 'location_id',
     ];
 
     protected $casts = [
