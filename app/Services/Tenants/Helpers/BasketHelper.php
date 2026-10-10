@@ -736,13 +736,54 @@ trait BasketHelper
                 $productTenantId = (int)$product->tenant_id;
                 $params = is_array($item->params) ? $item->params : [];
 
-                // ... (здесь ваш код расчета компонентов и ингредиентов без изменений) ...
+                $selectedComponents = $params['selected_components'] ?? [];
+                $componentTotal = 0.0;
+                $componentsInfo = [];
+
+                if ($product->is_composite) {
+                    foreach ($product->components ?? collect() as $component) {
+                        $componentPrice = $this->safeFloat($component->price ?? 0);
+                        $componentQuantity = 1;
+
+                        foreach ($selectedComponents as $sc) {
+                            if (($sc['id'] ?? null) == $component->id) {
+                                $componentQuantity = (int)($sc['quantity'] ?? 1);
+                                break;
+                            }
+                        }
+
+                        $componentTotal += $componentPrice * $componentQuantity;
+                        $componentsInfo[] = ['id' => $component->id, 'name' => $component->name ?? '', 'price' => $componentPrice, 'count' => $componentQuantity];
+                    }
+                }
+
+                $basePrice = $this->safeFloat($product->price ?? 0);
+                if ($product->is_composite) $basePrice += $componentTotal;
+
+                $ingredientExtra = 0.0;
+                $ingredientsInfo = [];
+
+                $selectedIngredients = $params['selected_ingredients'] ?? [];
+                if (is_array($selectedIngredients)) {
+                    foreach ($product->ingredientGroups ?? [] as $group) {
+                        foreach ($group->ingredients ?? [] as $ingredient) {
+                            if (in_array($ingredient->id, $selectedIngredients)) {
+                                $ingredientPrice = $this->safeFloat($ingredient->extra_price ?? $ingredient->price ?? 0);
+                                $ingredientExtra += $ingredientPrice;
+                                $ingredientsInfo[] = ['id' => $ingredient->id, 'name' => $ingredient->name ?? '', 'price' => $ingredientPrice];
+                            }
+                        }
+                    }
+                }
+
                 $finalUnitPrice = $basePrice + $ingredientExtra;
                 $extraCharge = 0.0;
+
                 if ($item->tenant_partner_id) {
                     $partner = Partner::query()->where('tenant_id', $item->tenant_id)->where('tenant_partner_id', $item->tenant_partner_id)->first();
                     if ($partner) $extraCharge = $this->safeFloat($partner->extra_charge ?? 0);
                 }
+
                 if ($extraCharge != 0) $finalUnitPrice *= 1 + ($extraCharge / 100);
 
                 $count = max(1, (int)$item->count);
@@ -771,13 +812,11 @@ trait BasketHelper
                     ];
                 }
 
-                // 🎯 1. Сначала получаем имя
                 $tenantName = $partnerProductBox[$partnerKey]['name'] ?? 'Магазин';
 
-                // 🎯 2. Сразу включаем его в массив
                 $productInfo = [
                     'basket_id' => $item->id, 'product_id' => $product->id, 'tenant_id' => $productTenantId,
-                    'tenant_name' => $tenantName, // ✅ ТЕПЕРЬ БУДЕТ РАБОТАТЬ
+                    'tenant_name' => $tenantName, // 🆕 Имя заведения
                     'name' => $product->name, 'price' => $price, 'unit_price' => $finalUnitPrice,
                     'count' => $count, 'is_weight_product' => (bool)$product->is_weight_product,
                     'is_composite' => (bool)$product->is_composite, 'comment' => $item->comment,
@@ -790,7 +829,9 @@ trait BasketHelper
                 $partnerProductBox[$partnerKey]['summary_price'] += $price;
                 $partnerProductBox[$partnerKey]['summary_discount'] += $discount;
 
-                $summaryCount += $summaryItemCount; $summaryPrice += $price; $summaryDiscount += $discount;
+                $summaryCount += $summaryItemCount;
+                $summaryPrice += $price;
+                $summaryDiscount += $discount;
                 $basketIds[] = $item->id;
                 continue;
             }
@@ -802,7 +843,47 @@ trait BasketHelper
                     continue;
                 }
 
-                // ... (здесь ваш код расчета цены коллекции без изменений) ...
+                $params = is_array($item->params) ? $item->params : [];
+                $selectedIds = $params['ids'] ?? [];
+                if (!is_array($selectedIds) || empty($selectedIds)) {
+                    $filteredItems[] = ['basket_id' => $item->id, 'collection_id' => $item->collection_id, 'reason' => 'collection_without_products'];
+                    continue;
+                }
+
+                $collectionProducts = $collection->products()->get();
+                $selectedProducts = $collectionProducts->whereIn('id', $selectedIds);
+                if ($selectedProducts->isEmpty()) {
+                    $filteredItems[] = ['basket_id' => $item->id, 'collection_id' => $item->collection_id, 'reason' => 'collection_products_not_found'];
+                    continue;
+                }
+
+                $collectionPrice = 0.0;
+                $collectionProductsInfo = [];
+                foreach ($selectedProducts as $product) {
+                    $productPrice = $this->safeFloat($product->price ?? 0);
+                    $collectionPrice += $productPrice;
+                    $collectionProductsInfo[] = ['id' => $product->id, 'name' => $product->name ?? '', 'price' => $productPrice];
+                }
+
+                if ($collection->pricing_type === Collection::PRICING_TYPE_FIXED) {
+                    $collectionPrice = $this->safeFloat($collection->fixed_price ?? 0);
+                }
+
+                $collectionDiscount = $this->safeFloat($collection->discount ?? 0);
+                if ($collectionDiscount > 0) {
+                    $collectionDiscount = min(100, $collectionDiscount);
+                    $collectionPrice *= 1 - ($collectionDiscount / 100);
+                }
+
+                $collectionExtraCharge = $this->safeFloat($params['extra_charge'] ?? 0);
+                if ($collectionExtraCharge != 0) $collectionPrice *= 1 + ($collectionExtraCharge / 100);
+                $collectionPrice = max(0.0, $collectionPrice);
+
+                if ($collectionPrice <= 0) {
+                    $filteredItems[] = ['basket_id' => $item->id, 'collection_id' => $item->collection_id, 'reason' => 'collection_zero_price'];
+                    continue;
+                }
+
                 $count = max(1, (int)$item->count);
                 $totalCollectionPrice = $collectionPrice * $count;
                 $collectionTenantId = (int)($collection->tenant_id ?? $this->tenant->id);
@@ -820,13 +901,11 @@ trait BasketHelper
                     ];
                 }
 
-                // 🎯 1. Сначала получаем имя
                 $tenantName = $partnerProductBox[$partnerKey]['name'] ?? 'Магазин';
 
-                // 🎯 2. Сразу включаем его в массив
                 $collectionInfo = [
                     'basket_id' => $item->id, 'collection_id' => $collection->id, 'tenant_id' => $collectionTenantId,
-                    'tenant_name' => $tenantName, // ✅ ТЕПЕРЬ БУДЕТ РАБОТАТЬ
+                    'tenant_name' => $tenantName, // 🆕 Имя заведения
                     'name' => $collection->name ?? 'Коллекция', 'price' => $totalCollectionPrice, 'unit_price' => $collectionPrice,
                     'count' => $count, 'pricing_type' => $collection->pricing_type, 'discount' => $collectionDiscount,
                     'products' => $collectionProductsInfo, 'params' => $params, 'comment' => $item->comment,
@@ -838,7 +917,9 @@ trait BasketHelper
                 $partnerProductBox[$partnerKey]['summary_price'] += $totalCollectionPrice;
                 $partnerProductBox[$partnerKey]['summary_discount'] += $collectionDiscount;
 
-                $summaryCount += $count; $summaryPrice += $totalCollectionPrice; $summaryDiscount += $collectionDiscount;
+                $summaryCount += $count;
+                $summaryPrice += $totalCollectionPrice;
+                $summaryDiscount += $collectionDiscount;
                 $basketIds[] = $item->id;
             }
         }
