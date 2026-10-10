@@ -138,6 +138,24 @@ class MessageService
 
         $recipients = $data['recipients'] ?? ['client' => true];
 
+        // 4. ПРЯМАЯ ОТПРАВКА В TELEGRAM (канал/группа уведомлений)
+        if (!empty($recipients['telegram'])) {
+            try {
+                $tgData = $data;
+                // 🎯 Приоритет отдаем telegram_message
+                $tgData['message'] = $data['telegram_message'] ?? $data['message'] ?? '';
+
+                // 🎯 Автоматическое добавление ссылок (опционально, если нужно добавить их к любому сообщению)
+                if (!empty($data['meta']['append_telegram_links'])) {
+                    $tgData['message'] = $this->appendTelegramLinks($tgData['message'], $tgData);
+                }
+
+                $result['telegram'] = $this->sendToTelegram($tgData);
+            } catch (\Throwable $e) {
+                Log::error('[MessageService] Ошибка отправки в Telegram: ' . $e->getMessage());
+            }
+        }
+
         // 1. КЛИЕНТУ (запись в БД)
         if (!empty($recipients['client']) && !empty($data['dialog_id'])) {
             try {
@@ -172,23 +190,7 @@ class MessageService
             }
         }
 
-        // 4. ПРЯМАЯ ОТПРАВКА В TELEGRAM (канал/группа уведомлений)
-        if (!empty($recipients['telegram'])) {
-            try {
-                $tgData = $data;
-                // 🎯 Приоритет отдаем telegram_message
-                $tgData['message'] = $data['telegram_message'] ?? $data['message'] ?? '';
 
-                // 🎯 Автоматическое добавление ссылок (опционально, если нужно добавить их к любому сообщению)
-                if (!empty($data['meta']['append_telegram_links'])) {
-                    $tgData['message'] = $this->appendTelegramLinks($tgData['message'], $tgData);
-                }
-
-                $result['telegram'] = $this->sendToTelegram($tgData);
-            } catch (\Throwable $e) {
-                Log::error('[MessageService] Ошибка отправки в Telegram: ' . $e->getMessage());
-            }
-        }
 
         return $result;
     }
