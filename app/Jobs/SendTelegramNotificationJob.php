@@ -18,8 +18,9 @@ class SendTelegramNotificationJob implements ShouldQueue
     public int $tries = 3;
     public int $backoff = 10;
 
+    // 🎯 ПОЛНЫЙ И ПРАВИЛЬНЫЙ КОНСТРУКТОР (все свойства инициализируются здесь)
     public function __construct(
-        public int $tenantId,         // 🆕 ДОБАВЛЕНО: ID тенанта первым аргументом
+        public int $tenantId,
         public string $message,
         public ?string $chatId = null,
         public ?int $threadId = null,
@@ -29,8 +30,7 @@ class SendTelegramNotificationJob implements ShouldQueue
 
     public function handle()
     {
-
-        // 📝 ЛОГИРОВАНИЕ ЗАПУСКА ЗАДАЧИ И ЕЁ ПАРАМЕТРОВ
+        // 📝 ЛОГИРОВАНИЕ ЗАПУСКА ЗАДАЧИ
         Log::info('[Queue Job Started] SendTelegramNotificationJob', [
             'tenant_id' => $this->tenantId,
             'message_length' => mb_strlen($this->message),
@@ -39,15 +39,12 @@ class SendTelegramNotificationJob implements ShouldQueue
             'has_file' => !empty($this->filePath),
         ]);
 
-
         try {
-
-
             // 🚀 ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА ТЕНАНТА
             $tenant = Tenant::find($this->tenantId);
             if (!$tenant) {
                 Log::error("[Queue] Tenant #{$this->tenantId} not found for SendTelegramNotificationJob.");
-                return; // Прерываем без ретраев, если тенанта нет
+                return;
             }
 
             app()->instance('tenant', $tenant);
@@ -66,8 +63,11 @@ class SendTelegramNotificationJob implements ShouldQueue
                     'partners' => !is_null($this->threadId),
                 ],
             ]);
+
+            Log::info('[Queue Job Success] SendTelegramNotificationJob completed', ['tenant_id' => $this->tenantId]);
+
         } catch (\Throwable $e) {
-            Log::error('[Queue] Ошибка отправки Telegram из очереди: ' . $e->getMessage(), [
+            Log::error('[Queue Job Failed] SendTelegramNotificationJob: ' . $e->getMessage(), [
                 'tenant_id' => $this->tenantId,
                 'message_length' => mb_strlen($this->message),
                 'trace' => $e->getTraceAsString()
