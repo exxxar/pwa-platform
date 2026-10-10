@@ -407,7 +407,6 @@ trait BasketHelper
                 "⏳ <b>Формируется заказ #{$order->id}</b>\n<i>Полные детали и состав поступят через несколько секунд...</i>"
             )->onQueue('telegram'); // Используем отдельную очередь 'telegram' для порядка
 
-
             $this->markBasketItemsAsOrdered($basketData['basket_ids']);
             $kanbanTaskId = $this->notifyStakeholders($order, $context, $basketData);
             $paymentData = $this->processPaymentAndReceipt($order, $context, $basketData, $kanbanTaskId);
@@ -1102,10 +1101,10 @@ trait BasketHelper
 
     private function notifyStakeholders(Order $order, array $context, array $basketData): ?string
     {
-        $kanbanTaskId = null;
         $paymentStatusText = $this->getPaymentStatusText($context['payment_type']);
         $dialog = $order->dialog;
 
+        // Быстрые внутренние вызовы (FrontPad, IIKO) оставляем синхронными, они не зависят от внешних API
         foreach ($basketData['partner_boxes'] as $box) {
             $tenantInBox = Tenant::query()->find($box['id']);
             if ($tenantInBox) {
@@ -1119,73 +1118,55 @@ trait BasketHelper
         $partnerMessages = $this->buildPartnerMessages($order, $basketData['partner_boxes'], $basketData['cashback'], $context['need_pickup']);
         $telegramMessage = $this->buildTelegramOrderNotification($order, $context, $basketData);
 
-        // 🛡️ 1. ЗАЩИТА ОТ ЛИМИТА TELEGRAM (4096 символов)
+        // 🛡️ ЗАЩИТА ОТ ЛИМИТА TELEGRAM
         if (mb_strlen($telegramMessage) > 4000) {
-            Log::warning("[Telegram] Сообщение для заказа #{$order->id} слишком длинное (" . mb_strlen($telegramMessage) . " символов). Используем короткий формат.");
+            Log::warning("[Telegram] Сообщение для заказа #{$order->id} слишком длинное. Используем короткий формат.");
             $telegramMessage = $this->buildShortTelegramNotification($order, $context, $basketData);
         }
 
-        $kanbanCustomData = [
-            'tenant_id' => $this->tenant?->id, 'tenant_name' => $this->tenant?->name ?? $this->tenant?->uuid,
-            'tenant_user_id' => $this->tenantUser->id, 'last_order_id' => $order->id, 'last_order_date' => now()->toIso8601String(),
-            'product_details' => [['from' => $this->tenant?->name ?? $this->tenant->uuid ?? 'Магазин', 'products' => $basketData['product_info']]],
-            'product_count' => $basketData['summary_count'], 'delivery_price' => $context['delivery_price'],
-            'delivery_note' => $this->fsPrepareDeliveryNote(), 'payment_type' => $context['payment_type'],
-            'payment_status' => $paymentStatusText, 'summary_price' => $basketData['final_price'],
+        $kanbanData = [
+            'board_uuid' => $context['kanban_board_uuid'],
+            'thread' => $context['kanban_thread'],
+            'custom_data' => [
+                'tenant_id' => $this->tenant?->id,
+                'tenant_name' => $this->tenant?->name ?? $this->tenant?->uuid,
+                'tenant_user_id' => $this->tenantUser->id,
+                'last_order_id' => $order->id,
+                'last_order_date' => now()->toIso8601String(),
+                'product_details' => [['from' => $this->tenant?->name ?? 'Магазин', 'products' => $basketData['product_info']]],
+                'product_count' => $basketData['summary_count'],
+                'delivery_price' => $context['delivery_price'],
+                'delivery_note' => $this->fsPrepareDeliveryNote(),
+                'payment_type' => $context['payment_type'],
+                'payment_status' => $paymentStatusText,
+                'summary_price' => $basketData['final_price'],
+            ],
+            'payload' => [
+                'source' => 'foodshop',
+                'type' => 'new_order',
+                'order_id' => $order->id,
+            ],
+            'customer_name' => $context['customer_name'],
+            'customer_phone' => $context['customer_phone'],
+            'summary_price' => $basketData['final_price'],
+            'need_pickup' => $context['need_pickup'],
+            'delivery_note' => $this->fsPrepareDeliveryNote(),
         ];
 
-        // 🚀 2. ГИБРИДНАЯ ОТПРАВКА:
-        // Синхронно отправляем только в БД (клиенту) и CRM (Kanban), чтобы получить task_id
-        $crmResult = MessageService::call()->sendMessage([
-            'client_message' => $clientMessage,
-            'crm_message' => $crmMessage,
-            'dialog_id' => $dialog?->id,
-            'title' => "Заказ #{$order->id} — {$context['customer_name']}",
-            'meta' => [
-                'order_id' => $order->id, 'payment_status' => $paymentStatusText, 'is_system' => false,
-                'tenant_user_id' => $this->tenantUser->id, 'dialog_id' => $dialog?->id,
-                'customer_name' => $context['customer_name'], 'customer_phone' => $context['customer_phone'],
-                'summary_price' => $basketData['final_price'], 'need_pickup' => $context['need_pickup'],
-                'delivery_note' => $this->fsPrepareDeliveryNote(), 'kanban_board_uuid' => $context['kanban_board_uuid'],
-                'kanban_thread' => $context['kanban_thread'], 'kanban_custom_data' => $kanbanCustomData,
-                'kanban_payload' => array_merge($kanbanCustomData, ['source' => 'foodshop', 'type' => 'new_order']),
-            ],
-            'recipients' => [
-                'client' => true,
-                'crm' => (bool) $context['kanban_enabled'],
-                'telegram' => false, // 🚫 ОТКЛЮЧАЕМ синхронный Telegram, чтобы не было таймаутов
-            ],
-        ]);
-
-        // 🚀 3. АСИНХРОННАЯ ОТПРАВКА В TELEGRAM (Основной чат)
-        \App\Jobs\SendTelegramNotificationJob::dispatch(
+        // 🚀 ОТПРАВЛЯЕМ ВСЁ В ФОНОВУЮ ОЧЕРЕДЬ
+        \App\Jobs\ProcessOrderNotificationsJob::dispatch(
+            $order->id,
+            $this->tenant->id,
+            $dialog?->id,
+            $clientMessage,
+            $crmMessage,
             $telegramMessage,
-            null, // chatId (возьмет из настроек тенанта)
-            null, // threadId (возьмет из настроек тенанта)
-            null  // token (возьмет из настроек тенанта)
+            $partnerMessages,
+            $kanbanData
         )->onQueue('notifications');
 
-        // 🚀 4. АСИНХРОННАЯ ОТПРАВКА ПАРТНЕРАМ (если есть)
-        foreach ($partnerMessages as $partnerData) {
-            \App\Jobs\SendTelegramNotificationJob::dispatch(
-                $partnerData['message'],
-                null,
-                $partnerData['thread'], // Передаем thread_id конкретного партнера
-                null
-            )->onQueue('notifications');
-        }
-
-        // Сохраняем ID задачи Kanban (он пришел синхронно и надежно)
-        if ($crmResult && !empty($crmResult['crm']['task_id'])) {
-            $kanbanTaskId = $crmResult['crm']['task_id'];
-            $order->updateQuietly(['meta' => array_merge($order->meta ?? [], [
-                'kanban_task_id' => $kanbanTaskId,
-                'kanban_message_id' => $crmResult['crm']['message_id'] ?? null,
-                'kanban_board_uuid' => $context['kanban_board_uuid']
-            ])]);
-        }
-
-        return $kanbanTaskId;
+        // Возвращаем null, так как task_id будет записан в БД самим Job'ом чуть позже
+        return null;
     }
     /**
      * 📉 Генерирует урезанное сообщение для Telegram, если основное превышает 4096 символов
@@ -1260,21 +1241,35 @@ trait BasketHelper
         $paymentData = null;
         $dialog = $order->dialog;
 
-        if (in_array($paymentType, [1, 2, 3])) { /* Логика для оплаты курьеру */
+        if (in_array($paymentType, [1, 2, 3])) {
+            // Логика для оплаты курьеру (если есть)
         } elseif ($paymentType === 4) {
             $paymentData = PaymentService::call()->sbpForShop($order, '');
         }
 
-        $invoicePath = $this->fsPrintPDFInfo(order: $order, summaryPrice: $basketData['summary_price'], summaryCount: $basketData['summary_count'], tmpOrderProductInfo: $basketData['product_info'], cashback: $basketData['cashback'], paymentStatusText: $paymentStatusText);
+        // Генерируем PDF чек
+        $invoicePath = $this->fsPrintPDFInfo(
+            order: $order,
+            summaryPrice: $basketData['summary_price'],
+            summaryCount: $basketData['summary_count'],
+            tmpOrderProductInfo: $basketData['product_info'],
+            cashback: $basketData['cashback'],
+            paymentStatusText: $paymentStatusText
+        );
 
         if ($invoicePath) {
-            $receiptMeta = ['order_id' => $order->id, 'payment_type' => $paymentType, 'payment_status_text' => $paymentStatusText, 'summary_price' => $basketData['final_price'], 'is_system' => true];
-            if ($dialog) {
-                MessageService::call()->sendMessage(['message' => "📄 Чек по заказу #{$order->id} (Статус: {$paymentStatusText})", 'file_path' => $invoicePath, 'dialog_id' => $dialog->id, 'meta' => $receiptMeta, 'recipients' => ['client' => true]]);
-            }
-            if ($kanbanTaskId && $context['kanban_enabled']) {
-                MessageService::call()->sendMessage(['message' => "📄 Чек по заказу #{$order->id} прикреплён", 'file_path' => $invoicePath, 'meta' => array_merge($receiptMeta, ['kanban_board_uuid' => $context['kanban_board_uuid'], 'kanban_payload' => ['type' => 'invoice_attached', 'order_id' => $order->id]]), 'recipients' => ['crm' => true]]);
-            }
+            // 🚀 ОТПРАВЛЯЕМ ЧЕК В ФОНОВУЮ ОЧЕРЕДЬ
+            // Это гарантирует, что даже если CRM/Telegram "тупит",
+            // процесс оформления заказа не зависнет, а чек доставится чуть позже.
+            \App\Jobs\SendCrmReceiptJob::dispatch(
+                $order->id,
+                $this->tenant->id,
+                $dialog?->id,
+                $invoicePath,
+                $paymentStatusText,
+                $context['kanban_enabled'] ?? false,
+                $context['kanban_board_uuid'] ?? null
+            )->onQueue('notifications');
         }
 
         $this->sendPaidReceiptToChannel($order, '');
