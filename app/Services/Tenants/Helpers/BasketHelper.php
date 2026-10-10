@@ -1467,20 +1467,42 @@ trait BasketHelper
 
     private function validateSchedule(array $basketData): array
     {
-        $errors = [];
-        $mainTenantSchedule = $this->tenant->settings['schedule'] ?? null;
-        if (!$this->isCurrentlyOpen($mainTenantSchedule)) {
-            $errors[] = ['type' => 'main_tenant', 'name' => $this->tenant->name ?? 'Служба доставки', 'message' => 'Служба доставки в данный момент не принимает заказы.', 'closes_at' => $this->getClosingTime($mainTenantSchedule)];
+        // 🛡️ ПРОВЕРКА НА АДМИНИСТРАТОРА:
+        // Если текущий пользователь имеет роль super_admin, он может оформлять заказы в любое время.
+        $user = auth('tenant')->user();
+        if ($user && $user->hasRole('super_admin')) {
+            return []; // Возвращаем пустой массив ошибок, полностью пропуская проверку расписания
         }
 
+        $errors = [];
+
+        // Проверка основного тенанта (службы доставки)
+        $mainTenantSchedule = $this->tenant->settings['schedule'] ?? null;
+        if (!$this->isCurrentlyOpen($mainTenantSchedule)) {
+            $errors[] = [
+                'type' => 'main_tenant',
+                'name' => $this->tenant->name ?? 'Служба доставки',
+                'message' => 'Служба доставки в данный момент не принимает заказы.',
+                'closes_at' => $this->getClosingTime($mainTenantSchedule)
+            ];
+        }
+
+        // Проверка партнеров (заведений)
         foreach ($basketData['partner_boxes'] as $box) {
             $partner = Tenant::query()->find($box['id']);
             if (!$partner) continue;
+
             $partnerSchedule = $partner->settings['schedule'] ?? null;
             if (!$this->isCurrentlyOpen($partnerSchedule)) {
-                $errors[] = ['type' => 'partner', 'name' => $partner->name ?? $partner->title ?? 'Заведение', 'message' => 'Это заведение сейчас закрыто и не принимает заказы.', 'closes_at' => $this->getClosingTime($partnerSchedule)];
+                $errors[] = [
+                    'type' => 'partner',
+                    'name' => $partner->name ?? $partner->title ?? 'Заведение',
+                    'message' => 'Это заведение сейчас закрыто и не принимает заказы.',
+                    'closes_at' => $this->getClosingTime($partnerSchedule)
+                ];
             }
         }
+
         return $errors;
     }
 
