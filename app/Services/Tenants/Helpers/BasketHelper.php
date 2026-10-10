@@ -390,7 +390,6 @@ trait BasketHelper
             $basketData = $this->processBasketAndCalculateTotals($context);
 
 
-
             $scheduleErrors = $this->validateSchedule($basketData);
             if (!empty($scheduleErrors)) {
                 return ['success' => false, 'message' => 'Некоторые заведения или служба доставки сейчас закрыты', 'schedule_errors' => $scheduleErrors];
@@ -402,6 +401,23 @@ trait BasketHelper
             }
 
             $order = $this->createOrderRecord($context, $basketData);
+
+            // 🚀 2. БЫСТРОЕ УВЕДОМЛЕНИЕ В TELEGRAM (сразу после создания)
+            try {
+                MessageService::call()->sendMessage([
+                    'telegram_message' => "⏳ <b>Формируется заказ #{$order->id}</b>\n<i>Полные детали и состав поступят через несколько секунд...</i>",
+                    'meta' => [
+                        'order_id' => $order->id,
+                        'is_system' => true,
+                        'type' => 'order_forming_started'
+                    ],
+                    'recipients' => ['telegram' => true], // 🔒 ТОЛЬКО в Telegram, никуда больше
+                ]);
+            } catch (\Throwable $e) {
+
+            }
+
+
             $this->markBasketItemsAsOrdered($basketData['basket_ids']);
             $kanbanTaskId = $this->notifyStakeholders($order, $context, $basketData);
             $paymentData = $this->processPaymentAndReceipt($order, $context, $basketData, $kanbanTaskId);
@@ -488,7 +504,7 @@ trait BasketHelper
 
         // Разделяем на "богатые" (80%) и "бедные" (20%) категории
         $totalCategories = $sortedCategories->count();
-        $richCount = max(1, (int) ceil($totalCategories * 0.7)); // 70% категорий = богатые
+        $richCount = max(1, (int)ceil($totalCategories * 0.7)); // 70% категорий = богатые
         $poorCount = $totalCategories - $richCount;
 
         $richCategories = $sortedCategories->take($richCount);
@@ -515,7 +531,7 @@ trait BasketHelper
                 if ($currentSum >= $richTarget) break;
                 if ($currentSum >= $targetAmount) break; // Общая защита
 
-                $price = (float) $product->price;
+                $price = (float)$product->price;
 
                 // Проверяем, что не превысим общий лимит
                 if ($currentSum + $price > $targetAmount) continue;
@@ -537,7 +553,7 @@ trait BasketHelper
             foreach ($candidates as $product) {
                 if ($currentSum >= $targetAmount) break;
 
-                $price = (float) $product->price;
+                $price = (float)$product->price;
 
                 if ($currentSum + $price > $targetAmount) continue;
 
@@ -557,7 +573,7 @@ trait BasketHelper
         while ($currentSum < $targetAmount && $remainingPool->isNotEmpty() && $attempts < $maxAttempts) {
             $attempts++;
             $product = $remainingPool->first();
-            $price = (float) $product->price;
+            $price = (float)$product->price;
 
             if ($currentSum + $price <= $targetAmount) {
                 $selected[] = $this->buildBoxItem($product, 1, 'filler');
@@ -599,7 +615,7 @@ trait BasketHelper
         return [
             'id' => $product->id,
             'name' => $product->name,
-            'price' => (float) $product->price,
+            'price' => (float)$product->price,
             'count' => $count,
             'category_id' => $product->main_category_id ?? null,
             'category_name' => $product->main_category_name ?? 'Без категории',
@@ -638,7 +654,6 @@ trait BasketHelper
     }
 
 
-
     private function processBasketAndCalculateTotals(array $context): array
     {
         $basket = Basket::query()->with(['collection', 'product.ingredientGroups.ingredients', 'product.components'])
@@ -649,8 +664,13 @@ trait BasketHelper
             return ['summary_price' => 0.0, 'summary_count' => 0, 'summary_discount' => 0.0, 'final_price' => 0.0, 'cashback' => 0.0, 'product_info' => [], 'partner_boxes' => [], 'basket_ids' => [], 'basket_count' => 0, 'processed_basket_count' => 0, 'filtered_basket_count' => 0, 'filtered_items' => []];
         }
 
-        $summaryPrice = 0.0; $summaryCount = 0; $summaryDiscount = 0.0;
-        $tmpOrderProductInfo = []; $partnerProductBox = []; $basketIds = []; $filteredItems = [];
+        $summaryPrice = 0.0;
+        $summaryCount = 0;
+        $summaryDiscount = 0.0;
+        $tmpOrderProductInfo = [];
+        $partnerProductBox = [];
+        $basketIds = [];
+        $filteredItems = [];
 
         foreach ($basket as $item) {
 
@@ -659,13 +679,13 @@ trait BasketHelper
                 $amount = $this->safeFloat($item->params['amount'] ?? 0);
                 if ($amount <= 0) continue;
 
-                $count = max(1, (int) $item->count);
+                $count = max(1, (int)$item->count);
                 $price = $amount * $count;
 
                 // 🎯 ОПРЕДЕЛЯЕМ ЗАВЕДЕНИЕ-ИСТОЧНИК
                 // Если есть tenant_partner_id — берем его (конкретное заведение)
                 // Иначе — основной tenant (агрегатор)
-                $sourceTenantId = (int) ($item->tenant_partner_id ?: $item->tenant_id);
+                $sourceTenantId = (int)($item->tenant_partner_id ?: $item->tenant_id);
 
                 // 🎁 Генерируем товары ИМЕННО из этого заведения
                 $boxProducts = $this->generateBoxProducts($sourceTenantId, $amount);
@@ -704,7 +724,7 @@ trait BasketHelper
                 $tmpOrderProductInfo[] = $productInfo;
 
                 // 🎯 КЛЮЧ ГРУППИРОВКИ — используем tenant_partner_id если есть
-                $partnerKey = implode(':', [$productTenantId, (int) ($item->tenant_partner_id ?? 0)]);
+                $partnerKey = implode(':', [$productTenantId, (int)($item->tenant_partner_id ?? 0)]);
 
                 if (!isset($partnerProductBox[$partnerKey])) {
                     // 🎯 Берем название именно этого заведения
@@ -724,6 +744,9 @@ trait BasketHelper
                     ];
                 }
 
+                $tenantName = $partnerProductBox[$partnerKey]['name'] ?? 'Магазин';
+                $productInfo['tenant_name'] = $tenantName;
+
                 $partnerProductBox[$partnerKey]['products'][] = $productInfo;
                 $partnerProductBox[$partnerKey]['summary_count'] += $count;
                 $partnerProductBox[$partnerKey]['summary_price'] += $price;
@@ -741,12 +764,13 @@ trait BasketHelper
                     continue;
                 }
 
-                $productTenantId = (int) $product->tenant_id;
+                $productTenantId = (int)$product->tenant_id;
                 $params = is_array($item->params) ? $item->params : [];
 
                 // 🎯 ИСПРАВЛЕНО: Читаем selected_components (как сохраняет BasketService)
                 $selectedComponents = $params['selected_components'] ?? [];
-                $componentTotal = 0.0; $componentsInfo = [];
+                $componentTotal = 0.0;
+                $componentsInfo = [];
 
                 if ($product->is_composite) {
                     foreach ($product->components ?? collect() as $component) {
@@ -769,7 +793,8 @@ trait BasketHelper
                 $basePrice = $this->safeFloat($product->price ?? 0);
                 if ($product->is_composite) $basePrice += $componentTotal;
 
-                $ingredientExtra = 0.0; $ingredientsInfo = [];
+                $ingredientExtra = 0.0;
+                $ingredientsInfo = [];
 
                 // 🎯 ИСПРАВЛЕНО: Читаем selected_ingredients (как сохраняет BasketService)
                 $selectedIngredients = $params['selected_ingredients'] ?? [];
@@ -795,7 +820,7 @@ trait BasketHelper
 
                 if ($extraCharge != 0) $finalUnitPrice *= 1 + ($extraCharge / 100);
 
-                $count = max(1, (int) $item->count);
+                $count = max(1, (int)$item->count);
                 if ($product->is_weight_product) {
                     $step = $this->safeFloat($params['weight_config']['step'] ?? 1);
                     if ($step <= 0) $step = 1;
@@ -811,13 +836,13 @@ trait BasketHelper
                 $productInfo = [
                     'basket_id' => $item->id, 'product_id' => $product->id, 'tenant_id' => $productTenantId,
                     'name' => $product->name, 'price' => $price, 'unit_price' => $finalUnitPrice,
-                    'count' => $count, 'is_weight_product' => (bool) $product->is_weight_product,
-                    'is_composite' => (bool) $product->is_composite, 'comment' => $item->comment,
+                    'count' => $count, 'is_weight_product' => (bool)$product->is_weight_product,
+                    'is_composite' => (bool)$product->is_composite, 'comment' => $item->comment,
                     'params' => $params, 'components' => $componentsInfo, 'ingredients' => $ingredientsInfo, 'discount' => $discount,
                 ];
 
                 $tmpOrderProductInfo[] = $productInfo;
-                $partnerKey = implode(':', [$productTenantId, (int) ($item->tenant_partner_id ?? 0)]);
+                $partnerKey = implode(':', [$productTenantId, (int)($item->tenant_partner_id ?? 0)]);
 
                 if (!isset($partnerProductBox[$partnerKey])) {
                     $partnerTenant = Tenant::query()->find($productTenantId);
@@ -831,12 +856,17 @@ trait BasketHelper
                     ];
                 }
 
+                $tenantName = $partnerProductBox[$partnerKey]['name'] ?? 'Магазин';
+                $productInfo['tenant_name'] = $tenantName;
+
                 $partnerProductBox[$partnerKey]['products'][] = $productInfo;
                 $partnerProductBox[$partnerKey]['summary_count'] += $summaryItemCount;
                 $partnerProductBox[$partnerKey]['summary_price'] += $price;
                 $partnerProductBox[$partnerKey]['summary_discount'] += $discount;
 
-                $summaryCount += $summaryItemCount; $summaryPrice += $price; $summaryDiscount += $discount;
+                $summaryCount += $summaryItemCount;
+                $summaryPrice += $price;
+                $summaryDiscount += $discount;
                 $basketIds[] = $item->id;
                 continue;
             }
@@ -862,7 +892,8 @@ trait BasketHelper
                     continue;
                 }
 
-                $collectionPrice = 0.0; $collectionProductsInfo = [];
+                $collectionPrice = 0.0;
+                $collectionProductsInfo = [];
                 foreach ($selectedProducts as $product) {
                     $productPrice = $this->safeFloat($product->price ?? 0);
                     $collectionPrice += $productPrice;
@@ -888,9 +919,9 @@ trait BasketHelper
                     continue;
                 }
 
-                $count = max(1, (int) $item->count);
+                $count = max(1, (int)$item->count);
                 $totalCollectionPrice = $collectionPrice * $count;
-                $collectionTenantId = (int) ($collection->tenant_id ?? $this->tenant->id);
+                $collectionTenantId = (int)($collection->tenant_id ?? $this->tenant->id);
 
                 $collectionInfo = [
                     'basket_id' => $item->id, 'collection_id' => $collection->id, 'tenant_id' => $collectionTenantId,
@@ -900,7 +931,7 @@ trait BasketHelper
                 ];
 
                 $tmpOrderProductInfo[] = $collectionInfo;
-                $partnerKey = implode(':', [$collectionTenantId, (int) ($item->tenant_partner_id ?? 0)]);
+                $partnerKey = implode(':', [$collectionTenantId, (int)($item->tenant_partner_id ?? 0)]);
 
                 if (!isset($partnerProductBox[$partnerKey])) {
                     $partnerTenant = Tenant::query()->find($collectionTenantId);
@@ -914,12 +945,17 @@ trait BasketHelper
                     ];
                 }
 
+                $tenantName = $partnerProductBox[$partnerKey]['name'] ?? 'Магазин';
+                $collectionInfo['tenant_name'] = $tenantName;
+
                 $partnerProductBox[$partnerKey]['products'][] = $collectionInfo;
                 $partnerProductBox[$partnerKey]['summary_count'] += $count;
                 $partnerProductBox[$partnerKey]['summary_price'] += $totalCollectionPrice;
                 $partnerProductBox[$partnerKey]['summary_discount'] += $collectionDiscount;
 
-                $summaryCount += $count; $summaryPrice += $totalCollectionPrice; $summaryDiscount += $collectionDiscount;
+                $summaryCount += $count;
+                $summaryPrice += $totalCollectionPrice;
+                $summaryDiscount += $collectionDiscount;
                 $basketIds[] = $item->id;
             }
         }
@@ -943,7 +979,7 @@ trait BasketHelper
 
     private function createOrderRecord(array $context, array $basketData): Order
     {
-        if (empty($basketData['product_info']) || (int) ($basketData['summary_count'] ?? 0) <= 0 || (float) ($basketData['final_price'] ?? 0) <= 0) {
+        if (empty($basketData['product_info']) || (int)($basketData['summary_count'] ?? 0) <= 0 || (float)($basketData['final_price'] ?? 0) <= 0) {
             throw new \RuntimeException('Невозможно создать заказ: в корзине нет товаров.');
         }
 
@@ -957,10 +993,10 @@ trait BasketHelper
             'delivery_service_info' => null,
             'deliveryman_info' => null,
             'product_details' => ['from' => $this->tenant->name ?? 'Магазин', 'products' => $basketData['product_info']],
-            'product_count' => (int) $basketData['summary_count'],
-            'summary_price' => (float) $basketData['final_price'],
-            'delivery_price' => (float) ($context['delivery_price'] ?? 0),
-            'delivery_range' => (float) ($context['delivery_range'] ?? $this->safeFloat($context['distance'] ?? 0)),
+            'product_count' => (int)$basketData['summary_count'],
+            'summary_price' => (float)$basketData['final_price'],
+            'delivery_price' => (float)($context['delivery_price'] ?? 0),
+            'delivery_range' => (float)($context['delivery_range'] ?? $this->safeFloat($context['distance'] ?? 0)),
             'receiver_name' => $context['customer_name'] ?? 'Не указано',
             'receiver_phone' => $context['customer_phone'] ?? '',
 
@@ -977,8 +1013,8 @@ trait BasketHelper
         $addressText = $context['need_pickup'] ? 'Не требуется' : e($addr['address'] ?? '');
 
         $persons = $context["persons"] ?? 1;
-        $money   = $context["money"]   ?? 'Не указано';
-        $cash    = defined('self::PAYMENT_TYPES') ? (self::PAYMENT_TYPES[$context["payment_type"] ?? 0] ?? 'Не указан') : 'Не указан';
+        $money = $context["money"] ?? 'Не указано';
+        $cash = defined('self::PAYMENT_TYPES') ? (self::PAYMENT_TYPES[$context["payment_type"] ?? 0] ?? 'Не указан') : 'Не указан';
 
         $clientName = e($context['customer_name'] ?? $order->receiver_name ?? 'Клиент');
         $phone = $this->cleanPhone($context['customer_phone'] ?? $order->receiver_phone ?? '');
@@ -988,7 +1024,7 @@ trait BasketHelper
         $time = $this->data["time"] ?? null;
         $timeText = $whenReady ? "По готовности" : ($time ? Carbon::parse($time)->format('d.m.Y H:i') : 'Не указано');
 
-        $message  = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";
+        $message = "🔔 <b>ЗАКАЗ #{$order->id}</b>\n";
         $message .= "📅 " . now("+3:00")->format('d.m.Y H:i') . "\n\n";
         $message .= "👤 <b>Клиент:</b> {$clientName}\n";
         $message .= "📞 <b>Телефон:</b> {$phone}\n";
@@ -1002,8 +1038,8 @@ trait BasketHelper
         if (!$context['need_pickup']) {
             $message .= "📍 <b>Адрес:</b> {$addressText}\n";
             if (!empty($addr['entrance_number'])) $message .= "🚪 Подъезд: " . e($addr['entrance_number']) . "\n";
-            if (!empty($addr['floor_number']))    $message .= "🏢 Этаж: " . e($addr['floor_number']) . "\n";
-            if (!empty($addr['flat_number']))     $message .= "🏠 Кв/Офис: " . e($addr['flat_number']) . "\n";
+            if (!empty($addr['floor_number'])) $message .= "🏢 Этаж: " . e($addr['floor_number']) . "\n";
+            if (!empty($addr['flat_number'])) $message .= "🏠 Кв/Офис: " . e($addr['flat_number']) . "\n";
         }
 
         $disabilitiesText = $this->fsPrepareDisabilities();
@@ -1038,9 +1074,7 @@ trait BasketHelper
                         $compTotal = number_format((float)$comp['price'] * (int)$comp['count'], 0, '.', ' ');
                         $message .= "      ├─ " . e($comp['name']) . " x{$comp['count']} = {$compTotal} ₽\n";
                     }
-                }
-
-                elseif (!empty($product['is_composite']) && !empty($product['components'])) {
+                } elseif (!empty($product['is_composite']) && !empty($product['components'])) {
                     $message .= "    <b>Состав:</b>\n";
                     foreach ($product['components'] as $comp) {
                         $compTotal = number_format((float)$comp['price'] * (int)$comp['count'], 0, '.', ' ');
@@ -1157,7 +1191,7 @@ trait BasketHelper
                     'kanban_thread' => $context['kanban_thread'], 'kanban_custom_data' => $kanbanCustomData,
                     'kanban_payload' => array_merge($kanbanCustomData, ['source' => 'foodshop', 'type' => 'new_order']),
                 ],
-                'recipients' => ['client' => true, 'crm' => (bool) $context['kanban_enabled'], 'telegram' => true],
+                'recipients' => ['client' => true, 'crm' => (bool)$context['kanban_enabled'], 'telegram' => true],
             ]);
         } catch (\Throwable $e) {
             // 🚨 2. FALLBACK: Если отправка всё равно упала (сбой API, сети и т.д.)
@@ -1194,7 +1228,7 @@ trait BasketHelper
         $phone = $this->cleanPhone($context['customer_phone'] ?? $order->receiver_phone ?? '');
         $totalToPay = (float)$order->summary_price + (float)$order->delivery_price;
 
-        $message  = "🔔 <b>ЗАКАЗ #{$order->id}</b> ⚠️ (Состав скрыт из-за размера)\n";
+        $message = "🔔 <b>ЗАКАЗ #{$order->id}</b> ⚠️ (Состав скрыт из-за размера)\n";
         $message .= "📅 " . now("+3:00")->format('d.m.Y H:i') . "\n\n";
         $message .= "👤 <b>Клиент:</b> {$clientName}\n";
         $message .= "📞 <b>Телефон:</b> {$phone}\n";
@@ -1225,7 +1259,7 @@ trait BasketHelper
         $phone = $this->cleanPhone($context['customer_phone'] ?? $order->receiver_phone ?? '');
         $totalToPay = (float)$order->summary_price + (float)$order->delivery_price;
 
-        $fallbackMessage  = "🚨 <b>СБОЙ УВЕДОМЛЕНИЯ</b> (Заказ создан в БД)\n";
+        $fallbackMessage = "🚨 <b>СБОЙ УВЕДОМЛЕНИЯ</b> (Заказ создан в БД)\n";
         $fallbackMessage .= "🔔 <b>Заказ #{$order->id}</b> не отправился в Telegram.\n";
         $fallbackMessage .= "👤 {$context['customer_name']} | 📞 {$phone}\n";
         $fallbackMessage .= "💰 Сумма: " . number_format($totalToPay, 0, '.', ' ') . " ₽\n\n";
@@ -1255,8 +1289,8 @@ trait BasketHelper
         $paymentData = null;
         $dialog = $order->dialog;
 
-        if (in_array($paymentType, [1, 2, 3])) { /* Логика для оплаты курьеру */ }
-        elseif ($paymentType === 4) {
+        if (in_array($paymentType, [1, 2, 3])) { /* Логика для оплаты курьеру */
+        } elseif ($paymentType === 4) {
             $paymentData = PaymentService::call()->sbpForShop($order, '');
         }
 
@@ -1354,7 +1388,7 @@ trait BasketHelper
     {
         $messages = [];
         foreach ($partnerProductBox as $uuid => $box) {
-            $partnerId = (int) ($box['id'] ?? $box['tenant_id'] ?? 0);
+            $partnerId = (int)($box['id'] ?? $box['tenant_id'] ?? 0);
             $partner = $partnerId ? Tenant::query()->find($partnerId) : null;
             $shopName = e($box['name'] ?? $partner?->name ?? $partner?->title ?? 'Магазин');
             $thread = $box['thread'] ?? ($partner?->topics['orders'] ?? null);
@@ -1362,7 +1396,7 @@ trait BasketHelper
             $deliveryPrice = $this->safeFloat($box['delivery_price'] ?? 0) ?? 0.0;
             $distance = $this->safeFloat($box['distance'] ?? 0) ?? 0.0;
             $summaryPrice = $this->safeFloat($box['summary_price'] ?? 0) ?? 0.0;
-            $summaryCount = (int) ($box['summary_count'] ?? 0);
+            $summaryCount = (int)($box['summary_count'] ?? 0);
             $summaryDiscount = $this->safeFloat($box['summary_discount'] ?? 0) ?? 0.0;
 
             $productMessage = '';
@@ -1432,8 +1466,7 @@ trait BasketHelper
                     foreach ($product['components'] as $comp) {
                         $message .= "    └─ {$comp['name']} x{$comp['count']} = " . number_format($comp['price'] ?? 0, 2, '.', ' ') . " руб.\n";
                     }
-                }
-                // Обычные составные товары
+                } // Обычные составные товары
                 elseif (!empty($product['components'])) {
                     foreach ($product['components'] as $comp) {
                         $message .= "    └─ {$comp['name']} x{$comp['count']}\n";

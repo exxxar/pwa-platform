@@ -117,13 +117,25 @@
                             <div class="meta-item"><i class="fa-solid fa-calendar"></i> {{ formatDate(order.created_at) }}</div>
                             <div class="meta-item"><i class="fa-solid fa-clock"></i> {{ formatTime(order.created_at) }}</div>
                         </div>
-                        <div v-if="getOrderProducts(order).length > 0" class="order-products">
-                            <div class="products-header"><i class="fa-solid fa-bag-shopping"></i><span>Товары ({{ getOrderProducts(order).length }})</span></div>
-                            <ul class="products-list">
-                                <li v-for="(product, idx) in getDisplayedProducts(order)" :key="idx">
-                                    <span class="prod-qty">{{ product.count }}×</span> {{ product.title || product.name || 'Товар' }}
-                                </li>
-                            </ul>
+                        <div v-if="getGroupedOrderProducts(order).length > 0" class="order-products">
+                            <div class="products-header">
+                                <i class="fa-solid fa-bag-shopping"></i>
+                                <span>Товары ({{ getOrderProducts(order).length }})</span>
+                            </div>
+                            <div v-for="(group, gIdx) in getGroupedOrderProducts(order)" :key="gIdx" class="tenant-product-group">
+                                <!-- Показываем бейдж заведения ТОЛЬКО если товаров из разных заведений > 1 -->
+                                <div v-if="getGroupedOrderProducts(order).length > 1 && group.tenant_name" class="tenant-name-badge">
+                                    <i class="fa-solid fa-store"></i> {{ group.tenant_name }}
+                                </div>
+                                <ul class="products-list">
+                                    <li v-for="(product, pIdx) in group.products.slice(0, 3)" :key="pIdx">
+                                        <span class="prod-qty">{{ product.count }}×</span> {{ product.title || product.name || 'Товар' }}
+                                    </li>
+                                </ul>
+                            </div>
+                            <div v-if="getOrderProducts(order).length > 3" class="text-muted small mt-1 ps-3">
+                                и ещё {{ getOrderProducts(order).length - 3 }} товаров...
+                            </div>
                         </div>
                         <div class="customer-info">
                             <div class="info-row"><i class="fa-solid fa-store"></i> {{ order.tenant_name }}</div>
@@ -439,10 +451,16 @@
                         <div class="detail-section">
                             <h4 class="section-title"><i class="fa-solid fa-bag-shopping"></i> Состав заказа</h4>
                             <div class="products-list-modal">
-                                <div v-for="(item, idx) in getOrderProducts(currentOrder)" :key="idx" class="product-row-modal">
-                                    <span class="prod-qty">{{ item.count }}×</span>
-                                    <span class="prod-name">{{ item.title || item.name || 'Товар' }}</span>
-                                    <span class="prod-price">{{ formatPrice(item.price) }} ₽</span>
+                                <div v-for="(group, gIdx) in getGroupedOrderProducts(currentOrder)" :key="gIdx" class="tenant-group-modal">
+                                    <!-- Показываем заголовок заведения, только если их больше одного -->
+                                    <div v-if="getGroupedOrderProducts(currentOrder).length > 1 && group.tenant_name" class="tenant-header-modal">
+                                        <i class="fa-solid fa-store"></i> {{ group.tenant_name }}
+                                    </div>
+                                    <div v-for="(item, pIdx) in group.products" :key="pIdx" class="product-row-modal">
+                                        <span class="prod-qty">{{ item.count }}×</span>
+                                        <span class="prod-name">{{ item.title || item.name || 'Товар' }}</span>
+                                        <span class="prod-price">{{ formatPrice(item.price) }}</span>
+                                    </div>
                                 </div>
                                 <div v-if="getOrderProducts(currentOrder).length === 0" class="text-muted text-center py-3">Состав заказа не указан</div>
                             </div>
@@ -471,11 +489,11 @@
                         <div class="modal-total">
                             <div class="total-row">
                                 <span>Сумма заказа:</span>
-                                <span>{{ formatPrice(currentOrder.summary_price || currentOrder.order_price) }} ₽</span>
+                                <span>{{ formatPrice(currentOrder.summary_price || currentOrder.order_price) }}</span>
                             </div>
                             <div class="total-row earning-row">
                                 <span>Ваш заработок:</span>
-                                <span>+{{ formatPrice(currentOrder.delivery_price) }} ₽</span>
+                                <span>+{{ formatPrice(currentOrder.delivery_price) }}</span>
                             </div>
                         </div>
                     </div>
@@ -785,7 +803,25 @@ export default {
             'startLocationTracking',
             'stopLocationTracking'
         ]),
+        getGroupedOrderProducts(order) {
+            const products = this.getOrderProducts(order);
+            if (!products || !products.length) return [];
 
+            const grouped = {};
+            products.forEach(product => {
+                const tenantName = product.tenant_name || null;
+                const key = tenantName || 'default';
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        tenant_name: tenantName,
+                        products: []
+                    };
+                }
+                grouped[key].products.push(product);
+            });
+
+            return Object.values(grouped);
+        },
         async loadSettings() {
             try {
                 const response = await axios.get('/deliveryman/settings');
@@ -3536,5 +3572,43 @@ chat-modal-overlay {
     .action-btn-header {
         justify-content: center;
     }
+}
+
+// 🆕 Стили для группировки товаров по заведениям
+.tenant-product-group {
+    margin-bottom: 8px;
+}
+
+.tenant-name-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $primary;
+    background: rgba($primary, 0.08);
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    margin-top: 4px;
+}
+
+.tenant-group-modal {
+    margin-bottom: 12px;
+}
+
+.tenant-header-modal {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: $primary;
+    background: rgba($primary, 0.05);
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    margin-top: 8px;
+    border-left: 3px solid $primary;
 }
 </style>
