@@ -27,10 +27,9 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
 
-
         // 🎯 ИСПРАВЛЕНО: Имя очереди 'notifications' должно точно совпадать с ->onQueue('notifications') в Job
         // 🎯 ДОБАВЛЕНО: --connection=database для гарантии работы с таблицей jobs
-        $schedule->command('queue:work --connection=database --queue=notifications --stops-when-empty --tries=3')
+        $schedule->command('queue:work --queue=notifications --stops-when-empty --tries=3')
             ->withoutOverlapping()
             ->runInBackground();
     }
