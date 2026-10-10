@@ -263,15 +263,10 @@ export default {
         // 3. Синхронизация объекта адреса с плоскими полями формы
         'deliveryForm.selectedAddress': {
             handler(newAddr) {
-                if (!this.deliveryForm) return;
-
-                this.deliveryForm.location_id = newAddr?.id || null;
-                this.deliveryForm.address = newAddr?.address || '';
-                this.deliveryForm.city = newAddr?.city || '';
-                this.deliveryForm.lat = newAddr?.lat || null;
-                this.deliveryForm.lng = newAddr?.lng || null;
+                this.syncAddressToForm(newAddr);
             },
             deep: true,
+            immediate: true // 🚀 КРИТИЧЕСКИ ВАЖНО: заставляет watcher сработать сразу при создании компонента
         },
 
         // 4. Сброс адреса при выборе "Самовывоза"
@@ -300,6 +295,34 @@ export default {
     },
 
     methods: {
+
+        syncAddressToForm(addr) {
+            if (!this.deliveryForm) return;
+
+            if (!addr) {
+                // Если адрес сбросили, очищаем поля
+                this.deliveryForm.location_id = null;
+                this.deliveryForm.address = '';
+                this.deliveryForm.city = '';
+                this.deliveryForm.lat = null;
+                this.deliveryForm.lng = null;
+                return;
+            }
+
+            // 🚀 Принудительно записываем значения.
+            // Использование ?? (nullish coalescing) безопаснее, чем ||, так как не затрет 0 или false, если они вдруг нужны
+            this.deliveryForm.location_id = addr.id ?? null;
+            this.deliveryForm.address = addr.address ?? '';
+            this.deliveryForm.city = addr.city ?? '';
+            this.deliveryForm.lat = addr.lat !== undefined ? addr.lat : null;
+            this.deliveryForm.lng = addr.lng !== undefined ? addr.lng : null;
+
+            // 🐛 ДЛЯ ОТЛАДКИ (можно удалить после проверки):
+            // console.log('Адрес синхронизирован:', {
+            //     location_id: this.deliveryForm.location_id,
+            //     raw_addr: addr
+            // });
+        },
         formatPhone() {
             if (!this.deliveryForm?.phone) return;
             let value = this.deliveryForm.phone.replace(/\D/g, '');
@@ -377,6 +400,10 @@ export default {
                 } catch (e) {
                     console.error('Ошибка загрузки ограничений из localStorage:', e);
                 }
+            }
+
+            if (this.deliveryForm.selectedAddress) {
+                this.syncAddressToForm(this.deliveryForm.selectedAddress);
             }
         },
     },

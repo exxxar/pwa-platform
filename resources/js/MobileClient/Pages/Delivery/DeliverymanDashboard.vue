@@ -117,7 +117,7 @@
                             <div class="meta-item"><i class="fa-solid fa-calendar"></i> {{ formatDate(order.created_at) }}</div>
                             <div class="meta-item"><i class="fa-solid fa-clock"></i> {{ formatTime(order.created_at) }}</div>
                         </div>
-                        <!-- НАЙДИТЕ ЭТОТ БЛОК ВО ВКЛАДКЕ "active" И ЗАМЕНИТЕ ЕГО: -->
+
                         <div v-if="getGroupedOrderProducts(order).length > 0" class="order-products">
                             <div class="products-header">
                                 <i class="fa-solid fa-bag-shopping"></i>
@@ -126,8 +126,8 @@
 
                             <!-- Перебираем группы (заведения) -->
                             <div v-for="(group, gIdx) in getGroupedOrderProducts(order)" :key="gIdx" class="tenant-product-group">
-                                <!-- Показываем бейдж заведения ТОЛЬКО если товаров из разных заведений > 1 -->
-                                <div v-if="getGroupedOrderProducts(order).length > 1 && group.tenant_name" class="tenant-name-badge">
+                                <!-- 🎯 ПОКАЗЫВАЕМ БЕЙДЖ, ЕСЛИ ИМЯ ЗАВЕДЕНИЯ СУЩЕСТВУЕТ -->
+                                <div v-if="group.tenant_name" class="tenant-name-badge">
                                     <i class="fa-solid fa-store"></i> {{ group.tenant_name }}
                                 </div>
 
@@ -226,13 +226,25 @@
                             <div class="meta-item"><i class="fa-solid fa-calendar"></i> {{ formatDate(order.created_at) }}</div>
                             <div class="meta-item"><i class="fa-solid fa-clock"></i> {{ formatTime(order.created_at) }}</div>
                         </div>
-                        <div v-if="getOrderProducts(order).length > 0" class="order-products">
-                            <div class="products-header"><i class="fa-solid fa-bag-shopping"></i><span>Товары ({{ getOrderProducts(order).length }})</span></div>
-                            <ul class="products-list">
-                                <li v-for="(product, idx) in getDisplayedProducts(order)" :key="idx">
-                                    <span class="prod-qty">{{ product.count }}×</span> {{ product.title || product.name || 'Товар' }}
-                                </li>
-                            </ul>
+                        <!-- Внутри v-else class="orders-grid" для вкладки active -->
+                        <div v-if="getGroupedOrderProducts(order).length > 0" class="order-products">
+                            <div class="products-header">
+                                <i class="fa-solid fa-bag-shopping"></i>
+                                <span>Товары ({{ getOrderProducts(order).length }})</span>
+                            </div>
+
+                            <div v-for="(group, gIdx) in getGroupedOrderProducts(order)" :key="gIdx" class="tenant-product-group">
+                                <div v-if="group.tenant_name" class="tenant-name-badge">
+                                    <i class="fa-solid fa-store"></i> {{ group.tenant_name }}
+                                </div>
+
+                                <ul class="products-list">
+                                    <!-- В активных заказах можно показать все товары или тоже slice(0, 3) -->
+                                    <li v-for="(product, pIdx) in group.products" :key="pIdx">
+                                        <span class="prod-qty">{{ product.count }}×</span> {{ product.title || product.name || 'Товар' }}
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                         <div class="customer-info">
                             <div class="info-row"><i class="fa-solid fa-user"></i> {{ order.receiver_name || 'Гость' }}</div>
@@ -456,16 +468,20 @@
                         <div class="detail-section">
                             <h4 class="section-title"><i class="fa-solid fa-bag-shopping"></i> Состав заказа</h4>
                             <div class="products-list-modal">
-                                <div v-for="(group, gIdx) in getGroupedOrderProducts(currentOrder)" :key="gIdx" class="tenant-group-modal">
-                                    <!-- Показываем заголовок заведения, только если их больше одного -->
-                                    <div v-if="getGroupedOrderProducts(currentOrder).length > 1 && group.tenant_name" class="tenant-header-modal">
-                                        <i class="fa-solid fa-store"></i> {{ group.tenant_name }}
+                                <div class="products-list-modal">
+                                    <div v-for="(group, gIdx) in getGroupedOrderProducts(currentOrder)" :key="gIdx" class="tenant-group-modal">
+                                        <!-- 🎯 Просто проверяем наличие имени -->
+                                        <div v-if="group.tenant_name" class="tenant-header-modal">
+                                            <i class="fa-solid fa-store"></i> {{ group.tenant_name }}
+                                        </div>
+
+                                        <div v-for="(item, pIdx) in group.products" :key="pIdx" class="product-row-modal">
+                                            <span class="prod-qty">{{ item.count }}×</span>
+                                            <span class="prod-name">{{ item.title || item.name || 'Товар' }}</span>
+                                            <span class="prod-price">{{ formatPrice(item.price) }}</span>
+                                        </div>
                                     </div>
-                                    <div v-for="(item, pIdx) in group.products" :key="pIdx" class="product-row-modal">
-                                        <span class="prod-qty">{{ item.count }}×</span>
-                                        <span class="prod-name">{{ item.title || item.name || 'Товар' }}</span>
-                                        <span class="prod-price">{{ formatPrice(item.price) }}</span>
-                                    </div>
+                                    <div v-if="getOrderProducts(currentOrder).length === 0" class="text-muted text-center py-3">Состав заказа не указан</div>
                                 </div>
                                 <div v-if="getOrderProducts(currentOrder).length === 0" class="text-muted text-center py-3">Состав заказа не указан</div>
                             </div>
@@ -813,12 +829,15 @@ export default {
             if (!products || !products.length) return [];
 
             const grouped = {};
+
             products.forEach(product => {
-                const tenantName = product.tenant_name || null;
-                const key = tenantName || 'default';
+                // Если tenant_name есть и не пустой, используем его, иначе помечаем как неизвестный
+                const tName = (product.tenant_name && product.tenant_name.trim()) ? product.tenant_name.trim() : null;
+                const key = tName || '__unknown__';
+
                 if (!grouped[key]) {
                     grouped[key] = {
-                        tenant_name: tenantName,
+                        tenant_name: tName,
                         products: []
                     };
                 }
