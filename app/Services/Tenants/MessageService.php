@@ -27,6 +27,57 @@ class MessageService
         $this->initCrmClient();
     }
 
+    /**
+     * 🚀 ОТДЕЛЬНЫЙ МЕТОД: Отправка сообщения ТОЛЬКО в Telegram
+     * Идеально подходит для быстрых уведомлений ("Заказ формируется", "Сбой" и т.д.)
+     * без лишней нагрузки на CRM или запись в БД.
+     *
+     * @param string      $message   Текст сообщения (HTML)
+     * @param string|null $chatId    Переопределение chat_id (если null, берется из настроек тенанта)
+     * @param int|null    $threadId  Переопределение thread_id (если null, берется из настроек тенанта)
+     * @param string|null $token     Переопределение token бота (если null, берется из настроек тенанта)
+     * @return array ['status' => 'sent'|'failed'|'skipped', 'reason' => string|null]
+     */
+    public function sendTelegramOnly(string $message, ?string $chatId = null, ?int $threadId = null, ?string $token = null): array
+    {
+        $tgSettings = $this->tenant->settings['telegram'] ?? [];
+
+        $finalToken  = $token  ?? $tgSettings['token']          ?? null;
+        $finalChatId = $chatId ?? $tgSettings['channel_id']     ?? $tgSettings['support_chat_id'] ?? null;
+        $finalThreadId = $threadId ?? $tgSettings['thread_id']  ?? null;
+
+        if (!$finalToken || !$finalChatId) {
+            Log::warning('[MessageService] sendTelegramOnly пропущен: нет token или chat_id для tenant #' . $this->tenant->id);
+            return ['status' => 'skipped', 'reason' => 'no telegram config'];
+        }
+
+        // 🛡️ БЕЗОПАСНАЯ ОБРЕЗКА: strip_tags предотвращает ошибку "Can't parse entities" при обрезке HTML
+        if (mb_strlen($message) > 4000) {
+            $safeMessage = strip_tags($message);
+            $message = mb_substr($safeMessage, 0, 3800) . "\n\n⚠️ <i>(Сообщение обрезано из-за лимита Telegram)</i>";
+            Log::warning('[MessageService] Сообщение для Telegram обрезано из-за превышения лимита длины.');
+        }
+
+        $payload = [
+            'chat_id'                  => $finalChatId,
+            'text'                     => $message,
+            'parse_mode'               => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        if ($finalThreadId) {
+            $payload['message_thread_id'] = (int) $finalThreadId;
+        }
+
+        $success = $this->executeTelegramRequest($finalToken, 'sendMessage', $payload);
+
+        return [
+            'status'    => $success ? 'sent' : 'failed',
+            'chat_id'   => $finalChatId,
+            'thread_id' => $finalThreadId,
+        ];
+    }
+
     protected function initCrmClient(): void
     {
         try {
