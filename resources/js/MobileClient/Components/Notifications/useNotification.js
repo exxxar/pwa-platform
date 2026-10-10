@@ -21,19 +21,19 @@ export function useNotification() {
     };
 
     const success = (text, title = 'Успех') => {
-        return addNotification({ type: 'success', title, text });
+        return addNotification({ type: 'success', title, text, duration: 1500 });
     };
 
     const error = (text, title = 'Ошибка') => {
-        return addNotification({ type: 'error', title, text, duration: 7000 });
+        return addNotification({ type: 'error', title, text, duration: 2000 });
     };
 
     const warning = (text, title = 'Внимание') => {
-        return addNotification({ type: 'warning', title, text, duration: 6000 });
+        return addNotification({ type: 'warning', title, text, duration: 2000 });
     };
 
     const info = (text, title = 'Информация') => {
-        return addNotification({ type: 'info', title, text });
+        return addNotification({ type: 'info', title, text, duration: 1500 });
     };
 
     const clearAll = () => {
