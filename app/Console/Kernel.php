@@ -23,13 +23,13 @@ class Kernel extends ConsoleKernel
 
         ///* * * * * cd /home/l/likholetov/mypwa.ru/public_html && php artisan schedule:run >> /dev/null 2>&1
         ///
-        $schedule->command('queue:work --queue=telegram --stops-when-empty --tries=3')
+        $schedule->command('queue:work --queue=telegram  --tries=3')
             ->withoutOverlapping()
             ->runInBackground();
 
         // 🎯 ИСПРАВЛЕНО: Имя очереди 'notifications' должно точно совпадать с ->onQueue('notifications') в Job
         // 🎯 ДОБАВЛЕНО: --connection=database для гарантии работы с таблицей jobs
-        $schedule->command('queue:work --queue=notifications --stops-when-empty --tries=3')
+        $schedule->command('queue:work --queue=notifications --tries=3')
             ->withoutOverlapping()
             ->runInBackground();
     }
