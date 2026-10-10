@@ -12,18 +12,24 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        // $schedule->command('inspire')->hourly();
+
+
         $schedule->command('tenants:check-balance')
             ->dailyAt('00:05')
             ->withoutOverlapping()
             ->runInBackground()
             ->emailOutputOnFailure(config('app.admin_email'));
 
-        // 🎯 ЕДИНЫЙ ПРАВИЛЬНЫЙ ВОРКЕР ДЛЯ КРОНА
-        // 1. --connection=database (явно указываем драйвер)
-        // 2. --queue=notifications,telegram (слушаем обе очереди, приоритет у первой)
-        // 3. --tries=3 (3 попытки при ошибке)
-        // 4. --once (КРИТИЧНО ВАЖНО: обработать задачи и завершиться, чтобы крон мог запустить его снова)
-        $schedule->command('queue:work database --queue=notifications,telegram --tries=3 --once')
+        ///* * * * * cd /home/l/likholetov/mypwa.ru/public_html && php artisan schedule:run >> /dev/null 2>&1
+        ///
+        $schedule->command('queue:work --queue=telegram  --tries=3')
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        // 🎯 ИСПРАВЛЕНО: Имя очереди 'notifications' должно точно совпадать с ->onQueue('notifications') в Job
+        // 🎯 ДОБАВЛЕНО: --connection=database для гарантии работы с таблицей jobs
+        $schedule->command('queue:work --queue=notifications --tries=3')
             ->withoutOverlapping()
             ->runInBackground();
     }

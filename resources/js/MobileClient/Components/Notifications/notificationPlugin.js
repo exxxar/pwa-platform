@@ -32,19 +32,19 @@ export default {
 
         // Добавляем глобальный метод $notify.success, $notify.error и т.д.
         app.config.globalProperties.$notify.success = (text, title) => {
-            return containerInstance.addNotification({ type: 'success', title: title || 'Успех', text });
+            return containerInstance.addNotification({ type: 'success', title: title || 'Успех', text , duration: 1500 });
         };
 
         app.config.globalProperties.$notify.error = (text, title) => {
-            return containerInstance.addNotification({ type: 'error', title: title || 'Ошибка', text, duration: 7000 });
+            return containerInstance.addNotification({ type: 'error', title: title || 'Ошибка', text, duration: 2000 });
         };
 
         app.config.globalProperties.$notify.warning = (text, title) => {
-            return containerInstance.addNotification({ type: 'warning', title: title || 'Внимание', text, duration: 6000 });
+            return containerInstance.addNotification({ type: 'warning', title: title || 'Внимание', text, duration: 2000 });
         };
 
         app.config.globalProperties.$notify.info = (text, title) => {
-            return containerInstance.addNotification({ type: 'info', title: title || 'Информация', text });
+            return containerInstance.addNotification({ type: 'info', title: title || 'Информация', text , duration: 1500 });
         };
 
         app.config.globalProperties.$notify.clearAll = () => {
