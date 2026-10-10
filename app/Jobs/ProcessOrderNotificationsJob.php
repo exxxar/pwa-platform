@@ -32,6 +32,18 @@ class ProcessOrderNotificationsJob implements ShouldQueue
 
     public function handle()
     {
+
+        // 📝 ЛОГИРОВАНИЕ ЗАПУСКА ЗАДАЧИ И ЕЁ ПАРАМЕТРОВ
+        Log::info('[Queue Job Started] ProcessOrderNotificationsJob', [
+            'order_id' => $this->orderId,
+            'tenant_id' => $this->tenantId,
+            'dialog_id' => $this->dialogId,
+            'has_client_message' => !empty($this->clientMessage),
+            'has_crm_message' => !empty($this->crmMessage),
+            'has_telegram_message' => !empty($this->telegramMessage),
+            'partners_count' => count($this->partnerMessages),
+        ]);
+
         try {
             // 🚀 ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА ТЕНАНТА
             $tenant = Tenant::find($this->tenantId);

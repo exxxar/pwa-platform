@@ -30,6 +30,15 @@ class SendCrmReceiptJob implements ShouldQueue
 
     public function handle()
     {
+        // 📝 ЛОГИРОВАНИЕ ЗАПУСКА ЗАДАЧИ И ЕЁ ПАРАМЕТРОВ
+        Log::info('[Queue Job Started] SendCrmReceiptJob', [
+            'order_id' => $this->orderId,
+            'tenant_id' => $this->tenantId,
+            'dialog_id' => $this->dialogId,
+            'invoice_path' => $this->invoicePath,
+            'kanban_enabled' => $this->kanbanEnabled,
+        ]);
+
         try {
             // 🚀 ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА ТЕНАНТА
             $tenant = Tenant::find($this->tenantId);

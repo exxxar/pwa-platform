@@ -29,7 +29,20 @@ class SendTelegramNotificationJob implements ShouldQueue
 
     public function handle()
     {
+
+        // 📝 ЛОГИРОВАНИЕ ЗАПУСКА ЗАДАЧИ И ЕЁ ПАРАМЕТРОВ
+        Log::info('[Queue Job Started] SendTelegramNotificationJob', [
+            'tenant_id' => $this->tenantId,
+            'message_length' => mb_strlen($this->message),
+            'chat_id' => $this->chatId,
+            'thread_id' => $this->threadId,
+            'has_file' => !empty($this->filePath),
+        ]);
+
+
         try {
+
+
             // 🚀 ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА ТЕНАНТА
             $tenant = Tenant::find($this->tenantId);
             if (!$tenant) {
