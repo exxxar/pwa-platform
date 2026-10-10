@@ -403,9 +403,10 @@ trait BasketHelper
 
             $order = $this->createOrderRecord($context, $basketData);
 
-            SendTelegramNotificationJob::dispatch(
+            \App\Jobs\SendTelegramNotificationJob::dispatch(
+                $this->tenant->id,  // 🆕 ПЕРВЫМ АРГУМЕНТОМ ID ТЕНАНТА
                 "⏳ <b>Формируется заказ #{$order->id}</b>\n<i>Полные детали и состав поступят через несколько секунд...</i>"
-            )->onQueue('telegram'); // Используем отдельную очередь 'telegram' для порядка
+            )->onQueue('telegram');
 
             $this->markBasketItemsAsOrdered($basketData['basket_ids']);
             $kanbanTaskId = $this->notifyStakeholders($order, $context, $basketData);

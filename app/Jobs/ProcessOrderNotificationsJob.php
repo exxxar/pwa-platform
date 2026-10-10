@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Tenant\Order;
+use App\Models\Tenant\Tenant;
 use App\Services\Tenants\MessageService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,8 +16,8 @@ class ProcessOrderNotificationsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;       // 3 попытки при сбое
-    public int $backoff = 10;    // 10 секунд между попытками
+    public int $tries = 3;
+    public int $backoff = 10;
 
     public function __construct(
         public int $orderId,
@@ -32,9 +33,17 @@ class ProcessOrderNotificationsJob implements ShouldQueue
     public function handle()
     {
         try {
-            // ⚠️ ВАЖНО: Если вы используете пакет мультиарендности (например, Stancl/Tenancy),
-            // раскомментируйте строку ниже, чтобы инициализировать контекст тенанта в очереди:
-            // tenancy()->initialize($this->tenantId);
+            // 🚀 ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА ТЕНАНТА
+            $tenant = Tenant::find($this->tenantId);
+            if (!$tenant) {
+                Log::error("[Queue] Tenant #{$this->tenantId} not found for ProcessOrderNotificationsJob.");
+                return;
+            }
+
+            app()->instance('tenant', $tenant);
+            if (function_exists('tenancy')) {
+                tenancy()->initialize($tenant);
+            }
 
             // 1. ОТПРАВКА В CRM (Kanban) + Клиенту в БД
             $crmResult = MessageService::call()->sendMessage([
@@ -95,10 +104,10 @@ class ProcessOrderNotificationsJob implements ShouldQueue
 
         } catch (\Throwable $e) {
             Log::error('[Queue] Ошибка в ProcessOrderNotificationsJob: ' . $e->getMessage(), [
+                'tenant_id' => $this->tenantId,
                 'order_id' => $this->orderId,
                 'trace' => $e->getTraceAsString()
             ]);
-            // Вернуть задачу в очередь для повторной попытки
             $this->release($this->backoff);
         }
     }

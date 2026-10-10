@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Tenant\Tenant;
 use App\Services\Tenants\MessageService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -14,8 +15,8 @@ class SendCrmReceiptJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;       // 3 попытки при сбое сети
-    public int $backoff = 10;    // 10 секунд между попытками
+    public int $tries = 3;
+    public int $backoff = 10;
 
     public function __construct(
         public int $orderId,
@@ -30,6 +31,18 @@ class SendCrmReceiptJob implements ShouldQueue
     public function handle()
     {
         try {
+            // 🚀 ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА ТЕНАНТА
+            $tenant = Tenant::find($this->tenantId);
+            if (!$tenant) {
+                Log::error("[Queue] Tenant #{$this->tenantId} not found for SendCrmReceiptJob.");
+                return;
+            }
+
+            app()->instance('tenant', $tenant);
+            if (function_exists('tenancy')) {
+                tenancy()->initialize($tenant);
+            }
+
             // 1. Отправка чека клиенту в чат (запись в БД)
             if ($this->dialogId) {
                 MessageService::call()->sendMessage([
@@ -61,12 +74,11 @@ class SendCrmReceiptJob implements ShouldQueue
             }
         } catch (\Throwable $e) {
             Log::error('[Queue] Ошибка отправки чека (SendCrmReceiptJob): ' . $e->getMessage(), [
+                'tenant_id' => $this->tenantId,
                 'order_id' => $this->orderId,
                 'file_path' => $this->invoicePath,
                 'trace' => $e->getTraceAsString()
             ]);
-
-            // Вернуть задачу в очередь для повторной попытки
             $this->release($this->backoff);
         }
     }
