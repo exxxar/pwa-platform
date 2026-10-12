@@ -11,38 +11,33 @@ class PromoCode extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array
-     */
     protected $fillable = [
         'tenant_id',
         'code',
         'description',
-        'slot_amount',
-        'cashback_amount',
-        'max_activation_count',
+        'discount',              // Размер скидки
+        'discount_type',         // 'percent' или 'fixed'
+        'min_order_amount',      // Минимальная сумма заказа
+        'starts_at',             // Дата начала действия
+        'expires_at',            // Дата окончания действия
+        'usage_limit',           // Общий лимит активаций (0 = безлимит)
+        'for_new_users',         // Только для новых
+        'for_vip',               // Только для VIP
         'is_active',
-        'activate_price',
-        'available_to',
-        'config',
+        'config',                // Доп. настройки (JSON)
     ];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array
-     */
     protected $casts = [
-        'id' => 'integer',
         'tenant_id' => 'integer',
-        'slot_amount' => 'integer',
-        'config' => 'array',
-        'cashback_amount' => 'double',
-        'activate_price' => 'double',
+        'discount' => 'float',
+        'min_order_amount' => 'float',
+        'usage_limit' => 'integer',
+        'for_new_users' => 'boolean',
+        'for_vip' => 'boolean',
         'is_active' => 'boolean',
-        'available_to' => 'datetime:Y-m-d H:i:s',
+        'starts_at' => 'date',
+        'expires_at' => 'date',
+        'config' => 'array',
     ];
 
     protected $with = ["users"];
@@ -52,12 +47,8 @@ class PromoCode extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(TenantUser::class);
+        return $this->belongsToMany(TenantUser::class, 'promo_code_user', 'promo_code_id', 'tenant_user_id');
     }
-
-
-
 }

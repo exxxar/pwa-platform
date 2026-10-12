@@ -6,14 +6,76 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\CashBackHistory;
 use App\Models\Tenant\TenantDialog;
+use App\Models\Tenant\TenantRole;
 use App\Models\Tenant\TenantUser;
 use App\Services\Tenants\CashBackService;
 use App\Services\Tenants\MessageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class UsersController extends Controller
 {
+
+
+    public function updateRoles(Request $request, int $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'role_ids' => 'required|array',
+            'role_ids.*' => 'integer|exists:tenant_roles,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()->first()], 422);
+        }
+
+        $user = TenantUser::findOrFail($id);
+
+        // 🎯 1. Находим ID роли "guest"
+        // ⚠️ ВАЖНО: Замените 'guest' на точное значение поля `name` в вашей таблице tenant_roles,
+        // если у вас эта роль называется иначе (например, 'user' или 'client').
+        $guestRole = TenantRole::where('name', 'guest')->first();
+        $guestRoleId = $guestRole ? $guestRole->id : null;
+
+        $roleIds = $request->role_ids;
+
+        // 🎯 2. Логика фильтрации роли гостя
+        if ($guestRoleId) {
+            // Проверяем, является ли устанавливаемая роль ТОЛЬКО гостевой
+            $isSettingOnlyGuest = (count($roleIds) === 1 && in_array($guestRoleId, $roleIds));
+
+            if (!$isSettingOnlyGuest) {
+                // Если назначается не только роль гостя, принудительно удаляем её ID из массива
+                $roleIds = array_values(array_filter($roleIds, function ($id) use ($guestRoleId) {
+                    return $id != $guestRoleId;
+                }));
+            }
+        }
+
+        // 🎯 3. Получаем ID текущего тенанта (безопаснее всего брать из самого пользователя)
+        $tenantId = $user->tenant_id;
+
+        // 🎯 4. Формируем массив данных для pivot-таблицы, добавляя tenant_id к каждой оставшейся роли
+        $syncData = [];
+        foreach ($roleIds as $roleId) {
+            $syncData[$roleId] = [
+                'tenant_id' => $tenantId
+            ];
+        }
+
+        // 🎯 5. Синхронизируем роли.
+        // Метод sync() автоматически удалит из БД все роли, которых нет в массиве $syncData (включая гостя, если мы его отфильтровали)
+        $user->roles()->sync($syncData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Роли пользователя успешно обновлены',
+            'data' => [
+                'role_ids' => $user->roles()->pluck('tenant_roles.id')->toArray()
+            ]
+        ]);
+    }
+
     /**
      * 🆕 Поиск пользователей с фильтрами
      */

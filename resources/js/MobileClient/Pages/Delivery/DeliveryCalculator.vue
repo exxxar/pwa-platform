@@ -76,11 +76,16 @@
 <script>
 import axios from 'axios';
 import DeliveryCalculatorModal from '@/MobileClient/Components/Delivery/DeliveryCalculatorModal.vue';
+import {usePermissions} from "@/MobileClient/composables/usePermissions";
 
 export default {
     name: 'DeliveryCalculatorPage',
     components: {
         DeliveryCalculatorModal
+    },
+    setup() {
+        const { isDeliveryman } = usePermissions();
+        return { isDeliveryman };
     },
     data() {
         return {
@@ -90,6 +95,11 @@ export default {
             showModal: false,
             currentShop: null
         };
+    },
+    created() {
+        if (!this.isDeliveryman) {
+            this.$router.push({ name: 'Auth' }).catch(() => {});
+        }
     },
     computed: {
         // 🆕 Фильтрация списка по названию в реальном времени

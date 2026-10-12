@@ -54,7 +54,7 @@
                     v-model="promocodeForm.code"
                     :disabled="isDisabled"
                     class="promo-input"
-                    placeholder="Например: WELCOME2024"
+                    placeholder="Например: Промокод"
                     @input="onInputChange"
                     @keyup.enter="submit"
                     autocomplete="off"
@@ -212,8 +212,8 @@ export default {
             this.inputError = '';
         },
 
+
         async submit() {
-            // Валидация
             if (!this.promocodeForm.code?.trim()) {
                 this.inputError = 'Введите промокод';
                 return;
@@ -228,26 +228,20 @@ export default {
             this.inputError = '';
 
             try {
-                // TODO: Замени на Pinia action
-                // const resp = await this.promoStore.activateShopDiscountPromocode(this.promocodeForm);
+                // 🆕 РЕАЛЬНЫЙ ВЫЗОВ API (замените на ваш реальный метод из composable/store)
+                // Например: const resp = await this.promoStore.activatePromocode(this.promocodeForm.code);
 
-                // Имитация запроса (удали после подключения API)
-                await new Promise(resolve => setTimeout(resolve, 1200));
+                // Временная заглушка для демонстрации структуры ответа, которую теперь возвращает бэкенд:
+                const resp = await this.$axios.post('/api/promocodes/activate', this.promocodeForm);
+                // ^^^ Замените этот URL и способ вызова на ваш реальный action из Pinia/Vuex
 
-                // Пример успешного ответа (замени на реальный)
-                const resp = {
-                    discount: 500,
-                    discount_in_percent: false,
-                    activate_price: 1000,
-                };
-
-                this.discount = resp.discount || 0;
-                this.discount_in_percent = resp.discount_in_percent || false;
-                this.activate_price = resp.activate_price || 0;
+                this.discount = resp.data.discount || 0;
+                this.discount_in_percent = resp.data.discount_in_percent || false;
+                this.activate_price = resp.data.activate_price || 0;
 
                 this.$notify?.({
                     title: 'Промокод',
-                    text: 'Промокод успешно активирован!',
+                    text: resp.data.message || 'Промокод успешно активирован!',
                     type: 'success',
                 });
 
@@ -263,8 +257,10 @@ export default {
 
                 this.discount = 0;
                 this.activate_price = 0;
+                this.discount_in_percent = false;
 
-                this.inputError = error.response?.data?.message || 'Неверный промокод';
+                const errorMsg = error.response?.data?.message || 'Неверный промокод или условия не выполнены';
+                this.inputError = errorMsg;
 
                 this.$emit('callback', {
                     code: this.promocodeForm.code,
@@ -275,7 +271,7 @@ export default {
 
                 this.$notify?.({
                     title: 'Ошибка',
-                    text: this.inputError,
+                    text: errorMsg,
                     type: 'error',
                 });
             } finally {

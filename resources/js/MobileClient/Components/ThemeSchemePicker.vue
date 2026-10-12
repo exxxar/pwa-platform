@@ -1,40 +1,197 @@
 <template>
-    <div class="theme-scheme-picker">
-        <!-- Заголовок -->
-        <div class="d-flex align-items-center gap-2 mb-3">
-            <div class="scheme-icon">
-                <i class="fa-solid fa-swatchbook"></i>
+    <div class="auth-page min-vh-100 d-flex flex-column justify-content-center px-3 py-4">
+
+        <!-- Логотип и приветствие -->
+        <div class="text-center mb-4 fade-in">
+            <div class="auth-logo mx-auto mb-3 d-flex align-items-center justify-content-center">
+                <i class="fa-solid fa-store fa-2x text-white"></i>
             </div>
-            <div>
-                <div class="fw-semibold">Цветовая схема</div>
-                <small class="text-muted">Выберите стиль оформления</small>
+            <h2 class="fw-bold mb-1" style="color: var(--bs-body-color);">Добро пожаловать!</h2>
+            <p class="text-muted">Войдите, чтобы управлять заказами</p>
+        </div>
+
+        <!-- Карточка формы -->
+        <div class="card border-0 shadow-lg rounded-4 overflow-hidden fade-in" style="animation-delay: 0.1s; background: var(--bs-body-bg);">
+
+            <div class="card-body p-4 pt-3">
+
+                <!-- Сообщения об ошибках -->
+                <div v-if="errorMessage" class="alert alert-danger d-flex align-items-center py-2 mb-3" role="alert">
+                    <i class="fa-solid fa-circle-exclamation me-2"></i>
+                    <small>{{ errorMessage }}</small>
+                </div>
+
+                <!-- Анимация переключения форм -->
+                <transition name="fade" mode="out-in">
+
+                    <!-- ФОРМА ВХОДА -->
+                    <form v-if="mode === 'login'" key="login" @submit.prevent="submitForm">
+                        <div class="form-floating mb-3">
+                            <input
+                                v-model="form.identifier"
+                                type="text"
+                                class="form-control rounded-3"
+                                id="loginId"
+                                placeholder="Телефон или Email"
+                                required
+                            >
+                            <label for="loginId"><i class="fa-solid fa-user me-1"></i> Телефон или Email</label>
+                        </div>
+
+                        <div class="form-floating position-relative mb-3">
+                            <input
+                                v-model="form.password"
+                                :type="showLoginPassword ? 'text' : 'password'"
+                                class="form-control rounded-3 pe-5"
+                                id="loginPassword"
+                                placeholder="Пароль"
+                                required
+                            >
+                            <label for="loginPassword"><i class="fa-solid fa-lock me-1"></i> Пароль</label>
+                            <button
+                                type="button"
+                                class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted pe-3"
+                                @click="showLoginPassword = !showLoginPassword"
+                                style="z-index: 5; text-decoration: none;"
+                                tabindex="-1"
+                            >
+                                <i :class="showLoginPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                            </button>
+                        </div>
+
+                        <div class="d-flex justify-content-end mb-4">
+                            <a href="#" class="text-decoration-none small" style="color: var(--bs-secondary-color);">Забыли пароль?</a>
+                        </div>
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary btn-lg w-100 rounded-3 fw-bold text-white shadow-sm"
+                            :disabled="isLoading"
+                        >
+                            <span v-if="isLoading" class="spinner-border spinner-border-sm me-2"></span>
+                            {{ isLoading ? 'Входим...' : 'Войти' }}
+                        </button>
+                    </form>
+
+                    <!-- ФОРМА РЕГИСТРАЦИИ -->
+                    <form v-else key="register" @submit.prevent="submitForm">
+                        <div class="form-floating mb-3">
+                            <input
+                                v-model="form.name"
+                                type="text"
+                                class="form-control rounded-3"
+                                id="regName"
+                                placeholder="Ваше имя"
+                                required
+                            >
+                            <label for="regName"><i class="fa-solid fa-signature me-1"></i> Ваше имя</label>
+                        </div>
+
+                        <div class="form-floating mb-3">
+                            <input
+                                v-model="form.phone"
+                                type="tel"
+                                class="form-control rounded-3"
+                                id="regPhone"
+                                placeholder="+7 (999) 000-00-00"
+                                required
+                            >
+                            <label for="regPhone"><i class="fa-solid fa-phone me-1"></i> Телефон</label>
+                        </div>
+
+                        <div class="form-floating position-relative mb-3">
+                            <input
+                                v-model="form.password"
+                                :type="showRegisterPassword ? 'text' : 'password'"
+                                class="form-control rounded-3 pe-5"
+                                id="regPassword"
+                                placeholder="Пароль"
+                                minlength="6"
+                                required
+                            >
+                            <label for="regPassword"><i class="fa-solid fa-lock me-1"></i> Пароль</label>
+                            <button
+                                type="button"
+                                class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted pe-3"
+                                @click="showRegisterPassword = !showRegisterPassword"
+                                style="z-index: 5; text-decoration: none;"
+                                tabindex="-1"
+                            >
+                                <i :class="showRegisterPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                            </button>
+                        </div>
+
+                        <div class="form-floating position-relative mb-3">
+                            <input
+                                v-model="form.password_confirm"
+                                :type="showRegisterPassword ? 'text' : 'password'"
+                                class="form-control rounded-3 pe-5"
+                                id="regPasswordConfirm"
+                                placeholder="Подтвердите пароль"
+                                minlength="6"
+                                required
+                                :class="{ 'is-invalid': form.password_confirm && form.password !== form.password_confirm }"
+                            >
+                            <label for="regPasswordConfirm"><i class="fa-solid fa-shield-halved me-1"></i> Подтвердите пароль</label>
+                            <button
+                                type="button"
+                                class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted pe-3"
+                                @click="showRegisterPassword = !showRegisterPassword"
+                                style="z-index: 5; text-decoration: none;"
+                                tabindex="-1"
+                            >
+                                <i :class="showRegisterPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                            </button>
+                            <div class="invalid-feedback" v-if="form.password_confirm && form.password !== form.password_confirm">
+                                Пароли не совпадают
+                            </div>
+                        </div>
+
+                        <div class="d-grid mb-3">
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm rounded-3"
+                                @click="generatePassword"
+                            >
+                                <i class="fa-solid fa-wand-magic-sparkles me-2"></i>
+                                Сгенерировать надежный пароль
+                            </button>
+                        </div>
+
+                        <!-- Блок обязательного согласия -->
+                        <div class="agreement-box mb-4 p-3 rounded-3 border" style="background: var(--bs-tertiary-bg); border-color: var(--bs-border-color) !important;">
+                            <div class="form-check">
+                                <input
+                                    class="form-check-input mt-1"
+                                    type="checkbox"
+                                    id="agreeAll"
+                                    v-model="form.agreeToPolicies"
+                                    required
+                                >
+                                <label class="form-check-label small text-muted lh-sm" for="agreeAll">
+                                    Я принимаю и соглашаюсь с
+                                    <router-link :to="{ name: 'PrivacyPolicy' }" class="fw-semibold" style="color: var(--bs-primary); text-decoration: none;" target="_blank">Политикой конфиденциальности</router-link>,
+                                    <router-link :to="{ name: 'TermsOfService' }" class="fw-semibold" style="color: var(--bs-primary); text-decoration: none;" target="_blank">Условиями использования</router-link> и
+                                    <router-link :to="{ name: 'CookiePolicy' }" class="fw-semibold" style="color: var(--bs-primary); text-decoration: none;" target="_blank">Политикой cookie</router-link>.
+                                </label>
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary btn-lg w-100 rounded-3 fw-bold text-white shadow-sm"
+                            :disabled="isLoading"
+                        >
+                            <span v-if="isLoading" class="spinner-border spinner-border-sm me-2"></span>
+                            {{ isLoading ? 'Создаем аккаунт...' : 'Зарегистрироваться' }}
+                        </button>
+                    </form>
+
+                </transition>
+
             </div>
         </div>
 
-        <!-- Сетка тем -->
-        <div class="schemes-grid">
-            <button
-                v-for="scheme in schemes"
-                :key="scheme.id"
-                class="scheme-card"
-                :class="{ 'active': currentSchemeId === scheme.id }"
-                @click="applyScheme(scheme)"
-                type="button"
-            >
-                <div class="scheme-preview" :style="getPreviewStyle(scheme)">
-                    <div class="preview-header"></div>
-                    <div class="preview-body">
-                        <div class="preview-line"></div>
-                        <div class="preview-line short"></div>
-                        <div class="preview-button"></div>
-                    </div>
-                </div>
-                <div class="scheme-name">{{ scheme.name }}</div>
-                <div v-if="currentSchemeId === scheme.id" class="scheme-check">
-                    <i class="fa-solid fa-check"></i>
-                </div>
-            </button>
-        </div>
     </div>
 </template>
 
@@ -100,112 +257,132 @@ export default {
 };
 </script>
 <style scoped>
-.scheme-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-}
-
-/* Сетка тем */
-.schemes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 12px;
-}
-
-/* Карточка темы */
-.scheme-card {
-    position: relative;
+/* Фон страницы: используем переменную темы, чтобы корректно работать и в светлой, и в темной теме */
+.auth-page {
     background: var(--bs-body-bg);
-    border: 2px solid var(--bs-border-color);
-    border-radius: 12px;
-    padding: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
+    /* Если хотите легкий градиент, раскомментируйте строку ниже, но убедитесь, что переменные настроены */
+    /* background: linear-gradient(135deg, var(--bs-body-bg) 0%, var(--bs-tertiary-bg) 100%); */
 }
 
-.scheme-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    border-color: var(--bs-primary);
-}
-
-.scheme-card.active {
-    border-color: var(--bs-primary);
-    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.3);
-}
-
-/* Превью темы */
-.scheme-preview {
-    width: 100%;
-    aspect-ratio: 3/4;
-    background: var(--preview-bg);
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid var(--preview-line);
-}
-
-.preview-header {
-    height: 20%;
-    background: var(--preview-header);
-}
-
-.preview-body {
-    padding: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.preview-line {
-    height: 3px;
-    background: var(--preview-line);
-    border-radius: 2px;
-}
-
-.preview-line.short {
-    width: 60%;
-}
-
-.preview-button {
-    margin-top: auto;
-    height: 12px;
-    background: var(--preview-button);
-    border-radius: 3px;
-}
-
-/* Название */
-.scheme-name {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--bs-body-color);
-    text-align: center;
-}
-
-/* Галочка активной темы */
-.scheme-check {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    width: 20px;
-    height: 20px;
-    background: var(--bs-primary);
-    color: white;
+/* Логотип: теперь использует главный цвет темы (primary) */
+.auth-logo {
+    width: 70px;
+    height: 70px;
     border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-hover, var(--bs-primary)) 100%);
+    box-shadow: 0 8px 20px rgba(var(--bs-primary-rgb, 255, 138, 0), 0.25);
+}
+
+/* Плавные переходы */
+.transition-all {
+    transition: all 0.3s ease;
+}
+
+/* Анимация переключения форм */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from {
+    opacity: 0;
+    transform: translateX(20px);
+}
+
+.fade-leave-to {
+    opacity: 0;
+    transform: translateX(-20px);
+}
+
+/* 🎯 Кастомизация фокуса инпутов под цвет темы */
+.form-control {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+.form-control:focus {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.15);
+}
+
+/* Цвет чекбокса */
+.form-check-input {
+    background-color: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+}
+
+.form-check-input:checked {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+.form-check-input:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.15);
+}
+
+/* Стили для иконки глаза внутри form-floating */
+.form-floating .btn-link {
+    color: var(--bs-secondary-color);
+    transition: color 0.2s;
+}
+
+.form-floating .btn-link:hover {
+    color: var(--bs-primary);
+}
+
+/* Стили для блока согласия */
+.agreement-box {
+    transition: all 0.2s ease;
+}
+
+.agreement-box .form-check-label {
+    cursor: pointer;
+    line-height: 1.5;
+}
+
+.agreement-box .form-check-label a {
+    transition: opacity 0.2s;
+}
+
+.agreement-box .form-check-label a:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
+/* Общая анимация появления */
+.fade-in {
+    opacity: 0;
+    animation: fadeUp 0.6s ease-out forwards;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Адаптация карточки под темную тему */
+.card {
+    background-color: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+}
+
+.shadow-lg {
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.1) !important;
+}
+
+/* В темной теме тень должна быть чуть заметнее или чернее */
+[data-bs-theme="dark"] .shadow-lg {
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.4) !important;
 }
 </style>

@@ -437,29 +437,59 @@ class DeliverymanController extends Controller
         return response()->json(['success' => true, 'data' => ['id' => $message->id, 'sender_type' => $message->sender_type, 'message' => $message->message, 'meta' => $message->meta, 'created_at' => $message->created_at->toISOString()]]);
     }
 
+
+    /**
+     * GET /api/deliveryman/shops
+     * Получение списка магазинов (фильтрация по роли)
+     */
     public function getAvailableShops(Request $request): JsonResponse
     {
         /** @var TenantUser $user */
         $user = Auth::guard('tenant')->user();
 
-        $shops = Tenant::where('is_active', true)
+        // 🎯 Проверяем, является ли пользователь супер-админом
+        $isSuperAdmin = in_array('super_admin', $user->role_names ?? []) || ($user->is_admin ?? false);
+
+        if ($isSuperAdmin) {
+            // Супер-админ видит ВСЕ активные магазины
+            $shopsQuery = Tenant::where('is_active', true);
+        } else {
+            // Обычный пользователь видит ТОЛЬКО назначенные ему магазины
+            $assignedShops = $user->meta['assigned_shops'] ?? [];
+
+            // Если массив пустой, форсируем пустой результат
+            if (empty($assignedShops)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'shops' => [],
+                        'selected_ids' => [],
+                        'is_restricted' => true
+                    ]
+                ]);
+            }
+
+            $shopsQuery = Tenant::whereIn('id', $assignedShops)->where('is_active', true);
+        }
+
+        // 🆕 ИСПРАВЛЕНО: Убираем 'settings' из select, так как этой колонки нет в БД
+        $shops = $shopsQuery
+            ->select('id', 'name', 'slug', 'description', 'image') // Убрали 'settings'
             ->orderBy('name')
             ->get()
             ->map(function ($shop) {
-
-                $config = $shop->settings ?? [];
-                $shopCoords = $config["shop_coords"] ?? ($config["shop"]["shop_coords"] ?? null);
+                // Получаем настройки через аксессор модели (после загрузки)
+                $settings = $shop->settings ?? [];
 
                 return [
                     'id' => $shop->id,
                     'name' => $shop->name,
                     'slug' => $shop->slug,
-                    'address' => $shop->full_address ?? '',
                     'description' => $shop->description ?? 'Доставка заказов',
                     'image' => $shop->image,
-                    'shop_coords' => $shopCoords,
+                    'address' => data_get($settings, 'shop.address') ?: data_get($settings, 'address') ?: 'Адрес не указан',
                     'settings' => [
-                        'shop_coords' => $settings['shop_coords'] ?? ($settings['shop']['shop_coords'] ?? null)
+                        'shop_coords' => data_get($settings, 'shop_coords') ?: data_get($settings, 'shop.shop_coords')
                     ]
                 ];
             });
@@ -473,7 +503,44 @@ class DeliverymanController extends Controller
             'data' => [
                 'shops' => $shops,
                 'selected_ids' => $selectedShopIds,
+                'is_restricted' => !$isSuperAdmin
             ]
+        ]);
+    }
+
+    /**
+     * POST /api/admin/deliverymen/{id}/assign-shops
+     * 🆕 Метод для Супер-админа: назначить магазины конкретному доставщику
+     */
+    public function assignShopsToDeliveryman(Request $request, int $userId): JsonResponse
+    {
+        // 🛡️ Строгая проверка: это может делать только супер-админ
+        $user = Auth::guard('tenant')->user();
+        if (!in_array('super_admin', $user->role_names ?? []) && !($user->is_admin ?? false)) {
+            return response()->json(['error' => 'Доступ запрещен'], 403);
+        }
+
+        $request->validate([
+            'shop_ids' => 'required|array',
+            'shop_ids.*' => 'integer|exists:tenants,id',
+        ]);
+
+        $deliveryman = TenantUser::findOrFail($userId);
+
+        // Проверяем, что это действительно пользователь с ролью доставщика (опционально, но рекомендуется)
+        // if (!in_array('deliveryman', $deliveryman->role_names ?? [])) { ... }
+
+        $meta = $deliveryman->meta ?? [];
+
+        // 🎯 Перезаписываем список назначенных магазинов
+        $meta['assigned_shops'] = array_unique($request->shop_ids);
+
+        $deliveryman->update(['meta' => $meta]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Магазины успешно назначены',
+            'assigned_count' => count($meta['assigned_shops'])
         ]);
     }
 

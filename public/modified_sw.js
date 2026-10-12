@@ -342,22 +342,28 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
-    const urlToOpen = event.notification.data?.url || '/pwa/#/menu';
+    // Берем URL из данных уведомления или дефолтный
+    const urlToOpen = event.notification.data?.url || '/pwa/#/';
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true })
             .then((windowClients) => {
-                // Если вкладка уже открыта — фокусируемся на ней
+                // Ищем уже открытую вкладку нашего приложения
                 for (const client of windowClients) {
+                    // ✅ БОЛЕЕ НАДЕЖНАЯ ПРОВЕРКА: совпадает ли домен
+                    if (client.url.startsWith(self.location.origin) && 'focus' in client) {
 
-                    if (client.url.includes('/pwa') && 'focus' in client) {
-                        // Меняем хэш через postMessage (SW не может напрямую менять URL)
-                        client.postMessage({ type: 'NAVIGATE', url: urlToOpen });
-                        client.postMessage({ type: 'NOTIFICATION_CLICKED', url: urlToOpen });
+                        // Отправляем сообщение во Vue, чтобы тот сменил роут
+                        client.postMessage({
+                            type: 'NAVIGATE',
+                            url: urlToOpen
+                        });
+
+                        // Возвращаем фокус на вкладку
                         return client.focus();
                     }
                 }
-                // Иначе открываем новую вкладку
+                // Если вкладка не открыта, открываем новую
                 return clients.openWindow(urlToOpen);
             })
     );

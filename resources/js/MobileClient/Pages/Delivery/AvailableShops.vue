@@ -7,10 +7,12 @@
             </button>
             <div class="header-text">
                 <h2>Доступные магазины</h2>
-                <p>Выберите заведения для доставки</p>
+                <p v-if="!isRestricted">Выберите заведения для доставки</p>
+                <p v-else class="text-warning">Показаны только назначенные вам заведения</p>
             </div>
-            <!-- 🆕 Кнопка выбрать все / снять выделение -->
-            <button v-if="shops.length > 0" class="toggle-all-btn" @click="toggleAllShops">
+
+            <!-- 🆕 Кнопка "Выбрать все" показывается только если есть магазины и это не ограниченный режим с 1 магазином -->
+            <button v-if="shops.length > 1 && !isRestricted" class="toggle-all-btn" @click="toggleAllShops">
                 {{ selectedIds.length === shops.length ? 'Снять все' : 'Выбрать все' }}
             </button>
         </div>
@@ -19,6 +21,13 @@
         <div v-if="isLoading" class="loading-state">
             <div class="spinner"></div>
             <p>Загрузка списка магазинов...</p>
+        </div>
+
+        <!-- 🆕 Состояние: Магазины не назначены -->
+        <div v-else-if="isRestricted && shops.length === 0" class="empty-state restricted-empty">
+            <i class="fa-solid fa-user-shield"></i>
+            <h3>Магазины не назначены</h3>
+            <p>Обратитесь к супер-администратору, чтобы вам назначили заведения для доставки.</p>
         </div>
 
         <!-- Список магазинов -->
@@ -30,7 +39,7 @@
                 :class="{ 'is-selected': isSelected(shop.id) }"
                 @click="toggleShop(shop.id)"
             >
-                <div class="shop-checkbox">
+                <div class="shop-checkbox" @click.stop="toggleShop(shop.id)">
                     <i v-if="isSelected(shop.id)" class="fa-solid fa-check"></i>
                 </div>
 
@@ -42,21 +51,16 @@
                     <div class="shop-details">
                         <h3 class="shop-name">{{ shop.name }}</h3>
                         <p class="shop-desc">{{ shop.description }}</p>
+                        <p class="shop-address" v-if="shop.address"><i class="fa-solid fa-location-dot"></i> {{ shop.address }}</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Пустое состояние -->
-            <div v-if="shops.length === 0" class="empty-state">
-                <i class="fa-solid fa-store-slash"></i>
-                <p>На данный момент нет доступных магазинов</p>
-            </div>
-
-            <!-- 🆕 СТАТИЧНАЯ панель сохранения (всегда видна внизу списка) -->
-            <div class="save-bar-static">
+            <!-- Панель сохранения -->
+            <div v-if="shops.length > 0" class="save-bar-static">
                 <div class="save-info">
                     <span class="count-badge">{{ selectedIds.length }}</span>
-                    <span>{{ getShopsWord(selectedIds.length) }} выбрано</span>
+                    <span>{{ getShopsWord(selectedIds.length) }} выбрано для получения уведомлений</span>
                 </div>
                 <button class="btn-save" @click="saveSettings" :disabled="isSaving">
                     <i v-if="isSaving" class="fa-solid fa-spinner fa-spin"></i>
@@ -67,6 +71,7 @@
     </div>
 </template>
 
+
 <script>
 import axios from 'axios';
 import {usePermissions} from "@/MobileClient/composables/usePermissions";
@@ -74,8 +79,8 @@ import {usePermissions} from "@/MobileClient/composables/usePermissions";
 export default {
     name: 'AvailableShops',
     setup() {
-        const { isAdmin } = usePermissions();
-        return { isAdmin };
+        const { isDeliveryman } = usePermissions();
+        return { isDeliveryman };
     },
     data() {
         return {
@@ -87,7 +92,7 @@ export default {
         };
     },
     created() {
-        if (!this.isAdmin) {
+        if (!this.isDeliveryman) {
             this.$router.push({ name: 'Auth' }).catch(() => {});
         }
     },
@@ -104,6 +109,7 @@ export default {
                     this.shops = response.data.data.shops;
                     this.selectedIds = [...response.data.data.selected_ids];
                     this.initialSelectedIds = [...response.data.data.selected_ids];
+                    this.isRestricted = response.data.data.is_restricted || false;
                 }
             } catch (error) {
                 console.error('Ошибка загрузки магазинов:', error);
@@ -452,5 +458,37 @@ $card-bg: #ffffff;
     .save-info {
         justify-content: center;
     }
+}
+
+// 🆕 Добавляем стили для адреса и ограниченного состояния
+.shop-address {
+    margin: 4px 0 0;
+    font-size: 0.75rem;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.restricted-empty {
+    i {
+        font-size: 4rem;
+        color: #f59e0b; // Оранжевый цвет предупреждения
+        margin-bottom: 16px;
+    }
+    h3 {
+        font-size: 1.2rem;
+        color: #1f2937;
+        margin-bottom: 8px;
+    }
+    p {
+        color: #6b7280;
+        max-width: 300px;
+    }
+}
+
+.text-warning {
+    color: #f59e0b;
+    font-weight: 600;
 }
 </style>

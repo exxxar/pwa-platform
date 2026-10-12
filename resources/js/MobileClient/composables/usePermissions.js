@@ -25,13 +25,19 @@ export function usePermissions() {
 
     // Проверка, является ли админом (супер или локальный)
     const isAdmin = computed(() => {
-        return hasRole(['super_admin', 'admin']);
+        return hasRole(['super_admin', 'admin','senior_delivery']);
+    })
+
+    const isDeliveryman = computed(() => {
+        return hasRole(['super_admin', 'admin','senior_delivery','deliveryman']);
     });
+
 
     return {
         user,
         hasRole,
         hasPermission,
         isAdmin,
+        isDeliveryman,
     };
 }

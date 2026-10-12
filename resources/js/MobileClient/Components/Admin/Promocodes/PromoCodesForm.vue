@@ -372,6 +372,7 @@ export default {
             return Object.keys(this.errors).length === 0;
         },
 
+
         async save() {
             if (!this.validate()) {
                 this.$notify?.({
@@ -383,19 +384,40 @@ export default {
             }
 
             try {
+                // Формируем чистый объект данных
+                const payload = {
+                    ...this.form,
+                    // Убеждаемся, что даты отправляются в правильном формате, если бэкенд этого требует
+                    starts_at: this.form.starts_at || null,
+                    expires_at: this.form.expires_at || null,
+                };
+
                 if (this.isEdit) {
-                    await this.updatePromocode(this.code.id, this.form);
+                    // Предполагается, что в usePromocodes есть метод updatePromocode
+                    await this.updatePromocode(this.code.id, payload);
                 } else {
-                    await this.createPromocode(this.form);
+                    // Предполагается, что в usePromocodes есть метод createPromocode
+                    await this.createPromocode(payload);
                 }
+
+                this.$notify?.({
+                    title: 'Успех',
+                    text: this.isEdit ? 'Промокод обновлен' : 'Промокод создан',
+                    type: 'success',
+                });
 
                 this.$emit('callback');
             } catch (error) {
                 this.$notify?.({
                     title: 'Ошибка',
-                    text: error.response?.data?.message || 'Не удалось сохранить',
+                    text: error.response?.data?.message || 'Не удалось сохранить промокод',
                     type: 'error',
                 });
+
+                // Если бэкенд вернул ошибки валидации Laravel, сохраняем их для отображения
+                if (error.response?.status === 422) {
+                    this.errors = error.response.data.errors;
+                }
             }
         },
     },

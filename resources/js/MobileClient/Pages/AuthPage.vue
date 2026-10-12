@@ -14,6 +14,7 @@
         <div class="card border-0 shadow-lg rounded-4 overflow-hidden fade-in" style="animation-delay: 0.1s;">
 
             <!-- Переключатель Вход / Регистрация -->
+<!--
             <div class="d-flex bg-light p-1 m-3 mb-0 rounded-3">
                 <button
                     class="flex-grow-1 btn py-2 rounded-3 fw-semibold transition-all"
@@ -30,6 +31,7 @@
                     Регистрация
                 </button>
             </div>
+-->
 
             <div class="card-body p-4 pt-3">
 
@@ -229,7 +231,8 @@ export default {
             mode: 'login',
             showLoginPassword: false,
             showRegisterPassword: false,
-            redirectTo: '/pwa', // Значение по умолчанию
+            // 🎯 Лучше использовать объект маршрута, а не строку
+            redirectTo: { name: 'Profile' }, // Замените 'HomePage' на реальное имя вашего главного маршрута
             form: {
                 identifier: '',
                 name: '',
@@ -242,36 +245,38 @@ export default {
     },
 
     mounted() {
-        // 🎯 Определяем целевой редирект при загрузке страницы
         this.detectRedirectTarget();
     },
 
     methods: {
-        // 🆕 Умное определение редиректа на основе slug тенанта
         detectRedirectTarget() {
             const route = this.$route;
 
-            // 1. Высший приоритет: явный параметр ?from= (если нужно перенаправить на конкретную внутреннюю страницу)
+            // 🛠️ ОТЛАДКА: Посмотрите в консоль браузера (F12), что здесь находится
+            console.log('Query params:', route.query);
+            console.log('Window Tenant:', window.Tenant);
+
+            // 1. Высший приоритет: параметр ?from=
             if (route.query.from) {
                 this.redirectTo = route.query.from;
                 return;
             }
 
-            // 2. 🎯 ГЛАВНЫЙ КРИТЕРИЙ: Проверяем slug текущего тенанта
+            // 2. Проверка slug тенанта
             const tenant = window.Tenant;
             if (tenant && tenant.slug) {
                 if (tenant.slug === 'agents') {
-                    this.redirectTo = '/agents';
+                    this.redirectTo = { name: 'AgentsDashboard' }; // Замените на реальное имя маршрута
                     return;
                 }
                 if (tenant.slug === 'delivery') {
-                    this.redirectTo = '/delivery';
+                    this.redirectTo = { name: 'DeliveryDashboard' }; // Замените на реальное имя маршрута
                     return;
                 }
             }
 
-            // 3. Fallback: если slug не 'agents' и не 'delivery', редиректим в основной клиентский интерфейс
-            this.redirectTo = '/pwa';
+            // 3. Fallback: убедитесь, что маршрут с именем 'HomePage' или путем '/pwa' существует!
+            this.redirectTo = { name: 'HomePage' }; // Или { path: '/pwa' }, если вы уверены, что он есть
         },
 
         switchMode(newMode) {
@@ -317,6 +322,8 @@ export default {
                 }
             }
 
+            this.isLoading = true; // Не забудьте управлять состоянием загрузки
+
             try {
                 if (this.mode === 'login') {
                     await this.login({
@@ -331,11 +338,20 @@ export default {
                     });
                 }
 
-                // 🚀 Выполняем редирект на основе определенного ранее пути
-                this.$router.push(this.redirectTo);
+                // 🚀 Выполняем редирект с обработкой ошибок
+                console.log('Attempting redirect to:', this.redirectTo);
+
+                this.$router.push(this.redirectTo).catch(err => {
+                    console.error('❌ Ошибка редиректа:', err);
+                    // Если целевой маршрут не найден, перенаправляем на главную '/'
+                    this.$router.push('/');
+                });
 
             } catch (error) {
                 console.error('Auth error:', error);
+                this.errorMessage = error.response?.data?.message || 'Ошибка авторизации. Проверьте данные.';
+            } finally {
+                this.isLoading = false;
             }
         }
     }

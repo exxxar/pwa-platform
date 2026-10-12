@@ -1,5 +1,5 @@
 <template>
-    <div v-if="isAdmin" class="deliveryman-dashboard">
+    <div v-if="isDeliveryman" class="deliveryman-dashboard">
         <!-- ========================================== -->
         <!-- HERO СЕКЦИЯ -->
         <!-- ========================================== -->
@@ -12,6 +12,16 @@
                             <h1 class="deliveryman-name">{{ deliveryman.name || 'Курьер' }}</h1>
                             <!-- 🆕 Группа кнопок действий -->
                             <div class="header-actions">
+                                <button
+                                    v-if="isSuperAdmin"
+                                    class="action-btn-header assignment"
+                                    @click="goToShopsAssignment"
+                                    title="Назначить магазины курьеру"
+                                >
+                                    <i class="fa-solid fa-store"></i>
+                                    <span>Назначить магазины</span>
+                                </button>
+
                                 <button class="action-btn-header acquiring" @click="showAcquiringModal = true" title="Настройки эквайринга">
                                     <i class="fa-solid fa-credit-card"></i>
                                     <span>Эквайринг</span>
@@ -696,8 +706,8 @@ export default {
         DeliveryPaymentModal,AcquiringSettingsModal
     },
     setup() {
-        const { isAdmin } = usePermissions();
-        return { isAdmin };
+        const { isDeliveryman } = usePermissions();
+        return { isDeliveryman };
     },
 
     data() {
@@ -764,6 +774,10 @@ export default {
             'completedOrders',
             'isOnline'
         ]),
+        isSuperAdmin() {
+            const user = window.TenantUser;
+            return user?.role_names?.includes('super_admin') || user?.is_super_admin === true;
+        },
         realAcquiringSettings() {
             const tenantSettings = window.Tenant?.settings || {};
             const shopSettings = tenantSettings.shop || {};
@@ -810,7 +824,7 @@ export default {
     },
 
     created() {
-        if (!this.isAdmin) {
+        if (!this.isDeliveryman) {
             this.$router.push({ name: 'Auth' }).catch(() => {});
         }
     },
@@ -824,6 +838,12 @@ export default {
             'startLocationTracking',
             'stopLocationTracking'
         ]),
+        goToShopsAssignment() {
+
+            this.$router.push({
+                name: 'AdminDeliverymen',
+            });
+        },
         getGroupedOrderProducts(order) {
             const products = this.getOrderProducts(order);
             if (!products || !products.length) return [];
@@ -3566,6 +3586,17 @@ chat-modal-overlay {
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid rgba(255, 255, 255, 0.2);
+
+    &.assignment {
+        background: rgba(16, 185, 129, 0.2); // Зеленый оттенок
+        color: #6ee7b7;
+        border-color: rgba(16, 185, 129, 0.3);
+
+        &:hover {
+            background: rgba(16, 185, 129, 0.3);
+            transform: translateY(-1px);
+        }
+    }
 
     &.acquiring {
         background: rgba(16, 185, 129, 0.2); // Зеленый оттенок для эквайринга

@@ -184,6 +184,15 @@ trait BasketHelper
         $currentDate = Carbon::now("+3:00")->format("Y-m-d H:i:s");
         $number = Str::uuid()->toString();
         $tenantTitle = $this->tenant->name ?? $this->tenant->uuid ?? 'CashMan';
+        // 🆕 ПОЛУЧАЕМ РЕАЛЬНЫЕ ДАННЫЕ О ПРОМОКОДЕ ИЗ ЗАКАЗА
+        $promoCodeName = 'Без промокода';
+        $promoDiscount = 0;
+
+        if ($order->promo_code_id && $order->promo_discount > 0) {
+            $promo = \App\Models\Tenant\PromoCode::find($order->promo_code_id);
+            $promoCodeName = $promo ? $promo->code : 'Промокод';
+            $promoDiscount = $order->promo_discount;
+        }
 
         $paymentInfo = sprintf(
             $this->tenant->settings["payment_info"] ?? "Оплатите заказ по реквизитам, указав номер %s",
@@ -206,7 +215,11 @@ trait BasketHelper
                 "floorNumber" => ($this->data["floor_number"] ?? 'Не указано'),
                 "cashType" => $cash, "money" => ($this->data["money"] ?? 'Не указано'),
                 "disabilitiesText" => $disabilitiesText, "totalPrice" => $summaryPrice,
-                "discount" => $useCashback ? $cashback : 0, "totalCount" => $summaryCount,
+
+                // 🆕 ОБНОВЛЕННЫЕ ПОЛЯ ДЛЯ ШАБЛОНА ЧЕКА
+                "discount" => ($useCashback ? $cashback : 0) + $promoDiscount, // Суммируем кэшбэк и промокод
+                "promoCodeName" => $promoCodeName,
+                "promoDiscount" => $promoDiscount,
                 "distance" => $distance, "deliveryPrice" => $deliveryPrice,
                 "currentDate" => $currentDate, "code" => "Без промокода", "promoCount" => "0",
                 "paymentInfo" => $paymentInfo, "products" => $tmpOrderProductInfo,
@@ -666,6 +679,9 @@ trait BasketHelper
         $basketIds = [];
         $filteredItems = [];
 
+        $appliedPromoCode = null;
+        $totalPromoDiscount = 0.0;
+
         foreach ($basket as $item) {
             if ($item->isAnonymousBox()) {
                 $amount = $this->safeFloat($item->params['amount'] ?? 0);
@@ -719,7 +735,9 @@ trait BasketHelper
                 $partnerProductBox[$partnerKey]['summary_count'] += $count;
                 $partnerProductBox[$partnerKey]['summary_price'] += $price;
 
-                $summaryCount += $count; $summaryPrice += $price; $basketIds[] = $item->id;
+                $summaryCount += $count;
+                $summaryPrice += $price;
+                $basketIds[] = $item->id;
                 continue;
             }
 
@@ -919,6 +937,20 @@ trait BasketHelper
                 $summaryDiscount += $collectionDiscount;
                 $basketIds[] = $item->id;
             }
+
+            // Внутри цикла, после расчета $price и $discount для обычного товара:
+            $discount = $this->safeFloat($params['discount_amount'] ?? 0);
+
+            // 🆕 ДОБАВИТЬ: Если в параметрах есть объект промокода, сохраняем его данные
+            if (!empty($params['discount_object']) && is_object($params['discount_object']) && !$appliedPromoCode) {
+                $appliedPromoCode = [
+                    'id' => $params['discount_object']->code_id,
+                    'amount' => $params['discount_object']->amount,
+                    'in_percent' => $params['discount_object']->in_percent,
+                ];
+            }
+
+            $totalPromoDiscount += $discount; // Суммируем скидку по промокоду
         }
 
         if ($summaryCount <= 0 || $summaryPrice <= 0 || empty($tmpOrderProductInfo)) {
@@ -935,6 +967,8 @@ trait BasketHelper
             'partner_boxes' => $partnerProductBox, 'basket_ids' => array_values(array_unique($basketIds)),
             'basket_count' => $basket->count(), 'processed_basket_count' => count($basketIds),
             'filtered_basket_count' => count($filteredItems), 'filtered_items' => $filteredItems,
+            'applied_promo_code' => $appliedPromoCode,
+            'total_promo_discount' => $totalPromoDiscount,
         ];
     }
 
@@ -959,6 +993,10 @@ trait BasketHelper
             'city' => !empty($addr['city']) ? $addr['city'] : null,
             'lat' => $addr['lat'] ?? 0,
             'lng' => $addr['lng'] ?? 0,
+
+            // 🆕 ДОБАВИТЬ: Сохранение данных о промокоде в заказ
+            'promo_code_id' => $basketData['applied_promo_code']['id'] ?? null,
+            'promo_discount' => (float)($basketData['total_promo_discount'] ?? 0),
 
             'delivery_service_info' => null,
             'deliveryman_info' => null,
@@ -1178,6 +1216,7 @@ trait BasketHelper
         // Возвращаем null, так как task_id будет записан в БД самим Job'ом чуть позже
         return null;
     }
+
     /**
      * 📉 Генерирует урезанное сообщение для Telegram, если основное превышает 4096 символов
      */

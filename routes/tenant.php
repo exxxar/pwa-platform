@@ -179,6 +179,10 @@ function routes()
     });
 
 
+    Route::prefix('admin')->group(function () {
+        Route::put('/users/{id}/roles', [UsersController::class, 'updateRoles']);
+        Route::post('/deliverymen/{id}/assign-shops', [DeliverymanController::class, 'assignShopsToDeliveryman']);
+    });
 
     Route::prefix('deliveryman')->group(function () {
         // Профиль и статистика
@@ -192,6 +196,7 @@ function routes()
 
         // 🆕 Генерация платежной ссылки для доставки
         Route::post('/shops/{id}/payment-link', [DeliverymanController::class, 'generateShopPaymentLink']);
+
 
 
         Route::get('/settings', [DeliverymanController::class, 'getSettings']);
