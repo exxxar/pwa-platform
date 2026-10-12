@@ -266,17 +266,17 @@ export default {
             const tenant = window.Tenant;
             if (tenant && tenant.slug) {
                 if (tenant.slug === 'agents') {
-                    this.redirectTo = { name: 'AgentsDashboard' }; // Замените на реальное имя маршрута
+                    this.redirectTo = { name: 'AgentDashboard' }; // Замените на реальное имя маршрута
                     return;
                 }
                 if (tenant.slug === 'delivery') {
-                    this.redirectTo = { name: 'DeliveryDashboard' }; // Замените на реальное имя маршрута
+                    this.redirectTo = { name: 'DeliverymanDashboard' }; // Замените на реальное имя маршрута
                     return;
                 }
             }
 
-            // 3. Fallback: убедитесь, что маршрут с именем 'HomePage' или путем '/pwa' существует!
-            this.redirectTo = { name: 'HomePage' }; // Или { path: '/pwa' }, если вы уверены, что он есть
+
+            this.redirectTo = { name: 'Profile' };
         },
 
         switchMode(newMode) {
