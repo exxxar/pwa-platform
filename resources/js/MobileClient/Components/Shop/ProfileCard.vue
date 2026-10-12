@@ -25,6 +25,13 @@
                 </div>
 
                 <h3 class="fw-bold mb-1">{{ self?.name || 'Пользователь' }}</h3>
+
+                <!-- 🆕 Красивый бейдж с ID пользователя -->
+                <div v-if="self?.id" class="user-id-badge mb-2" title="Ваш уникальный идентификатор">
+                    <i class="fa-solid fa-fingerprint"></i>
+                    <span>ID: {{ self.id }}</span>
+                </div>
+
                 <p class="text-muted mb-2">
                     {{ self?.phone || 'Телефон не указан' }}
                     <span v-if="self?.phone_verified" class="verified-badge">
@@ -2477,6 +2484,40 @@ export default {
     border: none;
     font-size: 0.9rem;
     line-height: 1.5;
+}
+
+/* ==========================================
+   🆕 СТИЛИ ДЛЯ БЕЙДЖА ID ПОЛЬЗОВАТЕЛЯ
+   ========================================== */
+.user-id-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    background: rgba(var(--bs-primary-rgb), 0.08);
+    border: 1px solid rgba(var(--bs-primary-rgb), 0.15);
+    border-radius: 20px;
+    color: var(--bs-primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    /* Моноширинный шрифт делает цифры более читаемыми и "технически" красивыми */
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+    cursor: default;
+}
+
+.user-id-badge i {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+/* Легкий эффект при наведении для интерактивности */
+.user-id-badge:hover {
+    background: rgba(var(--bs-primary-rgb), 0.15);
+    border-color: rgba(var(--bs-primary-rgb), 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(var(--bs-primary-rgb), 0.1);
 }
 </style>
 
