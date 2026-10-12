@@ -177,7 +177,7 @@
                             </div>
                             <div class="earning-block">
                                 <i class="fa-solid fa-coins"></i>
-                                <span>+{{ formatPrice(order.delivery_price) }} ₽</span>
+                                <span>+{{ formatPrice(order.delivery_price) }}</span>
                             </div>
                         </div>
                         <div class="order-actions available-actions" @click.stop>
