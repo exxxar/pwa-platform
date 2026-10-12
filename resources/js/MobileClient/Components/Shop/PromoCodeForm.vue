@@ -135,6 +135,8 @@
 </template>
 
 <script>
+import axios from 'axios'; // 🆕 1. Явно импортируем axios
+
 export default {
     name: "PromoCodeForm",
 
@@ -164,7 +166,6 @@ export default {
 
     watch: {
         'promocodeForm.code'(newValue) {
-            // Сбрасываем скидку при изменении кода
             if (this.discount > 0) {
                 this.discount = 0;
                 this.discount_in_percent = false;
@@ -176,13 +177,11 @@ export default {
                     activate_price: 0,
                 });
             }
-            // Сбрасываем ошибку
             this.inputError = '';
         },
     },
 
     mounted() {
-        // Восстанавливаем таймер из localStorage
         const savedAt = localStorage.getItem('mypwa_promocode_timer_saved_at');
         if (savedAt) {
             const elapsed = Math.floor((Date.now() - Number(savedAt)) / 1000);
@@ -203,7 +202,6 @@ export default {
 
     methods: {
         onInputChange() {
-            // Автоматический uppercase для промокодов
             this.promocodeForm.code = this.promocodeForm.code.toUpperCase();
         },
 
@@ -211,7 +209,6 @@ export default {
             this.promocodeForm.code = '';
             this.inputError = '';
         },
-
 
         async submit() {
             if (!this.promocodeForm.code?.trim()) {
@@ -228,12 +225,11 @@ export default {
             this.inputError = '';
 
             try {
-                // 🆕 РЕАЛЬНЫЙ ВЫЗОВ API (замените на ваш реальный метод из composable/store)
-                // Например: const resp = await this.promoStore.activatePromocode(this.promocodeForm.code);
-
-                // Временная заглушка для демонстрации структуры ответа, которую теперь возвращает бэкенд:
-                const resp = await this.$axios.post('/api/promocodes/activate', this.promocodeForm);
-                // ^^^ Замените этот URL и способ вызова на ваш реальный action из Pinia/Vuex
+                // 🆕 2. Используем импортированный axios вместо this.$axios
+                // Убедитесь, что путь '/promocodes/activate' совпадает с вашим реальным маршрутом в Laravel
+                const resp = await axios.post('/promocodes/activate', {
+                    code: this.promocodeForm.code
+                });
 
                 this.discount = resp.data.discount || 0;
                 this.discount_in_percent = resp.data.discount_in_percent || false;
