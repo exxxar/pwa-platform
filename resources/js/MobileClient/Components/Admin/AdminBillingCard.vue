@@ -4,9 +4,13 @@
         <div class="billing-info">
             <div class="info-row">
                 <span class="info-label">Текущий баланс:</span>
-                <span class="info-value highlight">{{ formatPrice(currentBalance) }}
-                    ( {{(currentBalance / currentTaxPerDay).toFixed(0)}} {{ pluralize((currentBalance / currentTaxPerDay).toFixed(0), 'день', 'дня', 'дней') }} )
+                <span class="info-value highlight">
+                    {{ formatPrice(currentBalance) }}
+                    <!-- 🆕 Защита от деления на ноль -->
+                    <span v-if="currentTaxPerDay > 0" class="text-muted" style="font-size: 0.8em; font-weight: 400; margin-left: 8px;">
+                        ( ~{{ daysLeft }} {{ daysLeftText }} )
                     </span>
+                </span>
             </div>
             <div class="info-row">
                 <span class="info-label">Активный тариф:</span>
@@ -14,9 +18,8 @@
             </div>
             <div class="info-row">
                 <span class="info-label">Цена за день:</span>
-                <span class="info-value">{{  formatPrice(currentTaxPerDay) }}</span>
+                <span class="info-value">{{ formatPrice(currentTaxPerDay) }}</span>
             </div>
-
         </div>
 
         <!-- Кнопки действий -->
@@ -70,7 +73,7 @@
         </transition>
 
         <!-- ========================================== -->
-        <!-- МОДАЛКА: ВЫБОР ТАРИФА (с загрузкой с бэка) -->
+        <!-- МОДАЛКА: ВЫБОР ТАРИФА -->
         <!-- ========================================== -->
         <transition name="modal-fade">
             <div v-if="showPlanModal" class="modal-overlay" @click.self="showPlanModal = false">
@@ -82,13 +85,11 @@
                         </button>
                     </div>
                     <div class="modal-body">
-                        <!-- Состояние загрузки тарифов -->
                         <div v-if="isLoadingPlans" class="loading-state">
                             <i class="fa-solid fa-spinner fa-spin"></i>
                             <span>Загрузка тарифов...</span>
                         </div>
 
-                        <!-- Список тарифов -->
                         <div v-else class="plans-grid">
                             <div
                                 v-for="plan in pricingPlans"
@@ -98,9 +99,8 @@
                                 @click="selectedPlanSlug = plan.slug"
                             >
                                 <div class="plan-header">
-                                    <h4>{{ plan.title }}</h4>
-                                    <span class="plan-price">{{ formatPrice(plan.price) }} <span
-                                        class="period">/ мес</span></span>
+                                    <h4>{{ plan.title || plan.name }}</h4>
+                                    <span class="plan-price">{{ formatPrice(plan.price) }} <span class="period">/ мес</span></span>
                                 </div>
                                 <ul class="plan-features" v-if="plan.features && plan.features.length">
                                     <li v-for="(feature, idx) in plan.features" :key="idx">
@@ -137,6 +137,11 @@ export default {
 
     data() {
         return {
+            // 🆕 Локальное реактивное состояние, инициализированное из window.Tenant
+            localBalance: window.Tenant?.balance || 0,
+            localPlanSlug: window.Tenant?.plan_slug || 'free',
+            localTaxPerDay: window.Tenant?.tax_per_day || 0,
+
             // Данные для модальных окон
             showTopUpModal: false,
             showPlanModal: false,
@@ -151,35 +156,39 @@ export default {
     },
 
     computed: {
-        tenant() {
-            return window.Tenant || null;
-        },
         currentBalance() {
-            return this.tenant.balance || 0
+            return this.localBalance;
         },
         currentPlanSlug() {
-            return this.tenant.plan_slug  || 'free'
+            return this.localPlanSlug;
+        },
+        currentTaxPerDay() {
+            return this.localTaxPerDay;
         },
 
-        currentTaxPerDay(){
-            return this.tenant?.tax_per_day || 0
-        },
+        // 🆕 Безопасное вычисление названия тарифа
         currentPlanName() {
-            // 1. Если массив пуст или еще не загрузился
             if (!this.pricingPlans || this.pricingPlans.length === 0) {
-                return this.tenant?.tax_per_day ? `${this.tenant.tax_per_day} ₽/день` : 'Загрузка тарифов...';
+                return this.currentTaxPerDay > 0 ? `${this.formatPrice(this.currentTaxPerDay)}/день` : 'Загрузка тарифов...';
             }
 
-            // 2. Безопасно ищем текущий план
             const currentPlan = this.pricingPlans.find(p => p.slug === this.currentPlanSlug);
 
+            // Поддерживаем и title, и name на случай разных ответов от API
+            return currentPlan?.title || currentPlan?.name || (this.currentTaxPerDay > 0 ? `Индивидуальный (${this.formatPrice(this.currentTaxPerDay)}/день)` : 'Не выбран');
+        },
 
-            // 3. Если план найден в списке, возвращаем его название.
-            // Если нет (например, у пользователя старый индивидуальный тариф), показываем его текущую цену.
-            return currentPlan?.title || (this.tenant?.tax_per_day ? `Индивидуальный (${this.tenant.tax_per_day} ₽/день)` : 'Не выбран');
+        // 🆕 Безопасный расчет оставшихся дней (защита от деления на 0)
+        daysLeft() {
+            if (!this.currentTaxPerDay || this.currentTaxPerDay <= 0) return 0;
+            return Math.floor(this.currentBalance / this.currentTaxPerDay);
+        },
+
+        daysLeftText() {
+            return this.pluralize(this.daysLeft, 'день', 'дня', 'дней');
         }
-
     },
+
     mounted() {
         if (this.pricingPlans.length === 0) {
             this.fetchPricingPlans();
@@ -187,15 +196,11 @@ export default {
     },
 
     methods: {
-
-        // 2. Загрузка списка тарифов с бэкенда
         async fetchPricingPlans() {
             this.isLoadingPlans = true;
             try {
                 const response = await axios.get('/admin/tenant/pricing-plans');
-                // Ожидаем массив объектов: [{ slug: 'start', name: 'Старт', price: 990, features: [...] }]
                 this.pricingPlans = Array.isArray(response.data) ? response.data : (response.data.data || []);
-
             } catch (error) {
                 console.error('Ошибка загрузки тарифов:', error);
                 this.$notify?.({title: 'Ошибка', text: 'Не удалось загрузить тарифы', type: 'error'});
@@ -204,31 +209,29 @@ export default {
             }
         },
 
-        // --- Управление модальными окнами ---
         openTopUpModal() {
-            this.topUpAmount = 1000; // Сброс к значению по умолчанию
+            this.topUpAmount = 1000;
             this.showTopUpModal = true;
         },
 
-        async openPlanModal() {
+        openPlanModal() {
             this.selectedPlanSlug = this.currentPlanSlug;
             this.showPlanModal = true;
-            // Загружаем тарифы только при открытии модалки (или можно в mounted)
-
         },
 
-        // --- Отправка данных на бэкенд ---
         async submitTopUp() {
             if (!this.topUpAmount || this.topUpAmount < 100) return;
 
             this.isSubmitting = true;
             try {
-                // ⚠️ ЗАМЕНИТЕ ЭТОТ URL на ваш реальный эндпоинт пополнения баланса
                 const response = await axios.post('/admin/tenant/top-up', {
                     amount: this.topUpAmount
                 });
 
-                this.currentBalance = response.data.balance || (this.currentBalance + this.topUpAmount);
+                // 🆕 Обновляем локальное состояние и синхронизируем с window.Tenant
+                this.localBalance = response.data.balance !== undefined ? response.data.balance : (this.localBalance + this.topUpAmount);
+                if (window.Tenant) window.Tenant.balance = this.localBalance;
+
                 this.$notify?.({title: 'Успех', text: 'Баланс успешно пополнен', type: 'success'});
                 this.showTopUpModal = false;
             } catch (error) {
@@ -252,13 +255,20 @@ export default {
                     plan_slug: this.selectedPlanSlug
                 });
 
-                // Обновляем локальное состояние после успешного ответа
-                this.currentPlanSlug = this.selectedPlanSlug;
+                // 🆕 Обновляем локальное состояние (вместо попытки изменить computed свойство!)
+                this.localPlanSlug = this.selectedPlanSlug;
 
-                // Находим имя нового тарифа для отображения
-                const newPlan = this.pricingPlans.find(p => p.slug === this.selectedPlanSlug);
-                if (newPlan) {
-                    this.currentPlanName = newPlan.name;
+                // Если бэкенд вернул обновленную цену за день, применяем её
+                if (response.data.tax_per_day !== undefined) {
+                    this.localTaxPerDay = response.data.tax_per_day;
+                }
+
+                // Синхронизируем с глобальным объектом
+                if (window.Tenant) {
+                    window.Tenant.plan_slug = this.localPlanSlug;
+                    if (response.data.tax_per_day !== undefined) {
+                        window.Tenant.tax_per_day = this.localTaxPerDay;
+                    }
                 }
 
                 this.$notify?.({title: 'Успех', text: 'Тарифный план успешно изменен', type: 'success'});
@@ -274,6 +284,7 @@ export default {
                 this.isSubmitting = false;
             }
         },
+
         pluralize(count, one, two, five) {
             const n = Math.abs(count) % 100;
             const n1 = n % 10;
@@ -282,7 +293,7 @@ export default {
             if (n1 === 1) return one;
             return five;
         },
-        // Утилита форматирования цены
+
         formatPrice(price) {
             if (!price && price !== 0) return '0 ₽';
             return new Intl.NumberFormat('ru-RU').format(price) + ' ₽';
@@ -294,23 +305,11 @@ export default {
 <style lang="scss" scoped>
 $primary: #3b82f6;
 $primary-hover: #2563eb;
-$bg-card: #ffffff;
-$border: #e2e8f0;
+$success: #10b981;
 $text: #0f172a;
 $text-muted: #64748b;
-
-$success: #10b981;
-$success-light: #ecfdf5;
-$bg-secondary: #f8fafc;
-$primary: #3b82f6;
-$primary-light: #eff6ff;
-$text: #1f2937;
-$text-muted: #6b7280;
-$admin-text-muted: #6b7280;
-$border: #e5e7eb;
-$bg: #ffffff;
-$admin-bg: #ffffff;
-
+$border: #e2e8f0;
+$bg-card: #ffffff;
 
 .billing-card {
     background: $bg-card;
@@ -469,7 +468,6 @@ $admin-bg: #ffffff;
     gap: 12px;
 }
 
-// Сетка тарифов
 .plans-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -560,7 +558,6 @@ $admin-bg: #ffffff;
     text-transform: uppercase;
 }
 
-// Формы и кнопки в модалках
 .form-group {
     margin-bottom: 20px;
 
@@ -631,7 +628,6 @@ $admin-bg: #ffffff;
     }
 }
 
-// Анимации
 .modal-fade-enter-active, .modal-fade-leave-active {
     transition: opacity 0.25s ease;
 }

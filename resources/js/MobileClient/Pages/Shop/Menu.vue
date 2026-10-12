@@ -238,7 +238,7 @@
 
             <!-- ===== АДМИНКА (только для админов) ===== -->
             <template v-if="isAdmin">
-                <AdminBillingCard/>
+                <AdminBillingCard />
 
                 <div class="admin-section-header mt-4 mb-3">
                     <AppDivider icon="fa-solid fa-screwdriver-wrench" text="Админ-панель" class="flex-grow-1 m-0" />
