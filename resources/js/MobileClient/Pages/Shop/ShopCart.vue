@@ -236,7 +236,89 @@
             </div>
         </template>
 
-        <!-- 5. МОДАЛКА ОШИБКИ МИНИМАЛЬНОЙ СУММЫ -->
+        <!-- 5. ПОДТВЕРЖДЕНИЕ ЗАКАЗА ПЕРЕД ОПЛАТОЙ / ОФОРМЛЕНИЕМ -->
+        <transition name="order-confirm">
+            <div
+                v-if="showOrderConfirm"
+                class="order-confirm-overlay"
+                @click.self="cancelOrderConfirmation"
+            >
+                <div class="order-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="order-confirm-title">
+                    <div class="order-confirm-header">
+                        <div class="order-confirm-icon">
+                            <i class="fa-solid fa-clipboard-check"></i>
+                        </div>
+                        <h3 id="order-confirm-title">Проверьте заказ</h3>
+                        <p>Перед продолжением убедитесь, что всё указано верно</p>
+                    </div>
+
+                    <div class="order-confirm-body">
+                        <div class="order-confirm-row">
+                            <div class="order-confirm-label">
+                                <i class="fa-solid fa-location-dot"></i>
+                                <span>Адрес доставки</span>
+                            </div>
+                            <div class="order-confirm-value address">
+                                {{ confirmationAddress }}
+                            </div>
+                        </div>
+
+                        <div class="order-confirm-divider"></div>
+
+                        <div class="order-confirm-row">
+                            <span class="order-confirm-label">
+                                <i class="fa-solid fa-basket-shopping"></i>
+                                <span>Товары</span>
+                            </span>
+                            <strong>{{ formatPrice(cartTotalPrice) }} ₽</strong>
+                        </div>
+
+                        <div class="order-confirm-row">
+                            <span class="order-confirm-label">
+                                <i class="fa-solid fa-truck"></i>
+                                <span>Доставка</span>
+                            </span>
+                            <strong>{{ formatPrice(deliveryForm.delivery_price || 0) }} ₽</strong>
+                        </div>
+
+                        <div class="order-confirm-divider"></div>
+
+                        <div class="order-confirm-total">
+                            <span>Итого к оплате</span>
+                            <strong>{{ formatPrice(totalToPay) }} ₽</strong>
+                        </div>
+
+                        <div class="order-confirm-payment">
+                            <i class="fa-solid fa-wallet"></i>
+                            <span>Способ оплаты: <strong>{{ confirmationPaymentLabel }}</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="order-confirm-actions">
+                        <button
+                            type="button"
+                            class="order-confirm-btn confirm"
+                            :disabled="sending"
+                            @click="confirmOrder"
+                        >
+                            <i class="fa-solid fa-check"></i>
+                            <span>Всё верно, продолжить</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="order-confirm-btn cancel"
+                            :disabled="sending"
+                            @click="cancelOrderConfirmation"
+                        >
+                            <i class="fa-solid fa-arrow-left"></i>
+                            <span>Нет, вернуться в корзину</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- 6. МОДАЛКА ОШИБКИ МИНИМАЛЬНОЙ СУММЫ -->
         <transition name="min-order-error">
             <div v-if="showMinOrderError" class="min-order-error-overlay" @click.self="closeMinOrderError">
                 <div class="min-order-error-modal">
@@ -520,6 +602,9 @@ export default {
             // 🆕 Данные для модалки минимальной суммы
             showMinOrderError: false,
             minOrderErrors: [],
+
+            // Подтверждение итоговой суммы и адреса перед созданием заказа
+            showOrderConfirm: false,
         };
     },
 
@@ -532,8 +617,44 @@ export default {
         },
 
         totalToPay() {
-            // 🆕 Защита от конкатенации строк
+            // Защита от конкатенации строк
             return Number(this.cartTotalPrice || 0) + Number(this.deliveryForm.delivery_price || 0);
+        },
+
+        confirmationAddress() {
+            const form = this.deliveryForm || {};
+
+            if (form.need_pickup) {
+                return form.address || form.cdek?.to?.address || 'Самовывоз';
+            }
+
+            if (form.address && String(form.address).trim()) {
+                return String(form.address).trim();
+            }
+
+            const parts = [
+                form.city,
+                form.street,
+                form.building ? `д. ${form.building}` : null,
+                form.flat_number ? `кв. ${form.flat_number}` : null,
+                form.entrance_number ? `подъезд ${form.entrance_number}` : null,
+                form.floor_number ? `этаж ${form.floor_number}` : null,
+            ].filter(value => value !== null && value !== undefined && String(value).trim() !== '');
+
+            if (parts.length) return parts.join(', ');
+
+            if (form.cdek?.to?.address) return form.cdek.to.address;
+
+            return 'Адрес не указан';
+        },
+
+        confirmationPaymentLabel() {
+            const type = Number(this.deliveryForm.payment_type);
+
+            if (type === 4) return 'СБП';
+            if (type === 3) return 'Наличные';
+            if (this.deliveryForm.cash) return 'Наличные';
+            return 'Выбранный способ оплаты';
         },
 
         visibleSteps() {
@@ -649,7 +770,7 @@ export default {
 
 
         goToOrderChat(){
-          this.$router.push({name:'ChatList'})
+            this.$router.push({name:'ChatList'})
         },
         formatPrice(value) {
             if (!value && value !== 0) return '0';
@@ -705,10 +826,19 @@ export default {
             }
 
             if (label === 'Оплата') {
-                if (this.deliveryForm.payment_type === 2) {
+                if (Number(this.deliveryForm.payment_type) === 2) {
                     this.currentStep = 3;
                     return;
                 }
+
+                // СБП и наличные: сначала подтверждаем адрес и итоговую сумму.
+                // Запрос на создание заказа выполняется только после подтверждения.
+                const paymentType = Number(this.deliveryForm.payment_type);
+                if (paymentType === 4 || paymentType === 3) {
+                    this.showOrderConfirm = true;
+                    return;
+                }
+
                 this.startCheckout();
                 return;
             }
@@ -730,6 +860,20 @@ export default {
                 return;
             }
         },
+        confirmOrder() {
+            if (this.sending || !this.showOrderConfirm) return;
+
+            this.showOrderConfirm = false;
+            this.startCheckout();
+        },
+
+        cancelOrderConfirmation() {
+            if (this.sending) return;
+
+            this.showOrderConfirm = false;
+            this.currentStep = 0;
+        },
+
         goToCatalog() {
             this.$router.push({name: 'Catalog'})
         },
@@ -1888,4 +2032,235 @@ $card-bg: #ffffff;
     .success-title { font-size: 1.2rem; }
     .success-btn { font-size: 0.85rem; padding: 11px 16px; }
 }
+
+
+/* ==========================================
+   ПОДТВЕРЖДЕНИЕ ЗАКАЗА
+   ========================================== */
+.order-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10010;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.68);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+}
+
+.order-confirm-modal {
+    width: 100%;
+    max-width: 440px;
+    max-height: min(90vh, 720px);
+    overflow-y: auto;
+    border-radius: 22px;
+    background: var(--bs-body-bg, #fff);
+    color: var(--bs-body-color, #1f2937);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+    animation: orderConfirmIn 0.25s ease-out;
+}
+
+@keyframes orderConfirmIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.order-confirm-header {
+    padding: 24px 22px 18px;
+    text-align: center;
+    background: var(--bs-secondary-bg, #f8fafc);
+    border-bottom: 1px solid var(--bs-border-color, #e5e7eb);
+
+    h3 {
+        margin: 12px 0 5px;
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--bs-body-color, #1f2937);
+    }
+
+    p {
+        margin: 0;
+        color: var(--bs-secondary-color, #6b7280);
+        font-size: 0.85rem;
+        line-height: 1.45;
+    }
+}
+
+.order-confirm-icon {
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    border-radius: 17px;
+    color: var(--bs-primary, #3b82f6);
+    background: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.12);
+    font-size: 1.45rem;
+}
+
+.order-confirm-body {
+    padding: 20px 22px 16px;
+}
+
+.order-confirm-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 0;
+
+    > strong {
+        flex: 0 0 auto;
+        font-size: 0.95rem;
+        font-weight: 750;
+        white-space: nowrap;
+    }
+}
+
+.order-confirm-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--bs-secondary-color, #6b7280);
+    font-size: 0.88rem;
+
+    i {
+        width: 17px;
+        color: var(--bs-primary, #3b82f6);
+        text-align: center;
+    }
+}
+
+.order-confirm-value.address {
+    max-width: 62%;
+    text-align: right;
+    font-size: 0.9rem;
+    font-weight: 650;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.order-confirm-divider {
+    height: 1px;
+    margin: 10px 0;
+    background: var(--bs-border-color, #e5e7eb);
+}
+
+.order-confirm-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0 12px;
+    font-size: 1rem;
+    font-weight: 750;
+
+    strong {
+        color: var(--bs-primary, #3b82f6);
+        font-size: 1.35rem;
+        white-space: nowrap;
+    }
+}
+
+.order-confirm-payment {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 12px;
+    border-radius: 11px;
+    background: var(--bs-secondary-bg, #f8fafc);
+    color: var(--bs-secondary-color, #6b7280);
+    font-size: 0.83rem;
+
+    > i {
+        color: var(--bs-primary, #3b82f6);
+    }
+
+    strong {
+        color: var(--bs-body-color, #1f2937);
+    }
+}
+
+.order-confirm-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 0 22px 22px;
+}
+
+.order-confirm-btn {
+    width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 12px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+
+    &:active:not(:disabled) {
+        transform: scale(0.98);
+    }
+
+    &:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    &.confirm {
+        color: #fff;
+        background: var(--bs-primary, #3b82f6);
+        box-shadow: 0 5px 14px rgba(var(--bs-primary-rgb, 59, 130, 246), 0.25);
+    }
+
+    &.cancel {
+        color: var(--bs-body-color, #374151);
+        background: var(--bs-secondary-bg, #f3f4f6);
+        border: 1px solid var(--bs-border-color, #e5e7eb);
+    }
+}
+
+.order-confirm-enter-active,
+.order-confirm-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.order-confirm-enter-from,
+.order-confirm-leave-to {
+    opacity: 0;
+}
+
+@media (max-width: 576px) {
+    .order-confirm-overlay {
+        align-items: flex-end;
+        padding: 10px;
+    }
+
+    .order-confirm-modal {
+        max-width: none;
+        max-height: 88vh;
+        border-radius: 20px 20px 16px 16px;
+    }
+
+    .order-confirm-header {
+        padding: 20px 18px 16px;
+    }
+
+    .order-confirm-body {
+        padding: 16px 18px 14px;
+    }
+
+    .order-confirm-actions {
+        padding: 0 18px 18px;
+    }
+}
+
 </style>
