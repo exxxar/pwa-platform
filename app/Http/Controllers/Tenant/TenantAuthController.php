@@ -221,7 +221,7 @@ class TenantAuthController extends Controller
 
     public function handler(
         Request $request, // 🆕 Добавляем Request
-                $tenant,
+        string $tenant,
         ChatService $chatService,
         BasketService $basketService,
         ProductService $productService
