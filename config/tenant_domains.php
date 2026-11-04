@@ -8,6 +8,8 @@ return [
     'domain_mapping' => [
         // Пример: когда приходит запрос на fastoran.ru, мы отдаем тенанта с slug 'fastoran'
         'fastoran.ru' => 'fastoran',
+        'фасторан.рф' => 'fastoran',
+        'xn--80aa3bckehn.xn--p1ai' => 'fastoran',
         'www.fastoran.ru' => 'fastoran', // Обязательно добавляем www-версию
         'bolshoyjohn.ru' => 'bigjohn', // Обязательно добавляем www-версию
         'www.bolshoyjohn.ru' => 'bigjohn', // Обязательно добавляем www-версию
@@ -24,6 +26,8 @@ return [
      */
     'system_domains' => [
         'mypwa.ru',
+        'фасторан.рф',
+        'xn--80aa3bckehn.xn--p1ai',
         // Основные домены приложения (лендинг, админка, API и т.д.)
         'example.com',
         'www.example.com',
